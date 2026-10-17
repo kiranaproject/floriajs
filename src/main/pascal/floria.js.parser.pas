@@ -1,0 +1,920 @@
+{ ************************************************************************** }
+{                                                                          }
+{   Floria JS (floriajs) — Pratt Precedence & Recursive Descent Parser     }
+{                                                                          }
+{   Parses token streams into an Abstract Syntax Tree (AST) for JavaScript }
+{   and declarative QML-style component expressions.                       }
+{                                                                          }
+{   Copyright (c) 2026 Dio Affriza                                         }
+{   SPDX-License-Identifier: MPL-2.0                                       }
+{                                                                          }
+{ ************************************************************************** }
+
+unit floria.js.parser;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, floria.js.types, floria.js.lexer, floria.js.ast;
+
+const
+  { Operator Precedence Levels }
+  PREC_NONE           = 0;
+  PREC_ASSIGNMENT     = 1;  { = += -= *= /= %= }
+  PREC_CONDITIONAL    = 2;  { ? : }
+  PREC_NULLISH        = 3;  { ?? }
+  PREC_LOGICAL_OR     = 4;  { || }
+  PREC_LOGICAL_AND    = 5;  { && }
+  PREC_BIT_OR         = 6;  { | }
+  PREC_BIT_XOR        = 7;  { ^ }
+  PREC_BIT_AND        = 8;  { & }
+  PREC_EQUALITY       = 9;  { == != === !== }
+  PREC_RELATIONAL     = 10; { < <= > >= in instanceof }
+  PREC_SHIFT          = 11; { << >> >>> }
+  PREC_ADDITIVE       = 12; { + - }
+  PREC_MULTIPLICATIVE = 13; { * / % }
+  PREC_EXPONENTIATION = 14; { ** }
+  PREC_UNARY          = 15; { ! ~ + - typeof delete ++ -- }
+  PREC_POSTFIX        = 16; { ++ -- }
+  PREC_CALL           = 17; { () [] . }
+
+type
+  { TFloriaJSParser — Fast Pratt Precedence & Recursive-Descent Parser }
+  TFloriaJSParser = class
+  private
+    FLexer: TFloriaJSLexer;
+    FOwnsLexer: Boolean;
+    FCurrent: TFloriaJSToken;
+    FPrevious: TFloriaJSToken;
+    FErrors: TStringList;
+
+    procedure Advance();
+    function  Check(AKind: TFloriaJSTokenKind): Boolean;
+    function  Match(AKind: TFloriaJSTokenKind): Boolean;
+    function  Consume(AKind: TFloriaJSTokenKind; const AErrorMessage: string): Boolean;
+    function  IsAtEnd(): Boolean;
+    procedure ErrorAtCurrent(const AMessage: string);
+    procedure Synchronize();
+
+    { Expression Pratt Parsing }
+    function  GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
+    function  ParsePrecedence(APrec: Integer): TFloriaJSExprNode;
+    function  ParsePrimary(): TFloriaJSExprNode;
+    function  ParseUnaryPrefix(): TFloriaJSExprNode;
+    function  ParseArrayLiteral(): TFloriaJSExprNode;
+    function  ParseObjectLiteral(): TFloriaJSExprNode;
+    function  ParseFunctionExpr(): TFloriaJSExprNode;
+
+    { Statements & Declarations }
+    function  ParseStatement(): TFloriaJSStmtNode;
+    function  ParseDeclaration(): TFloriaJSStmtNode;
+    function  ParseVarDeclaration(AKind: TFloriaJSTokenKind): TFloriaJSVarStmt;
+    function  ParseFunctionDeclaration(): TFloriaJSFunctionDecl;
+    function  ParseIfStatement(): TFloriaJSIfStmt;
+    function  ParseWhileStatement(): TFloriaJSWhileStmt;
+    function  ParseDoWhileStatement(): TFloriaJSWhileStmt;
+    function  ParseForStatement(): TFloriaJSForStmt;
+    function  ParseBlockStatement(): TFloriaJSBlockStmt;
+    function  ParseReturnStatement(): TFloriaJSReturnStmt;
+    function  ParseBreakStatement(): TFloriaJSBreakStmt;
+    function  ParseContinueStatement(): TFloriaJSContinueStmt;
+    function  ParseExpressionStatement(): TFloriaJSExprStmt;
+    procedure ParseQMLBody(AComp: TFloriaJSQMLComponent);
+
+  public
+    constructor Create(const ASource: string);
+    constructor Create(ALexer: TFloriaJSLexer);
+    destructor Destroy(); override;
+
+    function  ParseProgram(): TFloriaJSProgram;
+    function  ParseExpression(): TFloriaJSExprNode;
+    function  ParseQMLComponent(): TFloriaJSQMLComponent;
+
+    function  HasErrors(): Boolean;
+    function  GetErrorCount(): Integer;
+    function  GetError(AIndex: Integer): string;
+
+    property Errors: TStringList read FErrors;
+  end;
+
+implementation
+
+{ TFloriaJSParser }
+
+constructor TFloriaJSParser.Create(const ASource: string);
+begin
+  inherited Create();
+  FLexer := TFloriaJSLexer.Create(ASource);
+  FOwnsLexer := True;
+  FErrors := TStringList.Create();
+  Advance();
+end;
+
+constructor TFloriaJSParser.Create(ALexer: TFloriaJSLexer);
+begin
+  inherited Create();
+  FLexer := ALexer;
+  FOwnsLexer := False;
+  FErrors := TStringList.Create();
+  Advance();
+end;
+
+destructor TFloriaJSParser.Destroy();
+begin
+  FreeAndNil(FErrors);
+  if FOwnsLexer then
+    FreeAndNil(FLexer);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSParser.Advance();
+begin
+  FPrevious := FCurrent;
+  while True do
+  begin
+    FCurrent := FLexer.NextToken();
+    if FCurrent.Kind <> tkError then
+      Break;
+    ErrorAtCurrent(FCurrent.Text);
+  end;
+end;
+
+function TFloriaJSParser.Check(AKind: TFloriaJSTokenKind): Boolean;
+begin
+  Result := (FCurrent.Kind = AKind);
+end;
+
+function TFloriaJSParser.Match(AKind: TFloriaJSTokenKind): Boolean;
+begin
+  if not Check(AKind) then
+    Exit(False);
+  Advance();
+  Result := True;
+end;
+
+function TFloriaJSParser.Consume(AKind: TFloriaJSTokenKind; const AErrorMessage: string): Boolean;
+begin
+  if Check(AKind) then
+  begin
+    Advance();
+    Exit(True);
+  end;
+  ErrorAtCurrent(AErrorMessage);
+  Result := False;
+end;
+
+function TFloriaJSParser.IsAtEnd(): Boolean;
+begin
+  Result := (FCurrent.Kind = tkEOF);
+end;
+
+procedure TFloriaJSParser.ErrorAtCurrent(const AMessage: string);
+var
+  errMsg: string;
+begin
+  errMsg := Format('[Line %d, Col %d] Error: %s', [FCurrent.Line, FCurrent.Column, AMessage]);
+  FErrors.Add(errMsg);
+end;
+
+procedure TFloriaJSParser.Synchronize();
+begin
+  Advance();
+  while not IsAtEnd() do
+  begin
+    if FPrevious.Kind = tkSemicolon then
+      Exit;
+    case FCurrent.Kind of
+      tkFunction, tkVar, tkLet, tkConst, tkFor, tkIf, tkWhile, tkReturn:
+        Exit;
+    else
+      Advance();
+    end;
+  end;
+end;
+
+function TFloriaJSParser.HasErrors(): Boolean;
+begin
+  Result := (FErrors <> nil) and (FErrors.Count > 0);
+end;
+
+function TFloriaJSParser.GetErrorCount(): Integer;
+begin
+  if FErrors <> nil then
+    Result := FErrors.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSParser.GetError(AIndex: Integer): string;
+begin
+  if (FErrors <> nil) and (AIndex >= 0) and (AIndex < FErrors.Count) then
+    Result := FErrors[AIndex]
+  else
+    Result := '';
+end;
+
+{ Precedence Table }
+
+function TFloriaJSParser.GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
+begin
+  case AKind of
+    tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign:
+      Result := PREC_ASSIGNMENT;
+    tkQuestion:
+      Result := PREC_CONDITIONAL;
+    tkNullish:
+      Result := PREC_NULLISH;
+    tkOr:
+      Result := PREC_LOGICAL_OR;
+    tkAnd:
+      Result := PREC_LOGICAL_AND;
+    tkBitOr:
+      Result := PREC_BIT_OR;
+    tkBitXor:
+      Result := PREC_BIT_XOR;
+    tkBitAnd:
+      Result := PREC_BIT_AND;
+    tkEqual, tkStrictEqual, tkNotEqual, tkStrictNotEqual:
+      Result := PREC_EQUALITY;
+    tkLessThan, tkLessEqual, tkGreaterThan, tkGreaterEqual, tkIn, tkInstanceof:
+      Result := PREC_RELATIONAL;
+    tkShiftLeft, tkShiftRight, tkShiftRightUnsigned:
+      Result := PREC_SHIFT;
+    tkPlus, tkMinus:
+      Result := PREC_ADDITIVE;
+    tkMultiply, tkDivide, tkModulo:
+      Result := PREC_MULTIPLICATIVE;
+    tkPower:
+      Result := PREC_EXPONENTIATION;
+    tkPlusPlus, tkMinusMinus:
+      Result := PREC_POSTFIX;
+    tkLParen, tkDot, tkLBracket:
+      Result := PREC_CALL;
+  else
+    Result := PREC_NONE;
+  end;
+end;
+
+{ Expression Parsing }
+
+function TFloriaJSParser.ParsePrimary(): TFloriaJSExprNode;
+var
+  tok: TFloriaJSToken;
+  expr: TFloriaJSExprNode;
+begin
+  tok := FCurrent;
+
+  { Literals }
+  if Match(tkNumber) then
+    Exit(TFloriaJSLiteralExpr.CreateNumber(tok.NumberValue, tok.Line, tok.Column));
+
+  if Match(tkString) or Match(tkTemplateString) then
+    Exit(TFloriaJSLiteralExpr.CreateString(tok.Text, tok.Line, tok.Column));
+
+  if Match(tkTrue) then
+    Exit(TFloriaJSLiteralExpr.CreateBoolean(True, tok.Line, tok.Column));
+
+  if Match(tkFalse) then
+    Exit(TFloriaJSLiteralExpr.CreateBoolean(False, tok.Line, tok.Column));
+
+  if Match(tkNull) then
+    Exit(TFloriaJSLiteralExpr.CreateNull(tok.Line, tok.Column));
+
+  if Match(tkUndefined) then
+    Exit(TFloriaJSLiteralExpr.CreateUndefined(tok.Line, tok.Column));
+
+  { Identifier }
+  if Match(tkIdentifier) then
+    Exit(TFloriaJSIdentifierExpr.Create(tok.Text, tok.Line, tok.Column));
+
+  { Array Literal }
+  if Match(tkLBracket) then
+    Exit(ParseArrayLiteral());
+
+  { Object Literal }
+  if Match(tkLBrace) then
+    Exit(ParseObjectLiteral());
+
+  { Function Expression }
+  if Match(tkFunction) then
+    Exit(ParseFunctionExpr());
+
+  { Parenthesized Grouping or Arrow function }
+  if Match(tkLParen) then
+  begin
+    expr := ParseExpression();
+    Consume(tkRParen, 'Expected '')'' after expression');
+    Exit(expr);
+  end;
+
+  ErrorAtCurrent('Expected expression');
+  Advance();
+  Result := TFloriaJSLiteralExpr.CreateUndefined(tok.Line, tok.Column);
+end;
+
+function TFloriaJSParser.ParseUnaryPrefix(): TFloriaJSExprNode;
+var
+  op: TFloriaJSToken;
+  operand: TFloriaJSExprNode;
+begin
+  op := FCurrent;
+  Advance();
+  operand := ParsePrecedence(PREC_UNARY);
+  Result := TFloriaJSUnaryExpr.Create(op.Kind, operand, True, op.Line, op.Column);
+end;
+
+function TFloriaJSParser.ParseArrayLiteral(): TFloriaJSExprNode;
+var
+  arr: TFloriaJSArrayExpr;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+  arr := TFloriaJSArrayExpr.Create(startLine, startCol);
+
+  if not Check(tkRBracket) then
+  begin
+    repeat
+      if Check(tkRBracket) then
+        Break;
+      arr.AddElement(ParseExpression());
+    until not Match(tkComma);
+  end;
+
+  Consume(tkRBracket, 'Expected '']'' after array elements');
+  Result := arr;
+end;
+
+function TFloriaJSParser.ParseObjectLiteral(): TFloriaJSExprNode;
+var
+  obj: TFloriaJSObjectExpr;
+  startLine, startCol: Integer;
+  propKey: string;
+  propVal: TFloriaJSExprNode;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+  obj := TFloriaJSObjectExpr.Create(startLine, startCol);
+
+  if not Check(tkRBrace) then
+  begin
+    repeat
+      if Check(tkRBrace) then
+        Break;
+
+      if Match(tkIdentifier) or Match(tkString) then
+        propKey := FPrevious.Text
+      else
+      begin
+        ErrorAtCurrent('Expected property key identifier or string literal in object literal');
+        Break;
+      end;
+
+      Consume(tkColon, 'Expected '':'' after object property key');
+      propVal := ParseExpression();
+      obj.AddProperty(propKey, propVal);
+    until not Match(tkComma);
+  end;
+
+  Consume(tkRBrace, 'Expected ''}'' after object literal');
+  Result := obj;
+end;
+
+function TFloriaJSParser.ParseFunctionExpr(): TFloriaJSExprNode;
+var
+  fnName: string;
+  fnExpr: TFloriaJSFunctionExpr;
+  startLine, startCol: Integer;
+  bodyStmt: TFloriaJSStmtNode;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  if Match(tkIdentifier) then
+    fnName := FPrevious.Text
+  else
+    fnName := '';
+
+  fnExpr := TFloriaJSFunctionExpr.Create(fnName, False, startLine, startCol);
+  Consume(tkLParen, 'Expected ''('' after function name/keyword');
+
+  if not Check(tkRParen) then
+  begin
+    repeat
+      if Match(tkIdentifier) then
+        fnExpr.AddParameter(FPrevious.Text)
+      else
+      begin
+        ErrorAtCurrent('Expected parameter name');
+        Break;
+      end;
+    until not Match(tkComma);
+  end;
+
+  Consume(tkRParen, 'Expected '')'' after parameters');
+  bodyStmt := ParseBlockStatement();
+  fnExpr.SetBody(bodyStmt);
+  Result := fnExpr;
+end;
+
+function TFloriaJSParser.ParsePrecedence(APrec: Integer): TFloriaJSExprNode;
+var
+  left: TFloriaJSExprNode;
+  op: TFloriaJSToken;
+  prec, nextPrec: Integer;
+  right: TFloriaJSExprNode;
+  consequent, alternate: TFloriaJSExprNode;
+  callExpr: TFloriaJSCallExpr;
+  memberPropName: string;
+  computedProp: TFloriaJSExprNode;
+begin
+  { Prefix parsing }
+  if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete] then
+    left := ParseUnaryPrefix()
+  else
+    left := ParsePrimary();
+
+  { Infix parsing }
+  while not IsAtEnd() do
+  begin
+    prec := GetInfixPrecedence(FCurrent.Kind);
+    if prec < APrec then
+      Break;
+
+    op := FCurrent;
+    Advance();
+
+    case op.Kind of
+      { Function Call: (arg1, arg2) }
+      tkLParen:
+      begin
+        callExpr := TFloriaJSCallExpr.Create(left, op.Line, op.Column);
+        if not Check(tkRParen) then
+        begin
+          repeat
+            if Check(tkRParen) then
+              Break;
+            callExpr.AddArgument(ParseExpression());
+          until not Match(tkComma);
+        end;
+        Consume(tkRParen, 'Expected '')'' after argument list');
+        left := callExpr;
+      end;
+
+      { Member Access: obj.prop }
+      tkDot:
+      begin
+        if Match(tkIdentifier) then
+          memberPropName := FPrevious.Text
+        else
+        begin
+          ErrorAtCurrent('Expected property name after ''.''');
+          memberPropName := '';
+        end;
+        left := TFloriaJSMemberExpr.CreateNamed(left, memberPropName, op.Line, op.Column);
+      end;
+
+      { Computed Member: obj[expr] }
+      tkLBracket:
+      begin
+        computedProp := ParseExpression();
+        Consume(tkRBracket, 'Expected '']'' after computed property accessor');
+        left := TFloriaJSMemberExpr.CreateComputed(left, computedProp, op.Line, op.Column);
+      end;
+
+      { Conditional Ternary: cond ? consequent : alternate }
+      tkQuestion:
+      begin
+        consequent := ParseExpression();
+        Consume(tkColon, 'Expected '':'' in ternary conditional expression');
+        alternate := ParsePrecedence(PREC_CONDITIONAL);
+        left := TFloriaJSConditionalExpr.Create(left, consequent, alternate, op.Line, op.Column);
+      end;
+
+      { Assignment Operators: =, +=, -=, etc. }
+      tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign:
+      begin
+        right := ParsePrecedence(PREC_ASSIGNMENT);
+        left := TFloriaJSAssignExpr.Create(left, op.Kind, right, op.Line, op.Column);
+      end;
+
+      { Arrow Function: x => expr }
+      tkArrow:
+      begin
+        right := ParsePrecedence(PREC_ASSIGNMENT);
+        callExpr := nil; { placeholder }
+        left := TFloriaJSBinaryExpr.Create(left, op.Kind, right, op.Line, op.Column);
+      end;
+
+      { Postfix Increment / Decrement: x++, x-- }
+      tkPlusPlus, tkMinusMinus:
+      begin
+        left := TFloriaJSUnaryExpr.Create(op.Kind, left, False, op.Line, op.Column);
+      end;
+
+    else
+      { Standard Binary Infix Operators }
+      if op.Kind = tkPower then
+        nextPrec := prec { Exponentiation is right-associative }
+      else
+        nextPrec := prec + 1;
+
+      right := ParsePrecedence(nextPrec);
+      left := TFloriaJSBinaryExpr.Create(left, op.Kind, right, op.Line, op.Column);
+    end;
+  end;
+
+  Result := left;
+end;
+
+function TFloriaJSParser.ParseExpression(): TFloriaJSExprNode;
+begin
+  Result := ParsePrecedence(PREC_ASSIGNMENT);
+end;
+
+{ Statement Parsing }
+
+function TFloriaJSParser.ParseDeclaration(): TFloriaJSStmtNode;
+begin
+  if Match(tkLet) then
+    Result := ParseVarDeclaration(tkLet)
+  else if Match(tkConst) then
+    Result := ParseVarDeclaration(tkConst)
+  else if Match(tkVar) then
+    Result := ParseVarDeclaration(tkVar)
+  else if Match(tkFunction) then
+    Result := ParseFunctionDeclaration()
+  else
+    Result := ParseStatement();
+end;
+
+function TFloriaJSParser.ParseVarDeclaration(AKind: TFloriaJSTokenKind): TFloriaJSVarStmt;
+var
+  varStmt: TFloriaJSVarStmt;
+  startLine, startCol: Integer;
+  declName: string;
+  declInit: TFloriaJSExprNode;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+  varStmt := TFloriaJSVarStmt.Create(AKind, startLine, startCol);
+
+  repeat
+    if Match(tkIdentifier) then
+      declName := FPrevious.Text
+    else
+    begin
+      ErrorAtCurrent('Expected variable name');
+      Break;
+    end;
+
+    if Match(tkAssign) then
+      declInit := ParseExpression()
+    else
+      declInit := nil;
+
+    varStmt.AddDeclarator(declName, declInit);
+  until not Match(tkComma);
+
+  Match(tkSemicolon); { Optional semicolon }
+  Result := varStmt;
+end;
+
+function TFloriaJSParser.ParseFunctionDeclaration(): TFloriaJSFunctionDecl;
+var
+  fnName: string;
+  fnDecl: TFloriaJSFunctionDecl;
+  startLine, startCol: Integer;
+  bodyBlock: TFloriaJSBlockStmt;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  if Match(tkIdentifier) then
+    fnName := FPrevious.Text
+  else
+  begin
+    ErrorAtCurrent('Expected function name');
+    fnName := 'anonymous';
+  end;
+
+  fnDecl := TFloriaJSFunctionDecl.Create(fnName, startLine, startCol);
+  Consume(tkLParen, 'Expected ''('' after function name');
+
+  if not Check(tkRParen) then
+  begin
+    repeat
+      if Match(tkIdentifier) then
+        fnDecl.AddParameter(FPrevious.Text)
+      else
+      begin
+        ErrorAtCurrent('Expected parameter name');
+        Break;
+      end;
+    until not Match(tkComma);
+  end;
+
+  Consume(tkRParen, 'Expected '')'' after function parameter list');
+  bodyBlock := ParseBlockStatement();
+  fnDecl.SetBody(bodyBlock);
+  Result := fnDecl;
+end;
+
+function TFloriaJSParser.ParseStatement(): TFloriaJSStmtNode;
+begin
+  if Match(tkIf) then
+    Result := ParseIfStatement()
+  else if Match(tkWhile) then
+    Result := ParseWhileStatement()
+  else if Match(tkDo) then
+    Result := ParseDoWhileStatement()
+  else if Match(tkFor) then
+    Result := ParseForStatement()
+  else if Match(tkReturn) then
+    Result := ParseReturnStatement()
+  else if Match(tkBreak) then
+    Result := ParseBreakStatement()
+  else if Match(tkContinue) then
+    Result := ParseContinueStatement()
+  else if Check(tkLBrace) then
+    Result := ParseBlockStatement()
+  else
+    Result := ParseExpressionStatement();
+end;
+
+function TFloriaJSParser.ParseIfStatement(): TFloriaJSIfStmt;
+var
+  cond: TFloriaJSExprNode;
+  consequent, alternate: TFloriaJSStmtNode;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  Consume(tkLParen, 'Expected ''('' after ''if''');
+  cond := ParseExpression();
+  Consume(tkRParen, 'Expected '')'' after if condition');
+
+  consequent := ParseStatement();
+  if Match(tkElse) then
+    alternate := ParseStatement()
+  else
+    alternate := nil;
+
+  Result := TFloriaJSIfStmt.Create(cond, consequent, alternate, startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseWhileStatement(): TFloriaJSWhileStmt;
+var
+  cond: TFloriaJSExprNode;
+  body: TFloriaJSStmtNode;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  Consume(tkLParen, 'Expected ''('' after ''while''');
+  cond := ParseExpression();
+  Consume(tkRParen, 'Expected '')'' after while condition');
+
+  body := ParseStatement();
+  Result := TFloriaJSWhileStmt.Create(cond, body, False, startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseDoWhileStatement(): TFloriaJSWhileStmt;
+var
+  body: TFloriaJSStmtNode;
+  cond: TFloriaJSExprNode;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  body := ParseStatement();
+  Consume(tkWhile, 'Expected ''while'' after ''do'' statement body');
+  Consume(tkLParen, 'Expected ''('' after ''while''');
+  cond := ParseExpression();
+  Consume(tkRParen, 'Expected '')'' after do-while condition');
+  Match(tkSemicolon);
+
+  Result := TFloriaJSWhileStmt.Create(cond, body, True, startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseForStatement(): TFloriaJSForStmt;
+var
+  init: TFloriaJSASTNode;
+  test, update: TFloriaJSExprNode;
+  body: TFloriaJSStmtNode;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  Consume(tkLParen, 'Expected ''('' after ''for''');
+
+  { Initializer }
+  if Match(tkSemicolon) then
+    init := nil
+  else if Match(tkLet) then
+    init := ParseVarDeclaration(tkLet)
+  else if Match(tkVar) then
+    init := ParseVarDeclaration(tkVar)
+  else
+  begin
+    init := ParseExpressionStatement();
+  end;
+
+  { Condition }
+  if Match(tkSemicolon) then
+    test := nil
+  else
+  begin
+    test := ParseExpression();
+    Consume(tkSemicolon, 'Expected '';'' after for loop condition');
+  end;
+
+  { Update }
+  if Match(tkRParen) then
+    update := nil
+  else
+  begin
+    update := ParseExpression();
+    Consume(tkRParen, 'Expected '')'' after for loop update clause');
+  end;
+
+  body := ParseStatement();
+  Result := TFloriaJSForStmt.Create(init, test, update, body, startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseBlockStatement(): TFloriaJSBlockStmt;
+var
+  block: TFloriaJSBlockStmt;
+  startLine, startCol: Integer;
+begin
+  Consume(tkLBrace, 'Expected ''{'' at start of block');
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+  block := TFloriaJSBlockStmt.Create(startLine, startCol);
+
+  while (not Check(tkRBrace)) and (not IsAtEnd()) do
+  begin
+    block.AddStatement(ParseDeclaration());
+  end;
+
+  Consume(tkRBrace, 'Expected ''}'' after block');
+  Result := block;
+end;
+
+function TFloriaJSParser.ParseReturnStatement(): TFloriaJSReturnStmt;
+var
+  arg: TFloriaJSExprNode;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  if (not Check(tkSemicolon)) and (not Check(tkRBrace)) and (not IsAtEnd()) then
+    arg := ParseExpression()
+  else
+    arg := nil;
+
+  Match(tkSemicolon);
+  Result := TFloriaJSReturnStmt.Create(arg, startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseBreakStatement(): TFloriaJSBreakStmt;
+var
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+  Match(tkSemicolon);
+  Result := TFloriaJSBreakStmt.Create(startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseContinueStatement(): TFloriaJSContinueStmt;
+var
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+  Match(tkSemicolon);
+  Result := TFloriaJSContinueStmt.Create(startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseExpressionStatement(): TFloriaJSExprStmt;
+var
+  expr: TFloriaJSExprNode;
+  startLine, startCol: Integer;
+begin
+  startLine := FCurrent.Line;
+  startCol := FCurrent.Column;
+  expr := ParseExpression();
+  Match(tkSemicolon);
+  Result := TFloriaJSExprStmt.Create(expr, startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseProgram(): TFloriaJSProgram;
+var
+  prog: TFloriaJSProgram;
+begin
+  prog := TFloriaJSProgram.Create(FCurrent.Line, FCurrent.Column);
+  while not IsAtEnd() do
+  begin
+    prog.AddStatement(ParseDeclaration());
+  end;
+  Result := prog;
+end;
+
+{ Declarative QML-style Component Parsing }
+
+procedure TFloriaJSParser.ParseQMLBody(AComp: TFloriaJSQMLComponent);
+var
+  propName, sigName: string;
+  propExpr: TFloriaJSExprNode;
+  sigHandler: TFloriaJSStmtNode;
+  childComp: TFloriaJSQMLComponent;
+begin
+  while (not Check(tkRBrace)) and (not IsAtEnd()) do
+  begin
+    if Match(tkIdentifier) then
+    begin
+      propName := FPrevious.Text;
+
+      // Check if it is a child component definition: ChildType { ... }
+      if Check(tkLBrace) then
+      begin
+        childComp := TFloriaJSQMLComponent.Create(propName, FPrevious.Line, FPrevious.Column);
+        Advance(); // Consume '{'
+        ParseQMLBody(childComp);
+        Consume(tkRBrace, 'Expected closing brace for child component');
+        AComp.AddChild(childComp);
+        Continue;
+      end;
+
+      // Signal handler: onClicked: { count += 1; }
+      if (Length(propName) > 2) and (Copy(propName, 1, 2) = 'on') and Check(tkColon) then
+      begin
+        Advance(); // Consume ':'
+        sigName := propName;
+        if Check(tkLBrace) then
+          sigHandler := ParseBlockStatement()
+        else
+          sigHandler := ParseStatement();
+        AComp.AddSignal(sigName, sigHandler);
+        Match(tkSemicolon);
+        Continue;
+      end;
+
+      // Regular property binding: prop: expr;
+      Consume(tkColon, 'Expected '':'' after property name');
+      propExpr := ParseExpression();
+      Match(tkSemicolon);
+
+      if propName = 'id' then
+      begin
+        if propExpr is TFloriaJSIdentifierExpr then
+          AComp.Id := TFloriaJSIdentifierExpr(propExpr).Name
+        else if propExpr is TFloriaJSLiteralExpr then
+          AComp.Id := TFloriaJSLiteralExpr(propExpr).StringVal;
+        propExpr.Free();
+      end
+      else
+        AComp.AddProperty(propName, propExpr);
+    end
+    else
+    begin
+      ErrorAtCurrent('Expected property, signal, or child component inside ' + AComp.ComponentType);
+      Advance();
+    end;
+  end;
+end;
+
+function TFloriaJSParser.ParseQMLComponent(): TFloriaJSQMLComponent;
+var
+  compName: string;
+  comp: TFloriaJSQMLComponent;
+  startLine, startCol: Integer;
+begin
+  startLine := FCurrent.Line;
+  startCol := FCurrent.Column;
+
+  if not Match(tkIdentifier) then
+  begin
+    ErrorAtCurrent('Expected QML component type name (e.g. Rectangle, Item, Button)');
+    Exit(nil);
+  end;
+
+  compName := FPrevious.Text;
+  comp := TFloriaJSQMLComponent.Create(compName, startLine, startCol);
+
+  Consume(tkLBrace, 'Expected ''{'' after component name');
+  ParseQMLBody(comp);
+  Consume(tkRBrace, 'Expected ''}'' closing component');
+
+  Result := comp;
+end;
+
+end.

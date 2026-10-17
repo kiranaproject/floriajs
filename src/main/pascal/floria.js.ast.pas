@@ -1,0 +1,1337 @@
+{ ************************************************************************** }
+{                                                                          }
+{   Floria JS (floriajs) — Abstract Syntax Tree (AST)                      }
+{                                                                          }
+{   Defines AST node classes representing JavaScript expressions,          }
+{   statements, and declarative QML-style component hierarchies.           }
+{                                                                          }
+{   Copyright (c) 2026 Dio Affriza                                         }
+{   SPDX-License-Identifier: MPL-2.0                                       }
+{                                                                          }
+{ ************************************************************************** }
+
+unit floria.js.ast;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, floria.js.lexer, floria.js.types;
+
+type
+  { Forward Declarations }
+  TFloriaJSASTNode = class;
+  TFloriaJSExprNode = class;
+  TFloriaJSStmtNode = class;
+  IFloriaJSASTVisitor = interface;
+
+  { Base AST Node }
+  TFloriaJSASTNode = class
+  private
+    FLine: Integer;
+    FColumn: Integer;
+  public
+    constructor Create(ALine, AColumn: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); virtual; abstract;
+
+    property Line: Integer read FLine write FLine;
+    property Column: Integer read FColumn write FColumn;
+  end;
+
+  { Base Expression Node }
+  TFloriaJSExprNode = class(TFloriaJSASTNode)
+  end;
+
+  { Base Statement Node }
+  TFloriaJSStmtNode = class(TFloriaJSASTNode)
+  end;
+
+  { ────────────────────────────────────────────────────────────────────────── }
+  { Expressions                                                                }
+  { ────────────────────────────────────────────────────────────────────────── }
+
+  { Literal: numbers, strings, booleans, null, undefined }
+  TFloriaJSLiteralExpr = class(TFloriaJSExprNode)
+  private
+    FValueType: TFloriaJSType;
+    FStringVal: string;
+    FNumberVal: Double;
+    FBoolVal: Boolean;
+  public
+    constructor CreateNumber(ANum: Double; ALine, ACol: Integer);
+    constructor CreateString(const AStr: string; ALine, ACol: Integer);
+    constructor CreateBoolean(ABool: Boolean; ALine, ACol: Integer);
+    constructor CreateNull(ALine, ACol: Integer);
+    constructor CreateUndefined(ALine, ACol: Integer);
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property ValueType: TFloriaJSType read FValueType;
+    property StringVal: string read FStringVal;
+    property NumberVal: Double read FNumberVal;
+    property BoolVal: Boolean read FBoolVal;
+  end;
+
+  { Identifier / Variable Reference }
+  TFloriaJSIdentifierExpr = class(TFloriaJSExprNode)
+  private
+    FName: string;
+  public
+    constructor Create(const AName: string; ALine, ACol: Integer);
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Name: string read FName write FName;
+  end;
+
+  { Unary Expression: +x, -x, !x, ~x, ++x, --x, x++, x--, typeof x, delete x }
+  TFloriaJSUnaryExpr = class(TFloriaJSExprNode)
+  private
+    FOperator: TFloriaJSTokenKind;
+    FOperand: TFloriaJSExprNode;
+    FIsPrefix: Boolean;
+  public
+    constructor Create(AOp: TFloriaJSTokenKind; AOperand: TFloriaJSExprNode; AIsPrefix: Boolean; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Op: TFloriaJSTokenKind read FOperator;
+    property OpKind: TFloriaJSTokenKind read FOperator;
+    property Operand: TFloriaJSExprNode read FOperand;
+    property IsPrefix: Boolean read FIsPrefix;
+  end;
+
+  { Binary Expression: a + b, a * b, a === b, a && b, etc. }
+  TFloriaJSBinaryExpr = class(TFloriaJSExprNode)
+  private
+    FLeft: TFloriaJSExprNode;
+    FOperator: TFloriaJSTokenKind;
+    FRight: TFloriaJSExprNode;
+  public
+    constructor Create(ALeft: TFloriaJSExprNode; AOp: TFloriaJSTokenKind; ARight: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Left: TFloriaJSExprNode read FLeft;
+    property Op: TFloriaJSTokenKind read FOperator;
+    property OpKind: TFloriaJSTokenKind read FOperator;
+    property Right: TFloriaJSExprNode read FRight;
+  end;
+
+  { Conditional / Ternary Expression: cond ? expr1 : expr2 }
+  TFloriaJSConditionalExpr = class(TFloriaJSExprNode)
+  private
+    FCondition: TFloriaJSExprNode;
+    FConsequent: TFloriaJSExprNode;
+    FAlternate: TFloriaJSExprNode;
+  public
+    constructor Create(ACond, AConsequent, AAlternate: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Condition: TFloriaJSExprNode read FCondition;
+    property Consequent: TFloriaJSExprNode read FConsequent;
+    property Alternate: TFloriaJSExprNode read FAlternate;
+  end;
+
+  { Assignment Expression: a = b, a += b, etc. }
+  TFloriaJSAssignExpr = class(TFloriaJSExprNode)
+  private
+    FTarget: TFloriaJSExprNode;
+    FOperator: TFloriaJSTokenKind;
+    FValue: TFloriaJSExprNode;
+  public
+    constructor Create(ATarget: TFloriaJSExprNode; AOp: TFloriaJSTokenKind; AValue: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Target: TFloriaJSExprNode read FTarget;
+    property Op: TFloriaJSTokenKind read FOperator;
+    property OpKind: TFloriaJSTokenKind read FOperator;
+    property Value: TFloriaJSExprNode read FValue;
+  end;
+
+  { Member Expression: obj.prop or obj[prop] }
+  TFloriaJSMemberExpr = class(TFloriaJSExprNode)
+  private
+    FTarget: TFloriaJSExprNode;
+    FPropertyExpr: TFloriaJSExprNode;
+    FPropertyName: string;
+    FComputed: Boolean;
+  public
+    constructor CreateNamed(ATarget: TFloriaJSExprNode; const APropName: string; ALine, ACol: Integer);
+    constructor CreateComputed(ATarget, APropExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Target: TFloriaJSExprNode read FTarget;
+    property PropertyExpr: TFloriaJSExprNode read FPropertyExpr;
+    property PropertyName: string read FPropertyName;
+    property Computed: Boolean read FComputed;
+  end;
+
+  { Call Expression: func(a, b, c) }
+  TFloriaJSCallExpr = class(TFloriaJSExprNode)
+  private
+    FCallee: TFloriaJSExprNode;
+    FArguments: TFPList;
+  public
+    constructor Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddArgument(AArg: TFloriaJSExprNode);
+    function  GetArgumentCount(): Integer;
+    function  GetArgument(AIndex: Integer): TFloriaJSExprNode;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Callee: TFloriaJSExprNode read FCallee;
+    property Arguments: TFPList read FArguments;
+  end;
+
+  { Array Literal: [1, 2, 3] }
+  TFloriaJSArrayExpr = class(TFloriaJSExprNode)
+  private
+    FElements: TFPList;
+  public
+    constructor Create(ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddElement(AElem: TFloriaJSExprNode);
+    function  GetElementCount(): Integer;
+    function  GetElement(AIndex: Integer): TFloriaJSExprNode;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Elements: TFPList read FElements;
+  end;
+
+  // Object Literal Property Entry
+  TFloriaJSPropertyEntry = record
+    Key: string;
+    Value: TFloriaJSExprNode;
+  end;
+
+  // Object Literal: { a: 1, b: "hello" }
+  TFloriaJSObjectExpr = class(TFloriaJSExprNode)
+  private
+    FProperties: array of TFloriaJSPropertyEntry;
+    FCount: Integer;
+  public
+    constructor Create(ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddProperty(const AKey: string; AValue: TFloriaJSExprNode);
+    function  GetPropertyCount(): Integer;
+    function  GetPropertyKey(AIndex: Integer): string;
+    function  GetPropertyValue(AIndex: Integer): TFloriaJSExprNode;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+  end;
+
+  // Function / Arrow Expression: function(a, b) { ... } or (a, b) => expr
+  TFloriaJSFunctionExpr = class(TFloriaJSExprNode)
+  private
+    FName: string;
+    FParameters: TStringList;
+    FBody: TFloriaJSStmtNode;
+    FIsArrow: Boolean;
+  public
+    constructor Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddParameter(const AParamName: string);
+    procedure SetBody(ABody: TFloriaJSStmtNode);
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Name: string read FName write FName;
+    property Parameters: TStringList read FParameters;
+    property Body: TFloriaJSStmtNode read FBody;
+    property IsArrow: Boolean read FIsArrow;
+  end;
+
+  { ────────────────────────────────────────────────────────────────────────── }
+  { Statements                                                                 }
+  { ────────────────────────────────────────────────────────────────────────── }
+
+  { Expression Statement: expr; }
+  TFloriaJSExprStmt = class(TFloriaJSStmtNode)
+  private
+    FExpression: TFloriaJSExprNode;
+  public
+    constructor Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Expression: TFloriaJSExprNode read FExpression;
+  end;
+
+  { Variable Declarator: name = init }
+  TFloriaJSVarDeclarator = record
+    Name: string;
+    Initializer: TFloriaJSExprNode;
+  end;
+
+  { Variable Statement: let / const / var a = 1, b = 2; }
+  TFloriaJSVarStmt = class(TFloriaJSStmtNode)
+  private
+    FKind: TFloriaJSTokenKind; { tkLet, tkConst, tkVar }
+    FDeclarators: array of TFloriaJSVarDeclarator;
+    FCount: Integer;
+  public
+    constructor Create(AKind: TFloriaJSTokenKind; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddDeclarator(const AName: string; AInit: TFloriaJSExprNode);
+    function  GetDeclaratorCount(): Integer;
+    function  GetDeclaratorName(AIndex: Integer): string;
+    function  GetDeclaratorInit(AIndex: Integer): TFloriaJSExprNode;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Kind: TFloriaJSTokenKind read FKind;
+  end;
+
+  // Block Statement: { stmt1; stmt2; }
+  TFloriaJSBlockStmt = class(TFloriaJSStmtNode)
+  private
+    FStatements: TFPList;
+  public
+    constructor Create(ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddStatement(AStmt: TFloriaJSStmtNode);
+    function  GetStatementCount(): Integer;
+    function  GetStatement(AIndex: Integer): TFloriaJSStmtNode;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Statements: TFPList read FStatements;
+  end;
+
+  { If Statement: if (cond) thenStmt else elseStmt }
+  TFloriaJSIfStmt = class(TFloriaJSStmtNode)
+  private
+    FCondition: TFloriaJSExprNode;
+    FConsequent: TFloriaJSStmtNode;
+    FAlternate: TFloriaJSStmtNode;
+  public
+    constructor Create(ACond: TFloriaJSExprNode; AConsequent: TFloriaJSStmtNode; AAlternate: TFloriaJSStmtNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Condition: TFloriaJSExprNode read FCondition;
+    property Consequent: TFloriaJSStmtNode read FConsequent;
+    property Alternate: TFloriaJSStmtNode read FAlternate;
+  end;
+
+  { Return Statement: return expr; }
+  TFloriaJSReturnStmt = class(TFloriaJSStmtNode)
+  private
+    FArgument: TFloriaJSExprNode;
+  public
+    constructor Create(AArg: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Argument: TFloriaJSExprNode read FArgument;
+  end;
+
+  { While & Do-While Loop: while (cond) stmt; or do stmt while (cond); }
+  TFloriaJSWhileStmt = class(TFloriaJSStmtNode)
+  private
+    FCondition: TFloriaJSExprNode;
+    FBody: TFloriaJSStmtNode;
+    FIsDoWhile: Boolean;
+  public
+    constructor Create(ACond: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; AIsDoWhile: Boolean; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Condition: TFloriaJSExprNode read FCondition;
+    property Body: TFloriaJSStmtNode read FBody;
+    property IsDoWhile: Boolean read FIsDoWhile;
+  end;
+
+  { For Loop: for (init; test; update) body }
+  TFloriaJSForStmt = class(TFloriaJSStmtNode)
+  private
+    FInit: TFloriaJSASTNode; { May be VarStmt or ExprStmt or nil }
+    FTest: TFloriaJSExprNode;
+    FUpdate: TFloriaJSExprNode;
+    FBody: TFloriaJSStmtNode;
+  public
+    constructor Create(AInit: TFloriaJSASTNode; ATest, AUpdate: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Init: TFloriaJSASTNode read FInit;
+    property Test: TFloriaJSExprNode read FTest;
+    property Update: TFloriaJSExprNode read FUpdate;
+    property Body: TFloriaJSStmtNode read FBody;
+  end;
+
+  { Break Statement: break; }
+  TFloriaJSBreakStmt = class(TFloriaJSStmtNode)
+  public
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+  end;
+
+  { Continue Statement: continue; }
+  TFloriaJSContinueStmt = class(TFloriaJSStmtNode)
+  public
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+  end;
+
+  // Function Declaration: function foo(a, b) { ... }
+  TFloriaJSFunctionDecl = class(TFloriaJSStmtNode)
+  private
+    FName: string;
+    FParameters: TStringList;
+    FBody: TFloriaJSBlockStmt;
+  public
+    constructor Create(const AName: string; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddParameter(const AParamName: string);
+    procedure SetBody(ABody: TFloriaJSBlockStmt);
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Name: string read FName;
+    property Parameters: TStringList read FParameters;
+    property Body: TFloriaJSBlockStmt read FBody;
+  end;
+
+  { Program / Script Root: Collection of top-level statements }
+  TFloriaJSProgram = class(TFloriaJSASTNode)
+  private
+    FStatements: TFPList;
+  public
+    constructor Create(ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddStatement(AStmt: TFloriaJSStmtNode);
+    function  GetStatementCount(): Integer;
+    function  GetStatement(AIndex: Integer): TFloriaJSStmtNode;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Statements: TFPList read FStatements;
+  end;
+
+  { ────────────────────────────────────────────────────────────────────────── }
+  { Declarative / QML Component Node (QML Readiness)                           }
+  { ────────────────────────────────────────────────────────────────────────── }
+
+  { Declarative Property Binding: width: parent.width - 20 }
+  TFloriaJSQMLProperty = record
+    Name: string;
+    Expression: TFloriaJSExprNode;
+  end;
+
+  // Declarative Signal Handler: onClicked: { count += 1; }
+  TFloriaJSQMLSignal = record
+    SignalName: string;
+    Handler: TFloriaJSStmtNode;
+  end;
+
+  // Declarative Component: Rectangle { width: 100; ... }
+  TFloriaJSQMLComponent = class(TFloriaJSASTNode)
+  private
+    FComponentType: string;
+    FId: string;
+    FProperties: array of TFloriaJSQMLProperty;
+    FPropCount: Integer;
+    FSignals: array of TFloriaJSQMLSignal;
+    FSignalCount: Integer;
+    FChildren: TFPList;
+  public
+    constructor Create(const AComponentType: string; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddProperty(const AName: string; AExpr: TFloriaJSExprNode);
+    procedure AddSignal(const ASignalName: string; AHandler: TFloriaJSStmtNode);
+    procedure AddChild(AChild: TFloriaJSQMLComponent);
+
+    function  GetPropertyCount(): Integer;
+    function  GetPropertyName(AIndex: Integer): string;
+    function  GetPropertyExpr(AIndex: Integer): TFloriaJSExprNode;
+
+    function  GetSignalCount(): Integer;
+    function  GetSignalName(AIndex: Integer): string;
+    function  GetSignalHandler(AIndex: Integer): TFloriaJSStmtNode;
+
+    function  GetChildCount(): Integer;
+    function  GetChild(AIndex: Integer): TFloriaJSQMLComponent;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property ComponentType: string read FComponentType write FComponentType;
+    property Id: string read FId write FId;
+  end;
+
+  { ────────────────────────────────────────────────────────────────────────── }
+  { Visitor Interface                                                          }
+  { ────────────────────────────────────────────────────────────────────────── }
+
+  IFloriaJSASTVisitor = interface
+    ['{B9D90618-97F7-410A-9EC2-8E3D78A86CA8}']
+    procedure VisitLiteral(ANode: TFloriaJSLiteralExpr);
+    procedure VisitIdentifier(ANode: TFloriaJSIdentifierExpr);
+    procedure VisitUnary(ANode: TFloriaJSUnaryExpr);
+    procedure VisitBinary(ANode: TFloriaJSBinaryExpr);
+    procedure VisitConditional(ANode: TFloriaJSConditionalExpr);
+    procedure VisitAssign(ANode: TFloriaJSAssignExpr);
+    procedure VisitMember(ANode: TFloriaJSMemberExpr);
+    procedure VisitCall(ANode: TFloriaJSCallExpr);
+    procedure VisitArray(ANode: TFloriaJSArrayExpr);
+    procedure VisitObject(ANode: TFloriaJSObjectExpr);
+    procedure VisitFunctionExpr(ANode: TFloriaJSFunctionExpr);
+
+    procedure VisitExprStmt(ANode: TFloriaJSExprStmt);
+    procedure VisitVarStmt(ANode: TFloriaJSVarStmt);
+    procedure VisitBlockStmt(ANode: TFloriaJSBlockStmt);
+    procedure VisitIfStmt(ANode: TFloriaJSIfStmt);
+    procedure VisitReturnStmt(ANode: TFloriaJSReturnStmt);
+    procedure VisitWhileStmt(ANode: TFloriaJSWhileStmt);
+    procedure VisitForStmt(ANode: TFloriaJSForStmt);
+    procedure VisitBreakStmt(ANode: TFloriaJSBreakStmt);
+    procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
+    procedure VisitFunctionDecl(ANode: TFloriaJSFunctionDecl);
+    procedure VisitProgram(ANode: TFloriaJSProgram);
+    procedure VisitQMLComponent(ANode: TFloriaJSQMLComponent);
+  end;
+
+implementation
+
+{ TFloriaJSASTNode }
+
+constructor TFloriaJSASTNode.Create(ALine, AColumn: Integer);
+begin
+  inherited Create();
+  FLine := ALine;
+  FColumn := AColumn;
+end;
+
+destructor TFloriaJSASTNode.Destroy();
+begin
+  inherited Destroy();
+end;
+
+{ TFloriaJSLiteralExpr }
+
+constructor TFloriaJSLiteralExpr.CreateNumber(ANum: Double; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FValueType := fjstNumber;
+  FNumberVal := ANum;
+  FStringVal := '';
+  FBoolVal := False;
+end;
+
+constructor TFloriaJSLiteralExpr.CreateString(const AStr: string; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FValueType := fjstString;
+  FStringVal := AStr;
+  FNumberVal := 0.0;
+  FBoolVal := False;
+end;
+
+constructor TFloriaJSLiteralExpr.CreateBoolean(ABool: Boolean; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FValueType := fjstBoolean;
+  FBoolVal := ABool;
+  FNumberVal := 0.0;
+  FStringVal := '';
+end;
+
+constructor TFloriaJSLiteralExpr.CreateNull(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FValueType := fjstNull;
+  FStringVal := '';
+  FNumberVal := 0.0;
+  FBoolVal := False;
+end;
+
+constructor TFloriaJSLiteralExpr.CreateUndefined(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FValueType := fjstUndefined;
+  FStringVal := '';
+  FNumberVal := 0.0;
+  FBoolVal := False;
+end;
+
+procedure TFloriaJSLiteralExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitLiteral(Self);
+end;
+
+{ TFloriaJSIdentifierExpr }
+
+constructor TFloriaJSIdentifierExpr.Create(const AName: string; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FName := AName;
+end;
+
+procedure TFloriaJSIdentifierExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitIdentifier(Self);
+end;
+
+{ TFloriaJSUnaryExpr }
+
+constructor TFloriaJSUnaryExpr.Create(AOp: TFloriaJSTokenKind; AOperand: TFloriaJSExprNode; AIsPrefix: Boolean; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FOperator := AOp;
+  FOperand := AOperand;
+  FIsPrefix := AIsPrefix;
+end;
+
+destructor TFloriaJSUnaryExpr.Destroy();
+begin
+  FreeAndNil(FOperand);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSUnaryExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitUnary(Self);
+end;
+
+{ TFloriaJSBinaryExpr }
+
+constructor TFloriaJSBinaryExpr.Create(ALeft: TFloriaJSExprNode; AOp: TFloriaJSTokenKind; ARight: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FLeft := ALeft;
+  FOperator := AOp;
+  FRight := ARight;
+end;
+
+destructor TFloriaJSBinaryExpr.Destroy();
+begin
+  FreeAndNil(FLeft);
+  FreeAndNil(FRight);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSBinaryExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitBinary(Self);
+end;
+
+{ TFloriaJSConditionalExpr }
+
+constructor TFloriaJSConditionalExpr.Create(ACond, AConsequent, AAlternate: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FCondition := ACond;
+  FConsequent := AConsequent;
+  FAlternate := AAlternate;
+end;
+
+destructor TFloriaJSConditionalExpr.Destroy();
+begin
+  FreeAndNil(FCondition);
+  FreeAndNil(FConsequent);
+  FreeAndNil(FAlternate);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSConditionalExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitConditional(Self);
+end;
+
+{ TFloriaJSAssignExpr }
+
+constructor TFloriaJSAssignExpr.Create(ATarget: TFloriaJSExprNode; AOp: TFloriaJSTokenKind; AValue: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FTarget := ATarget;
+  FOperator := AOp;
+  FValue := AValue;
+end;
+
+destructor TFloriaJSAssignExpr.Destroy();
+begin
+  FreeAndNil(FTarget);
+  FreeAndNil(FValue);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSAssignExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitAssign(Self);
+end;
+
+{ TFloriaJSMemberExpr }
+
+constructor TFloriaJSMemberExpr.CreateNamed(ATarget: TFloriaJSExprNode; const APropName: string; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FTarget := ATarget;
+  FPropertyName := APropName;
+  FPropertyExpr := nil;
+  FComputed := False;
+end;
+
+constructor TFloriaJSMemberExpr.CreateComputed(ATarget, APropExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FTarget := ATarget;
+  FPropertyName := '';
+  FPropertyExpr := APropExpr;
+  FComputed := True;
+end;
+
+destructor TFloriaJSMemberExpr.Destroy();
+begin
+  FreeAndNil(FTarget);
+  FreeAndNil(FPropertyExpr);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSMemberExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitMember(Self);
+end;
+
+{ TFloriaJSCallExpr }
+
+constructor TFloriaJSCallExpr.Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FCallee := ACallee;
+  FArguments := TFPList.Create();
+end;
+
+destructor TFloriaJSCallExpr.Destroy();
+var
+  i: Integer;
+begin
+  FreeAndNil(FCallee);
+  if FArguments <> nil then
+  begin
+    for i := FArguments.Count - 1 downto 0 do
+      TFloriaJSExprNode(FArguments[i]).Free();
+    FreeAndNil(FArguments);
+  end;
+  inherited Destroy();
+end;
+
+procedure TFloriaJSCallExpr.AddArgument(AArg: TFloriaJSExprNode);
+begin
+  if (AArg <> nil) and (FArguments <> nil) then
+    FArguments.Add(AArg);
+end;
+
+function TFloriaJSCallExpr.GetArgumentCount(): Integer;
+begin
+  if FArguments <> nil then
+    Result := FArguments.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSCallExpr.GetArgument(AIndex: Integer): TFloriaJSExprNode;
+begin
+  if (FArguments <> nil) and (AIndex >= 0) and (AIndex < FArguments.Count) then
+    Result := TFloriaJSExprNode(FArguments[AIndex])
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSCallExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitCall(Self);
+end;
+
+{ TFloriaJSArrayExpr }
+
+constructor TFloriaJSArrayExpr.Create(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FElements := TFPList.Create();
+end;
+
+destructor TFloriaJSArrayExpr.Destroy();
+var
+  i: Integer;
+begin
+  if FElements <> nil then
+  begin
+    for i := FElements.Count - 1 downto 0 do
+      TFloriaJSExprNode(FElements[i]).Free();
+    FreeAndNil(FElements);
+  end;
+  inherited Destroy();
+end;
+
+procedure TFloriaJSArrayExpr.AddElement(AElem: TFloriaJSExprNode);
+begin
+  if (AElem <> nil) and (FElements <> nil) then
+    FElements.Add(AElem);
+end;
+
+function TFloriaJSArrayExpr.GetElementCount(): Integer;
+begin
+  if FElements <> nil then
+    Result := FElements.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSArrayExpr.GetElement(AIndex: Integer): TFloriaJSExprNode;
+begin
+  if (FElements <> nil) and (AIndex >= 0) and (AIndex < FElements.Count) then
+    Result := TFloriaJSExprNode(FElements[AIndex])
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSArrayExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitArray(Self);
+end;
+
+{ TFloriaJSObjectExpr }
+
+constructor TFloriaJSObjectExpr.Create(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FCount := 0;
+  SetLength(FProperties, 0);
+end;
+
+destructor TFloriaJSObjectExpr.Destroy();
+var
+  i: Integer;
+begin
+  for i := 0 to FCount - 1 do
+    FProperties[i].Value.Free();
+  SetLength(FProperties, 0);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSObjectExpr.AddProperty(const AKey: string; AValue: TFloriaJSExprNode);
+begin
+  if FCount >= Length(FProperties) then
+    SetLength(FProperties, (FCount + 1) * 2);
+  FProperties[FCount].Key := AKey;
+  FProperties[FCount].Value := AValue;
+  Inc(FCount);
+end;
+
+function TFloriaJSObjectExpr.GetPropertyCount(): Integer;
+begin
+  Result := FCount;
+end;
+
+function TFloriaJSObjectExpr.GetPropertyKey(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FProperties[AIndex].Key
+  else
+    Result := '';
+end;
+
+function TFloriaJSObjectExpr.GetPropertyValue(AIndex: Integer): TFloriaJSExprNode;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FProperties[AIndex].Value
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSObjectExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitObject(Self);
+end;
+
+{ TFloriaJSFunctionExpr }
+
+constructor TFloriaJSFunctionExpr.Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FName := AName;
+  FIsArrow := AIsArrow;
+  FParameters := TStringList.Create();
+  FBody := nil;
+end;
+
+destructor TFloriaJSFunctionExpr.Destroy();
+begin
+  FreeAndNil(FParameters);
+  FreeAndNil(FBody);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSFunctionExpr.AddParameter(const AParamName: string);
+begin
+  if FParameters <> nil then
+    FParameters.Add(AParamName);
+end;
+
+procedure TFloriaJSFunctionExpr.SetBody(ABody: TFloriaJSStmtNode);
+begin
+  FreeAndNil(FBody);
+  FBody := ABody;
+end;
+
+procedure TFloriaJSFunctionExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitFunctionExpr(Self);
+end;
+
+{ TFloriaJSExprStmt }
+
+constructor TFloriaJSExprStmt.Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FExpression := AExpr;
+end;
+
+destructor TFloriaJSExprStmt.Destroy();
+begin
+  FreeAndNil(FExpression);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSExprStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitExprStmt(Self);
+end;
+
+{ TFloriaJSVarStmt }
+
+constructor TFloriaJSVarStmt.Create(AKind: TFloriaJSTokenKind; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FKind := AKind;
+  FCount := 0;
+  SetLength(FDeclarators, 0);
+end;
+
+destructor TFloriaJSVarStmt.Destroy();
+var
+  i: Integer;
+begin
+  for i := 0 to FCount - 1 do
+    FDeclarators[i].Initializer.Free();
+  SetLength(FDeclarators, 0);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSVarStmt.AddDeclarator(const AName: string; AInit: TFloriaJSExprNode);
+begin
+  if FCount >= Length(FDeclarators) then
+    SetLength(FDeclarators, (FCount + 1) * 2);
+  FDeclarators[FCount].Name := AName;
+  FDeclarators[FCount].Initializer := AInit;
+  Inc(FCount);
+end;
+
+function TFloriaJSVarStmt.GetDeclaratorCount(): Integer;
+begin
+  Result := FCount;
+end;
+
+function TFloriaJSVarStmt.GetDeclaratorName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FDeclarators[AIndex].Name
+  else
+    Result := '';
+end;
+
+function TFloriaJSVarStmt.GetDeclaratorInit(AIndex: Integer): TFloriaJSExprNode;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FDeclarators[AIndex].Initializer
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSVarStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitVarStmt(Self);
+end;
+
+{ TFloriaJSBlockStmt }
+
+constructor TFloriaJSBlockStmt.Create(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FStatements := TFPList.Create();
+end;
+
+destructor TFloriaJSBlockStmt.Destroy();
+var
+  i: Integer;
+begin
+  if FStatements <> nil then
+  begin
+    for i := FStatements.Count - 1 downto 0 do
+      TFloriaJSStmtNode(FStatements[i]).Free();
+    FreeAndNil(FStatements);
+  end;
+  inherited Destroy();
+end;
+
+procedure TFloriaJSBlockStmt.AddStatement(AStmt: TFloriaJSStmtNode);
+begin
+  if (AStmt <> nil) and (FStatements <> nil) then
+    FStatements.Add(AStmt);
+end;
+
+function TFloriaJSBlockStmt.GetStatementCount(): Integer;
+begin
+  if FStatements <> nil then
+    Result := FStatements.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSBlockStmt.GetStatement(AIndex: Integer): TFloriaJSStmtNode;
+begin
+  if (FStatements <> nil) and (AIndex >= 0) and (AIndex < FStatements.Count) then
+    Result := TFloriaJSStmtNode(FStatements[AIndex])
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSBlockStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitBlockStmt(Self);
+end;
+
+{ TFloriaJSIfStmt }
+
+constructor TFloriaJSIfStmt.Create(ACond: TFloriaJSExprNode; AConsequent: TFloriaJSStmtNode; AAlternate: TFloriaJSStmtNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FCondition := ACond;
+  FConsequent := AConsequent;
+  FAlternate := AAlternate;
+end;
+
+destructor TFloriaJSIfStmt.Destroy();
+begin
+  FreeAndNil(FCondition);
+  FreeAndNil(FConsequent);
+  FreeAndNil(FAlternate);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSIfStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitIfStmt(Self);
+end;
+
+{ TFloriaJSReturnStmt }
+
+constructor TFloriaJSReturnStmt.Create(AArg: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FArgument := AArg;
+end;
+
+destructor TFloriaJSReturnStmt.Destroy();
+begin
+  FreeAndNil(FArgument);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSReturnStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitReturnStmt(Self);
+end;
+
+{ TFloriaJSWhileStmt }
+
+constructor TFloriaJSWhileStmt.Create(ACond: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; AIsDoWhile: Boolean; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FCondition := ACond;
+  FBody := ABody;
+  FIsDoWhile := AIsDoWhile;
+end;
+
+destructor TFloriaJSWhileStmt.Destroy();
+begin
+  FreeAndNil(FCondition);
+  FreeAndNil(FBody);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSWhileStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitWhileStmt(Self);
+end;
+
+{ TFloriaJSForStmt }
+
+constructor TFloriaJSForStmt.Create(AInit: TFloriaJSASTNode; ATest, AUpdate: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FInit := AInit;
+  FTest := ATest;
+  FUpdate := AUpdate;
+  FBody := ABody;
+end;
+
+destructor TFloriaJSForStmt.Destroy();
+begin
+  FreeAndNil(FInit);
+  FreeAndNil(FTest);
+  FreeAndNil(FUpdate);
+  FreeAndNil(FBody);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSForStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitForStmt(Self);
+end;
+
+{ TFloriaJSBreakStmt }
+
+procedure TFloriaJSBreakStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitBreakStmt(Self);
+end;
+
+{ TFloriaJSContinueStmt }
+
+procedure TFloriaJSContinueStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitContinueStmt(Self);
+end;
+
+{ TFloriaJSFunctionDecl }
+
+constructor TFloriaJSFunctionDecl.Create(const AName: string; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FName := AName;
+  FParameters := TStringList.Create();
+  FBody := nil;
+end;
+
+destructor TFloriaJSFunctionDecl.Destroy();
+begin
+  FreeAndNil(FParameters);
+  FreeAndNil(FBody);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSFunctionDecl.AddParameter(const AParamName: string);
+begin
+  if FParameters <> nil then
+    FParameters.Add(AParamName);
+end;
+
+procedure TFloriaJSFunctionDecl.SetBody(ABody: TFloriaJSBlockStmt);
+begin
+  FreeAndNil(FBody);
+  FBody := ABody;
+end;
+
+procedure TFloriaJSFunctionDecl.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitFunctionDecl(Self);
+end;
+
+{ TFloriaJSProgram }
+
+constructor TFloriaJSProgram.Create(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FStatements := TFPList.Create();
+end;
+
+destructor TFloriaJSProgram.Destroy();
+var
+  i: Integer;
+begin
+  if FStatements <> nil then
+  begin
+    for i := FStatements.Count - 1 downto 0 do
+      TFloriaJSStmtNode(FStatements[i]).Free();
+    FreeAndNil(FStatements);
+  end;
+  inherited Destroy();
+end;
+
+procedure TFloriaJSProgram.AddStatement(AStmt: TFloriaJSStmtNode);
+begin
+  if (AStmt <> nil) and (FStatements <> nil) then
+    FStatements.Add(AStmt);
+end;
+
+function TFloriaJSProgram.GetStatementCount(): Integer;
+begin
+  if FStatements <> nil then
+    Result := FStatements.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSProgram.GetStatement(AIndex: Integer): TFloriaJSStmtNode;
+begin
+  if (FStatements <> nil) and (AIndex >= 0) and (AIndex < FStatements.Count) then
+    Result := TFloriaJSStmtNode(FStatements[AIndex])
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSProgram.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitProgram(Self);
+end;
+
+{ TFloriaJSQMLComponent }
+
+constructor TFloriaJSQMLComponent.Create(const AComponentType: string; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FComponentType := AComponentType;
+  FId := '';
+  FPropCount := 0;
+  SetLength(FProperties, 0);
+  FSignalCount := 0;
+  SetLength(FSignals, 0);
+  FChildren := TFPList.Create();
+end;
+
+destructor TFloriaJSQMLComponent.Destroy();
+var
+  i: Integer;
+begin
+  for i := 0 to FPropCount - 1 do
+    FProperties[i].Expression.Free();
+  SetLength(FProperties, 0);
+
+  for i := 0 to FSignalCount - 1 do
+    FSignals[i].Handler.Free();
+  SetLength(FSignals, 0);
+
+  if FChildren <> nil then
+  begin
+    for i := FChildren.Count - 1 downto 0 do
+      TFloriaJSQMLComponent(FChildren[i]).Free();
+    FreeAndNil(FChildren);
+  end;
+  inherited Destroy();
+end;
+
+procedure TFloriaJSQMLComponent.AddProperty(const AName: string; AExpr: TFloriaJSExprNode);
+begin
+  if FPropCount >= Length(FProperties) then
+    SetLength(FProperties, (FPropCount + 1) * 2);
+  FProperties[FPropCount].Name := AName;
+  FProperties[FPropCount].Expression := AExpr;
+  Inc(FPropCount);
+end;
+
+procedure TFloriaJSQMLComponent.AddSignal(const ASignalName: string; AHandler: TFloriaJSStmtNode);
+begin
+  if FSignalCount >= Length(FSignals) then
+    SetLength(FSignals, (FSignalCount + 1) * 2);
+  FSignals[FSignalCount].SignalName := ASignalName;
+  FSignals[FSignalCount].Handler := AHandler;
+  Inc(FSignalCount);
+end;
+
+procedure TFloriaJSQMLComponent.AddChild(AChild: TFloriaJSQMLComponent);
+begin
+  if (AChild <> nil) and (FChildren <> nil) then
+    FChildren.Add(AChild);
+end;
+
+function TFloriaJSQMLComponent.GetPropertyCount(): Integer;
+begin
+  Result := FPropCount;
+end;
+
+function TFloriaJSQMLComponent.GetPropertyName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FPropCount) then
+    Result := FProperties[AIndex].Name
+  else
+    Result := '';
+end;
+
+function TFloriaJSQMLComponent.GetPropertyExpr(AIndex: Integer): TFloriaJSExprNode;
+begin
+  if (AIndex >= 0) and (AIndex < FPropCount) then
+    Result := FProperties[AIndex].Expression
+  else
+    Result := nil;
+end;
+
+function TFloriaJSQMLComponent.GetSignalCount(): Integer;
+begin
+  Result := FSignalCount;
+end;
+
+function TFloriaJSQMLComponent.GetSignalName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FSignalCount) then
+    Result := FSignals[AIndex].SignalName
+  else
+    Result := '';
+end;
+
+function TFloriaJSQMLComponent.GetSignalHandler(AIndex: Integer): TFloriaJSStmtNode;
+begin
+  if (AIndex >= 0) and (AIndex < FSignalCount) then
+    Result := FSignals[AIndex].Handler
+  else
+    Result := nil;
+end;
+
+function TFloriaJSQMLComponent.GetChildCount(): Integer;
+begin
+  if FChildren <> nil then
+    Result := FChildren.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSQMLComponent.GetChild(AIndex: Integer): TFloriaJSQMLComponent;
+begin
+  if (FChildren <> nil) and (AIndex >= 0) and (AIndex < FChildren.Count) then
+    Result := TFloriaJSQMLComponent(FChildren[AIndex])
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSQMLComponent.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitQMLComponent(Self);
+end;
+
+end.
