@@ -1,0 +1,17 @@
+target/
+backup/
+*.ppu
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.log
+*.dcu
+*.bak
+*.or
+*.rsj
+*.s
+*.tmp
+lib/
+examples/hello_floriajs
