@@ -2,8 +2,8 @@
 {                                                                          }
 {   Floria JS (floriajs) — Engine & Execution Context                      }
 {                                                                          }
-{   Provides the core JavaScript runtime and evaluation context classes    }
-{   for the Floria Toolkit ecosystem.                                      }
+{   Provides the core JavaScript runtime, execution context, heap, and     }
+{   script evaluation engine for the Floria Toolkit ecosystem.             }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
 {   SPDX-License-Identifier: MPL-2.0                                       }
@@ -17,7 +17,8 @@ unit floria.js.core;
 interface
 
 uses
-  Classes, SysUtils, floria.js.types;
+  Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.parser,
+  floria.js.value, floria.js.env, floria.js.evaluator, floria.js.stdlib;
 
 type
   { Forward Declarations }
@@ -29,7 +30,12 @@ type
   private
     FEngine: TFloriaJSEngine;
     FName: string;
-    FGlobalVariables: TStringList;
+    FHeap: TFloriaJSHeap;
+    FGlobalEnv: TFloriaJSEnvironment;
+    FEvaluator: TFloriaJSEvaluator;
+    FOutput: TStringList;
+
+    procedure InitContext();
   public
     constructor Create(AEngine: TFloriaJSEngine; const AName: string = 'global');
     destructor Destroy(); override;
@@ -38,11 +44,22 @@ type
     function  GetVariable(const AKey: string): string;
     function  HasVariable(const AKey: string): Boolean;
 
+    procedure SetGlobal(const AName: string; const AValue: TFloriaJSValue);
+    function  GetGlobal(const AName: string): TFloriaJSValue;
+    procedure RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
+    procedure RegisterMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
+
     function  Evaluate(const AScript: string): TFloriaJSResult; virtual;
+    function  EvaluateValue(const AScript: string): TFloriaJSValue; virtual;
+    function  Call(const AFuncName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue; virtual;
+
     procedure Reset(); virtual;
 
     property Engine: TFloriaJSEngine read FEngine;
     property Name: string read FName write FName;
+    property Heap: TFloriaJSHeap read FHeap;
+    property GlobalEnv: TFloriaJSEnvironment read FGlobalEnv;
+    property Output: TStringList read FOutput;
   end;
 
   { TFloriaJSEngine — Main JavaScript Runtime Engine }
@@ -61,6 +78,8 @@ type
     procedure DestroyContext(AContext: TFloriaJSContext);
 
     function  Execute(const AScript: string): TFloriaJSResult; virtual;
+    function  ExecuteValue(const AScript: string): TFloriaJSValue; virtual;
+    procedure RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
 
     property Initialized: Boolean read FInitialized;
     property DefaultContext: TFloriaJSContext read FDefaultContext;
@@ -76,51 +95,136 @@ begin
   inherited Create();
   FEngine := AEngine;
   FName := AName;
-  FGlobalVariables := TStringList.Create();
-  FGlobalVariables.CaseSensitive := True;
+  FOutput := TStringList.Create();
+  FHeap := TFloriaJSHeap.Create();
+  FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil)));
+  FEvaluator := TFloriaJSEvaluator.Create(FHeap);
+
+  InitContext();
 end;
 
 destructor TFloriaJSContext.Destroy();
 begin
-  FreeAndNil(FGlobalVariables);
+  FreeAndNil(FEvaluator);
+  FreeAndNil(FHeap);
+  FGlobalEnv := nil;
+  FreeAndNil(FOutput);
   inherited Destroy();
+end;
+
+procedure TFloriaJSContext.InitContext();
+begin
+  FloriaJSRegisterStdLib(FGlobalEnv, FHeap, FOutput);
 end;
 
 procedure TFloriaJSContext.SetVariable(const AKey, AValue: string);
 begin
-  if FGlobalVariables <> nil then
-    FGlobalVariables.Values[AKey] := AValue;
+  SetGlobal(AKey, JSMakeString(AValue));
 end;
 
 function TFloriaJSContext.GetVariable(const AKey: string): string;
+var
+  v: TFloriaJSValue;
 begin
-  if FGlobalVariables <> nil then
-    Result := FGlobalVariables.Values[AKey]
+  if FGlobalEnv.Get(AKey, v) then
+    Result := v.ToString()
   else
     Result := '';
 end;
 
 function TFloriaJSContext.HasVariable(const AKey: string): Boolean;
 begin
-  if FGlobalVariables <> nil then
-    Result := FGlobalVariables.IndexOfName(AKey) >= 0
-  else
-    Result := False;
+  Result := FGlobalEnv.Has(AKey);
+end;
+
+procedure TFloriaJSContext.SetGlobal(const AName: string; const AValue: TFloriaJSValue);
+begin
+  FGlobalEnv.Define(AName, AValue);
+end;
+
+function TFloriaJSContext.GetGlobal(const AName: string): TFloriaJSValue;
+begin
+  Result := FGlobalEnv.GetDefault(AName, JSMakeUndefined());
+end;
+
+procedure TFloriaJSContext.RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
+var
+  fn: TFloriaJSFunction;
+begin
+  fn := FHeap.NewNativeFunction(AName, AProc);
+  SetGlobal(AName, JSMakeFunction(fn));
+end;
+
+procedure TFloriaJSContext.RegisterMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
+var
+  fn: TFloriaJSFunction;
+begin
+  fn := FHeap.NewNativeMethod(AName, AMethod);
+  SetGlobal(AName, JSMakeFunction(fn));
 end;
 
 function TFloriaJSContext.Evaluate(const AScript: string): TFloriaJSResult;
+var
+  val: TFloriaJSValue;
 begin
   if Length(Trim(AScript)) = 0 then
     Exit(FloriaJSMakeOkResult(''));
 
-  { Starter evaluator: returns script expression or ok result }
-  Result := FloriaJSMakeOkResult(AScript);
+  try
+    val := EvaluateValue(AScript);
+    Result.Success := True;
+    Result.ResultType := val.Kind;
+    Result.StringValue := val.ToString();
+    Result.NumberValue := val.ToNumber();
+    Result.BooleanValue := val.ToBoolean();
+    Result.ErrorMessage := '';
+  except
+    on E: Exception do
+      Result := FloriaJSMakeErrorResult(E.Message);
+  end;
+end;
+
+function TFloriaJSContext.EvaluateValue(const AScript: string): TFloriaJSValue;
+var
+  parser: TFloriaJSParser;
+  prog: TFloriaJSProgram;
+begin
+  if Length(Trim(AScript)) = 0 then
+    Exit(JSMakeUndefined());
+
+  parser := TFloriaJSParser.Create(AScript);
+  try
+    prog := parser.ParseProgram();
+    try
+      if parser.HasErrors() then
+        raise Exception.Create(parser.GetError(0));
+
+      Result := FEvaluator.ExecuteProgram(prog, FGlobalEnv);
+    finally
+      prog.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+end;
+
+function TFloriaJSContext.Call(const AFuncName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
+var
+  fnVal: TFloriaJSValue;
+begin
+  fnVal := GetGlobal(AFuncName);
+  if not fnVal.IsFunction() then
+    Exit(JSMakeUndefined());
+
+  Result := FEvaluator.CallFunction(fnVal, AArgs, JSMakeUndefined());
 end;
 
 procedure TFloriaJSContext.Reset();
 begin
-  if FGlobalVariables <> nil then
-    FGlobalVariables.Clear();
+  FHeap.Clear();
+  FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil)));
+  FOutput.Clear();
+  InitContext();
 end;
 
 { TFloriaJSEngine }
@@ -186,6 +290,20 @@ begin
     Result := FDefaultContext.Evaluate(AScript)
   else
     Result := FloriaJSMakeErrorResult('No active execution context');
+end;
+
+function TFloriaJSEngine.ExecuteValue(const AScript: string): TFloriaJSValue;
+begin
+  if FDefaultContext <> nil then
+    Result := FDefaultContext.EvaluateValue(AScript)
+  else
+    Result := JSMakeUndefined();
+end;
+
+procedure TFloriaJSEngine.RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
+begin
+  if FDefaultContext <> nil then
+    FDefaultContext.RegisterFunction(AName, AProc);
 end;
 
 end.

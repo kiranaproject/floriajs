@@ -12,11 +12,14 @@
 program TestRunner;
 
 {$mode objfpc}{$H+}
+{$modeswitch advancedrecords}
 
 uses
   Classes, SysUtils, Math,
   fpcunit, testregistry, consoletestrunner,
-  floria.js.types, floria.js.lexer, floria.js.core, floriajs;
+  floria.js.types, floria.js.lexer, floria.js.ast, floria.js.parser,
+  floria.js.value, floria.js.env, floria.js.evaluator, floria.js.stdlib,
+  floria.js.core, floriajs;
 
 type
   { Test 1: Core Types & Result Helpers }
@@ -74,6 +77,31 @@ type
     procedure TestFunctionDeclaration();
     procedure TestDeclarativeQMLComponent();
     procedure TestParserErrorHandling();
+  end;
+
+  { Test 6: Value System & Heap Objects }
+  TFloriaJSValueTest = class(TTestCase)
+  published
+    procedure TestPrimitiveValues();
+    procedure TestTypeCoercion();
+    procedure TestObjectProperties();
+    procedure TestArrayOperations();
+    procedure TestBinaryAndUnaryOps();
+  end;
+
+  { Test 7: Runtime AST Evaluator & Host Interop }
+  TFloriaJSEvaluatorTest = class(TTestCase)
+  published
+    procedure TestArithmeticAndLogicalEval();
+    procedure TestVariableScopeAndShadowing();
+    procedure TestConditionalsAndLoops();
+    procedure TestWhileWithBreakAndContinue();
+    procedure TestUserFunctionAndRecursion();
+    procedure TestClosures();
+    procedure TestObjectAndArrayManipulation();
+    procedure TestMathBuiltin();
+    procedure TestPascalHostCallback();
+    procedure TestConsoleCapture();
   end;
 
 { TFloriaJSTypesTest }
@@ -1107,6 +1135,378 @@ begin
   end;
 end;
 
+{ TFloriaJSValueTest }
+
+procedure TFloriaJSValueTest.TestPrimitiveValues();
+var
+  u, n, b, num, s: TFloriaJSValue;
+begin
+  u := JSMakeUndefined();
+  AssertTrue('u is undefined', u.IsUndefined());
+  AssertFalse('u is not truthy', u.IsTruthy());
+
+  n := JSMakeNull();
+  AssertTrue('n is null', n.IsNull());
+  AssertFalse('n is not truthy', n.IsTruthy());
+
+  b := JSMakeBoolean(True);
+  AssertTrue('b is bool', b.IsBoolean());
+  AssertTrue('b is truthy', b.IsTruthy());
+
+  num := JSMakeNumber(42.5);
+  AssertTrue('num is number', num.IsNumber());
+  AssertEquals('num value', 42.5, num.NumVal, 0.0001);
+  AssertTrue('num is truthy', num.IsTruthy());
+
+  num := JSMakeNumber(0.0);
+  AssertFalse('0 is not truthy', num.IsTruthy());
+
+  s := JSMakeString('hello');
+  AssertTrue('s is string', s.IsString());
+  AssertEquals('s text', 'hello', s.StrVal);
+  AssertTrue('s is truthy', s.IsTruthy());
+
+  s := JSMakeString('');
+  AssertFalse('empty string is not truthy', s.IsTruthy());
+end;
+
+procedure TFloriaJSValueTest.TestTypeCoercion();
+begin
+  AssertEquals('undefined to string', 'undefined', JSMakeUndefined().ToString());
+  AssertEquals('null to string', 'null', JSMakeNull().ToString());
+  AssertEquals('true to string', 'true', JSMakeBoolean(True).ToString());
+  AssertEquals('42 to string', '42', JSMakeNumber(42.0).ToString());
+
+  AssertTrue('undefined to number is NaN', IsNaN(JSMakeUndefined().ToNumber()));
+  AssertEquals('null to number is 0', 0.0, JSMakeNull().ToNumber(), 0.0001);
+  AssertEquals('true to number is 1', 1.0, JSMakeBoolean(True).ToNumber(), 0.0001);
+  AssertEquals('false to number is 0', 0.0, JSMakeBoolean(False).ToNumber(), 0.0001);
+  AssertEquals('string "123.5" to number', 123.5, JSMakeString('123.5').ToNumber(), 0.0001);
+  AssertEquals('empty string to number', 0.0, JSMakeString('').ToNumber(), 0.0001);
+end;
+
+procedure TFloriaJSValueTest.TestObjectProperties();
+var
+  heap: TFloriaJSHeap;
+  proto, obj: TFloriaJSObject;
+  keys: TStringList;
+begin
+  heap := TFloriaJSHeap.Create();
+  try
+    proto := heap.NewObject();
+    proto.SetProperty('inheritedProp', JSMakeString('from_proto'));
+
+    obj := heap.NewObject(proto);
+    obj.SetProperty('ownProp', JSMakeNumber(100.0));
+
+    AssertTrue('obj has ownProp', obj.HasProperty('ownProp'));
+    AssertTrue('obj has inheritedProp', obj.HasProperty('inheritedProp'));
+    AssertEquals('ownProp value', 100.0, obj.GetProperty('ownProp').ToNumber(), 0.0001);
+    AssertEquals('inheritedProp value', 'from_proto', obj.GetProperty('inheritedProp').ToString());
+
+    keys := TStringList.Create();
+    try
+      obj.GetKeys(keys);
+      AssertEquals('Own keys count', 1, keys.Count);
+      AssertEquals('Own key is ownProp', 'ownProp', keys[0]);
+    finally
+      keys.Free();
+    end;
+
+    obj.DeleteProperty('ownProp');
+    AssertFalse('ownProp deleted', obj.HasProperty('ownProp'));
+  finally
+    heap.Free();
+  end;
+end;
+
+procedure TFloriaJSValueTest.TestArrayOperations();
+var
+  arr: TFloriaJSArray;
+  val: TFloriaJSValue;
+begin
+  arr := TFloriaJSArray.Create();
+  try
+    arr.Push(JSMakeNumber(10.0));
+    arr.Push(JSMakeNumber(20.0));
+    arr.Push(JSMakeNumber(30.0));
+    AssertEquals('Length is 3', 3, arr.Length());
+    AssertEquals('Join comma', '10,20,30', arr.Join(','));
+
+    val := arr.Pop();
+    AssertEquals('Popped 30', 30.0, val.ToNumber(), 0.0001);
+    AssertEquals('Length is 2', 2, arr.Length());
+
+    arr.Unshift(JSMakeNumber(5.0));
+    AssertEquals('Length is 3 after unshift', 3, arr.Length());
+    AssertEquals('Element 0 is 5', 5.0, arr.GetElement(0).ToNumber(), 0.0001);
+
+    val := arr.Shift();
+    AssertEquals('Shifted 5', 5.0, val.ToNumber(), 0.0001);
+    AssertEquals('Length is 2 after shift', 2, arr.Length());
+  finally
+    arr.Free();
+  end;
+end;
+
+procedure TFloriaJSValueTest.TestBinaryAndUnaryOps();
+begin
+  // Add: string concat vs number add
+  AssertEquals('Number add', 15.0, JSAdd(JSMakeNumber(5), JSMakeNumber(10)).ToNumber(), 0.0001);
+  AssertEquals('String concat', 'foo10', JSAdd(JSMakeString('foo'), JSMakeNumber(10)).ToString());
+
+  // Sub, Mul, Div, Mod, Pow
+  AssertEquals('Subtract', 6.0, JSSubtract(JSMakeNumber(10), JSMakeNumber(4)).ToNumber(), 0.0001);
+  AssertEquals('Multiply', 20.0, JSMultiply(JSMakeNumber(4), JSMakeNumber(5)).ToNumber(), 0.0001);
+  AssertEquals('Divide', 2.5, JSDivide(JSMakeNumber(5), JSMakeNumber(2)).ToNumber(), 0.0001);
+  AssertEquals('Modulo', 1.0, JSModulo(JSMakeNumber(7), JSMakeNumber(3)).ToNumber(), 0.0001);
+  AssertEquals('Power', 8.0, JSPower(JSMakeNumber(2), JSMakeNumber(3)).ToNumber(), 0.0001);
+
+  // Loose & Strict Equality
+  AssertTrue('Loose equal 5 == "5"', JSEqual(JSMakeNumber(5), JSMakeString('5')));
+  AssertFalse('Strict equal 5 === "5"', JSStrictEqual(JSMakeNumber(5), JSMakeString('5')));
+  AssertTrue('null == undefined', JSEqual(JSMakeNull(), JSMakeUndefined()));
+  AssertFalse('null === undefined', JSStrictEqual(JSMakeNull(), JSMakeUndefined()));
+
+  // Bitwise
+  AssertEquals('BitAnd 5 & 3 = 1', 1.0, JSBitAnd(JSMakeNumber(5), JSMakeNumber(3)).ToNumber(), 0.0001);
+  AssertEquals('BitOr 5 | 2 = 7', 7.0, JSBitOr(JSMakeNumber(5), JSMakeNumber(2)).ToNumber(), 0.0001);
+  AssertEquals('BitXor 5 ^ 1 = 4', 4.0, JSBitXor(JSMakeNumber(5), JSMakeNumber(1)).ToNumber(), 0.0001);
+  AssertEquals('ShiftLeft 1 << 3 = 8', 8.0, JSShiftLeft(JSMakeNumber(1), JSMakeNumber(3)).ToNumber(), 0.0001);
+end;
+
+{ TFloriaJSEvaluatorTest }
+
+procedure TFloriaJSEvaluatorTest.TestArithmeticAndLogicalEval();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('1 + 2 * 3;');
+    AssertTrue('1 + 2 * 3 success', res.Success);
+    AssertEquals('1 + 2 * 3 = 7', 7.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('(10 - 4) / 2;');
+    AssertTrue('(10 - 4) / 2 success', res.Success);
+    AssertEquals('(10 - 4) / 2 = 3', 3.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('true && false;');
+    AssertTrue('true && false success', res.Success);
+    AssertFalse('true && false is false', res.BooleanValue);
+
+    res := engine.Execute('null ?? 42;');
+    AssertTrue('null ?? 42 success', res.Success);
+    AssertEquals('null ?? 42 = 42', 42.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestVariableScopeAndShadowing();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let x = 10;' + LineEnding +
+      '{' + LineEnding +
+      '  let x = 20;' + LineEnding +
+      '}' + LineEnding +
+      'x;'
+    );
+    AssertTrue('Scope shadowing success', res.Success);
+    AssertEquals('Outer x remains 10', 10.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestConditionalsAndLoops();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let sum = 0;' + LineEnding +
+      'for (let i = 1; i <= 5; i++) {' + LineEnding +
+      '  sum += i;' + LineEnding +
+      '}' + LineEnding +
+      'sum;'
+    );
+    AssertTrue('For loop sum success', res.Success);
+    AssertEquals('Sum 1..5 is 15', 15.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestWhileWithBreakAndContinue();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let x = 0;' + LineEnding +
+      'while (x < 10) {' + LineEnding +
+      '  x++;' + LineEnding +
+      '  if (x === 5) break;' + LineEnding +
+      '}' + LineEnding +
+      'x;'
+    );
+    AssertTrue('While break success', res.Success);
+    AssertEquals('x broke at 5', 5.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestUserFunctionAndRecursion();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function fib(n) {' + LineEnding +
+      '  if (n <= 1) return n;' + LineEnding +
+      '  return fib(n - 1) + fib(n - 2);' + LineEnding +
+      '}' + LineEnding +
+      'fib(8);'
+    );
+    AssertTrue('Fibonacci recursion success', res.Success);
+    AssertEquals('fib(8) is 21', 21.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestClosures();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function makeCounter() {' + LineEnding +
+      '  let count = 0;' + LineEnding +
+      '  return function() {' + LineEnding +
+      '    count += 1;' + LineEnding +
+      '    return count;' + LineEnding +
+      '  };' + LineEnding +
+      '}' + LineEnding +
+      'let c = makeCounter();' + LineEnding +
+      'c(); c(); c();'
+    );
+    AssertTrue('Closure counter success', res.Success);
+    AssertEquals('Counter invoked 3 times is 3', 3.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestObjectAndArrayManipulation();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let pt = { x: 10, y: 20 };' + LineEnding +
+      'pt.x + pt.y;'
+    );
+    AssertTrue('Object property access success', res.Success);
+    AssertEquals('pt.x + pt.y = 30', 30.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute(
+      'let arr = [10, 20, 30];' + LineEnding +
+      'arr[0] + arr[2] + arr.length;'
+    );
+    AssertTrue('Array index and length success', res.Success);
+    AssertEquals('10 + 30 + 3 = 43', 43.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestMathBuiltin();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('Math.max(10, 50, 25);');
+    AssertTrue('Math.max success', res.Success);
+    AssertEquals('Math.max(10, 50, 25) = 50', 50.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('Math.sqrt(64);');
+    AssertTrue('Math.sqrt success', res.Success);
+    AssertEquals('Math.sqrt(64) = 8', 8.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('Math.PI > 3.14;');
+    AssertTrue('Math.PI comparison success', res.Success);
+    AssertTrue('Math.PI > 3.14 is true', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+function NativeDoubleValue(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) > 0 then
+    Result := JSMakeNumber(AArgs[0].ToNumber() * 2.0)
+  else
+    Result := JSMakeNumber(0.0);
+end;
+
+procedure TFloriaJSEvaluatorTest.TestPascalHostCallback();
+var
+  ctx: TFloriaJSContext;
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    ctx := engine.DefaultContext;
+    ctx.RegisterFunction('doubleVal', @NativeDoubleValue);
+
+    res := ctx.Evaluate('doubleVal(21);');
+    AssertTrue('Host callback execution success', res.Success);
+    AssertEquals('doubleVal(21) = 42', 42.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestConsoleCapture();
+var
+  engine: TFloriaJSEngine;
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    ctx := engine.DefaultContext;
+    res := ctx.Evaluate('console.log("Captured message", 123);');
+    AssertTrue('console.log execution success', res.Success);
+    AssertTrue('Output buffer captured log', ctx.Output.Count > 0);
+    AssertEquals('Output message content', 'Captured message 123', ctx.Output[ctx.Output.Count - 1]);
+  finally
+    engine.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -1116,6 +1516,8 @@ begin
   RegisterTest(TFloriaJSLexerTest);
   RegisterTest(TFloriaJSASTTest);
   RegisterTest(TFloriaJSParserTest);
+  RegisterTest(TFloriaJSValueTest);
+  RegisterTest(TFloriaJSEvaluatorTest);
 
   Application := TTestRunner.Create(nil);
   try

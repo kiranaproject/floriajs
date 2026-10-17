@@ -21,6 +21,10 @@ uses
   floria.js.lexer,
   floria.js.ast,
   floria.js.parser,
+  floria.js.value,
+  floria.js.env,
+  floria.js.evaluator,
+  floria.js.stdlib,
   floria.js.core;
 
 type
@@ -71,6 +75,19 @@ type
   { Parser }
   TFloriaJSParser          = floria.js.parser.TFloriaJSParser;
 
+  { Values, Objects, and Heap }
+  TFloriaJSValue           = floria.js.value.TFloriaJSValue;
+  TFloriaJSObject          = floria.js.value.TFloriaJSObject;
+  TFloriaJSArray           = floria.js.value.TFloriaJSArray;
+  TFloriaJSFunction        = floria.js.value.TFloriaJSFunction;
+  TFloriaJSHeap            = floria.js.value.TFloriaJSHeap;
+  TFloriaJSNativeProc      = floria.js.value.TFloriaJSNativeProc;
+  TFloriaJSNativeMethod    = floria.js.value.TFloriaJSNativeMethod;
+
+  { Environment & Evaluator }
+  TFloriaJSEnvironment     = floria.js.env.TFloriaJSEnvironment;
+  TFloriaJSEvaluator       = floria.js.evaluator.TFloriaJSEvaluator;
+
   { Runtime & Context }
   TFloriaJSContext         = floria.js.core.TFloriaJSContext;
   TFloriaJSEngine          = floria.js.core.TFloriaJSEngine;
@@ -83,6 +100,56 @@ const
   FLORIA_JS_ERROR_TYPE     = floria.js.types.FLORIA_JS_ERROR_TYPE;
   FLORIA_JS_ERROR_TIMEOUT  = floria.js.types.FLORIA_JS_ERROR_TIMEOUT;
 
+{ Value Factory Helpers }
+function JSMakeUndefined(): TFloriaJSValue;
+function JSMakeNull(): TFloriaJSValue;
+function JSMakeBoolean(ABool: Boolean): TFloriaJSValue;
+function JSMakeNumber(ANum: Double): TFloriaJSValue;
+function JSMakeString(const AStr: string): TFloriaJSValue;
+function JSMakeObject(AObj: TFloriaJSObject): TFloriaJSValue;
+function JSMakeArray(AArr: TFloriaJSArray): TFloriaJSValue;
+function JSMakeFunction(AFunc: TFloriaJSFunction): TFloriaJSValue;
+
 implementation
+
+function JSMakeUndefined(): TFloriaJSValue;
+begin
+  Result := floria.js.value.JSMakeUndefined();
+end;
+
+function JSMakeNull(): TFloriaJSValue;
+begin
+  Result := floria.js.value.JSMakeNull();
+end;
+
+function JSMakeBoolean(ABool: Boolean): TFloriaJSValue;
+begin
+  Result := floria.js.value.JSMakeBoolean(ABool);
+end;
+
+function JSMakeNumber(ANum: Double): TFloriaJSValue;
+begin
+  Result := floria.js.value.JSMakeNumber(ANum);
+end;
+
+function JSMakeString(const AStr: string): TFloriaJSValue;
+begin
+  Result := floria.js.value.JSMakeString(AStr);
+end;
+
+function JSMakeObject(AObj: TFloriaJSObject): TFloriaJSValue;
+begin
+  Result := floria.js.value.JSMakeObject(AObj);
+end;
+
+function JSMakeArray(AArr: TFloriaJSArray): TFloriaJSValue;
+begin
+  Result := floria.js.value.JSMakeArray(AArr);
+end;
+
+function JSMakeFunction(AFunc: TFloriaJSFunction): TFloriaJSValue;
+begin
+  Result := floria.js.value.JSMakeFunction(AFunc);
+end;
 
 end.
