@@ -16,3 +16,4 @@ backup/
 lib/
 examples/hello_floriajs
 examples/parse_qml_demo
+examples/reactive_qml_demo

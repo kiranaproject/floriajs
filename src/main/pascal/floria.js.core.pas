@@ -59,6 +59,7 @@ type
     property Name: string read FName write FName;
     property Heap: TFloriaJSHeap read FHeap;
     property GlobalEnv: TFloriaJSEnvironment read FGlobalEnv;
+    property Evaluator: TFloriaJSEvaluator read FEvaluator;
     property Output: TStringList read FOutput;
   end;
 

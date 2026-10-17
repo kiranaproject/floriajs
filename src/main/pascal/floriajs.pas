@@ -25,7 +25,10 @@ uses
   floria.js.env,
   floria.js.evaluator,
   floria.js.stdlib,
-  floria.js.core;
+  floria.js.core,
+  floria.qml.types,
+  floria.qml.binding,
+  floria.qml.engine;
 
 type
   { Core Types & Constants }
@@ -91,6 +94,22 @@ type
   { Runtime & Context }
   TFloriaJSContext         = floria.js.core.TFloriaJSContext;
   TFloriaJSEngine          = floria.js.core.TFloriaJSEngine;
+
+  { Declarative QML Framework }
+  TFloriaQMLItem           = floria.qml.types.TFloriaQMLItem;
+  TFloriaQMLItemClass      = floria.qml.types.TFloriaQMLItemClass;
+  TFloriaQMLRectangle      = floria.qml.types.TFloriaQMLRectangle;
+  TFloriaQMLText           = floria.qml.types.TFloriaQMLText;
+  TFloriaQMLButton         = floria.qml.types.TFloriaQMLButton;
+  TFloriaQMLTextInput      = floria.qml.types.TFloriaQMLTextInput;
+  TFloriaQMLColumn         = floria.qml.types.TFloriaQMLColumn;
+  TFloriaQMLRow            = floria.qml.types.TFloriaQMLRow;
+  IFloriaQMLBindingManager = floria.qml.types.IFloriaQMLBindingManager;
+  IFloriaQMLEngineContext  = floria.qml.types.IFloriaQMLEngineContext;
+
+  TFloriaQMLBinding        = floria.qml.binding.TFloriaQMLBinding;
+  TFloriaQMLBindingManager = floria.qml.binding.TFloriaQMLBindingManager;
+  TFloriaQMLEngine         = floria.qml.engine.TFloriaQMLEngine;
 
 const
   FLORIA_JS_VERSION_STRING = floria.js.types.FLORIA_JS_VERSION_STRING;

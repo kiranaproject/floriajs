@@ -31,6 +31,7 @@ type
   TFloriaJSEnvironment = class
   private
     FParent: TFloriaJSEnvironment;
+    FDelegateObject: TFloriaJSObject;
     FBindings: array of TFloriaJSBinding;
     FBindingCount: Integer;
 
@@ -51,6 +52,7 @@ type
     function  GetBindingValue(AIndex: Integer): TFloriaJSValue;
 
     property Parent: TFloriaJSEnvironment read FParent;
+    property DelegateObject: TFloriaJSObject read FDelegateObject write FDelegateObject;
   end;
 
 implementation
@@ -61,6 +63,7 @@ constructor TFloriaJSEnvironment.Create(AParent: TFloriaJSEnvironment);
 begin
   inherited Create();
   FParent := AParent;
+  FDelegateObject := nil;
   SetLength(FBindings, 0);
   FBindingCount := 0;
 end;
@@ -120,6 +123,12 @@ begin
     Exit(True);
   end;
 
+  if (FDelegateObject <> nil) and (AName <> 'this') and FDelegateObject.HasProperty(AName) then
+  begin
+    FDelegateObject.SetProperty(AName, AValue);
+    Exit(True);
+  end;
+
   if FParent <> nil then
     Exit(FParent.Assign(AName, AValue));
 
@@ -137,6 +146,20 @@ begin
   begin
     AValue := FBindings[idx].Value;
     Exit(True);
+  end;
+
+  if FDelegateObject <> nil then
+  begin
+    if AName = 'this' then
+    begin
+      AValue := JSMakeObject(FDelegateObject);
+      Exit(True);
+    end;
+    if FDelegateObject.HasProperty(AName) then
+    begin
+      AValue := FDelegateObject.GetProperty(AName);
+      Exit(True);
+    end;
   end;
 
   if FParent <> nil then
@@ -160,6 +183,12 @@ function TFloriaJSEnvironment.Has(const AName: string): Boolean;
 begin
   if FindLocalIndex(AName) >= 0 then
     Exit(True);
+
+  if FDelegateObject <> nil then
+  begin
+    if (AName = 'this') or FDelegateObject.HasProperty(AName) then
+      Exit(True);
+  end;
 
   if FParent <> nil then
     Exit(FParent.Has(AName));

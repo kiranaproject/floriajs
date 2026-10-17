@@ -836,12 +836,39 @@ var
   propExpr: TFloriaJSExprNode;
   sigHandler: TFloriaJSStmtNode;
   childComp: TFloriaJSQMLComponent;
+  fnDecl: TFloriaJSFunctionDecl;
 begin
   while (not Check(tkRBrace)) and (not IsAtEnd()) do
   begin
+    while Match(tkSemicolon) do ;
+    if Check(tkRBrace) or IsAtEnd() then Break;
+
+    // Component Function: function myFunc(...) { ... }
+    if Match(tkFunction) then
+    begin
+      fnDecl := ParseFunctionDeclaration();
+      AComp.AddFunction(fnDecl);
+      Continue;
+    end;
+
     if Match(tkIdentifier) then
     begin
       propName := FPrevious.Text;
+
+      // Check for typed property: property <type> <name>: <expr>
+      if (propName = 'property') and Check(tkIdentifier) then
+      begin
+        Advance(); // consume type (e.g. 'int', 'string', 'real', 'var', 'bool')
+        if Match(tkIdentifier) then
+          propName := FPrevious.Text;
+      end;
+
+      // Allow dotted property / signal names: Component.onCompleted, anchors.fill
+      while Match(tkDot) do
+      begin
+        if Match(tkIdentifier) then
+          propName := propName + '.' + FPrevious.Text;
+      end;
 
       // Check if it is a child component definition: ChildType { ... }
       if Check(tkLBrace) then
@@ -854,8 +881,8 @@ begin
         Continue;
       end;
 
-      // Signal handler: onClicked: { count += 1; }
-      if (Length(propName) > 2) and (Copy(propName, 1, 2) = 'on') and Check(tkColon) then
+      // Signal handler: onClicked: { count += 1; } or Component.onCompleted: { ... }
+      if (Length(propName) > 2) and ((Copy(propName, 1, 2) = 'on') or (Pos('.on', propName) > 0)) and Check(tkColon) then
       begin
         Advance(); // Consume ':'
         sigName := propName;

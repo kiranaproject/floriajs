@@ -459,6 +459,7 @@ type
     FPropCount: Integer;
     FSignals: array of TFloriaJSQMLSignal;
     FSignalCount: Integer;
+    FFunctions: TFPList;
     FChildren: TFPList;
   public
     constructor Create(const AComponentType: string; ALine, ACol: Integer);
@@ -466,6 +467,7 @@ type
 
     procedure AddProperty(const AName: string; AExpr: TFloriaJSExprNode);
     procedure AddSignal(const ASignalName: string; AHandler: TFloriaJSStmtNode);
+    procedure AddFunction(AFunc: TFloriaJSFunctionDecl);
     procedure AddChild(AChild: TFloriaJSQMLComponent);
 
     function  GetPropertyCount(): Integer;
@@ -475,6 +477,9 @@ type
     function  GetSignalCount(): Integer;
     function  GetSignalName(AIndex: Integer): string;
     function  GetSignalHandler(AIndex: Integer): TFloriaJSStmtNode;
+
+    function  GetFunctionCount(): Integer;
+    function  GetFunction(AIndex: Integer): TFloriaJSFunctionDecl;
 
     function  GetChildCount(): Integer;
     function  GetChild(AIndex: Integer): TFloriaJSQMLComponent;
@@ -1223,6 +1228,7 @@ begin
   SetLength(FProperties, 0);
   FSignalCount := 0;
   SetLength(FSignals, 0);
+  FFunctions := TFPList.Create();
   FChildren := TFPList.Create();
 end;
 
@@ -1237,6 +1243,13 @@ begin
   for i := 0 to FSignalCount - 1 do
     FSignals[i].Handler.Free();
   SetLength(FSignals, 0);
+
+  if FFunctions <> nil then
+  begin
+    for i := FFunctions.Count - 1 downto 0 do
+      TFloriaJSFunctionDecl(FFunctions[i]).Free();
+    FreeAndNil(FFunctions);
+  end;
 
   if FChildren <> nil then
   begin
@@ -1325,6 +1338,28 @@ function TFloriaJSQMLComponent.GetChild(AIndex: Integer): TFloriaJSQMLComponent;
 begin
   if (FChildren <> nil) and (AIndex >= 0) and (AIndex < FChildren.Count) then
     Result := TFloriaJSQMLComponent(FChildren[AIndex])
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSQMLComponent.AddFunction(AFunc: TFloriaJSFunctionDecl);
+begin
+  if (AFunc <> nil) and (FFunctions <> nil) then
+    FFunctions.Add(AFunc);
+end;
+
+function TFloriaJSQMLComponent.GetFunctionCount(): Integer;
+begin
+  if FFunctions <> nil then
+    Result := FFunctions.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSQMLComponent.GetFunction(AIndex: Integer): TFloriaJSFunctionDecl;
+begin
+  if (FFunctions <> nil) and (AIndex >= 0) and (AIndex < FFunctions.Count) then
+    Result := TFloriaJSFunctionDecl(FFunctions[AIndex])
   else
     Result := nil;
 end;

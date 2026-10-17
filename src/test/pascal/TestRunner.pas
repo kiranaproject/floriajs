@@ -104,6 +104,35 @@ type
     procedure TestConsoleCapture();
   end;
 
+  { Test 8: Declarative QML Types & Built-in Elements }
+  TFloriaQMLTypesTest = class(TTestCase)
+  published
+    procedure TestItemCreationAndProperties();
+    procedure TestHierarchyAndFindById();
+    procedure TestBuiltinElements();
+    procedure TestSignalDispatch();
+  end;
+
+  { Test 9: Reactive Property Bindings & Dependency Tracking }
+  TFloriaQMLBindingTest = class(TTestCase)
+  published
+    procedure TestDirectBinding();
+    procedure TestCascadedBinding();
+    procedure TestAssignmentBreaksBinding();
+    procedure TestCycleGuard();
+  end;
+
+  { Test 10: QML Engine & Full Document Runtime }
+  TFloriaQMLEngineTest = class(TTestCase)
+  published
+    procedure TestLoadSimpleQML();
+    procedure TestLoadNestedQMLWithBindings();
+    procedure TestIdResolutionInJS();
+    procedure TestQMLComponentFunctions();
+    procedure TestQMLSignalHandling();
+    procedure TestComponentOnCompleted();
+  end;
+
 { TFloriaJSTypesTest }
 
 procedure TFloriaJSTypesTest.TestVersionConstant();
@@ -1507,6 +1536,413 @@ begin
   end;
 end;
 
+{ TFloriaQMLTypesTest }
+
+procedure TFloriaQMLTypesTest.TestItemCreationAndProperties();
+var
+  item: TFloriaQMLItem;
+begin
+  item := TFloriaQMLItem.Create('Item');
+  try
+    AssertEquals('TypeName is Item', 'Item', item.TypeName);
+    AssertEquals('Default X is 0', 0.0, item.X, 0.001);
+    AssertEquals('Default Y is 0', 0.0, item.Y, 0.001);
+    AssertEquals('Default Width is 0', 0.0, item.Width, 0.001);
+    AssertEquals('Default Height is 0', 0.0, item.Height, 0.001);
+    AssertTrue('Default Visible is True', item.Visible);
+    AssertEquals('Default Opacity is 1.0', 1.0, item.Opacity, 0.001);
+
+    item.Width := 320.0;
+    item.Height := 240.0;
+    AssertEquals('Updated Width', 320.0, item.Width, 0.001);
+    AssertEquals('Updated Height', 240.0, item.Height, 0.001);
+  finally
+    item.Free();
+  end;
+end;
+
+procedure TFloriaQMLTypesTest.TestHierarchyAndFindById();
+var
+  root, child1, child2, grandChild: TFloriaQMLItem;
+begin
+  root := TFloriaQMLItem.Create('Item');
+  child1 := TFloriaQMLItem.Create('Rectangle');
+  child1.Id := 'rect1';
+  child2 := TFloriaQMLItem.Create('Button');
+  child2.Id := 'btnSubmit';
+  grandChild := TFloriaQMLItem.Create('Text');
+  grandChild.Id := 'txtLabel';
+  try
+    root.AddChild(child1);
+    root.AddChild(child2);
+    child1.AddChild(grandChild);
+
+    AssertEquals('Root ChildCount', 2, root.ChildCount());
+    AssertTrue('Child1 Parent is root', child1.Parent = root);
+    AssertTrue('GrandChild Parent is child1', grandChild.Parent = child1);
+
+    AssertTrue('FindById rect1', root.FindById('rect1') = child1);
+    AssertTrue('FindById btnSubmit', root.FindById('btnSubmit') = child2);
+    AssertTrue('FindById txtLabel', root.FindById('txtLabel') = grandChild);
+    AssertNull('FindById nonExistent is nil', root.FindById('unknown'));
+  finally
+    grandChild.Free();
+    child2.Free();
+    child1.Free();
+    root.Free();
+  end;
+end;
+
+procedure TFloriaQMLTypesTest.TestBuiltinElements();
+var
+  rect: TFloriaQMLRectangle;
+  txt: TFloriaQMLText;
+  btn: TFloriaQMLButton;
+  col: TFloriaQMLColumn;
+  r1, r2: TFloriaQMLItem;
+begin
+  rect := TFloriaQMLRectangle.Create();
+  txt := TFloriaQMLText.Create();
+  btn := TFloriaQMLButton.Create();
+  col := TFloriaQMLColumn.Create();
+  r1 := TFloriaQMLItem.Create('Item');
+  r2 := TFloriaQMLItem.Create('Item');
+  try
+    // Rectangle properties
+    AssertEquals('Default rect color', '#ffffff', rect.Color);
+    rect.Color := '#336699';
+    rect.Radius := 8.0;
+    AssertEquals('Updated rect color', '#336699', rect.Color);
+    AssertEquals('Updated rect radius', 8.0, rect.Radius, 0.001);
+
+    // Text properties
+    txt.Text := 'Floria Toolkit';
+    txt.FontSize := 18.0;
+    AssertEquals('Text content', 'Floria Toolkit', txt.Text);
+    AssertEquals('Text size', 18.0, txt.FontSize, 0.001);
+
+    // Button properties
+    btn.Text := 'Click';
+    AssertFalse('Default not pressed', btn.Pressed);
+    btn.Pressed := True;
+    AssertTrue('Pressed is true', btn.Pressed);
+
+    // Column layout
+    r1.Height := 30.0;
+    r2.Height := 50.0;
+    col.Spacing := 10.0;
+    col.AddChild(r1);
+    col.AddChild(r2);
+    col.Relayout();
+    AssertEquals('r1 Y is 0', 0.0, r1.Y, 0.001);
+    AssertEquals('r2 Y is 30 + 10 = 40', 40.0, r2.Y, 0.001);
+  finally
+    r2.Free();
+    r1.Free();
+    col.Free();
+    btn.Free();
+    txt.Free();
+    rect.Free();
+  end;
+end;
+
+procedure TFloriaQMLTypesTest.TestSignalDispatch();
+var
+  engine: TFloriaQMLEngine;
+  item: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    item := engine.LoadString('Item { id: testItem; property int count: 0; onClicked: { count = count + 5; } }');
+    AssertNotNull('Loaded item', item);
+    AssertEquals('Initial count is 0', 0.0, item.GetPropertyAsNumber('count'), 0.001);
+
+    item.EmitSignal('clicked');
+    AssertEquals('Count after signal emission is 5', 5.0, item.GetPropertyAsNumber('count'), 0.001);
+
+    item.EmitSignal('onClicked');
+    AssertEquals('Count after second signal emission is 10', 10.0, item.GetPropertyAsNumber('count'), 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+{ TFloriaQMLBindingTest }
+
+procedure TFloriaQMLBindingTest.TestDirectBinding();
+var
+  engine: TFloriaQMLEngine;
+  root, box: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString('Rectangle { id: root; width: 400; height: 300; Rectangle { id: box; width: root.width / 2; height: root.height / 2; } }');
+    AssertNotNull('Loaded root', root);
+    box := engine.FindItemById('box');
+    AssertNotNull('Found box', box);
+
+    AssertEquals('Initial box width (400 / 2)', 200.0, box.Width, 0.001);
+    AssertEquals('Initial box height (300 / 2)', 150.0, box.Height, 0.001);
+
+    // Modify root width -> box.width must reactively update!
+    root.Width := 800.0;
+    AssertEquals('Updated box width (800 / 2)', 400.0, box.Width, 0.001);
+
+    // Modify root height -> box.height must reactively update!
+    root.Height := 600.0;
+    AssertEquals('Updated box height (600 / 2)', 300.0, box.Height, 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaQMLBindingTest.TestCascadedBinding();
+var
+  engine: TFloriaQMLEngine;
+  root, box, labelItem: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: root; width: 200;' +
+      '  Rectangle {' +
+      '    id: box; width: root.width * 2;' +
+      '    Text {' +
+      '      id: label; text: "W:" + box.width;' +
+      '    }' +
+      '  }' +
+      '}');
+    AssertNotNull('Loaded root', root);
+    box := engine.FindItemById('box');
+    labelItem := engine.FindItemById('label');
+    AssertNotNull('Found box', box);
+    AssertNotNull('Found label', labelItem);
+
+    AssertEquals('Initial box width is 400', 400.0, box.Width, 0.001);
+    AssertEquals('Initial label text is "W:400"', 'W:400', labelItem.GetPropertyAsString('text'));
+
+    // Changing root cascades to box, and box cascades to label!
+    root.Width := 500.0;
+    AssertEquals('Updated box width is 1000', 1000.0, box.Width, 0.001);
+    AssertEquals('Updated label text is "W:1000"', 'W:1000', labelItem.GetPropertyAsString('text'));
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaQMLBindingTest.TestAssignmentBreaksBinding();
+var
+  engine: TFloriaQMLEngine;
+  root, box: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString('Rectangle { id: root; width: 400; Rectangle { id: box; width: root.width / 2; } }');
+    box := engine.FindItemById('box');
+    AssertEquals('Initial box width is 200', 200.0, box.Width, 0.001);
+
+    // Explicit assignment directly to box.width breaks the binding
+    box.Width := 999.0;
+    AssertEquals('Direct assignment to box.width', 999.0, box.Width, 0.001);
+
+    // Changing root.width should NO LONGER affect box.width
+    root.Width := 600.0;
+    AssertEquals('box.width remains 999 after root change', 999.0, box.Width, 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaQMLBindingTest.TestCycleGuard();
+var
+  engine: TFloriaQMLEngine;
+  itemA, itemB: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    // Item A depends on B, and Item B depends on A
+    itemA := engine.LoadString(
+      'Item {' +
+      '  id: itemA; width: itemB.width + 10;' +
+      '  Item { id: itemB; width: 50; }' +
+      '}');
+    AssertNotNull('Parsed cycle without hanging', itemA);
+    itemB := engine.FindItemById('itemB');
+    AssertNotNull('itemB exists', itemB);
+  finally
+    engine.Free();
+  end;
+end;
+
+{ TFloriaQMLEngineTest }
+
+procedure TFloriaQMLEngineTest.TestLoadSimpleQML();
+var
+  engine: TFloriaQMLEngine;
+  root: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString('Rectangle { id: myWindow; width: 640; height: 480; color: "#222222"; }');
+    AssertNotNull('Root item created', root);
+    AssertTrue('Root is TFloriaQMLRectangle', root is TFloriaQMLRectangle);
+    AssertEquals('ID is myWindow', 'myWindow', root.Id);
+    AssertEquals('Width is 640', 640.0, root.Width, 0.001);
+    AssertEquals('Height is 480', 480.0, root.Height, 0.001);
+    AssertEquals('Color is #222222', '#222222', TFloriaQMLRectangle(root).Color);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaQMLEngineTest.TestLoadNestedQMLWithBindings();
+var
+  engine: TFloriaQMLEngine;
+  root, btn: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: mainView;' +
+      '  width: 500;' +
+      '  height: 400;' +
+      '  Button {' +
+      '    id: myBtn;' +
+      '    width: parent.width - 100;' +
+      '    height: 50;' +
+      '    text: "Click Me";' +
+      '  }' +
+      '}');
+    AssertNotNull('Root instantiated', root);
+    btn := engine.FindItemById('myBtn');
+    AssertNotNull('Child button found', btn);
+    AssertEquals('Button text', 'Click Me', btn.GetPropertyAsString('text'));
+    AssertEquals('Button width is parent.width - 100 = 400', 400.0, btn.Width, 0.001);
+
+    // Update parent width
+    root.Width := 800.0;
+    AssertEquals('Button width dynamically updated to 700', 700.0, btn.Width, 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaQMLEngineTest.TestIdResolutionInJS();
+var
+  engine: TFloriaQMLEngine;
+  root, txt: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: header;' +
+      '  property string appTitle: "Floria App";' +
+      '  Rectangle {' +
+      '    id: body;' +
+      '    Text {' +
+      '      id: titleLabel;' +
+      '      text: "App: " + header.appTitle;' +
+      '    }' +
+      '  }' +
+      '}');
+    txt := engine.FindItemById('titleLabel');
+    AssertNotNull('Found titleLabel', txt);
+    AssertEquals('Text bound to header.appTitle', 'App: Floria App', txt.GetPropertyAsString('text'));
+
+    // Update header.appTitle from Pascal/JS
+    root.SetProperty('appTitle', JSMakeString('Super App'));
+    AssertEquals('Text updated to "App: Super App"', 'App: Super App', txt.GetPropertyAsString('text'));
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaQMLEngineTest.TestQMLComponentFunctions();
+var
+  engine: TFloriaQMLEngine;
+  root: TFloriaQMLItem;
+  res: TFloriaJSValue;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: calculator;' +
+      '  width: 100;' +
+      '  height: 50;' +
+      '  function computeArea(scale) {' +
+      '    return width * height * scale;' +
+      '  }' +
+      '}');
+    AssertNotNull('Root item created', root);
+
+    // Call computeArea through engine JavaScript evaluation
+    res := engine.Evaluate('calculator.computeArea(2);');
+    AssertTrue('Result is number', res.IsNumber());
+    AssertEquals('Computed area is 100 * 50 * 2 = 10000', 10000.0, res.NumVal, 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaQMLEngineTest.TestQMLSignalHandling();
+var
+  engine: TFloriaQMLEngine;
+  root, btn: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: rootRect;' +
+      '  property int counter: 0;' +
+      '  Button {' +
+      '    id: incBtn;' +
+      '    onClicked: {' +
+      '      rootRect.counter = rootRect.counter + 1;' +
+      '    }' +
+      '  }' +
+      '}');
+    btn := engine.FindItemById('incBtn');
+    AssertNotNull('Found incBtn', btn);
+    AssertEquals('Initial counter is 0', 0.0, root.GetPropertyAsNumber('counter'), 0.001);
+
+    // Trigger button click
+    TFloriaQMLButton(btn).Click();
+    AssertEquals('Counter incremented to 1', 1.0, root.GetPropertyAsNumber('counter'), 0.001);
+
+    TFloriaQMLButton(btn).Click();
+    AssertEquals('Counter incremented to 2', 2.0, root.GetPropertyAsNumber('counter'), 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaQMLEngineTest.TestComponentOnCompleted();
+var
+  engine: TFloriaQMLEngine;
+  root: TFloriaQMLItem;
+begin
+  engine := TFloriaQMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: appWindow;' +
+      '  property string status: "initializing";' +
+      '  Component.onCompleted: {' +
+      '    status = "ready";' +
+      '  }' +
+      '}');
+    AssertNotNull('Root loaded', root);
+    AssertEquals('Status set to ready on completed', 'ready', root.GetPropertyAsString('status'));
+  finally
+    engine.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -1518,6 +1954,9 @@ begin
   RegisterTest(TFloriaJSParserTest);
   RegisterTest(TFloriaJSValueTest);
   RegisterTest(TFloriaJSEvaluatorTest);
+  RegisterTest(TFloriaQMLTypesTest);
+  RegisterTest(TFloriaQMLBindingTest);
+  RegisterTest(TFloriaQMLEngineTest);
 
   Application := TTestRunner.Create(nil);
   try
