@@ -74,7 +74,6 @@ type
 
   { Declarative / FTML Component Node }
   TFloriaFTMLComponent     = floria.js.ast.TFloriaFTMLComponent;
-  TFloriaJSQMLComponent    = floria.js.ast.TFloriaFTMLComponent;
 
   { Parser }
   TFloriaJSParser          = floria.js.parser.TFloriaJSParser;
@@ -111,21 +110,6 @@ type
   TFloriaFTMLBinding        = floria.ftml.binding.TFloriaFTMLBinding;
   TFloriaFTMLBindingManager = floria.ftml.binding.TFloriaFTMLBindingManager;
   TFloriaFTMLEngine         = floria.ftml.engine.TFloriaFTMLEngine;
-
-  { Backward Compatibility Aliases }
-  TFloriaQMLItem           = TFloriaFTMLItem;
-  TFloriaQMLItemClass      = TFloriaFTMLItemClass;
-  TFloriaQMLRectangle      = TFloriaFTMLRectangle;
-  TFloriaQMLText           = TFloriaFTMLText;
-  TFloriaQMLButton         = TFloriaFTMLButton;
-  TFloriaQMLTextInput      = TFloriaFTMLTextInput;
-  TFloriaQMLColumn         = TFloriaFTMLColumn;
-  TFloriaQMLRow            = TFloriaFTMLRow;
-  IFloriaQMLBindingManager = IFloriaFTMLBindingManager;
-  IFloriaQMLEngineContext  = IFloriaFTMLEngineContext;
-  TFloriaQMLBinding        = TFloriaFTMLBinding;
-  TFloriaQMLBindingManager = TFloriaFTMLBindingManager;
-  TFloriaQMLEngine         = TFloriaFTMLEngine;
 
 const
   FLORIA_JS_VERSION_STRING = floria.js.types.FLORIA_JS_VERSION_STRING;

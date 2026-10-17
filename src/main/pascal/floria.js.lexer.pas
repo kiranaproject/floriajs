@@ -3,7 +3,7 @@
 {   Floria JS (floriajs) — Lexer & Tokenizer                               }
 {                                                                          }
 {   Provides lexical analysis, scanning, and tokenization for JavaScript   }
-{   and QML-style declarative scripting in pure Object Pascal.             }
+{   and FTML declarative scripting in pure Object Pascal.                  }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
 {   SPDX-License-Identifier: MPL-2.0                                       }

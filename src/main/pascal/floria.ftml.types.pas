@@ -239,18 +239,6 @@ type
     property Spacing: Double read GetSpacing write SetSpacing;
   end;
 
-  { Backward Compatibility Aliases }
-  TFloriaQMLItem           = TFloriaFTMLItem;
-  TFloriaQMLItemClass      = TFloriaFTMLItemClass;
-  TFloriaQMLRectangle      = TFloriaFTMLRectangle;
-  TFloriaQMLText           = TFloriaFTMLText;
-  TFloriaQMLButton         = TFloriaFTMLButton;
-  TFloriaQMLTextInput      = TFloriaFTMLTextInput;
-  TFloriaQMLColumn         = TFloriaFTMLColumn;
-  TFloriaQMLRow            = TFloriaFTMLRow;
-  IFloriaQMLBindingManager = IFloriaFTMLBindingManager;
-  IFloriaQMLEngineContext  = IFloriaFTMLEngineContext;
-
 implementation
 
 { TFloriaFTMLItem }

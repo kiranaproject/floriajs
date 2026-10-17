@@ -66,9 +66,6 @@ type
     property LastError: string read FLastError;
   end;
 
-  { Backward Compatibility Alias }
-  TFloriaQMLEngine = TFloriaFTMLEngine;
-
 implementation
 
 { TFloriaFTMLEngine }

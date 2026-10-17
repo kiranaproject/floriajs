@@ -17,5 +17,3 @@ lib/
 examples/hello_floriajs
 examples/parse_ftml_demo
 examples/reactive_ftml_demo
-examples/parse_qml_demo
-examples/reactive_qml_demo

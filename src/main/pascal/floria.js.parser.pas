@@ -3,7 +3,7 @@
 {   Floria JS (floriajs) — Pratt Precedence & Recursive Descent Parser     }
 {                                                                          }
 {   Parses token streams into an Abstract Syntax Tree (AST) for JavaScript }
-{   and declarative QML-style component expressions.                       }
+{   and declarative FTML component expressions.                            }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
 {   SPDX-License-Identifier: MPL-2.0                                       }
@@ -82,7 +82,6 @@ type
     function  ParseContinueStatement(): TFloriaJSContinueStmt;
     function  ParseExpressionStatement(): TFloriaJSExprStmt;
     procedure ParseFTMLBody(AComp: TFloriaFTMLComponent);
-    procedure ParseQMLBody(AComp: TFloriaFTMLComponent);
 
   public
     constructor Create(const ASource: string);
@@ -92,7 +91,6 @@ type
     function  ParseProgram(): TFloriaJSProgram;
     function  ParseExpression(): TFloriaJSExprNode;
     function  ParseFTMLComponent(): TFloriaFTMLComponent;
-    function  ParseQMLComponent(): TFloriaFTMLComponent;
 
     function  HasErrors(): Boolean;
     function  GetErrorCount(): Integer;
@@ -921,11 +919,6 @@ begin
   end;
 end;
 
-procedure TFloriaJSParser.ParseQMLBody(AComp: TFloriaFTMLComponent);
-begin
-  ParseFTMLBody(AComp);
-end;
-
 function TFloriaJSParser.ParseFTMLComponent(): TFloriaFTMLComponent;
 var
   compName: string;
@@ -949,11 +942,6 @@ begin
   Consume(tkRBrace, 'Expected ''}'' closing component');
 
   Result := comp;
-end;
-
-function TFloriaJSParser.ParseQMLComponent(): TFloriaFTMLComponent;
-begin
-  Result := ParseFTMLComponent();
 end;
 
 end.

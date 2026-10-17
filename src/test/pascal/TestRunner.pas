@@ -111,7 +111,6 @@ type
     procedure TestHierarchyAndFindById();
     procedure TestBuiltinElements();
     procedure TestSignalDispatch();
-    procedure TestBackwardCompatibilityAliases();
   end;
 
   { Test 9: Reactive Property Bindings & Dependency Tracking }
@@ -1665,26 +1664,6 @@ begin
     AssertEquals('Count after second signal emission is 10', 10.0, item.GetPropertyAsNumber('count'), 0.001);
   finally
     engine.Free();
-  end;
-end;
-
-procedure TFloriaFTMLTypesTest.TestBackwardCompatibilityAliases();
-var
-  qmlItem: TFloriaQMLItem;
-  qmlRect: TFloriaQMLRectangle;
-  qmlEng: TFloriaQMLEngine;
-begin
-  qmlItem := TFloriaQMLItem.Create('Rectangle');
-  qmlRect := TFloriaQMLRectangle.Create();
-  qmlEng := TFloriaQMLEngine.Create();
-  try
-    AssertTrue('qmlItem is FTML item', qmlItem is TFloriaFTMLItem);
-    AssertTrue('qmlRect is FTML rect', qmlRect is TFloriaFTMLRectangle);
-    AssertTrue('qmlEng is FTML engine', qmlEng is TFloriaFTMLEngine);
-  finally
-    qmlEng.Free();
-    qmlRect.Free();
-    qmlItem.Free();
   end;
 end;
 

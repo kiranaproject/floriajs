@@ -27,10 +27,8 @@ case "${TARGET}" in
     ./examples/build_examples.sh "$@"
     ;;
   clean)
-    echo "==> Cleaning target artifacts..."
-    shift 1 || true
     pasbuild clean "$@"
-    rm -f examples/hello_floriajs examples/parse_ftml_demo examples/reactive_ftml_demo examples/parse_qml_demo examples/reactive_qml_demo
+    rm -f examples/hello_floriajs examples/parse_ftml_demo examples/reactive_ftml_demo
     ;;
   *)
     echo "Usage: $0 [compile|test|install|examples|clean]"

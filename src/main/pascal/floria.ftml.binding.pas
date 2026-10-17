@@ -98,11 +98,6 @@ type
     property MaxCascadeDepth: Integer read FMaxCascadeDepth write FMaxCascadeDepth;
   end;
 
-  { Backward Compatibility Aliases }
-  TFloriaQMLDependency     = TFloriaFTMLDependency;
-  TFloriaQMLBinding        = TFloriaFTMLBinding;
-  TFloriaQMLBindingManager = TFloriaFTMLBindingManager;
-
 implementation
 
 { TFloriaFTMLBinding }

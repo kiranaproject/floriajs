@@ -3,7 +3,7 @@
 {   Floria JS (floriajs) — Abstract Syntax Tree (AST)                      }
 {                                                                          }
 {   Defines AST node classes representing JavaScript expressions,          }
-{   statements, and declarative QML-style component hierarchies.           }
+{   statements, and declarative FTML component hierarchies.                }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
 {   SPDX-License-Identifier: MPL-2.0                                       }
@@ -490,11 +490,6 @@ type
     property Id: string read FId write FId;
   end;
 
-  { Backward Compatibility Aliases }
-  TFloriaJSQMLProperty  = TFloriaFTMLProperty;
-  TFloriaJSQMLSignal    = TFloriaFTMLSignal;
-  TFloriaJSQMLComponent = TFloriaFTMLComponent;
-
   { ────────────────────────────────────────────────────────────────────────── }
   { Visitor Interface                                                          }
   { ────────────────────────────────────────────────────────────────────────── }
@@ -525,7 +520,6 @@ type
     procedure VisitFunctionDecl(ANode: TFloriaJSFunctionDecl);
     procedure VisitProgram(ANode: TFloriaJSProgram);
     procedure VisitFTMLComponent(ANode: TFloriaFTMLComponent);
-    procedure VisitQMLComponent(ANode: TFloriaFTMLComponent);
   end;
 
 implementation
@@ -1375,7 +1369,6 @@ begin
   if AVisitor <> nil then
   begin
     AVisitor.VisitFTMLComponent(Self);
-    AVisitor.VisitQMLComponent(Self);
   end;
 end;
 
