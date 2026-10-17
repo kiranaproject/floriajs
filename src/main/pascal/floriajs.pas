@@ -26,9 +26,9 @@ uses
   floria.js.evaluator,
   floria.js.stdlib,
   floria.js.core,
-  floria.qml.types,
-  floria.qml.binding,
-  floria.qml.engine;
+  floria.ftml.types,
+  floria.ftml.binding,
+  floria.ftml.engine;
 
 type
   { Core Types & Constants }
@@ -72,8 +72,9 @@ type
   TFloriaJSFunctionDecl    = floria.js.ast.TFloriaJSFunctionDecl;
   TFloriaJSProgram         = floria.js.ast.TFloriaJSProgram;
 
-  { Declarative / QML Component Node }
-  TFloriaJSQMLComponent    = floria.js.ast.TFloriaJSQMLComponent;
+  { Declarative / FTML Component Node }
+  TFloriaFTMLComponent     = floria.js.ast.TFloriaFTMLComponent;
+  TFloriaJSQMLComponent    = floria.js.ast.TFloriaFTMLComponent;
 
   { Parser }
   TFloriaJSParser          = floria.js.parser.TFloriaJSParser;
@@ -95,21 +96,36 @@ type
   TFloriaJSContext         = floria.js.core.TFloriaJSContext;
   TFloriaJSEngine          = floria.js.core.TFloriaJSEngine;
 
-  { Declarative QML Framework }
-  TFloriaQMLItem           = floria.qml.types.TFloriaQMLItem;
-  TFloriaQMLItemClass      = floria.qml.types.TFloriaQMLItemClass;
-  TFloriaQMLRectangle      = floria.qml.types.TFloriaQMLRectangle;
-  TFloriaQMLText           = floria.qml.types.TFloriaQMLText;
-  TFloriaQMLButton         = floria.qml.types.TFloriaQMLButton;
-  TFloriaQMLTextInput      = floria.qml.types.TFloriaQMLTextInput;
-  TFloriaQMLColumn         = floria.qml.types.TFloriaQMLColumn;
-  TFloriaQMLRow            = floria.qml.types.TFloriaQMLRow;
-  IFloriaQMLBindingManager = floria.qml.types.IFloriaQMLBindingManager;
-  IFloriaQMLEngineContext  = floria.qml.types.IFloriaQMLEngineContext;
+  { Declarative FTML Framework (Floria Toolkit Markup Language) }
+  TFloriaFTMLItem           = floria.ftml.types.TFloriaFTMLItem;
+  TFloriaFTMLItemClass      = floria.ftml.types.TFloriaFTMLItemClass;
+  TFloriaFTMLRectangle      = floria.ftml.types.TFloriaFTMLRectangle;
+  TFloriaFTMLText           = floria.ftml.types.TFloriaFTMLText;
+  TFloriaFTMLButton         = floria.ftml.types.TFloriaFTMLButton;
+  TFloriaFTMLTextInput      = floria.ftml.types.TFloriaFTMLTextInput;
+  TFloriaFTMLColumn         = floria.ftml.types.TFloriaFTMLColumn;
+  TFloriaFTMLRow            = floria.ftml.types.TFloriaFTMLRow;
+  IFloriaFTMLBindingManager = floria.ftml.types.IFloriaFTMLBindingManager;
+  IFloriaFTMLEngineContext  = floria.ftml.types.IFloriaFTMLEngineContext;
 
-  TFloriaQMLBinding        = floria.qml.binding.TFloriaQMLBinding;
-  TFloriaQMLBindingManager = floria.qml.binding.TFloriaQMLBindingManager;
-  TFloriaQMLEngine         = floria.qml.engine.TFloriaQMLEngine;
+  TFloriaFTMLBinding        = floria.ftml.binding.TFloriaFTMLBinding;
+  TFloriaFTMLBindingManager = floria.ftml.binding.TFloriaFTMLBindingManager;
+  TFloriaFTMLEngine         = floria.ftml.engine.TFloriaFTMLEngine;
+
+  { Backward Compatibility Aliases }
+  TFloriaQMLItem           = TFloriaFTMLItem;
+  TFloriaQMLItemClass      = TFloriaFTMLItemClass;
+  TFloriaQMLRectangle      = TFloriaFTMLRectangle;
+  TFloriaQMLText           = TFloriaFTMLText;
+  TFloriaQMLButton         = TFloriaFTMLButton;
+  TFloriaQMLTextInput      = TFloriaFTMLTextInput;
+  TFloriaQMLColumn         = TFloriaFTMLColumn;
+  TFloriaQMLRow            = TFloriaFTMLRow;
+  IFloriaQMLBindingManager = IFloriaFTMLBindingManager;
+  IFloriaQMLEngineContext  = IFloriaFTMLEngineContext;
+  TFloriaQMLBinding        = TFloriaFTMLBinding;
+  TFloriaQMLBindingManager = TFloriaFTMLBindingManager;
+  TFloriaQMLEngine         = TFloriaFTMLEngine;
 
 const
   FLORIA_JS_VERSION_STRING = floria.js.types.FLORIA_JS_VERSION_STRING;

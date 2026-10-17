@@ -1,16 +1,17 @@
 { ************************************************************************** }
 {                                                                          }
-{   Floria JS (floriajs) — Declarative QML Component Types & Hierarchy     }
+{   Floria JS (floriajs) — Declarative FTML Component Types & Hierarchy    }
+{   (Floria Toolkit Markup Language)                                       }
 {                                                                          }
 {   Provides runtime component models, visual element hierarchy, property  }
-{   storage, signal dispatching, and built-in QML elements.                }
+{   storage, signal dispatching, and built-in FTML elements.               }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
 {   SPDX-License-Identifier: MPL-2.0                                       }
 {                                                                          }
 { ************************************************************************** }
 
-unit floria.qml.types;
+unit floria.ftml.types;
 
 {$mode objfpc}{$H+}
 {$interfaces corba}
@@ -24,49 +25,49 @@ uses
 
 type
   { Forward Declarations }
-  TFloriaQMLItem = class;
-  TFloriaQMLItemClass = class of TFloriaQMLItem;
+  TFloriaFTMLItem = class;
+  TFloriaFTMLItemClass = class of TFloriaFTMLItem;
 
   { Binding Manager Interface for Property Dependency Tracking }
-  IFloriaQMLBindingManager = interface
+  IFloriaFTMLBindingManager = interface
     procedure RecordPropertyRead(AItem: TObject; const APropName: string);
     procedure NotifyPropertyChanged(AItem: TObject; const APropName: string);
     procedure RemoveBindingsForTarget(ATargetItem: TObject; const ATargetProperty: string = '');
   end;
 
   { Engine Context Interface for Evaluator & Runtime Access }
-  IFloriaQMLEngineContext = interface
+  IFloriaFTMLEngineContext = interface
     function GetEvaluator(): TFloriaJSEvaluator;
   end;
 
-  { Single QML Property Record }
-  TFloriaQMLPropertyEntry = record
+  { Single FTML Property Record }
+  TFloriaFTMLPropertyEntry = record
     Name: string;
     Value: TFloriaJSValue;
     HasBinding: Boolean;
     BindingRef: TObject;
   end;
 
-  { Single QML Signal Handler Record }
-  TFloriaQMLSignalEntry = record
+  { Single FTML Signal Handler Record }
+  TFloriaFTMLSignalEntry = record
     SignalName: string;
     HandlerStmt: TFloriaJSStmtNode;
   end;
 
-  { Base Declarative QML Item (inherits TFloriaJSObject for JS interop) }
-  TFloriaQMLItem = class(TFloriaJSObject)
+  { Base Declarative FTML Item (inherits TFloriaJSObject for JS interop) }
+  TFloriaFTMLItem = class(TFloriaJSObject)
   private
     FTypeName: string;
     FId: string;
-    FParent: TFloriaQMLItem;
+    FParent: TFloriaFTMLItem;
     FChildren: TFPList;
     FEngine: TObject;
     FEnv: TFloriaJSEnvironment;
-    FBindingManager: IFloriaQMLBindingManager;
-    FQMLProperties: array of TFloriaQMLPropertyEntry;
-    FQMLPropCount: Integer;
-    FQMLSignals: array of TFloriaQMLSignalEntry;
-    FQMLSignalCount: Integer;
+    FBindingManager: IFloriaFTMLBindingManager;
+    FFTMLProperties: array of TFloriaFTMLPropertyEntry;
+    FFTMLPropCount: Integer;
+    FFTMLSignals: array of TFloriaFTMLSignalEntry;
+    FFTMLSignalCount: Integer;
 
     procedure SetPropertyInternal(const AName: string; const AValue: TFloriaJSValue; AFromBinding: Boolean);
     function  GetChildrenAsJSArray(): TFloriaJSValue;
@@ -76,12 +77,12 @@ type
     destructor Destroy(); override;
 
     { Hierarchy }
-    procedure AddChild(AChild: TFloriaQMLItem);
-    procedure RemoveChild(AChild: TFloriaQMLItem);
+    procedure AddChild(AChild: TFloriaFTMLItem);
+    procedure RemoveChild(AChild: TFloriaFTMLItem);
     function  ChildCount(): Integer;
-    function  GetChild(AIndex: Integer): TFloriaQMLItem;
-    function  FindById(const AId: string): TFloriaQMLItem;
-    function  FindChild(const AName: string): TFloriaQMLItem;
+    function  GetChild(AIndex: Integer): TFloriaFTMLItem;
+    function  FindById(const AId: string): TFloriaFTMLItem;
+    function  FindChild(const AName: string): TFloriaFTMLItem;
 
     { Property Access & Reflection }
     function  GetProperty(const AName: string): TFloriaJSValue; override;
@@ -125,10 +126,10 @@ type
 
     property TypeName: string read FTypeName;
     property Id: string read FId write FId;
-    property Parent: TFloriaQMLItem read FParent write FParent;
+    property Parent: TFloriaFTMLItem read FParent write FParent;
     property Engine: TObject read FEngine write FEngine;
     property Env: TFloriaJSEnvironment read FEnv write FEnv;
-    property BindingManager: IFloriaQMLBindingManager read FBindingManager write FBindingManager;
+    property BindingManager: IFloriaFTMLBindingManager read FBindingManager write FBindingManager;
 
     property X: Double read GetX write SetX;
     property Y: Double read GetY write SetY;
@@ -139,7 +140,7 @@ type
   end;
 
   { Built-in Rectangle Component }
-  TFloriaQMLRectangle = class(TFloriaQMLItem)
+  TFloriaFTMLRectangle = class(TFloriaFTMLItem)
   public
     constructor Create(const ATypeName: string = 'Rectangle'; AEngine: TObject = nil); override;
 
@@ -159,7 +160,7 @@ type
   end;
 
   { Built-in Text Component }
-  TFloriaQMLText = class(TFloriaQMLItem)
+  TFloriaFTMLText = class(TFloriaFTMLItem)
   public
     constructor Create(const ATypeName: string = 'Text'; AEngine: TObject = nil); override;
 
@@ -179,7 +180,7 @@ type
   end;
 
   { Built-in Button Component }
-  TFloriaQMLButton = class(TFloriaQMLItem)
+  TFloriaFTMLButton = class(TFloriaFTMLItem)
   public
     constructor Create(const ATypeName: string = 'Button'; AEngine: TObject = nil); override;
 
@@ -198,7 +199,7 @@ type
   end;
 
   { Built-in TextInput Component }
-  TFloriaQMLTextInput = class(TFloriaQMLItem)
+  TFloriaFTMLTextInput = class(TFloriaFTMLItem)
   public
     constructor Create(const ATypeName: string = 'TextInput'; AEngine: TObject = nil); override;
 
@@ -215,7 +216,7 @@ type
   end;
 
   { Built-in Column Layout Component }
-  TFloriaQMLColumn = class(TFloriaQMLItem)
+  TFloriaFTMLColumn = class(TFloriaFTMLItem)
   public
     constructor Create(const ATypeName: string = 'Column'; AEngine: TObject = nil); override;
 
@@ -227,7 +228,7 @@ type
   end;
 
   { Built-in Row Layout Component }
-  TFloriaQMLRow = class(TFloriaQMLItem)
+  TFloriaFTMLRow = class(TFloriaFTMLItem)
   public
     constructor Create(const ATypeName: string = 'Row'; AEngine: TObject = nil); override;
 
@@ -238,11 +239,23 @@ type
     property Spacing: Double read GetSpacing write SetSpacing;
   end;
 
+  { Backward Compatibility Aliases }
+  TFloriaQMLItem           = TFloriaFTMLItem;
+  TFloriaQMLItemClass      = TFloriaFTMLItemClass;
+  TFloriaQMLRectangle      = TFloriaFTMLRectangle;
+  TFloriaQMLText           = TFloriaFTMLText;
+  TFloriaQMLButton         = TFloriaFTMLButton;
+  TFloriaQMLTextInput      = TFloriaFTMLTextInput;
+  TFloriaQMLColumn         = TFloriaFTMLColumn;
+  TFloriaQMLRow            = TFloriaFTMLRow;
+  IFloriaQMLBindingManager = IFloriaFTMLBindingManager;
+  IFloriaQMLEngineContext  = IFloriaFTMLEngineContext;
+
 implementation
 
-{ TFloriaQMLItem }
+{ TFloriaFTMLItem }
 
-constructor TFloriaQMLItem.Create(const ATypeName: string; AEngine: TObject);
+constructor TFloriaFTMLItem.Create(const ATypeName: string; AEngine: TObject);
 begin
   inherited Create(nil);
   FTypeName := ATypeName;
@@ -252,10 +265,10 @@ begin
   FEngine := AEngine;
   FEnv := nil;
   FBindingManager := nil;
-  SetLength(FQMLProperties, 0);
-  FQMLPropCount := 0;
-  SetLength(FQMLSignals, 0);
-  FQMLSignalCount := 0;
+  SetLength(FFTMLProperties, 0);
+  FFTMLPropCount := 0;
+  SetLength(FFTMLSignals, 0);
+  FFTMLSignalCount := 0;
 
   // Initialize standard visual properties
   DefineProperty('x', JSMakeNumber(0.0));
@@ -268,10 +281,10 @@ begin
   DefineProperty('enabled', JSMakeBoolean(True));
 end;
 
-destructor TFloriaQMLItem.Destroy();
+destructor TFloriaFTMLItem.Destroy();
 begin
-  SetLength(FQMLProperties, 0);
-  SetLength(FQMLSignals, 0);
+  SetLength(FFTMLProperties, 0);
+  SetLength(FFTMLSignals, 0);
   if FChildren <> nil then
   begin
     FChildren.Clear();
@@ -280,7 +293,7 @@ begin
   inherited Destroy();
 end;
 
-procedure TFloriaQMLItem.AddChild(AChild: TFloriaQMLItem);
+procedure TFloriaFTMLItem.AddChild(AChild: TFloriaFTMLItem);
 begin
   if (AChild <> nil) and (FChildren <> nil) then
   begin
@@ -296,7 +309,7 @@ begin
   end;
 end;
 
-procedure TFloriaQMLItem.RemoveChild(AChild: TFloriaQMLItem);
+procedure TFloriaFTMLItem.RemoveChild(AChild: TFloriaFTMLItem);
 begin
   if (AChild <> nil) and (FChildren <> nil) then
   begin
@@ -306,7 +319,7 @@ begin
   end;
 end;
 
-function TFloriaQMLItem.ChildCount(): Integer;
+function TFloriaFTMLItem.ChildCount(): Integer;
 begin
   if FChildren <> nil then
     Result := FChildren.Count
@@ -314,18 +327,18 @@ begin
     Result := 0;
 end;
 
-function TFloriaQMLItem.GetChild(AIndex: Integer): TFloriaQMLItem;
+function TFloriaFTMLItem.GetChild(AIndex: Integer): TFloriaFTMLItem;
 begin
   if (FChildren <> nil) and (AIndex >= 0) and (AIndex < FChildren.Count) then
-    Result := TFloriaQMLItem(FChildren[AIndex])
+    Result := TFloriaFTMLItem(FChildren[AIndex])
   else
     Result := nil;
 end;
 
-function TFloriaQMLItem.FindById(const AId: string): TFloriaQMLItem;
+function TFloriaFTMLItem.FindById(const AId: string): TFloriaFTMLItem;
 var
   i: Integer;
-  child, found: TFloriaQMLItem;
+  child, found: TFloriaFTMLItem;
 begin
   if (AId <> '') and (FId = AId) then
     Exit(Self);
@@ -334,7 +347,7 @@ begin
   begin
     for i := 0 to FChildren.Count - 1 do
     begin
-      child := TFloriaQMLItem(FChildren[i]);
+      child := TFloriaFTMLItem(FChildren[i]);
       found := child.FindById(AId);
       if found <> nil then
         Exit(found);
@@ -344,16 +357,16 @@ begin
   Result := nil;
 end;
 
-function TFloriaQMLItem.FindChild(const AName: string): TFloriaQMLItem;
+function TFloriaFTMLItem.FindChild(const AName: string): TFloriaFTMLItem;
 var
   i: Integer;
-  child: TFloriaQMLItem;
+  child: TFloriaFTMLItem;
 begin
   if FChildren <> nil then
   begin
     for i := 0 to FChildren.Count - 1 do
     begin
-      child := TFloriaQMLItem(FChildren[i]);
+      child := TFloriaFTMLItem(FChildren[i]);
       if (child.Id = AName) or (child.TypeName = AName) then
         Exit(child);
     end;
@@ -361,47 +374,47 @@ begin
   Result := nil;
 end;
 
-function TFloriaQMLItem.FindPropertyIndex(const AName: string): Integer;
+function TFloriaFTMLItem.FindPropertyIndex(const AName: string): Integer;
 var
   i: Integer;
 begin
-  for i := 0 to FQMLPropCount - 1 do
+  for i := 0 to FFTMLPropCount - 1 do
   begin
-    if FQMLProperties[i].Name = AName then
+    if FFTMLProperties[i].Name = AName then
       Exit(i);
   end;
   Result := -1;
 end;
 
-function TFloriaQMLItem.DefineProperty(const AName: string; const ADefault: TFloriaJSValue): Integer;
+function TFloriaFTMLItem.DefineProperty(const AName: string; const ADefault: TFloriaJSValue): Integer;
 var
   idx: Integer;
 begin
   idx := FindPropertyIndex(AName);
   if idx >= 0 then
   begin
-    FQMLProperties[idx].Value := ADefault;
+    FFTMLProperties[idx].Value := ADefault;
     Exit(idx);
   end;
 
-  if FQMLPropCount >= Length(FQMLProperties) then
+  if FFTMLPropCount >= Length(FFTMLProperties) then
   begin
-    if Length(FQMLProperties) = 0 then
-      SetLength(FQMLProperties, 8)
+    if Length(FFTMLProperties) = 0 then
+      SetLength(FFTMLProperties, 8)
     else
-      SetLength(FQMLProperties, Length(FQMLProperties) * 2);
+      SetLength(FFTMLProperties, Length(FFTMLProperties) * 2);
   end;
 
-  FQMLProperties[FQMLPropCount].Name := AName;
-  FQMLProperties[FQMLPropCount].Value := ADefault;
-  FQMLProperties[FQMLPropCount].HasBinding := False;
-  FQMLProperties[FQMLPropCount].BindingRef := nil;
-  idx := FQMLPropCount;
-  Inc(FQMLPropCount);
+  FFTMLProperties[FFTMLPropCount].Name := AName;
+  FFTMLProperties[FFTMLPropCount].Value := ADefault;
+  FFTMLProperties[FFTMLPropCount].HasBinding := False;
+  FFTMLProperties[FFTMLPropCount].BindingRef := nil;
+  idx := FFTMLPropCount;
+  Inc(FFTMLPropCount);
   Result := idx;
 end;
 
-function TFloriaQMLItem.GetChildrenAsJSArray(): TFloriaJSValue;
+function TFloriaFTMLItem.GetChildrenAsJSArray(): TFloriaJSValue;
 var
   arr: TFloriaJSArray;
   i: Integer;
@@ -410,12 +423,12 @@ begin
   if FChildren <> nil then
   begin
     for i := 0 to FChildren.Count - 1 do
-      arr.Push(JSMakeObject(TFloriaQMLItem(FChildren[i])));
+      arr.Push(JSMakeObject(TFloriaFTMLItem(FChildren[i])));
   end;
   Result := JSMakeObject(arr);
 end;
 
-function TFloriaQMLItem.GetProperty(const AName: string): TFloriaJSValue;
+function TFloriaFTMLItem.GetProperty(const AName: string): TFloriaJSValue;
 var
   idx: Integer;
 begin
@@ -438,23 +451,23 @@ begin
 
   idx := FindPropertyIndex(AName);
   if idx >= 0 then
-    Exit(FQMLProperties[idx].Value);
+    Exit(FFTMLProperties[idx].Value);
 
   // Fallback to base object property (e.g. attached methods or prototypes)
   Result := inherited GetProperty(AName);
 end;
 
-procedure TFloriaQMLItem.SetProperty(const AName: string; const AValue: TFloriaJSValue);
+procedure TFloriaFTMLItem.SetProperty(const AName: string; const AValue: TFloriaJSValue);
 begin
   SetPropertyInternal(AName, AValue, False);
 end;
 
-procedure TFloriaQMLItem.SetPropertyFromBinding(const AName: string; const AValue: TFloriaJSValue);
+procedure TFloriaFTMLItem.SetPropertyFromBinding(const AName: string; const AValue: TFloriaJSValue);
 begin
   SetPropertyInternal(AName, AValue, True);
 end;
 
-procedure TFloriaQMLItem.SetPropertyInternal(const AName: string; const AValue: TFloriaJSValue; AFromBinding: Boolean);
+procedure TFloriaFTMLItem.SetPropertyInternal(const AName: string; const AValue: TFloriaJSValue; AFromBinding: Boolean);
 var
   idx: Integer;
   oldVal: TFloriaJSValue;
@@ -474,18 +487,18 @@ begin
   end
   else
   begin
-    oldVal := FQMLProperties[idx].Value;
+    oldVal := FFTMLProperties[idx].Value;
     valChanged := not JSStrictEqual(oldVal, AValue);
-    FQMLProperties[idx].Value := AValue;
+    FFTMLProperties[idx].Value := AValue;
   end;
 
   // Assignment from script or host explicitly breaks existing binding
   if not AFromBinding then
   begin
-    if FQMLProperties[idx].HasBinding then
+    if FFTMLProperties[idx].HasBinding then
     begin
-      FQMLProperties[idx].HasBinding := False;
-      FQMLProperties[idx].BindingRef := nil;
+      FFTMLProperties[idx].HasBinding := False;
+      FFTMLProperties[idx].BindingRef := nil;
       if FBindingManager <> nil then
         FBindingManager.RemoveBindingsForTarget(Self, AName);
     end;
@@ -502,7 +515,7 @@ begin
   end;
 end;
 
-function TFloriaQMLItem.HasProperty(const AName: string): Boolean;
+function TFloriaFTMLItem.HasProperty(const AName: string): Boolean;
 begin
   if (AName = 'id') or (AName = 'parent') or (AName = 'children') then
     Exit(True);
@@ -513,28 +526,28 @@ begin
   Result := inherited HasProperty(AName);
 end;
 
-function TFloriaQMLItem.GetPropertyCount(): Integer;
+function TFloriaFTMLItem.GetPropertyCount(): Integer;
 begin
-  Result := FQMLPropCount;
+  Result := FFTMLPropCount;
 end;
 
-function TFloriaQMLItem.GetPropertyName(AIndex: Integer): string;
+function TFloriaFTMLItem.GetPropertyName(AIndex: Integer): string;
 begin
-  if (AIndex >= 0) and (AIndex < FQMLPropCount) then
-    Result := FQMLProperties[AIndex].Name
+  if (AIndex >= 0) and (AIndex < FFTMLPropCount) then
+    Result := FFTMLProperties[AIndex].Name
   else
     Result := '';
 end;
 
-function TFloriaQMLItem.GetPropertyValue(AIndex: Integer): TFloriaJSValue;
+function TFloriaFTMLItem.GetPropertyValue(AIndex: Integer): TFloriaJSValue;
 begin
-  if (AIndex >= 0) and (AIndex < FQMLPropCount) then
-    Result := FQMLProperties[AIndex].Value
+  if (AIndex >= 0) and (AIndex < FFTMLPropCount) then
+    Result := FFTMLProperties[AIndex].Value
   else
     Result := JSMakeUndefined();
 end;
 
-function TFloriaQMLItem.GetPropertyAsNumber(const AName: string; ADefault: Double): Double;
+function TFloriaFTMLItem.GetPropertyAsNumber(const AName: string; ADefault: Double): Double;
 var
   val: TFloriaJSValue;
 begin
@@ -547,7 +560,7 @@ begin
     Result := ADefault;
 end;
 
-function TFloriaQMLItem.GetPropertyAsString(const AName: string; const ADefault: string): string;
+function TFloriaFTMLItem.GetPropertyAsString(const AName: string; const ADefault: string): string;
 var
   val: TFloriaJSValue;
 begin
@@ -558,7 +571,7 @@ begin
     Result := val.ToString();
 end;
 
-function TFloriaQMLItem.GetPropertyAsBoolean(const AName: string; ADefault: Boolean): Boolean;
+function TFloriaFTMLItem.GetPropertyAsBoolean(const AName: string; ADefault: Boolean): Boolean;
 var
   val: TFloriaJSValue;
 begin
@@ -569,7 +582,7 @@ begin
     Result := ADefault;
 end;
 
-procedure TFloriaQMLItem.AttachBinding(const AName: string; ABinding: TObject);
+procedure TFloriaFTMLItem.AttachBinding(const AName: string; ABinding: TObject);
 var
   idx: Integer;
 begin
@@ -577,84 +590,83 @@ begin
   if idx < 0 then
     idx := DefineProperty(AName, JSMakeUndefined());
 
-  FQMLProperties[idx].HasBinding := True;
-  FQMLProperties[idx].BindingRef := ABinding;
+  FFTMLProperties[idx].HasBinding := True;
+  FFTMLProperties[idx].BindingRef := ABinding;
 end;
 
-procedure TFloriaQMLItem.DetachBinding(const AName: string);
+procedure TFloriaFTMLItem.DetachBinding(const AName: string);
 var
   idx: Integer;
 begin
   idx := FindPropertyIndex(AName);
-  if (idx >= 0) and FQMLProperties[idx].HasBinding then
+  if (idx >= 0) and FFTMLProperties[idx].HasBinding then
   begin
-    FQMLProperties[idx].HasBinding := False;
-    FQMLProperties[idx].BindingRef := nil;
+    FFTMLProperties[idx].HasBinding := False;
+    FFTMLProperties[idx].BindingRef := nil;
   end;
 end;
 
-function TFloriaQMLItem.HasBinding(const AName: string): Boolean;
+function TFloriaFTMLItem.HasBinding(const AName: string): Boolean;
 var
   idx: Integer;
 begin
   idx := FindPropertyIndex(AName);
-  Result := (idx >= 0) and FQMLProperties[idx].HasBinding;
+  Result := (idx >= 0) and FFTMLProperties[idx].HasBinding;
 end;
 
-function TFloriaQMLItem.GetBinding(const AName: string): TObject;
+function TFloriaFTMLItem.GetBinding(const AName: string): TObject;
 var
   idx: Integer;
 begin
   idx := FindPropertyIndex(AName);
-  if (idx >= 0) and FQMLProperties[idx].HasBinding then
-    Result := FQMLProperties[idx].BindingRef
+  if (idx >= 0) and FFTMLProperties[idx].HasBinding then
+    Result := FFTMLProperties[idx].BindingRef
   else
     Result := nil;
 end;
 
-function TFloriaQMLItem.FindSignalIndex(const ASignalName: string): Integer;
+function TFloriaFTMLItem.FindSignalIndex(const ASignalName: string): Integer;
 var
   i: Integer;
 begin
-  for i := 0 to FQMLSignalCount - 1 do
+  for i := 0 to FFTMLSignalCount - 1 do
   begin
-    if SameText(FQMLSignals[i].SignalName, ASignalName) then
+    if SameText(FFTMLSignals[i].SignalName, ASignalName) then
       Exit(i);
   end;
   Result := -1;
 end;
 
-procedure TFloriaQMLItem.AddSignalHandler(const ASignalName: string; AHandler: TFloriaJSStmtNode);
+procedure TFloriaFTMLItem.AddSignalHandler(const ASignalName: string; AHandler: TFloriaJSStmtNode);
 var
   idx: Integer;
 begin
   idx := FindSignalIndex(ASignalName);
   if idx >= 0 then
   begin
-    FQMLSignals[idx].HandlerStmt := AHandler;
+    FFTMLSignals[idx].HandlerStmt := AHandler;
     Exit;
   end;
 
-  if FQMLSignalCount >= Length(FQMLSignals) then
+  if FFTMLSignalCount >= Length(FFTMLSignals) then
   begin
-    if Length(FQMLSignals) = 0 then
-      SetLength(FQMLSignals, 4)
+    if Length(FFTMLSignals) = 0 then
+      SetLength(FFTMLSignals, 4)
     else
-      SetLength(FQMLSignals, Length(FQMLSignals) * 2);
+      SetLength(FFTMLSignals, Length(FFTMLSignals) * 2);
   end;
 
-  FQMLSignals[FQMLSignalCount].SignalName := ASignalName;
-  FQMLSignals[FQMLSignalCount].HandlerStmt := AHandler;
-  Inc(FQMLSignalCount);
+  FFTMLSignals[FFTMLSignalCount].SignalName := ASignalName;
+  FFTMLSignals[FFTMLSignalCount].HandlerStmt := AHandler;
+  Inc(FFTMLSignalCount);
 end;
 
-function TFloriaQMLItem.EmitSignal(const ASignalName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
+function TFloriaFTMLItem.EmitSignal(const ASignalName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
 var
   normName, onName: string;
   idx: Integer;
   evaluator: TFloriaJSEvaluator;
   sigEnv: TFloriaJSEnvironment;
-  engCtx: IFloriaQMLEngineContext;
   i: Integer;
 begin
   Result := JSMakeUndefined();
@@ -674,11 +686,11 @@ begin
   if idx < 0 then
     idx := FindSignalIndex(normName);
 
-  if (idx >= 0) and (FQMLSignals[idx].HandlerStmt <> nil) then
+  if (idx >= 0) and (FFTMLSignals[idx].HandlerStmt <> nil) then
   begin
     evaluator := nil;
-    if (FEngine <> nil) and (FEngine is IFloriaQMLEngineContext) then
-      evaluator := (FEngine as IFloriaQMLEngineContext).GetEvaluator();
+    if (FEngine <> nil) and (FEngine is IFloriaFTMLEngineContext) then
+      evaluator := (FEngine as IFloriaFTMLEngineContext).GetEvaluator();
 
     if evaluator <> nil then
     begin
@@ -690,7 +702,7 @@ begin
         for i := 0 to High(AArgs) do
           sigEnv.Define('arg' + IntToStr(i), AArgs[i]);
 
-        Result := evaluator.ExecuteStmt(FQMLSignals[idx].HandlerStmt, sigEnv);
+        Result := evaluator.ExecuteStmt(FFTMLSignals[idx].HandlerStmt, sigEnv);
       finally
         sigEnv.Free();
       end;
@@ -698,74 +710,74 @@ begin
   end;
 end;
 
-function TFloriaQMLItem.EmitSignal(const ASignalName: string): TFloriaJSValue;
+function TFloriaFTMLItem.EmitSignal(const ASignalName: string): TFloriaJSValue;
 begin
   Result := EmitSignal(ASignalName, []);
 end;
 
-function TFloriaQMLItem.GetX(): Double;
+function TFloriaFTMLItem.GetX(): Double;
 begin
   Result := GetPropertyAsNumber('x', 0.0);
 end;
 
-procedure TFloriaQMLItem.SetX(AVal: Double);
+procedure TFloriaFTMLItem.SetX(AVal: Double);
 begin
   SetProperty('x', JSMakeNumber(AVal));
 end;
 
-function TFloriaQMLItem.GetY(): Double;
+function TFloriaFTMLItem.GetY(): Double;
 begin
   Result := GetPropertyAsNumber('y', 0.0);
 end;
 
-procedure TFloriaQMLItem.SetY(AVal: Double);
+procedure TFloriaFTMLItem.SetY(AVal: Double);
 begin
   SetProperty('y', JSMakeNumber(AVal));
 end;
 
-function TFloriaQMLItem.GetWidth(): Double;
+function TFloriaFTMLItem.GetWidth(): Double;
 begin
   Result := GetPropertyAsNumber('width', 0.0);
 end;
 
-procedure TFloriaQMLItem.SetWidth(AVal: Double);
+procedure TFloriaFTMLItem.SetWidth(AVal: Double);
 begin
   SetProperty('width', JSMakeNumber(AVal));
 end;
 
-function TFloriaQMLItem.GetHeight(): Double;
+function TFloriaFTMLItem.GetHeight(): Double;
 begin
   Result := GetPropertyAsNumber('height', 0.0);
 end;
 
-procedure TFloriaQMLItem.SetHeight(AVal: Double);
+procedure TFloriaFTMLItem.SetHeight(AVal: Double);
 begin
   SetProperty('height', JSMakeNumber(AVal));
 end;
 
-function TFloriaQMLItem.GetVisible(): Boolean;
+function TFloriaFTMLItem.GetVisible(): Boolean;
 begin
   Result := GetPropertyAsBoolean('visible', True);
 end;
 
-procedure TFloriaQMLItem.SetVisible(AVal: Boolean);
+procedure TFloriaFTMLItem.SetVisible(AVal: Boolean);
 begin
   SetProperty('visible', JSMakeBoolean(AVal));
 end;
 
-function TFloriaQMLItem.GetOpacity(): Double;
+function TFloriaFTMLItem.GetOpacity(): Double;
 begin
   Result := GetPropertyAsNumber('opacity', 1.0);
 end;
 
-procedure TFloriaQMLItem.SetOpacity(AVal: Double);
+procedure TFloriaFTMLItem.SetOpacity(AVal: Double);
 begin
   SetProperty('opacity', JSMakeNumber(AVal));
 end;
 
-{ TFloriaQMLRectangle }
+{ TFloriaFTMLRectangle }
 
-constructor TFloriaQMLRectangle.Create(const ATypeName: string; AEngine: TObject);
+constructor TFloriaFTMLRectangle.Create(const ATypeName: string; AEngine: TObject);
 begin
   inherited Create(ATypeName, AEngine);
   DefineProperty('color', JSMakeString('#ffffff'));
@@ -774,49 +786,49 @@ begin
   DefineProperty('borderColor', JSMakeString('#000000'));
 end;
 
-function TFloriaQMLRectangle.GetColor(): string;
+function TFloriaFTMLRectangle.GetColor(): string;
 begin
   Result := GetPropertyAsString('color', '#ffffff');
 end;
 
-procedure TFloriaQMLRectangle.SetColor(const AVal: string);
+procedure TFloriaFTMLRectangle.SetColor(const AVal: string);
 begin
   SetProperty('color', JSMakeString(AVal));
 end;
 
-function TFloriaQMLRectangle.GetRadius(): Double;
+function TFloriaFTMLRectangle.GetRadius(): Double;
 begin
   Result := GetPropertyAsNumber('radius', 0.0);
 end;
 
-procedure TFloriaQMLRectangle.SetRadius(AVal: Double);
+procedure TFloriaFTMLRectangle.SetRadius(AVal: Double);
 begin
   SetProperty('radius', JSMakeNumber(AVal));
 end;
 
-function TFloriaQMLRectangle.GetBorderWidth(): Double;
+function TFloriaFTMLRectangle.GetBorderWidth(): Double;
 begin
   Result := GetPropertyAsNumber('borderWidth', 0.0);
 end;
 
-procedure TFloriaQMLRectangle.SetBorderWidth(AVal: Double);
+procedure TFloriaFTMLRectangle.SetBorderWidth(AVal: Double);
 begin
   SetProperty('borderWidth', JSMakeNumber(AVal));
 end;
 
-function TFloriaQMLRectangle.GetBorderColor(): string;
+function TFloriaFTMLRectangle.GetBorderColor(): string;
 begin
   Result := GetPropertyAsString('borderColor', '#000000');
 end;
 
-procedure TFloriaQMLRectangle.SetBorderColor(const AVal: string);
+procedure TFloriaFTMLRectangle.SetBorderColor(const AVal: string);
 begin
   SetProperty('borderColor', JSMakeString(AVal));
 end;
 
-{ TFloriaQMLText }
+{ TFloriaFTMLText }
 
-constructor TFloriaQMLText.Create(const ATypeName: string; AEngine: TObject);
+constructor TFloriaFTMLText.Create(const ATypeName: string; AEngine: TObject);
 begin
   inherited Create(ATypeName, AEngine);
   DefineProperty('text', JSMakeString(''));
@@ -826,49 +838,49 @@ begin
   DefineProperty('alignment', JSMakeString('left'));
 end;
 
-function TFloriaQMLText.GetText(): string;
+function TFloriaFTMLText.GetText(): string;
 begin
   Result := GetPropertyAsString('text', '');
 end;
 
-procedure TFloriaQMLText.SetText(const AVal: string);
+procedure TFloriaFTMLText.SetText(const AVal: string);
 begin
   SetProperty('text', JSMakeString(AVal));
 end;
 
-function TFloriaQMLText.GetColor(): string;
+function TFloriaFTMLText.GetColor(): string;
 begin
   Result := GetPropertyAsString('color', '#000000');
 end;
 
-procedure TFloriaQMLText.SetColor(const AVal: string);
+procedure TFloriaFTMLText.SetColor(const AVal: string);
 begin
   SetProperty('color', JSMakeString(AVal));
 end;
 
-function TFloriaQMLText.GetFontSize(): Double;
+function TFloriaFTMLText.GetFontSize(): Double;
 begin
   Result := GetPropertyAsNumber('fontSize', 14.0);
 end;
 
-procedure TFloriaQMLText.SetFontSize(AVal: Double);
+procedure TFloriaFTMLText.SetFontSize(AVal: Double);
 begin
   SetProperty('fontSize', JSMakeNumber(AVal));
 end;
 
-function TFloriaQMLText.GetFontFamily(): string;
+function TFloriaFTMLText.GetFontFamily(): string;
 begin
   Result := GetPropertyAsString('fontFamily', 'sans-serif');
 end;
 
-procedure TFloriaQMLText.SetFontFamily(const AVal: string);
+procedure TFloriaFTMLText.SetFontFamily(const AVal: string);
 begin
   SetProperty('fontFamily', JSMakeString(AVal));
 end;
 
-{ TFloriaQMLButton }
+{ TFloriaFTMLButton }
 
-constructor TFloriaQMLButton.Create(const ATypeName: string; AEngine: TObject);
+constructor TFloriaFTMLButton.Create(const ATypeName: string; AEngine: TObject);
 begin
   inherited Create(ATypeName, AEngine);
   DefineProperty('text', JSMakeString(''));
@@ -876,44 +888,44 @@ begin
   DefineProperty('hovered', JSMakeBoolean(False));
 end;
 
-function TFloriaQMLButton.GetText(): string;
+function TFloriaFTMLButton.GetText(): string;
 begin
   Result := GetPropertyAsString('text', '');
 end;
 
-procedure TFloriaQMLButton.SetText(const AVal: string);
+procedure TFloriaFTMLButton.SetText(const AVal: string);
 begin
   SetProperty('text', JSMakeString(AVal));
 end;
 
-function TFloriaQMLButton.GetPressed(): Boolean;
+function TFloriaFTMLButton.GetPressed(): Boolean;
 begin
   Result := GetPropertyAsBoolean('pressed', False);
 end;
 
-procedure TFloriaQMLButton.SetPressed(AVal: Boolean);
+procedure TFloriaFTMLButton.SetPressed(AVal: Boolean);
 begin
   SetProperty('pressed', JSMakeBoolean(AVal));
 end;
 
-function TFloriaQMLButton.GetHovered(): Boolean;
+function TFloriaFTMLButton.GetHovered(): Boolean;
 begin
   Result := GetPropertyAsBoolean('hovered', False);
 end;
 
-procedure TFloriaQMLButton.SetHovered(AVal: Boolean);
+procedure TFloriaFTMLButton.SetHovered(AVal: Boolean);
 begin
   SetProperty('hovered', JSMakeBoolean(AVal));
 end;
 
-procedure TFloriaQMLButton.Click();
+procedure TFloriaFTMLButton.Click();
 begin
   EmitSignal('clicked', []);
 end;
 
-{ TFloriaQMLTextInput }
+{ TFloriaFTMLTextInput }
 
-constructor TFloriaQMLTextInput.Create(const ATypeName: string; AEngine: TObject);
+constructor TFloriaFTMLTextInput.Create(const ATypeName: string; AEngine: TObject);
 begin
   inherited Create(ATypeName, AEngine);
   DefineProperty('text', JSMakeString(''));
@@ -921,60 +933,60 @@ begin
   DefineProperty('readOnly', JSMakeBoolean(False));
 end;
 
-function TFloriaQMLTextInput.GetText(): string;
+function TFloriaFTMLTextInput.GetText(): string;
 begin
   Result := GetPropertyAsString('text', '');
 end;
 
-procedure TFloriaQMLTextInput.SetText(const AVal: string);
+procedure TFloriaFTMLTextInput.SetText(const AVal: string);
 begin
   SetProperty('text', JSMakeString(AVal));
 end;
 
-function TFloriaQMLTextInput.GetPlaceholder(): string;
+function TFloriaFTMLTextInput.GetPlaceholder(): string;
 begin
   Result := GetPropertyAsString('placeholder', '');
 end;
 
-procedure TFloriaQMLTextInput.SetPlaceholder(const AVal: string);
+procedure TFloriaFTMLTextInput.SetPlaceholder(const AVal: string);
 begin
   SetProperty('placeholder', JSMakeString(AVal));
 end;
 
-function TFloriaQMLTextInput.GetReadOnly(): Boolean;
+function TFloriaFTMLTextInput.GetReadOnly(): Boolean;
 begin
   Result := GetPropertyAsBoolean('readOnly', False);
 end;
 
-procedure TFloriaQMLTextInput.SetReadOnly(AVal: Boolean);
+procedure TFloriaFTMLTextInput.SetReadOnly(AVal: Boolean);
 begin
   SetProperty('readOnly', JSMakeBoolean(AVal));
 end;
 
-{ TFloriaQMLColumn }
+{ TFloriaFTMLColumn }
 
-constructor TFloriaQMLColumn.Create(const ATypeName: string; AEngine: TObject);
+constructor TFloriaFTMLColumn.Create(const ATypeName: string; AEngine: TObject);
 begin
   inherited Create(ATypeName, AEngine);
   DefineProperty('spacing', JSMakeNumber(0.0));
 end;
 
-function TFloriaQMLColumn.GetSpacing(): Double;
+function TFloriaFTMLColumn.GetSpacing(): Double;
 begin
   Result := GetPropertyAsNumber('spacing', 0.0);
 end;
 
-procedure TFloriaQMLColumn.SetSpacing(AVal: Double);
+procedure TFloriaFTMLColumn.SetSpacing(AVal: Double);
 begin
   SetProperty('spacing', JSMakeNumber(AVal));
   Relayout();
 end;
 
-procedure TFloriaQMLColumn.Relayout();
+procedure TFloriaFTMLColumn.Relayout();
 var
   i: Integer;
   curY, sp: Double;
-  child: TFloriaQMLItem;
+  child: TFloriaFTMLItem;
 begin
   curY := 0.0;
   sp := GetSpacing();
@@ -989,30 +1001,30 @@ begin
   end;
 end;
 
-{ TFloriaQMLRow }
+{ TFloriaFTMLRow }
 
-constructor TFloriaQMLRow.Create(const ATypeName: string; AEngine: TObject);
+constructor TFloriaFTMLRow.Create(const ATypeName: string; AEngine: TObject);
 begin
   inherited Create(ATypeName, AEngine);
   DefineProperty('spacing', JSMakeNumber(0.0));
 end;
 
-function TFloriaQMLRow.GetSpacing(): Double;
+function TFloriaFTMLRow.GetSpacing(): Double;
 begin
   Result := GetPropertyAsNumber('spacing', 0.0);
 end;
 
-procedure TFloriaQMLRow.SetSpacing(AVal: Double);
+procedure TFloriaFTMLRow.SetSpacing(AVal: Double);
 begin
   SetProperty('spacing', JSMakeNumber(AVal));
   Relayout();
 end;
 
-procedure TFloriaQMLRow.Relayout();
+procedure TFloriaFTMLRow.Relayout();
 var
   i: Integer;
   curX, sp: Double;
-  child: TFloriaQMLItem;
+  child: TFloriaFTMLItem;
 begin
   curX := 0.0;
   sp := GetSpacing();

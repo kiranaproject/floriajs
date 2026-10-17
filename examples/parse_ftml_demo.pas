@@ -1,8 +1,8 @@
 { ************************************************************************** }
 {                                                                          }
-{   Floria JS (floriajs) — Declarative QML & JS Parser Demo                }
+{   Floria JS (floriajs) — Declarative FTML & JS Parser Demo               }
 {                                                                          }
-{   Demonstrates parsing declarative QML-style UI component trees with     }
+{   Demonstrates parsing declarative FTML component trees with             }
 {   reactive bindings, signal handlers, and child hierarchies.             }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
@@ -10,14 +10,14 @@
 {                                                                          }
 { ************************************************************************** }
 
-program parse_qml_demo;
+program parse_ftml_demo;
 
 {$mode objfpc}{$H+}
 
 uses
   Classes, SysUtils, floriajs;
 
-procedure PrintComponent(AComp: TFloriaJSQMLComponent; AIndent: string);
+procedure PrintComponent(AComp: TFloriaFTMLComponent; AIndent: string);
 var
   i: Integer;
 begin
@@ -47,10 +47,10 @@ end;
 var
   source: string;
   parser: TFloriaJSParser;
-  comp: TFloriaJSQMLComponent;
+  comp: TFloriaFTMLComponent;
 
 begin
-  WriteLn('=== Floria JS — Declarative QML Component Parser Demo ===');
+  WriteLn('=== Floria JS — Declarative FTML Component Parser Demo ===');
   WriteLn();
 
   source :=
@@ -77,7 +77,7 @@ begin
     '  }' + LineEnding +
     '}';
 
-  WriteLn('Input QML Script:');
+  WriteLn('Input FTML Script:');
   WriteLn('----------------------------------------------------');
   WriteLn(source);
   WriteLn('----------------------------------------------------');
@@ -85,7 +85,7 @@ begin
 
   parser := TFloriaJSParser.Create(source);
   try
-    comp := parser.ParseQMLComponent();
+    comp := parser.ParseFTMLComponent();
     try
       if parser.HasErrors() then
       begin
@@ -94,7 +94,7 @@ begin
       end
       else
       begin
-        WriteLn('Parsed QML Component Hierarchy:');
+        WriteLn('Parsed FTML Component Hierarchy:');
         PrintComponent(comp, '');
         WriteLn();
         WriteLn('Success! Declarative component tree parsed cleanly.');

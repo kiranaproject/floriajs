@@ -1,8 +1,8 @@
 { ************************************************************************** }
 {                                                                          }
-{   Floria JS — Reactive QML Declarative UI Demo                          }
+{   Floria JS — Reactive FTML Declarative UI Demo                          }
 {                                                                          }
-{   Demonstrates pure Object Pascal QML parsing, component hierarchy,      }
+{   Demonstrates pure Object Pascal FTML parsing, component hierarchy,     }
 {   reactive property bindings, and signal handling.                       }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
@@ -10,7 +10,7 @@
 {                                                                          }
 { ************************************************************************** }
 
-program reactive_qml_demo;
+program reactive_ftml_demo;
 
 {$mode objfpc}{$H+}
 {$interfaces corba}
@@ -20,7 +20,7 @@ uses
   SysUtils, floriajs;
 
 const
-  DEMO_QML =
+  DEMO_FTML =
     'Rectangle {' + LineEnding +
     '  id: mainWindow' + LineEnding +
     '  width: 600;' + LineEnding +
@@ -29,7 +29,7 @@ const
     '  property int clickCount: 0;' + LineEnding +
     LineEnding +
     '  Component.onCompleted: {' + LineEnding +
-    '    console.log("[QML Lifecycle] mainWindow instantiated and ready!");' + LineEnding +
+    '    console.log("[FTML Lifecycle] mainWindow instantiated and ready!");' + LineEnding +
     '  }' + LineEnding +
     LineEnding +
     '  Rectangle {' + LineEnding +
@@ -73,10 +73,10 @@ const
     '  }' + LineEnding +
     '}';
 
-procedure PrintComponentHierarchy(AItem: TFloriaQMLItem; AIndent: string = '');
+procedure PrintComponentHierarchy(AItem: TFloriaFTMLItem; AIndent: string = '');
 var
   i: Integer;
-  child: TFloriaQMLItem;
+  child: TFloriaFTMLItem;
   idStr: string;
 begin
   if AItem = nil then Exit;
@@ -100,20 +100,20 @@ begin
 end;
 
 var
-  engine: TFloriaQMLEngine;
-  root, card, expandBtn, sizeLabel, summary: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root, card, expandBtn, sizeLabel, summary: TFloriaFTMLItem;
 begin
-  WriteLn('=== Floria JS — Reactive QML Declarative UI Demo ===');
+  WriteLn('=== Floria JS — Reactive FTML Declarative UI Demo ===');
   WriteLn('Engine Version: ', FLORIA_JS_VERSION_STRING);
   WriteLn();
 
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
-    WriteLn('--- Loading QML Component ---');
-    root := engine.LoadString(DEMO_QML);
+    WriteLn('--- Loading FTML Component ---');
+    root := engine.LoadString(DEMO_FTML);
     if root = nil then
     begin
-      WriteLn('Error loading QML: ', engine.LastError);
+      WriteLn('Error loading FTML: ', engine.LastError);
       Halt(1);
     end;
 
@@ -157,7 +157,7 @@ begin
     WriteLn('  sizeLabel.text:    "', sizeLabel.GetPropertyAsString('text'), '"');
     WriteLn();
 
-    WriteLn('Success! Declarative QML engine and reactive property bindings verified.');
+    WriteLn('Success! Declarative FTML engine and reactive property bindings verified.');
   finally
     engine.Free();
   end;

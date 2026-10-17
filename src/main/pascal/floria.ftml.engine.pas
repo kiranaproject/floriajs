@@ -1,8 +1,9 @@
 { ************************************************************************** }
 {                                                                          }
-{   Floria JS (floriajs) — Declarative QML Engine & Document Runtime       }
+{   Floria JS (floriajs) — Declarative FTML Engine & Document Runtime      }
+{   (Floria Toolkit Markup Language)                                       }
 {                                                                          }
-{   Parses QML documents, instantiates component hierarchies, wires        }
+{   Parses FTML documents, instantiates component hierarchies, wires       }
 {   reactive property bindings, resolves IDs, and handles signals.         }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
@@ -10,7 +11,7 @@
 {                                                                          }
 { ************************************************************************** }
 
-unit floria.qml.engine;
+unit floria.ftml.engine;
 
 {$mode objfpc}{$H+}
 {$interfaces corba}
@@ -20,56 +21,59 @@ interface
 uses
   Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.parser,
   floria.js.value, floria.js.env, floria.js.evaluator, floria.js.core,
-  floria.qml.types, floria.qml.binding;
+  floria.ftml.types, floria.ftml.binding;
 
 type
-  { Declarative QML Engine }
-  TFloriaQMLEngine = class(TObject, IFloriaQMLEngineContext)
+  { Declarative FTML Engine }
+  TFloriaFTMLEngine = class(TObject, IFloriaFTMLEngineContext)
   private
     FContext: TFloriaJSContext;
     FOwnsContext: Boolean;
-    FBindingManager: TFloriaQMLBindingManager;
-    FRootItem: TFloriaQMLItem;
-    FRootAST: TFloriaJSQMLComponent;
+    FBindingManager: TFloriaFTMLBindingManager;
+    FRootItem: TFloriaFTMLItem;
+    FRootAST: TFloriaFTMLComponent;
     FRootEnv: TFloriaJSEnvironment;
     FRegistry: TStringList;
     FItemsById: TStringList;
     FLastError: string;
 
-    function  InstantiateItem(AAST: TFloriaJSQMLComponent; AParentItem: TFloriaQMLItem; AParentEnv: TFloriaJSEnvironment): TFloriaQMLItem;
-    procedure SetupItemBindings(AAST: TFloriaJSQMLComponent; AItem: TFloriaQMLItem);
-    procedure TriggerCompletedSignals(AItem: TFloriaQMLItem);
+    function  InstantiateItem(AAST: TFloriaFTMLComponent; AParentItem: TFloriaFTMLItem; AParentEnv: TFloriaJSEnvironment): TFloriaFTMLItem;
+    procedure SetupItemBindings(AAST: TFloriaFTMLComponent; AItem: TFloriaFTMLItem);
+    procedure TriggerCompletedSignals(AItem: TFloriaFTMLItem);
   public
     constructor Create(AContext: TFloriaJSContext = nil);
     destructor Destroy(); override;
 
-    { IFloriaQMLEngineContext Implementation }
+    { IFloriaFTMLEngineContext Implementation }
     function GetEvaluator(): TFloriaJSEvaluator;
 
     { Component Type Registration }
-    procedure RegisterComponentType(const ATypeName: string; AClass: TFloriaQMLItemClass);
-    function  CreateItem(const ATypeName: string): TFloriaQMLItem;
+    procedure RegisterComponentType(const ATypeName: string; AClass: TFloriaFTMLItemClass);
+    function  CreateItem(const ATypeName: string): TFloriaFTMLItem;
 
     { Loading & Instantiation }
-    function  LoadString(const AQMLSource: string): TFloriaQMLItem;
-    function  LoadFile(const AFileName: string): TFloriaQMLItem;
+    function  LoadString(const AFTMLSource: string): TFloriaFTMLItem;
+    function  LoadFile(const AFileName: string): TFloriaFTMLItem;
 
     { Item Lookup & Script Execution }
-    function  FindItemById(const AId: string): TFloriaQMLItem;
+    function  FindItemById(const AId: string): TFloriaFTMLItem;
     function  Evaluate(const AScript: string): TFloriaJSValue;
     function  HasErrors(): Boolean;
 
     property JSContext: TFloriaJSContext read FContext;
-    property BindingManager: TFloriaQMLBindingManager read FBindingManager;
-    property Root: TFloriaQMLItem read FRootItem;
+    property BindingManager: TFloriaFTMLBindingManager read FBindingManager;
+    property Root: TFloriaFTMLItem read FRootItem;
     property LastError: string read FLastError;
   end;
 
+  { Backward Compatibility Alias }
+  TFloriaQMLEngine = TFloriaFTMLEngine;
+
 implementation
 
-{ TFloriaQMLEngine }
+{ TFloriaFTMLEngine }
 
-constructor TFloriaQMLEngine.Create(AContext: TFloriaJSContext);
+constructor TFloriaFTMLEngine.Create(AContext: TFloriaJSContext);
 begin
   inherited Create();
   if AContext <> nil then
@@ -83,7 +87,7 @@ begin
     FOwnsContext := True;
   end;
 
-  FBindingManager := TFloriaQMLBindingManager.Create(FContext.Evaluator);
+  FBindingManager := TFloriaFTMLBindingManager.Create(FContext.Evaluator);
   FRootItem := nil;
   FRootAST := nil;
   FRootEnv := nil;
@@ -95,17 +99,17 @@ begin
   FItemsById := TStringList.Create();
   FItemsById.CaseSensitive := True;
 
-  // Register standard built-in QML components
-  RegisterComponentType('Item', TFloriaQMLItem);
-  RegisterComponentType('Rectangle', TFloriaQMLRectangle);
-  RegisterComponentType('Text', TFloriaQMLText);
-  RegisterComponentType('Button', TFloriaQMLButton);
-  RegisterComponentType('TextInput', TFloriaQMLTextInput);
-  RegisterComponentType('Column', TFloriaQMLColumn);
-  RegisterComponentType('Row', TFloriaQMLRow);
+  // Register standard built-in FTML components
+  RegisterComponentType('Item', TFloriaFTMLItem);
+  RegisterComponentType('Rectangle', TFloriaFTMLRectangle);
+  RegisterComponentType('Text', TFloriaFTMLText);
+  RegisterComponentType('Button', TFloriaFTMLButton);
+  RegisterComponentType('TextInput', TFloriaFTMLTextInput);
+  RegisterComponentType('Column', TFloriaFTMLColumn);
+  RegisterComponentType('Row', TFloriaFTMLRow);
 end;
 
-destructor TFloriaQMLEngine.Destroy();
+destructor TFloriaFTMLEngine.Destroy();
 begin
   if FRootAST <> nil then
     FreeAndNil(FRootAST);
@@ -125,7 +129,7 @@ begin
   inherited Destroy();
 end;
 
-function TFloriaQMLEngine.GetEvaluator(): TFloriaJSEvaluator;
+function TFloriaFTMLEngine.GetEvaluator(): TFloriaJSEvaluator;
 begin
   if FContext <> nil then
     Result := FContext.Evaluator
@@ -133,23 +137,23 @@ begin
     Result := nil;
 end;
 
-procedure TFloriaQMLEngine.RegisterComponentType(const ATypeName: string; AClass: TFloriaQMLItemClass);
+procedure TFloriaFTMLEngine.RegisterComponentType(const ATypeName: string; AClass: TFloriaFTMLItemClass);
 begin
   if (ATypeName <> '') and (AClass <> nil) and (FRegistry <> nil) then
     FRegistry.AddObject(ATypeName, TObject(Pointer(AClass)));
 end;
 
-function TFloriaQMLEngine.CreateItem(const ATypeName: string): TFloriaQMLItem;
+function TFloriaFTMLEngine.CreateItem(const ATypeName: string): TFloriaFTMLItem;
 var
   idx: Integer;
-  itemClass: TFloriaQMLItemClass;
+  itemClass: TFloriaFTMLItemClass;
 begin
-  itemClass := TFloriaQMLItem;
+  itemClass := TFloriaFTMLItem;
   if FRegistry <> nil then
   begin
     idx := FRegistry.IndexOf(ATypeName);
     if idx >= 0 then
-      itemClass := TFloriaQMLItemClass(Pointer(FRegistry.Objects[idx]));
+      itemClass := TFloriaFTMLItemClass(Pointer(FRegistry.Objects[idx]));
   end;
 
   Result := itemClass.Create(ATypeName, Self);
@@ -158,15 +162,15 @@ begin
   Result.BindingManager := FBindingManager;
 end;
 
-function TFloriaQMLEngine.InstantiateItem(AAST: TFloriaJSQMLComponent; AParentItem: TFloriaQMLItem;
-  AParentEnv: TFloriaJSEnvironment): TFloriaQMLItem;
+function TFloriaFTMLEngine.InstantiateItem(AAST: TFloriaFTMLComponent; AParentItem: TFloriaFTMLItem;
+  AParentEnv: TFloriaJSEnvironment): TFloriaFTMLItem;
 var
-  item: TFloriaQMLItem;
+  item: TFloriaFTMLItem;
   itemEnv: TFloriaJSEnvironment;
   fnDecl: TFloriaJSFunctionDecl;
   fnObj: TFloriaJSFunction;
-  childAST: TFloriaJSQMLComponent;
-  childItem: TFloriaQMLItem;
+  childAST: TFloriaFTMLComponent;
+  childItem: TFloriaFTMLItem;
   i: Integer;
 begin
   item := CreateItem(AAST.ComponentType);
@@ -217,22 +221,21 @@ begin
   begin
     childAST := AAST.GetChild(i);
     childItem := InstantiateItem(childAST, item, itemEnv);
-    // Child is already added to parent via AParentItem.AddChild above
     if childItem = nil then { no-op };
   end;
 
   Result := item;
 end;
 
-procedure TFloriaQMLEngine.SetupItemBindings(AAST: TFloriaJSQMLComponent; AItem: TFloriaQMLItem);
+procedure TFloriaFTMLEngine.SetupItemBindings(AAST: TFloriaFTMLComponent; AItem: TFloriaFTMLItem);
 var
   i: Integer;
   propName: string;
   propExpr: TFloriaJSExprNode;
   litVal: TFloriaJSValue;
-  binding: TFloriaQMLBinding;
-  childAST: TFloriaJSQMLComponent;
-  childItem: TFloriaQMLItem;
+  binding: TFloriaFTMLBinding;
+  childAST: TFloriaFTMLComponent;
+  childItem: TFloriaFTMLItem;
 begin
   if (AAST = nil) or (AItem = nil) then Exit;
 
@@ -268,7 +271,7 @@ begin
   end;
 end;
 
-procedure TFloriaQMLEngine.TriggerCompletedSignals(AItem: TFloriaQMLItem);
+procedure TFloriaFTMLEngine.TriggerCompletedSignals(AItem: TFloriaFTMLItem);
 var
   i: Integer;
 begin
@@ -278,15 +281,16 @@ begin
   for i := 0 to AItem.ChildCount() - 1 do
     TriggerCompletedSignals(AItem.GetChild(i));
 
-  // Trigger onCompleted signals if registered
+  // Trigger onCompleted signals (supports FTML.onCompleted, Component.onCompleted, completed)
+  AItem.EmitSignal('FTML.onCompleted', []);
   AItem.EmitSignal('Component.onCompleted', []);
   AItem.EmitSignal('completed', []);
 end;
 
-function TFloriaQMLEngine.LoadString(const AQMLSource: string): TFloriaQMLItem;
+function TFloriaFTMLEngine.LoadString(const AFTMLSource: string): TFloriaFTMLItem;
 var
   parser: TFloriaJSParser;
-  rootItem: TFloriaQMLItem;
+  rootItem: TFloriaFTMLItem;
 begin
   FLastError := '';
 
@@ -294,7 +298,7 @@ begin
   if FBindingManager <> nil then
   begin
     FreeAndNil(FBindingManager);
-    FBindingManager := TFloriaQMLBindingManager.Create(FContext.Evaluator);
+    FBindingManager := TFloriaFTMLBindingManager.Create(FContext.Evaluator);
   end;
 
   if FRootAST <> nil then
@@ -305,16 +309,16 @@ begin
 
   FRootItem := nil;
 
-  // Step 1: Parse QML syntax
-  parser := TFloriaJSParser.Create(AQMLSource);
+  // Step 1: Parse FTML syntax
+  parser := TFloriaJSParser.Create(AFTMLSource);
   try
-    FRootAST := parser.ParseQMLComponent();
+    FRootAST := parser.ParseFTMLComponent();
     if parser.HasErrors() or (FRootAST = nil) then
     begin
       if parser.GetErrorCount() > 0 then
         FLastError := parser.GetError(0)
       else
-        FLastError := 'Failed to parse QML component';
+        FLastError := 'Failed to parse FTML component';
       Exit(nil);
     end;
   finally
@@ -333,18 +337,18 @@ begin
   SetupItemBindings(FRootAST, rootItem);
 
   // Step 5: Relayout layout containers if applicable
-  if rootItem is TFloriaQMLColumn then
-    TFloriaQMLColumn(rootItem).Relayout()
-  else if rootItem is TFloriaQMLRow then
-    TFloriaQMLRow(rootItem).Relayout();
+  if rootItem is TFloriaFTMLColumn then
+    TFloriaFTMLColumn(rootItem).Relayout()
+  else if rootItem is TFloriaFTMLRow then
+    TFloriaFTMLRow(rootItem).Relayout();
 
-  // Step 6: Dispatch Component.onCompleted signals
+  // Step 6: Dispatch onCompleted signals
   TriggerCompletedSignals(rootItem);
 
   Result := rootItem;
 end;
 
-function TFloriaQMLEngine.LoadFile(const AFileName: string): TFloriaQMLItem;
+function TFloriaFTMLEngine.LoadFile(const AFileName: string): TFloriaFTMLItem;
 var
   sl: TStringList;
 begin
@@ -363,7 +367,7 @@ begin
   end;
 end;
 
-function TFloriaQMLEngine.FindItemById(const AId: string): TFloriaQMLItem;
+function TFloriaFTMLEngine.FindItemById(const AId: string): TFloriaFTMLItem;
 var
   idx: Integer;
 begin
@@ -371,7 +375,7 @@ begin
   begin
     idx := FItemsById.IndexOf(AId);
     if idx >= 0 then
-      Exit(TFloriaQMLItem(FItemsById.Objects[idx]));
+      Exit(TFloriaFTMLItem(FItemsById.Objects[idx]));
   end;
 
   if FRootItem <> nil then
@@ -380,7 +384,7 @@ begin
     Result := nil;
 end;
 
-function TFloriaQMLEngine.Evaluate(const AScript: string): TFloriaJSValue;
+function TFloriaFTMLEngine.Evaluate(const AScript: string): TFloriaJSValue;
 var
   parser: TFloriaJSParser;
   prog: TFloriaJSProgram;
@@ -406,7 +410,7 @@ begin
   end;
 end;
 
-function TFloriaQMLEngine.HasErrors(): Boolean;
+function TFloriaFTMLEngine.HasErrors(): Boolean;
 begin
   Result := (FLastError <> '');
 end;

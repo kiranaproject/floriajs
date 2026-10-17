@@ -1,6 +1,7 @@
 { ************************************************************************** }
 {                                                                          }
 {   Floria JS (floriajs) — Declarative Reactive Property Binding System    }
+{   (Floria Toolkit Markup Language)                                       }
 {                                                                          }
 {   Tracks property dependencies, detects change notifications, and        }
 {   automatically re-evaluates bound expressions in topological order.     }
@@ -10,7 +11,7 @@
 {                                                                          }
 { ************************************************************************** }
 
-unit floria.qml.binding;
+unit floria.ftml.binding;
 
 {$mode objfpc}{$H+}
 {$interfaces corba}
@@ -19,42 +20,42 @@ interface
 
 uses
   Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.value,
-  floria.js.env, floria.js.evaluator, floria.qml.types;
+  floria.js.env, floria.js.evaluator, floria.ftml.types;
 
 type
   { Forward Declarations }
-  TFloriaQMLBindingManager = class;
+  TFloriaFTMLBindingManager = class;
 
   { Single Dependency Record }
-  TFloriaQMLDependency = record
-    SourceItem: TFloriaQMLItem;
+  TFloriaFTMLDependency = record
+    SourceItem: TFloriaFTMLItem;
     PropertyName: string;
   end;
 
   { Reactive Property Binding Node }
-  TFloriaQMLBinding = class
+  TFloriaFTMLBinding = class
   private
-    FManager: TFloriaQMLBindingManager;
-    FTargetItem: TFloriaQMLItem;
+    FManager: TFloriaFTMLBindingManager;
+    FTargetItem: TFloriaFTMLItem;
     FTargetProperty: string;
     FExpression: TFloriaJSExprNode;
     FEnv: TFloriaJSEnvironment;
-    FDependencies: array of TFloriaQMLDependency;
+    FDependencies: array of TFloriaFTMLDependency;
     FDepCount: Integer;
     FIsEvaluating: Boolean;
     FEnabled: Boolean;
   public
-    constructor Create(AManager: TFloriaQMLBindingManager; ATargetItem: TFloriaQMLItem;
+    constructor Create(AManager: TFloriaFTMLBindingManager; ATargetItem: TFloriaFTMLItem;
       const ATargetProperty: string; AExpr: TFloriaJSExprNode; AEnv: TFloriaJSEnvironment);
     destructor Destroy(); override;
 
-    procedure AddDependency(ASourceItem: TFloriaQMLItem; const APropName: string);
+    procedure AddDependency(ASourceItem: TFloriaFTMLItem; const APropName: string);
     procedure ClearDependencies();
-    function  HasDependency(ASourceItem: TFloriaQMLItem; const APropName: string): Boolean;
+    function  HasDependency(ASourceItem: TFloriaFTMLItem; const APropName: string): Boolean;
 
     function  Evaluate(): TFloriaJSValue;
 
-    property TargetItem: TFloriaQMLItem read FTargetItem;
+    property TargetItem: TFloriaFTMLItem read FTargetItem;
     property TargetProperty: string read FTargetProperty;
     property Expression: TFloriaJSExprNode read FExpression;
     property Env: TFloriaJSEnvironment read FEnv;
@@ -64,7 +65,7 @@ type
   end;
 
   { Reactive Binding Manager }
-  TFloriaQMLBindingManager = class(TObject, IFloriaQMLBindingManager)
+  TFloriaFTMLBindingManager = class(TObject, IFloriaFTMLBindingManager)
   private
     FEvaluator: TFloriaJSEvaluator;
     FActiveBindings: TFPList;
@@ -77,31 +78,36 @@ type
     constructor Create(AEvaluator: TFloriaJSEvaluator);
     destructor Destroy(); override;
 
-    { IFloriaQMLBindingManager Implementation }
+    { IFloriaFTMLBindingManager Implementation }
     procedure RecordPropertyRead(AItem: TObject; const APropName: string);
     procedure NotifyPropertyChanged(AItem: TObject; const APropName: string);
+    procedure RemoveBindingsForTarget(ATargetItem: TObject; const ATargetProperty: string = '');
 
     { Active Evaluation Stack }
-    procedure PushActiveBinding(ABinding: TFloriaQMLBinding);
+    procedure PushActiveBinding(ABinding: TFloriaFTMLBinding);
     procedure PopActiveBinding();
-    function  CurrentActiveBinding(): TFloriaQMLBinding;
+    function  CurrentActiveBinding(): TFloriaFTMLBinding;
 
     { Binding Factory & Lifecycle }
-    function  CreateBinding(ATargetItem: TFloriaQMLItem; const ATargetProperty: string;
-      AExpr: TFloriaJSExprNode; AEnv: TFloriaJSEnvironment): TFloriaQMLBinding;
-    procedure RemoveBinding(ABinding: TFloriaQMLBinding);
-    procedure RemoveBindingsForTarget(ATargetItem: TObject; const ATargetProperty: string = '');
+    function  CreateBinding(ATargetItem: TFloriaFTMLItem; const ATargetProperty: string;
+      AExpr: TFloriaJSExprNode; AEnv: TFloriaJSEnvironment): TFloriaFTMLBinding;
+    procedure RemoveBinding(ABinding: TFloriaFTMLBinding);
 
     property Evaluator: TFloriaJSEvaluator read FEvaluator write FEvaluator;
     property BindingCount: Integer read GetBindingCount;
     property MaxCascadeDepth: Integer read FMaxCascadeDepth write FMaxCascadeDepth;
   end;
 
+  { Backward Compatibility Aliases }
+  TFloriaQMLDependency     = TFloriaFTMLDependency;
+  TFloriaQMLBinding        = TFloriaFTMLBinding;
+  TFloriaQMLBindingManager = TFloriaFTMLBindingManager;
+
 implementation
 
-{ TFloriaQMLBinding }
+{ TFloriaFTMLBinding }
 
-constructor TFloriaQMLBinding.Create(AManager: TFloriaQMLBindingManager; ATargetItem: TFloriaQMLItem;
+constructor TFloriaFTMLBinding.Create(AManager: TFloriaFTMLBindingManager; ATargetItem: TFloriaFTMLItem;
   const ATargetProperty: string; AExpr: TFloriaJSExprNode; AEnv: TFloriaJSEnvironment);
 begin
   inherited Create();
@@ -116,13 +122,13 @@ begin
   FEnabled := True;
 end;
 
-destructor TFloriaQMLBinding.Destroy();
+destructor TFloriaFTMLBinding.Destroy();
 begin
   ClearDependencies();
   inherited Destroy();
 end;
 
-procedure TFloriaQMLBinding.AddDependency(ASourceItem: TFloriaQMLItem; const APropName: string);
+procedure TFloriaFTMLBinding.AddDependency(ASourceItem: TFloriaFTMLItem; const APropName: string);
 begin
   if (ASourceItem = nil) or (APropName = '') then Exit;
   if HasDependency(ASourceItem, APropName) then Exit;
@@ -140,13 +146,13 @@ begin
   Inc(FDepCount);
 end;
 
-procedure TFloriaQMLBinding.ClearDependencies();
+procedure TFloriaFTMLBinding.ClearDependencies();
 begin
   SetLength(FDependencies, 0);
   FDepCount := 0;
 end;
 
-function TFloriaQMLBinding.HasDependency(ASourceItem: TFloriaQMLItem; const APropName: string): Boolean;
+function TFloriaFTMLBinding.HasDependency(ASourceItem: TFloriaFTMLItem; const APropName: string): Boolean;
 var
   i: Integer;
 begin
@@ -158,7 +164,7 @@ begin
   Result := False;
 end;
 
-function TFloriaQMLBinding.Evaluate(): TFloriaJSValue;
+function TFloriaFTMLBinding.Evaluate(): TFloriaJSValue;
 var
   newVal: TFloriaJSValue;
 begin
@@ -195,9 +201,9 @@ begin
   end;
 end;
 
-{ TFloriaQMLBindingManager }
+{ TFloriaFTMLBindingManager }
 
-constructor TFloriaQMLBindingManager.Create(AEvaluator: TFloriaJSEvaluator);
+constructor TFloriaFTMLBindingManager.Create(AEvaluator: TFloriaJSEvaluator);
 begin
   inherited Create();
   FEvaluator := AEvaluator;
@@ -207,7 +213,7 @@ begin
   FMaxCascadeDepth := 100;
 end;
 
-destructor TFloriaQMLBindingManager.Destroy();
+destructor TFloriaFTMLBindingManager.Destroy();
 var
   i: Integer;
 begin
@@ -217,30 +223,30 @@ begin
   if FBindings <> nil then
   begin
     for i := FBindings.Count - 1 downto 0 do
-      TFloriaQMLBinding(FBindings[i]).Free();
+      TFloriaFTMLBinding(FBindings[i]).Free();
     FreeAndNil(FBindings);
   end;
   inherited Destroy();
 end;
 
-procedure TFloriaQMLBindingManager.RecordPropertyRead(AItem: TObject; const APropName: string);
+procedure TFloriaFTMLBindingManager.RecordPropertyRead(AItem: TObject; const APropName: string);
 var
-  curr: TFloriaQMLBinding;
+  curr: TFloriaFTMLBinding;
 begin
   curr := CurrentActiveBinding();
-  if (curr <> nil) and (AItem is TFloriaQMLItem) then
-    curr.AddDependency(TFloriaQMLItem(AItem), APropName);
+  if (curr <> nil) and (AItem is TFloriaFTMLItem) then
+    curr.AddDependency(TFloriaFTMLItem(AItem), APropName);
 end;
 
-procedure TFloriaQMLBindingManager.NotifyPropertyChanged(AItem: TObject; const APropName: string);
+procedure TFloriaFTMLBindingManager.NotifyPropertyChanged(AItem: TObject; const APropName: string);
 var
   i: Integer;
-  item: TFloriaQMLItem;
-  binding: TFloriaQMLBinding;
+  item: TFloriaFTMLItem;
+  binding: TFloriaFTMLBinding;
   depsToUpdate: TFPList;
 begin
-  if not (AItem is TFloriaQMLItem) then Exit;
-  item := TFloriaQMLItem(AItem);
+  if not (AItem is TFloriaFTMLItem) then Exit;
+  item := TFloriaFTMLItem(AItem);
 
   if FCascadeDepth >= FMaxCascadeDepth then
     Exit; // Circuit breaker for runaway cascades
@@ -251,7 +257,7 @@ begin
     // Collect all active bindings dependent on (item, APropName)
     for i := 0 to FBindings.Count - 1 do
     begin
-      binding := TFloriaQMLBinding(FBindings[i]);
+      binding := TFloriaFTMLBinding(FBindings[i]);
       if binding.Enabled and (not binding.IsEvaluating) and binding.HasDependency(item, APropName) then
         depsToUpdate.Add(binding);
     end;
@@ -259,7 +265,7 @@ begin
     // Re-evaluate each dependent binding
     for i := 0 to depsToUpdate.Count - 1 do
     begin
-      binding := TFloriaQMLBinding(depsToUpdate[i]);
+      binding := TFloriaFTMLBinding(depsToUpdate[i]);
       binding.Evaluate();
     end;
   finally
@@ -268,40 +274,40 @@ begin
   end;
 end;
 
-procedure TFloriaQMLBindingManager.PushActiveBinding(ABinding: TFloriaQMLBinding);
+procedure TFloriaFTMLBindingManager.PushActiveBinding(ABinding: TFloriaFTMLBinding);
 begin
   if (ABinding <> nil) and (FActiveBindings <> nil) then
     FActiveBindings.Add(ABinding);
 end;
 
-procedure TFloriaQMLBindingManager.PopActiveBinding();
+procedure TFloriaFTMLBindingManager.PopActiveBinding();
 begin
   if (FActiveBindings <> nil) and (FActiveBindings.Count > 0) then
     FActiveBindings.Delete(FActiveBindings.Count - 1);
 end;
 
-function TFloriaQMLBindingManager.CurrentActiveBinding(): TFloriaQMLBinding;
+function TFloriaFTMLBindingManager.CurrentActiveBinding(): TFloriaFTMLBinding;
 begin
   if (FActiveBindings <> nil) and (FActiveBindings.Count > 0) then
-    Result := TFloriaQMLBinding(FActiveBindings[FActiveBindings.Count - 1])
+    Result := TFloriaFTMLBinding(FActiveBindings[FActiveBindings.Count - 1])
   else
     Result := nil;
 end;
 
-function TFloriaQMLBindingManager.CreateBinding(ATargetItem: TFloriaQMLItem; const ATargetProperty: string;
-  AExpr: TFloriaJSExprNode; AEnv: TFloriaJSEnvironment): TFloriaQMLBinding;
+function TFloriaFTMLBindingManager.CreateBinding(ATargetItem: TFloriaFTMLItem; const ATargetProperty: string;
+  AExpr: TFloriaJSExprNode; AEnv: TFloriaJSEnvironment): TFloriaFTMLBinding;
 var
-  binding: TFloriaQMLBinding;
+  binding: TFloriaFTMLBinding;
 begin
   RemoveBindingsForTarget(ATargetItem, ATargetProperty);
 
-  binding := TFloriaQMLBinding.Create(Self, ATargetItem, ATargetProperty, AExpr, AEnv);
+  binding := TFloriaFTMLBinding.Create(Self, ATargetItem, ATargetProperty, AExpr, AEnv);
   FBindings.Add(binding);
   ATargetItem.AttachBinding(ATargetProperty, binding);
   Result := binding;
 end;
 
-procedure TFloriaQMLBindingManager.RemoveBinding(ABinding: TFloriaQMLBinding);
+procedure TFloriaFTMLBindingManager.RemoveBinding(ABinding: TFloriaFTMLBinding);
 begin
   if (ABinding <> nil) and (FBindings <> nil) then
   begin
@@ -312,17 +318,17 @@ begin
   end;
 end;
 
-procedure TFloriaQMLBindingManager.RemoveBindingsForTarget(ATargetItem: TObject; const ATargetProperty: string);
+procedure TFloriaFTMLBindingManager.RemoveBindingsForTarget(ATargetItem: TObject; const ATargetProperty: string);
 var
   i: Integer;
-  binding: TFloriaQMLBinding;
+  binding: TFloriaFTMLBinding;
 begin
-  if (ATargetItem = nil) or (FBindings = nil) or (not (ATargetItem is TFloriaQMLItem)) then Exit;
+  if (ATargetItem = nil) or (FBindings = nil) or (not (ATargetItem is TFloriaFTMLItem)) then Exit;
 
   for i := FBindings.Count - 1 downto 0 do
   begin
-    binding := TFloriaQMLBinding(FBindings[i]);
-    if (binding.TargetItem = ATargetItem) and
+    binding := TFloriaFTMLBinding(FBindings[i]);
+    if (binding.TargetItem = TFloriaFTMLItem(ATargetItem)) and
        ((ATargetProperty = '') or (binding.TargetProperty = ATargetProperty)) then
     begin
       FBindings.Delete(i);
@@ -332,7 +338,7 @@ begin
   end;
 end;
 
-function TFloriaQMLBindingManager.GetBindingCount(): Integer;
+function TFloriaFTMLBindingManager.GetBindingCount(): Integer;
 begin
   if FBindings <> nil then
     Result := FBindings.Count

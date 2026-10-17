@@ -81,7 +81,8 @@ type
     function  ParseBreakStatement(): TFloriaJSBreakStmt;
     function  ParseContinueStatement(): TFloriaJSContinueStmt;
     function  ParseExpressionStatement(): TFloriaJSExprStmt;
-    procedure ParseQMLBody(AComp: TFloriaJSQMLComponent);
+    procedure ParseFTMLBody(AComp: TFloriaFTMLComponent);
+    procedure ParseQMLBody(AComp: TFloriaFTMLComponent);
 
   public
     constructor Create(const ASource: string);
@@ -90,7 +91,8 @@ type
 
     function  ParseProgram(): TFloriaJSProgram;
     function  ParseExpression(): TFloriaJSExprNode;
-    function  ParseQMLComponent(): TFloriaJSQMLComponent;
+    function  ParseFTMLComponent(): TFloriaFTMLComponent;
+    function  ParseQMLComponent(): TFloriaFTMLComponent;
 
     function  HasErrors(): Boolean;
     function  GetErrorCount(): Integer;
@@ -828,14 +830,14 @@ begin
   Result := prog;
 end;
 
-{ Declarative QML-style Component Parsing }
+{ Declarative FTML Component Parsing (Floria Toolkit Markup Language) }
 
-procedure TFloriaJSParser.ParseQMLBody(AComp: TFloriaJSQMLComponent);
+procedure TFloriaJSParser.ParseFTMLBody(AComp: TFloriaFTMLComponent);
 var
   propName, sigName: string;
   propExpr: TFloriaJSExprNode;
   sigHandler: TFloriaJSStmtNode;
-  childComp: TFloriaJSQMLComponent;
+  childComp: TFloriaFTMLComponent;
   fnDecl: TFloriaJSFunctionDecl;
 begin
   while (not Check(tkRBrace)) and (not IsAtEnd()) do
@@ -863,7 +865,7 @@ begin
           propName := FPrevious.Text;
       end;
 
-      // Allow dotted property / signal names: Component.onCompleted, anchors.fill
+      // Allow dotted property / signal names: Component.onCompleted, FTML.onCompleted, anchors.fill
       while Match(tkDot) do
       begin
         if Match(tkIdentifier) then
@@ -873,9 +875,9 @@ begin
       // Check if it is a child component definition: ChildType { ... }
       if Check(tkLBrace) then
       begin
-        childComp := TFloriaJSQMLComponent.Create(propName, FPrevious.Line, FPrevious.Column);
+        childComp := TFloriaFTMLComponent.Create(propName, FPrevious.Line, FPrevious.Column);
         Advance(); // Consume '{'
-        ParseQMLBody(childComp);
+        ParseFTMLBody(childComp);
         Consume(tkRBrace, 'Expected closing brace for child component');
         AComp.AddChild(childComp);
         Continue;
@@ -919,10 +921,15 @@ begin
   end;
 end;
 
-function TFloriaJSParser.ParseQMLComponent(): TFloriaJSQMLComponent;
+procedure TFloriaJSParser.ParseQMLBody(AComp: TFloriaFTMLComponent);
+begin
+  ParseFTMLBody(AComp);
+end;
+
+function TFloriaJSParser.ParseFTMLComponent(): TFloriaFTMLComponent;
 var
   compName: string;
-  comp: TFloriaJSQMLComponent;
+  comp: TFloriaFTMLComponent;
   startLine, startCol: Integer;
 begin
   startLine := FCurrent.Line;
@@ -930,18 +937,23 @@ begin
 
   if not Match(tkIdentifier) then
   begin
-    ErrorAtCurrent('Expected QML component type name (e.g. Rectangle, Item, Button)');
+    ErrorAtCurrent('Expected FTML component type name (e.g. Rectangle, Item, Button)');
     Exit(nil);
   end;
 
   compName := FPrevious.Text;
-  comp := TFloriaJSQMLComponent.Create(compName, startLine, startCol);
+  comp := TFloriaFTMLComponent.Create(compName, startLine, startCol);
 
   Consume(tkLBrace, 'Expected ''{'' after component name');
-  ParseQMLBody(comp);
+  ParseFTMLBody(comp);
   Consume(tkRBrace, 'Expected ''}'' closing component');
 
   Result := comp;
+end;
+
+function TFloriaJSParser.ParseQMLComponent(): TFloriaFTMLComponent;
+begin
+  Result := ParseFTMLComponent();
 end;
 
 end.

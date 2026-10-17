@@ -30,10 +30,10 @@ case "${TARGET}" in
     echo "==> Cleaning target artifacts..."
     shift 1 || true
     pasbuild clean "$@"
-    rm -f examples/hello_floriajs
+    rm -f examples/hello_floriajs examples/parse_ftml_demo examples/reactive_ftml_demo examples/parse_qml_demo examples/reactive_qml_demo
     ;;
   *)
-    echo "Usage: $0 [compile|test|install|clean]"
+    echo "Usage: $0 [compile|test|install|examples|clean]"
     exit 1
     ;;
 esac

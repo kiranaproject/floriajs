@@ -19,7 +19,7 @@ uses
   fpcunit, testregistry, consoletestrunner,
   floria.js.types, floria.js.lexer, floria.js.ast, floria.js.parser,
   floria.js.value, floria.js.env, floria.js.evaluator, floria.js.stdlib,
-  floria.js.core, floriajs;
+  floria.js.core, floria.ftml.types, floria.ftml.binding, floria.ftml.engine, floriajs;
 
 type
   { Test 1: Core Types & Result Helpers }
@@ -61,7 +61,7 @@ type
     procedure TestBinaryAndUnaryNodes();
     procedure TestCallAndMemberNodes();
     procedure TestObjectAndArrayNodes();
-    procedure TestQMLComponentASTNode();
+    procedure TestFTMLComponentASTNode();
   end;
 
   { Test 5: Pratt Parser Suite }
@@ -75,7 +75,7 @@ type
     procedure TestIfElseStatement();
     procedure TestWhileAndForLoops();
     procedure TestFunctionDeclaration();
-    procedure TestDeclarativeQMLComponent();
+    procedure TestDeclarativeFTMLComponent();
     procedure TestParserErrorHandling();
   end;
 
@@ -104,17 +104,18 @@ type
     procedure TestConsoleCapture();
   end;
 
-  { Test 8: Declarative QML Types & Built-in Elements }
-  TFloriaQMLTypesTest = class(TTestCase)
+  { Test 8: Declarative FTML Types & Built-in Elements }
+  TFloriaFTMLTypesTest = class(TTestCase)
   published
     procedure TestItemCreationAndProperties();
     procedure TestHierarchyAndFindById();
     procedure TestBuiltinElements();
     procedure TestSignalDispatch();
+    procedure TestBackwardCompatibilityAliases();
   end;
 
   { Test 9: Reactive Property Bindings & Dependency Tracking }
-  TFloriaQMLBindingTest = class(TTestCase)
+  TFloriaFTMLBindingTest = class(TTestCase)
   published
     procedure TestDirectBinding();
     procedure TestCascadedBinding();
@@ -122,14 +123,14 @@ type
     procedure TestCycleGuard();
   end;
 
-  { Test 10: QML Engine & Full Document Runtime }
-  TFloriaQMLEngineTest = class(TTestCase)
+  { Test 10: FTML Engine & Full Document Runtime }
+  TFloriaFTMLEngineTest = class(TTestCase)
   published
-    procedure TestLoadSimpleQML();
-    procedure TestLoadNestedQMLWithBindings();
+    procedure TestLoadSimpleFTML();
+    procedure TestLoadNestedFTMLWithBindings();
     procedure TestIdResolutionInJS();
-    procedure TestQMLComponentFunctions();
-    procedure TestQMLSignalHandling();
+    procedure TestFTMLComponentFunctions();
+    procedure TestFTMLSignalHandling();
     procedure TestComponentOnCompleted();
   end;
 
@@ -795,13 +796,13 @@ begin
   end;
 end;
 
-procedure TFloriaJSASTTest.TestQMLComponentASTNode();
+procedure TFloriaJSASTTest.TestFTMLComponentASTNode();
 var
-  comp, child: TFloriaJSQMLComponent;
+  comp, child: TFloriaFTMLComponent;
   propExpr: TFloriaJSLiteralExpr;
   sigHandler: TFloriaJSBlockStmt;
 begin
-  comp := TFloriaJSQMLComponent.Create('Rectangle', 1, 1);
+  comp := TFloriaFTMLComponent.Create('Rectangle', 1, 1);
   try
     comp.Id := 'rootRect';
     propExpr := TFloriaJSLiteralExpr.CreateNumber(200, 2, 10);
@@ -810,7 +811,7 @@ begin
     sigHandler := TFloriaJSBlockStmt.Create(3, 14);
     comp.AddSignal('onClicked', sigHandler);
 
-    child := TFloriaJSQMLComponent.Create('Text', 4, 3);
+    child := TFloriaFTMLComponent.Create('Text', 4, 3);
     child.Id := 'label';
     comp.AddChild(child);
 
@@ -1095,10 +1096,10 @@ begin
   end;
 end;
 
-procedure TFloriaJSParserTest.TestDeclarativeQMLComponent();
+procedure TFloriaJSParserTest.TestDeclarativeFTMLComponent();
 var
   parser: TFloriaJSParser;
-  comp, child: TFloriaJSQMLComponent;
+  comp, child: TFloriaFTMLComponent;
   source: string;
 begin
   source :=
@@ -1117,7 +1118,7 @@ begin
     '}';
   parser := TFloriaJSParser.Create(source);
   try
-    comp := parser.ParseQMLComponent();
+    comp := parser.ParseFTMLComponent();
     try
       AssertFalse('Parser should have no errors', parser.HasErrors());
       AssertNotNull('Component should not be nil', comp);
@@ -1536,13 +1537,13 @@ begin
   end;
 end;
 
-{ TFloriaQMLTypesTest }
+{ TFloriaFTMLTypesTest }
 
-procedure TFloriaQMLTypesTest.TestItemCreationAndProperties();
+procedure TFloriaFTMLTypesTest.TestItemCreationAndProperties();
 var
-  item: TFloriaQMLItem;
+  item: TFloriaFTMLItem;
 begin
-  item := TFloriaQMLItem.Create('Item');
+  item := TFloriaFTMLItem.Create('Item');
   try
     AssertEquals('TypeName is Item', 'Item', item.TypeName);
     AssertEquals('Default X is 0', 0.0, item.X, 0.001);
@@ -1561,16 +1562,16 @@ begin
   end;
 end;
 
-procedure TFloriaQMLTypesTest.TestHierarchyAndFindById();
+procedure TFloriaFTMLTypesTest.TestHierarchyAndFindById();
 var
-  root, child1, child2, grandChild: TFloriaQMLItem;
+  root, child1, child2, grandChild: TFloriaFTMLItem;
 begin
-  root := TFloriaQMLItem.Create('Item');
-  child1 := TFloriaQMLItem.Create('Rectangle');
+  root := TFloriaFTMLItem.Create('Item');
+  child1 := TFloriaFTMLItem.Create('Rectangle');
   child1.Id := 'rect1';
-  child2 := TFloriaQMLItem.Create('Button');
+  child2 := TFloriaFTMLItem.Create('Button');
   child2.Id := 'btnSubmit';
-  grandChild := TFloriaQMLItem.Create('Text');
+  grandChild := TFloriaFTMLItem.Create('Text');
   grandChild.Id := 'txtLabel';
   try
     root.AddChild(child1);
@@ -1593,20 +1594,20 @@ begin
   end;
 end;
 
-procedure TFloriaQMLTypesTest.TestBuiltinElements();
+procedure TFloriaFTMLTypesTest.TestBuiltinElements();
 var
-  rect: TFloriaQMLRectangle;
-  txt: TFloriaQMLText;
-  btn: TFloriaQMLButton;
-  col: TFloriaQMLColumn;
-  r1, r2: TFloriaQMLItem;
+  rect: TFloriaFTMLRectangle;
+  txt: TFloriaFTMLText;
+  btn: TFloriaFTMLButton;
+  col: TFloriaFTMLColumn;
+  r1, r2: TFloriaFTMLItem;
 begin
-  rect := TFloriaQMLRectangle.Create();
-  txt := TFloriaQMLText.Create();
-  btn := TFloriaQMLButton.Create();
-  col := TFloriaQMLColumn.Create();
-  r1 := TFloriaQMLItem.Create('Item');
-  r2 := TFloriaQMLItem.Create('Item');
+  rect := TFloriaFTMLRectangle.Create();
+  txt := TFloriaFTMLText.Create();
+  btn := TFloriaFTMLButton.Create();
+  col := TFloriaFTMLColumn.Create();
+  r1 := TFloriaFTMLItem.Create('Item');
+  r2 := TFloriaFTMLItem.Create('Item');
   try
     // Rectangle properties
     AssertEquals('Default rect color', '#ffffff', rect.Color);
@@ -1646,12 +1647,12 @@ begin
   end;
 end;
 
-procedure TFloriaQMLTypesTest.TestSignalDispatch();
+procedure TFloriaFTMLTypesTest.TestSignalDispatch();
 var
-  engine: TFloriaQMLEngine;
-  item: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  item: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     item := engine.LoadString('Item { id: testItem; property int count: 0; onClicked: { count = count + 5; } }');
     AssertNotNull('Loaded item', item);
@@ -1667,14 +1668,34 @@ begin
   end;
 end;
 
-{ TFloriaQMLBindingTest }
-
-procedure TFloriaQMLBindingTest.TestDirectBinding();
+procedure TFloriaFTMLTypesTest.TestBackwardCompatibilityAliases();
 var
-  engine: TFloriaQMLEngine;
-  root, box: TFloriaQMLItem;
+  qmlItem: TFloriaQMLItem;
+  qmlRect: TFloriaQMLRectangle;
+  qmlEng: TFloriaQMLEngine;
 begin
-  engine := TFloriaQMLEngine.Create();
+  qmlItem := TFloriaQMLItem.Create('Rectangle');
+  qmlRect := TFloriaQMLRectangle.Create();
+  qmlEng := TFloriaQMLEngine.Create();
+  try
+    AssertTrue('qmlItem is FTML item', qmlItem is TFloriaFTMLItem);
+    AssertTrue('qmlRect is FTML rect', qmlRect is TFloriaFTMLRectangle);
+    AssertTrue('qmlEng is FTML engine', qmlEng is TFloriaFTMLEngine);
+  finally
+    qmlEng.Free();
+    qmlRect.Free();
+    qmlItem.Free();
+  end;
+end;
+
+{ TFloriaFTMLBindingTest }
+
+procedure TFloriaFTMLBindingTest.TestDirectBinding();
+var
+  engine: TFloriaFTMLEngine;
+  root, box: TFloriaFTMLItem;
+begin
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString('Rectangle { id: root; width: 400; height: 300; Rectangle { id: box; width: root.width / 2; height: root.height / 2; } }');
     AssertNotNull('Loaded root', root);
@@ -1696,12 +1717,12 @@ begin
   end;
 end;
 
-procedure TFloriaQMLBindingTest.TestCascadedBinding();
+procedure TFloriaFTMLBindingTest.TestCascadedBinding();
 var
-  engine: TFloriaQMLEngine;
-  root, box, labelItem: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root, box, labelItem: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString(
       'Rectangle {' +
@@ -1731,12 +1752,12 @@ begin
   end;
 end;
 
-procedure TFloriaQMLBindingTest.TestAssignmentBreaksBinding();
+procedure TFloriaFTMLBindingTest.TestAssignmentBreaksBinding();
 var
-  engine: TFloriaQMLEngine;
-  root, box: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root, box: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString('Rectangle { id: root; width: 400; Rectangle { id: box; width: root.width / 2; } }');
     box := engine.FindItemById('box');
@@ -1754,12 +1775,12 @@ begin
   end;
 end;
 
-procedure TFloriaQMLBindingTest.TestCycleGuard();
+procedure TFloriaFTMLBindingTest.TestCycleGuard();
 var
-  engine: TFloriaQMLEngine;
-  itemA, itemB: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  itemA, itemB: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     // Item A depends on B, and Item B depends on A
     itemA := engine.LoadString(
@@ -1775,33 +1796,33 @@ begin
   end;
 end;
 
-{ TFloriaQMLEngineTest }
+{ TFloriaFTMLEngineTest }
 
-procedure TFloriaQMLEngineTest.TestLoadSimpleQML();
+procedure TFloriaFTMLEngineTest.TestLoadSimpleFTML();
 var
-  engine: TFloriaQMLEngine;
-  root: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString('Rectangle { id: myWindow; width: 640; height: 480; color: "#222222"; }');
     AssertNotNull('Root item created', root);
-    AssertTrue('Root is TFloriaQMLRectangle', root is TFloriaQMLRectangle);
+    AssertTrue('Root is TFloriaFTMLRectangle', root is TFloriaFTMLRectangle);
     AssertEquals('ID is myWindow', 'myWindow', root.Id);
     AssertEquals('Width is 640', 640.0, root.Width, 0.001);
     AssertEquals('Height is 480', 480.0, root.Height, 0.001);
-    AssertEquals('Color is #222222', '#222222', TFloriaQMLRectangle(root).Color);
+    AssertEquals('Color is #222222', '#222222', TFloriaFTMLRectangle(root).Color);
   finally
     engine.Free();
   end;
 end;
 
-procedure TFloriaQMLEngineTest.TestLoadNestedQMLWithBindings();
+procedure TFloriaFTMLEngineTest.TestLoadNestedFTMLWithBindings();
 var
-  engine: TFloriaQMLEngine;
-  root, btn: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root, btn: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString(
       'Rectangle {' +
@@ -1829,12 +1850,12 @@ begin
   end;
 end;
 
-procedure TFloriaQMLEngineTest.TestIdResolutionInJS();
+procedure TFloriaFTMLEngineTest.TestIdResolutionInJS();
 var
-  engine: TFloriaQMLEngine;
-  root, txt: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root, txt: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString(
       'Rectangle {' +
@@ -1860,13 +1881,13 @@ begin
   end;
 end;
 
-procedure TFloriaQMLEngineTest.TestQMLComponentFunctions();
+procedure TFloriaFTMLEngineTest.TestFTMLComponentFunctions();
 var
-  engine: TFloriaQMLEngine;
-  root: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root: TFloriaFTMLItem;
   res: TFloriaJSValue;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString(
       'Rectangle {' +
@@ -1888,12 +1909,12 @@ begin
   end;
 end;
 
-procedure TFloriaQMLEngineTest.TestQMLSignalHandling();
+procedure TFloriaFTMLEngineTest.TestFTMLSignalHandling();
 var
-  engine: TFloriaQMLEngine;
-  root, btn: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root, btn: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString(
       'Rectangle {' +
@@ -1911,22 +1932,22 @@ begin
     AssertEquals('Initial counter is 0', 0.0, root.GetPropertyAsNumber('counter'), 0.001);
 
     // Trigger button click
-    TFloriaQMLButton(btn).Click();
+    TFloriaFTMLButton(btn).Click();
     AssertEquals('Counter incremented to 1', 1.0, root.GetPropertyAsNumber('counter'), 0.001);
 
-    TFloriaQMLButton(btn).Click();
+    TFloriaFTMLButton(btn).Click();
     AssertEquals('Counter incremented to 2', 2.0, root.GetPropertyAsNumber('counter'), 0.001);
   finally
     engine.Free();
   end;
 end;
 
-procedure TFloriaQMLEngineTest.TestComponentOnCompleted();
+procedure TFloriaFTMLEngineTest.TestComponentOnCompleted();
 var
-  engine: TFloriaQMLEngine;
-  root: TFloriaQMLItem;
+  engine: TFloriaFTMLEngine;
+  root: TFloriaFTMLItem;
 begin
-  engine := TFloriaQMLEngine.Create();
+  engine := TFloriaFTMLEngine.Create();
   try
     root := engine.LoadString(
       'Rectangle {' +
@@ -1954,9 +1975,9 @@ begin
   RegisterTest(TFloriaJSParserTest);
   RegisterTest(TFloriaJSValueTest);
   RegisterTest(TFloriaJSEvaluatorTest);
-  RegisterTest(TFloriaQMLTypesTest);
-  RegisterTest(TFloriaQMLBindingTest);
-  RegisterTest(TFloriaQMLEngineTest);
+  RegisterTest(TFloriaFTMLTypesTest);
+  RegisterTest(TFloriaFTMLBindingTest);
+  RegisterTest(TFloriaFTMLEngineTest);
 
   Application := TTestRunner.Create(nil);
   try

@@ -435,29 +435,29 @@ type
   end;
 
   { ────────────────────────────────────────────────────────────────────────── }
-  { Declarative / QML Component Node (QML Readiness)                           }
+  { Declarative / FTML Component Node (Floria Toolkit Markup Language)         }
   { ────────────────────────────────────────────────────────────────────────── }
 
   { Declarative Property Binding: width: parent.width - 20 }
-  TFloriaJSQMLProperty = record
+  TFloriaFTMLProperty = record
     Name: string;
     Expression: TFloriaJSExprNode;
   end;
 
   // Declarative Signal Handler: onClicked: { count += 1; }
-  TFloriaJSQMLSignal = record
+  TFloriaFTMLSignal = record
     SignalName: string;
     Handler: TFloriaJSStmtNode;
   end;
 
   // Declarative Component: Rectangle { width: 100; ... }
-  TFloriaJSQMLComponent = class(TFloriaJSASTNode)
+  TFloriaFTMLComponent = class(TFloriaJSASTNode)
   private
     FComponentType: string;
     FId: string;
-    FProperties: array of TFloriaJSQMLProperty;
+    FProperties: array of TFloriaFTMLProperty;
     FPropCount: Integer;
-    FSignals: array of TFloriaJSQMLSignal;
+    FSignals: array of TFloriaFTMLSignal;
     FSignalCount: Integer;
     FFunctions: TFPList;
     FChildren: TFPList;
@@ -468,7 +468,7 @@ type
     procedure AddProperty(const AName: string; AExpr: TFloriaJSExprNode);
     procedure AddSignal(const ASignalName: string; AHandler: TFloriaJSStmtNode);
     procedure AddFunction(AFunc: TFloriaJSFunctionDecl);
-    procedure AddChild(AChild: TFloriaJSQMLComponent);
+    procedure AddChild(AChild: TFloriaFTMLComponent);
 
     function  GetPropertyCount(): Integer;
     function  GetPropertyName(AIndex: Integer): string;
@@ -482,13 +482,18 @@ type
     function  GetFunction(AIndex: Integer): TFloriaJSFunctionDecl;
 
     function  GetChildCount(): Integer;
-    function  GetChild(AIndex: Integer): TFloriaJSQMLComponent;
+    function  GetChild(AIndex: Integer): TFloriaFTMLComponent;
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
 
     property ComponentType: string read FComponentType write FComponentType;
     property Id: string read FId write FId;
   end;
+
+  { Backward Compatibility Aliases }
+  TFloriaJSQMLProperty  = TFloriaFTMLProperty;
+  TFloriaJSQMLSignal    = TFloriaFTMLSignal;
+  TFloriaJSQMLComponent = TFloriaFTMLComponent;
 
   { ────────────────────────────────────────────────────────────────────────── }
   { Visitor Interface                                                          }
@@ -519,7 +524,8 @@ type
     procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
     procedure VisitFunctionDecl(ANode: TFloriaJSFunctionDecl);
     procedure VisitProgram(ANode: TFloriaJSProgram);
-    procedure VisitQMLComponent(ANode: TFloriaJSQMLComponent);
+    procedure VisitFTMLComponent(ANode: TFloriaFTMLComponent);
+    procedure VisitQMLComponent(ANode: TFloriaFTMLComponent);
   end;
 
 implementation
@@ -1217,9 +1223,9 @@ begin
   if AVisitor <> nil then AVisitor.VisitProgram(Self);
 end;
 
-{ TFloriaJSQMLComponent }
+{ TFloriaFTMLComponent }
 
-constructor TFloriaJSQMLComponent.Create(const AComponentType: string; ALine, ACol: Integer);
+constructor TFloriaFTMLComponent.Create(const AComponentType: string; ALine, ACol: Integer);
 begin
   inherited Create(ALine, ACol);
   FComponentType := AComponentType;
@@ -1232,7 +1238,7 @@ begin
   FChildren := TFPList.Create();
 end;
 
-destructor TFloriaJSQMLComponent.Destroy();
+destructor TFloriaFTMLComponent.Destroy();
 var
   i: Integer;
 begin
@@ -1254,13 +1260,13 @@ begin
   if FChildren <> nil then
   begin
     for i := FChildren.Count - 1 downto 0 do
-      TFloriaJSQMLComponent(FChildren[i]).Free();
+      TFloriaFTMLComponent(FChildren[i]).Free();
     FreeAndNil(FChildren);
   end;
   inherited Destroy();
 end;
 
-procedure TFloriaJSQMLComponent.AddProperty(const AName: string; AExpr: TFloriaJSExprNode);
+procedure TFloriaFTMLComponent.AddProperty(const AName: string; AExpr: TFloriaJSExprNode);
 begin
   if FPropCount >= Length(FProperties) then
     SetLength(FProperties, (FPropCount + 1) * 2);
@@ -1269,7 +1275,7 @@ begin
   Inc(FPropCount);
 end;
 
-procedure TFloriaJSQMLComponent.AddSignal(const ASignalName: string; AHandler: TFloriaJSStmtNode);
+procedure TFloriaFTMLComponent.AddSignal(const ASignalName: string; AHandler: TFloriaJSStmtNode);
 begin
   if FSignalCount >= Length(FSignals) then
     SetLength(FSignals, (FSignalCount + 1) * 2);
@@ -1278,18 +1284,18 @@ begin
   Inc(FSignalCount);
 end;
 
-procedure TFloriaJSQMLComponent.AddChild(AChild: TFloriaJSQMLComponent);
+procedure TFloriaFTMLComponent.AddChild(AChild: TFloriaFTMLComponent);
 begin
   if (AChild <> nil) and (FChildren <> nil) then
     FChildren.Add(AChild);
 end;
 
-function TFloriaJSQMLComponent.GetPropertyCount(): Integer;
+function TFloriaFTMLComponent.GetPropertyCount(): Integer;
 begin
   Result := FPropCount;
 end;
 
-function TFloriaJSQMLComponent.GetPropertyName(AIndex: Integer): string;
+function TFloriaFTMLComponent.GetPropertyName(AIndex: Integer): string;
 begin
   if (AIndex >= 0) and (AIndex < FPropCount) then
     Result := FProperties[AIndex].Name
@@ -1297,7 +1303,7 @@ begin
     Result := '';
 end;
 
-function TFloriaJSQMLComponent.GetPropertyExpr(AIndex: Integer): TFloriaJSExprNode;
+function TFloriaFTMLComponent.GetPropertyExpr(AIndex: Integer): TFloriaJSExprNode;
 begin
   if (AIndex >= 0) and (AIndex < FPropCount) then
     Result := FProperties[AIndex].Expression
@@ -1305,12 +1311,12 @@ begin
     Result := nil;
 end;
 
-function TFloriaJSQMLComponent.GetSignalCount(): Integer;
+function TFloriaFTMLComponent.GetSignalCount(): Integer;
 begin
   Result := FSignalCount;
 end;
 
-function TFloriaJSQMLComponent.GetSignalName(AIndex: Integer): string;
+function TFloriaFTMLComponent.GetSignalName(AIndex: Integer): string;
 begin
   if (AIndex >= 0) and (AIndex < FSignalCount) then
     Result := FSignals[AIndex].SignalName
@@ -1318,7 +1324,7 @@ begin
     Result := '';
 end;
 
-function TFloriaJSQMLComponent.GetSignalHandler(AIndex: Integer): TFloriaJSStmtNode;
+function TFloriaFTMLComponent.GetSignalHandler(AIndex: Integer): TFloriaJSStmtNode;
 begin
   if (AIndex >= 0) and (AIndex < FSignalCount) then
     Result := FSignals[AIndex].Handler
@@ -1326,7 +1332,7 @@ begin
     Result := nil;
 end;
 
-function TFloriaJSQMLComponent.GetChildCount(): Integer;
+function TFloriaFTMLComponent.GetChildCount(): Integer;
 begin
   if FChildren <> nil then
     Result := FChildren.Count
@@ -1334,21 +1340,21 @@ begin
     Result := 0;
 end;
 
-function TFloriaJSQMLComponent.GetChild(AIndex: Integer): TFloriaJSQMLComponent;
+function TFloriaFTMLComponent.GetChild(AIndex: Integer): TFloriaFTMLComponent;
 begin
   if (FChildren <> nil) and (AIndex >= 0) and (AIndex < FChildren.Count) then
-    Result := TFloriaJSQMLComponent(FChildren[AIndex])
+    Result := TFloriaFTMLComponent(FChildren[AIndex])
   else
     Result := nil;
 end;
 
-procedure TFloriaJSQMLComponent.AddFunction(AFunc: TFloriaJSFunctionDecl);
+procedure TFloriaFTMLComponent.AddFunction(AFunc: TFloriaJSFunctionDecl);
 begin
   if (AFunc <> nil) and (FFunctions <> nil) then
     FFunctions.Add(AFunc);
 end;
 
-function TFloriaJSQMLComponent.GetFunctionCount(): Integer;
+function TFloriaFTMLComponent.GetFunctionCount(): Integer;
 begin
   if FFunctions <> nil then
     Result := FFunctions.Count
@@ -1356,7 +1362,7 @@ begin
     Result := 0;
 end;
 
-function TFloriaJSQMLComponent.GetFunction(AIndex: Integer): TFloriaJSFunctionDecl;
+function TFloriaFTMLComponent.GetFunction(AIndex: Integer): TFloriaJSFunctionDecl;
 begin
   if (FFunctions <> nil) and (AIndex >= 0) and (AIndex < FFunctions.Count) then
     Result := TFloriaJSFunctionDecl(FFunctions[AIndex])
@@ -1364,9 +1370,13 @@ begin
     Result := nil;
 end;
 
-procedure TFloriaJSQMLComponent.Accept(AVisitor: IFloriaJSASTVisitor);
+procedure TFloriaFTMLComponent.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
-  if AVisitor <> nil then AVisitor.VisitQMLComponent(Self);
+  if AVisitor <> nil then
+  begin
+    AVisitor.VisitFTMLComponent(Self);
+    AVisitor.VisitQMLComponent(Self);
+  end;
 end;
 
 end.
