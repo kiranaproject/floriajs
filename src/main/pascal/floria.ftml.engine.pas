@@ -104,6 +104,8 @@ begin
   RegisterComponentType('TextInput', TFloriaFTMLTextInput);
   RegisterComponentType('Column', TFloriaFTMLColumn);
   RegisterComponentType('Row', TFloriaFTMLRow);
+  RegisterComponentType('FlexBox', TFloriaFTMLFlexBox);
+  RegisterComponentType('Grid', TFloriaFTMLGrid);
 end;
 
 destructor TFloriaFTMLEngine.Destroy();
@@ -274,6 +276,9 @@ var
 begin
   if AItem = nil then Exit;
 
+  // Resolve all anchors before dispatching completed signals
+  ResolveAllAnchors(AItem);
+
   // Trigger children first
   for i := 0 to AItem.ChildCount() - 1 do
     TriggerCompletedSignals(AItem.GetChild(i));
@@ -282,6 +287,19 @@ begin
   AItem.EmitSignal('FTML.onCompleted', []);
   AItem.EmitSignal('Component.onCompleted', []);
   AItem.EmitSignal('completed', []);
+end;
+
+procedure RelayoutAll(AItem: TFloriaFTMLItem);
+var
+  i: Integer;
+begin
+  if AItem = nil then Exit;
+  for i := 0 to AItem.ChildCount() - 1 do
+    RelayoutAll(AItem.GetChild(i));
+  if AItem is TFloriaFTMLColumn then
+    TFloriaFTMLColumn(AItem).Relayout()
+  else if AItem is TFloriaFTMLRow then
+    TFloriaFTMLRow(AItem).Relayout();
 end;
 
 function TFloriaFTMLEngine.LoadString(const AFTMLSource: string): TFloriaFTMLItem;
@@ -333,11 +351,10 @@ begin
   // Step 4: Wire and evaluate reactive property bindings
   SetupItemBindings(FRootAST, rootItem);
 
-  // Step 5: Relayout layout containers if applicable
-  if rootItem is TFloriaFTMLColumn then
-    TFloriaFTMLColumn(rootItem).Relayout()
-  else if rootItem is TFloriaFTMLRow then
-    TFloriaFTMLRow(rootItem).Relayout();
+  // Step 5: Relayout layout containers and resolve semantic anchors
+  RelayoutAll(rootItem);
+  ResolveAllAnchors(rootItem);
+  RelayoutAll(rootItem);
 
   // Step 6: Dispatch onCompleted signals
   TriggerCompletedSignals(rootItem);

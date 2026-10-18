@@ -133,6 +133,18 @@ type
     procedure TestComponentOnCompleted();
   end;
 
+  { Test 11: Semantic Anchors, Dynamic Constraints & Layouts }
+  TFloriaFTMLAnchorsAndLayoutsTest = class(TTestCase)
+  published
+    procedure TestSemanticAnchorLines();
+    procedure TestAnchorsFillAndMargins();
+    procedure TestOpposingAnchorsOverrideExplicitSize();
+    procedure TestSiblingAnchoringAndReactivity();
+    procedure TestFlexBoxLayoutAndProperties();
+    procedure TestGridLayoutAndProperties();
+    procedure TestQmlLayoutAliases();
+  end;
+
 { TFloriaJSTypesTest }
 
 procedure TFloriaJSTypesTest.TestVersionConstant();
@@ -1943,6 +1955,265 @@ begin
   end;
 end;
 
+{ TFloriaFTMLAnchorsAndLayoutsTest }
+
+procedure TFloriaFTMLAnchorsAndLayoutsTest.TestSemanticAnchorLines();
+var
+  item: TFloriaFTMLItem;
+  vLeft, vTop, vRight, vBottom: TFloriaJSValue;
+  line: TFloriaFTMLAnchorLine;
+begin
+  item := TFloriaFTMLItem.Create('Item');
+  try
+    item.Id := 'testItem';
+    vLeft := item.GetProperty('left');
+    AssertTrue('left returns object', vLeft.IsObject());
+    AssertTrue('left is TFloriaFTMLAnchorLine', vLeft.ObjVal is TFloriaFTMLAnchorLine);
+    line := TFloriaFTMLAnchorLine(vLeft.ObjVal);
+    AssertTrue('line item is item', line.Item = item);
+    AssertEquals('line edge is left', 'left', AnchorEdgeToString(line.Edge));
+    AssertTrue('is horizontal edge', IsHorizontalAnchorEdge(line.Edge));
+
+    vTop := item.GetProperty('top');
+    line := TFloriaFTMLAnchorLine(vTop.ObjVal);
+    AssertEquals('line edge is top', 'top', AnchorEdgeToString(line.Edge));
+    AssertTrue('is vertical edge', IsVerticalAnchorEdge(line.Edge));
+
+    vRight := item.GetProperty('right');
+    line := TFloriaFTMLAnchorLine(vRight.ObjVal);
+    AssertEquals('line edge is right', 'right', AnchorEdgeToString(line.Edge));
+
+    vBottom := item.GetProperty('bottom');
+    line := TFloriaFTMLAnchorLine(vBottom.ObjVal);
+    AssertEquals('line edge is bottom', 'bottom', AnchorEdgeToString(line.Edge));
+  finally
+    item.Free();
+  end;
+end;
+
+procedure TFloriaFTMLAnchorsAndLayoutsTest.TestAnchorsFillAndMargins();
+var
+  engine: TFloriaFTMLEngine;
+  root, inner: TFloriaFTMLItem;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: root; width: 400; height: 300;' +
+      '  Rectangle {' +
+      '    id: inner;' +
+      '    anchors.fill: parent;' +
+      '    anchors.margins: 20;' +
+      '  }' +
+      '}');
+    AssertNotNull('Root loaded', root);
+    inner := engine.FindItemById('inner');
+    AssertNotNull('inner found', inner);
+    AssertEquals('inner X is 20', 20.0, inner.X, 0.001);
+    AssertEquals('inner Y is 20', 20.0, inner.Y, 0.001);
+    AssertEquals('inner Width is 360', 360.0, inner.Width, 0.001);
+    AssertEquals('inner Height is 260', 260.0, inner.Height, 0.001);
+
+    // Dynamic resize of root
+    root.Width := 500.0;
+    root.Height := 400.0;
+    AssertEquals('inner Width updated to 460', 460.0, inner.Width, 0.001);
+    AssertEquals('inner Height updated to 360', 360.0, inner.Height, 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLAnchorsAndLayoutsTest.TestOpposingAnchorsOverrideExplicitSize();
+var
+  engine: TFloriaFTMLEngine;
+  root, panel: TFloriaFTMLItem;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: root; width: 600; height: 400;' +
+      '  Rectangle {' +
+      '    id: panel;' +
+      '    width: 100;' +
+      '    height: 80;' +
+      '    anchors.left: parent.left;' +
+      '    anchors.right: parent.right;' +
+      '    anchors.top: parent.top;' +
+      '    anchors.bottom: parent.bottom;' +
+      '    anchors.leftMargin: 10;' +
+      '    anchors.rightMargin: 20;' +
+      '    anchors.topMargin: 30;' +
+      '    anchors.bottomMargin: 40;' +
+      '  }' +
+      '}');
+    AssertNotNull('Root loaded', root);
+    panel := engine.FindItemById('panel');
+    AssertNotNull('panel found', panel);
+    AssertEquals('panel X is 10', 10.0, panel.X, 0.001);
+    AssertEquals('panel Y is 30', 30.0, panel.Y, 0.001);
+    AssertEquals('panel Width is overridden to 570', 570.0, panel.Width, 0.001);
+    AssertEquals('panel Height is overridden to 330', 330.0, panel.Height, 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLAnchorsAndLayoutsTest.TestSiblingAnchoringAndReactivity();
+var
+  engine: TFloriaFTMLEngine;
+  root, header, content: TFloriaFTMLItem;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle {' +
+      '  id: root; width: 500; height: 500;' +
+      '  Rectangle {' +
+      '    id: header;' +
+      '    x: 10; y: 10; width: 480; height: 80;' +
+      '  }' +
+      '  Rectangle {' +
+      '    id: content;' +
+      '    anchors.top: header.bottom;' +
+      '    anchors.left: parent.left;' +
+      '    anchors.right: parent.right;' +
+      '    anchors.topMargin: 15;' +
+      '    anchors.leftMargin: 10;' +
+      '    anchors.rightMargin: 10;' +
+      '    height: 200;' +
+      '  }' +
+      '}');
+    AssertNotNull('Root loaded', root);
+    header := engine.FindItemById('header');
+    content := engine.FindItemById('content');
+    AssertNotNull('header found', header);
+    AssertNotNull('content found', content);
+
+    // Initial content bounds
+    AssertEquals('content X is 10', 10.0, content.X, 0.001);
+    AssertEquals('content Y is 105', 105.0, content.Y, 0.001);
+    AssertEquals('content Width is 480', 480.0, content.Width, 0.001);
+    AssertEquals('content Height is 200', 200.0, content.Height, 0.001);
+
+    // Dynamically increase header height: content.Y must reactively move down
+    header.Height := 120.0;
+    AssertEquals('content Y reactively updated to 145', 145.0, content.Y, 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLAnchorsAndLayoutsTest.TestFlexBoxLayoutAndProperties();
+var
+  engine: TFloriaFTMLEngine;
+  root, b1, b2: TFloriaFTMLItem;
+  flex: TFloriaFTMLFlexBox;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'FlexBox {' +
+      '  id: flex;' +
+      '  width: 400; height: 200;' +
+      '  direction: "column";' +
+      '  gap: 12;' +
+      '  justifyContent: "space-between";' +
+      '  alignItems: "center";' +
+      '  Button { id: b1; flexGrow: 1.0; alignSelf: "stretch"; }' +
+      '  Button { id: b2; flexGrow: 2.0; }' +
+      '}');
+    AssertNotNull('Root loaded', root);
+    AssertTrue('root is TFloriaFTMLFlexBox', root is TFloriaFTMLFlexBox);
+    flex := TFloriaFTMLFlexBox(root);
+    AssertEquals('Direction is column', 'column', flex.Direction);
+    AssertEquals('Gap is 12', 12.0, flex.Gap, 0.001);
+    AssertEquals('JustifyContent is space-between', 'space-between', flex.JustifyContent);
+    AssertEquals('AlignItems is center', 'center', flex.AlignItems);
+
+    b1 := engine.FindItemById('b1');
+    b2 := engine.FindItemById('b2');
+    AssertNotNull('b1 found', b1);
+    AssertNotNull('b2 found', b2);
+    AssertEquals('b1 flexGrow is 1.0', 1.0, b1.FlexGrow, 0.001);
+    AssertEquals('b1 alignSelf is stretch', 'stretch', b1.AlignSelf);
+    AssertEquals('b2 flexGrow is 2.0', 2.0, b2.FlexGrow, 0.001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLAnchorsAndLayoutsTest.TestGridLayoutAndProperties();
+var
+  engine: TFloriaFTMLEngine;
+  root, c1, c2: TFloriaFTMLItem;
+  grid: TFloriaFTMLGrid;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Grid {' +
+      '  id: grid;' +
+      '  columns: 3;' +
+      '  gap: 16;' +
+      '  Rectangle { id: c1; gridColumn: 0; gridRow: 0; colSpan: 2; }' +
+      '  Rectangle { id: c2; gridColumn: 2; gridRow: 0; }' +
+      '}');
+    AssertNotNull('Root loaded', root);
+    AssertTrue('root is TFloriaFTMLGrid', root is TFloriaFTMLGrid);
+    grid := TFloriaFTMLGrid(root);
+    AssertEquals('Columns is 3', 3, grid.Columns);
+    AssertEquals('Gap is 16', 16.0, grid.Gap, 0.001);
+
+    c1 := engine.FindItemById('c1');
+    c2 := engine.FindItemById('c2');
+    AssertNotNull('c1 found', c1);
+    AssertNotNull('c2 found', c2);
+    AssertEquals('c1 gridColumn is 0', 0, c1.GridColumn);
+    AssertEquals('c1 colSpan is 2', 2, c1.ColSpan);
+    AssertEquals('c2 gridColumn is 2', 2, c2.GridColumn);
+    AssertEquals('c2 colSpan is 1', 1, c2.ColSpan);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLAnchorsAndLayoutsTest.TestQmlLayoutAliases();
+var
+  engine: TFloriaFTMLEngine;
+  root, item1: TFloriaFTMLItem;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Item {' +
+      '  Item {' +
+      '    id: item1;' +
+      '    Layout.fillWidth: true;' +
+      '    Layout.preferredHeight: 48;' +
+      '    Layout.column: 1;' +
+      '    Layout.row: 2;' +
+      '    Layout.columnSpan: 3;' +
+      '    Layout.alignment: "center";' +
+      '  }' +
+      '}');
+    AssertNotNull('Root loaded', root);
+    item1 := engine.FindItemById('item1');
+    AssertNotNull('item1 found', item1);
+    AssertEquals('item1 flexGrow is 1.0 via Layout.fillWidth', 1.0, item1.FlexGrow, 0.001);
+    AssertEquals('item1 height is 48 via Layout.preferredHeight', 48.0, item1.Height, 0.001);
+    AssertEquals('item1 gridColumn is 1 via Layout.column', 1, item1.GridColumn);
+    AssertEquals('item1 gridRow is 2 via Layout.row', 2, item1.GridRow);
+    AssertEquals('item1 colSpan is 3 via Layout.columnSpan', 3, item1.ColSpan);
+    AssertEquals('item1 alignSelf is center via Layout.alignment', 'center', item1.AlignSelf);
+    AssertTrue('Layout.fillWidth property reads True', item1.GetProperty('Layout.fillWidth').ToBoolean());
+  finally
+    engine.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -1957,6 +2228,7 @@ begin
   RegisterTest(TFloriaFTMLTypesTest);
   RegisterTest(TFloriaFTMLBindingTest);
   RegisterTest(TFloriaFTMLEngineTest);
+  RegisterTest(TFloriaFTMLAnchorsAndLayoutsTest);
 
   Application := TTestRunner.Create(nil);
   try
