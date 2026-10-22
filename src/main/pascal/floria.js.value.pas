@@ -118,6 +118,18 @@ type
   TFloriaJSNativeProc = function(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
   TFloriaJSNativeMethod = function(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue of object;
 
+  { Heap-allocated JavaScript Error Object }
+  TFloriaJSError = class(TFloriaJSObject)
+  private
+    FName: string;
+    FMessage: string;
+  public
+    constructor Create(const AName, AMessage: string);
+
+    property Name: string read FName;
+    property Message: string read FMessage;
+  end;
+
   { Heap-allocated JavaScript Function }
   TFloriaJSFunction = class(TFloriaJSObject)
   private
@@ -225,6 +237,7 @@ type
     function  Untrack(AObj: TObject): Boolean;
     function  NewObject(AProto: TFloriaJSObject = nil): TFloriaJSObject;
     function  NewArray(): TFloriaJSArray;
+    function  NewError(const AName, AMessage: string): TFloriaJSError;
     function  NewPromise(): TFloriaJSPromise;
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
     function  NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
@@ -240,6 +253,7 @@ type
     function  PromiseReject(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseRace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     procedure Clear();
     function  GetObjectCount(): Integer;
@@ -521,7 +535,10 @@ begin
       else
         Result := 'function() { [native code] }';
     fjstObject:
-      Result := '[object Object]';
+      if ObjVal is TFloriaJSError then
+        Result := TFloriaJSError(ObjVal).Name + ': ' + TFloriaJSError(ObjVal).Message
+      else
+        Result := '[object Object]';
   else
     Result := '';
   end;
@@ -667,6 +684,19 @@ begin
   if AOutKeys = nil then Exit;
   for i := 0 to FPropCount - 1 do
     AOutKeys.Add(FProperties[i].Key);
+end;
+
+{ TFloriaJSError }
+
+constructor TFloriaJSError.Create(const AName, AMessage: string);
+begin
+  inherited Create(nil);
+  FName := AName;
+  FMessage := AMessage;
+  { The name and the message are readable from the script, just like they are
+    on an error object of JavaScript. }
+  SetProperty('name', JSMakeString(AName));
+  SetProperty('message', JSMakeString(AMessage));
 end;
 
 { TFloriaJSArray }
@@ -1196,6 +1226,23 @@ end;
 function TFloriaJSHeap.NewArray(): TFloriaJSArray;
 begin
   Result := TFloriaJSArray(Track(TFloriaJSArray.Create()));
+end;
+
+function TFloriaJSHeap.NewError(const AName, AMessage: string): TFloriaJSError;
+begin
+  Result := TFloriaJSError(Track(TFloriaJSError.Create(AName, AMessage)));
+end;
+
+function TFloriaJSHeap.ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  msg: string;
+begin
+  if Length(AArgs) > 0 then
+    msg := AArgs[0].ToString()
+  else
+    msg := '';
+
+  Result := JSMakeObject(NewError('Error', msg));
 end;
 
 function TFloriaJSHeap.NewPromise(): TFloriaJSPromise;

@@ -435,6 +435,42 @@ type
     property Cases: TFPList read FCases;
   end;
 
+  { Try Statement: try block with an optional catch and finally clause }
+  TFloriaJSTryStmt = class(TFloriaJSStmtNode)
+  private
+    FBlock: TFloriaJSBlockStmt;
+    FCatchParam: string;
+    FCatchBlock: TFloriaJSBlockStmt;
+    FFinallyBlock: TFloriaJSBlockStmt;
+  public
+    constructor Create(ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure SetBlock(ABlock: TFloriaJSBlockStmt);
+    procedure SetCatch(const AParam: string; ABlock: TFloriaJSBlockStmt);
+    procedure SetFinally(ABlock: TFloriaJSBlockStmt);
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Block: TFloriaJSBlockStmt read FBlock;
+    property CatchParam: string read FCatchParam;
+    property CatchBlock: TFloriaJSBlockStmt read FCatchBlock;
+    property FinallyBlock: TFloriaJSBlockStmt read FFinallyBlock;
+  end;
+
+  { Throw Statement: throw expr; }
+  TFloriaJSThrowStmt = class(TFloriaJSStmtNode)
+  private
+    FExpression: TFloriaJSExprNode;
+  public
+    constructor Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Expression: TFloriaJSExprNode read FExpression;
+  end;
+
   { Break Statement: break; }
   TFloriaJSBreakStmt = class(TFloriaJSStmtNode)
   public
@@ -568,6 +604,8 @@ type
     procedure VisitWhileStmt(ANode: TFloriaJSWhileStmt);
     procedure VisitForStmt(ANode: TFloriaJSForStmt);
     procedure VisitSwitchStmt(ANode: TFloriaJSSwitchStmt);
+    procedure VisitTryStmt(ANode: TFloriaJSTryStmt);
+    procedure VisitThrowStmt(ANode: TFloriaJSThrowStmt);
     procedure VisitBreakStmt(ANode: TFloriaJSBreakStmt);
     procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
     procedure VisitFunctionDecl(ANode: TFloriaJSFunctionDecl);
@@ -1297,6 +1335,68 @@ end;
 procedure TFloriaJSSwitchStmt.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
   if AVisitor <> nil then AVisitor.VisitSwitchStmt(Self);
+end;
+
+{ TFloriaJSTryStmt }
+
+constructor TFloriaJSTryStmt.Create(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FBlock := nil;
+  FCatchParam := '';
+  FCatchBlock := nil;
+  FFinallyBlock := nil;
+end;
+
+destructor TFloriaJSTryStmt.Destroy();
+begin
+  FreeAndNil(FBlock);
+  FreeAndNil(FCatchBlock);
+  FreeAndNil(FFinallyBlock);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSTryStmt.SetBlock(ABlock: TFloriaJSBlockStmt);
+begin
+  FreeAndNil(FBlock);
+  FBlock := ABlock;
+end;
+
+procedure TFloriaJSTryStmt.SetCatch(const AParam: string; ABlock: TFloriaJSBlockStmt);
+begin
+  FreeAndNil(FCatchBlock);
+  FCatchParam := AParam;
+  FCatchBlock := ABlock;
+end;
+
+procedure TFloriaJSTryStmt.SetFinally(ABlock: TFloriaJSBlockStmt);
+begin
+  FreeAndNil(FFinallyBlock);
+  FFinallyBlock := ABlock;
+end;
+
+procedure TFloriaJSTryStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitTryStmt(Self);
+end;
+
+{ TFloriaJSThrowStmt }
+
+constructor TFloriaJSThrowStmt.Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FExpression := AExpr;
+end;
+
+destructor TFloriaJSThrowStmt.Destroy();
+begin
+  FreeAndNil(FExpression);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSThrowStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitThrowStmt(Self);
 end;
 
 { TFloriaJSBreakStmt }

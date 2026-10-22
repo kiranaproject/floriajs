@@ -77,6 +77,8 @@ type
     function  ParseDoWhileStatement(): TFloriaJSWhileStmt;
     function  ParseForStatement(): TFloriaJSForStmt;
     function  ParseSwitchStatement(): TFloriaJSSwitchStmt;
+    function  ParseTryStatement(): TFloriaJSTryStmt;
+    function  ParseThrowStatement(): TFloriaJSThrowStmt;
     function  ParseBlockStatement(): TFloriaJSBlockStmt;
     function  ParseReturnStatement(): TFloriaJSReturnStmt;
     function  ParseBreakStatement(): TFloriaJSBreakStmt;
@@ -187,7 +189,8 @@ begin
     if FPrevious.Kind = tkSemicolon then
       Exit;
     case FCurrent.Kind of
-      tkFunction, tkVar, tkLet, tkConst, tkFor, tkIf, tkWhile, tkReturn:
+      tkFunction, tkVar, tkLet, tkConst, tkFor, tkIf, tkWhile, tkReturn,
+      tkTry, tkThrow:
         Exit;
     else
       Advance();
@@ -652,6 +655,10 @@ begin
     Result := ParseForStatement()
   else if Match(tkSwitch) then
     Result := ParseSwitchStatement()
+  else if Match(tkTry) then
+    Result := ParseTryStatement()
+  else if Match(tkThrow) then
+    Result := ParseThrowStatement()
   else if Match(tkReturn) then
     Result := ParseReturnStatement()
   else if Match(tkBreak) then
@@ -816,6 +823,71 @@ begin
 
   Consume(tkRBrace, 'Expected ''}'' after switch body');
   Result := switchStmt;
+end;
+
+function TFloriaJSParser.ParseTryStatement(): TFloriaJSTryStmt;
+var
+  tryStmt: TFloriaJSTryStmt;
+  catchParam: string;
+  catchBlock, finallyBlock: TFloriaJSBlockStmt;
+  hasCatch, hasFinally: Boolean;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  tryStmt := TFloriaJSTryStmt.Create(startLine, startCol);
+  tryStmt.SetBlock(ParseBlockStatement());
+
+  hasCatch := False;
+  hasFinally := False;
+  catchParam := '';
+
+  { The catch clause binds the thrown value to a parameter of its own. The
+    parameter is optional, a catch clause without one is allowed. }
+  if Match(tkCatch) then
+  begin
+    hasCatch := True;
+    if Match(tkLParen) then
+    begin
+      if Match(tkIdentifier) then
+        catchParam := FPrevious.Text
+      else
+        ErrorAtCurrent('Expected catch parameter name');
+      Consume(tkRParen, 'Expected '')'' after catch parameter');
+    end;
+
+    catchBlock := ParseBlockStatement();
+    tryStmt.SetCatch(catchParam, catchBlock);
+  end;
+
+  if Match(tkFinally) then
+  begin
+    hasFinally := True;
+    finallyBlock := ParseBlockStatement();
+    tryStmt.SetFinally(finallyBlock);
+  end;
+
+  { A try statement without a catch and without a finally clause would have
+    no effect at all, so it is rejected. }
+  if (not hasCatch) and (not hasFinally) then
+    ErrorAtCurrent('Missing catch or finally after try block');
+
+  Result := tryStmt;
+end;
+
+function TFloriaJSParser.ParseThrowStatement(): TFloriaJSThrowStmt;
+var
+  expr: TFloriaJSExprNode;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  { A throw statement always carries the value that is thrown. }
+  expr := ParseExpression();
+  Match(tkSemicolon);
+  Result := TFloriaJSThrowStmt.Create(expr, startLine, startCol);
 end;
 
 function TFloriaJSParser.ParseBlockStatement(): TFloriaJSBlockStmt;

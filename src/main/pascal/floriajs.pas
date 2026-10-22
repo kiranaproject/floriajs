@@ -67,6 +67,10 @@ type
   TFloriaJSReturnStmt      = floria.js.ast.TFloriaJSReturnStmt;
   TFloriaJSWhileStmt       = floria.js.ast.TFloriaJSWhileStmt;
   TFloriaJSForStmt         = floria.js.ast.TFloriaJSForStmt;
+  TFloriaJSSwitchStmt      = floria.js.ast.TFloriaJSSwitchStmt;
+  TFloriaJSSwitchCase      = floria.js.ast.TFloriaJSSwitchCase;
+  TFloriaJSTryStmt         = floria.js.ast.TFloriaJSTryStmt;
+  TFloriaJSThrowStmt       = floria.js.ast.TFloriaJSThrowStmt;
   TFloriaJSBreakStmt       = floria.js.ast.TFloriaJSBreakStmt;
   TFloriaJSContinueStmt    = floria.js.ast.TFloriaJSContinueStmt;
   TFloriaJSFunctionDecl    = floria.js.ast.TFloriaJSFunctionDecl;
@@ -83,6 +87,7 @@ type
   TFloriaJSObject          = floria.js.value.TFloriaJSObject;
   TFloriaJSArray           = floria.js.value.TFloriaJSArray;
   TFloriaJSFunction        = floria.js.value.TFloriaJSFunction;
+  TFloriaJSError           = floria.js.value.TFloriaJSError;
   TFloriaJSHeap            = floria.js.value.TFloriaJSHeap;
   TFloriaJSNativeProc      = floria.js.value.TFloriaJSNativeProc;
   TFloriaJSNativeMethod    = floria.js.value.TFloriaJSNativeMethod;

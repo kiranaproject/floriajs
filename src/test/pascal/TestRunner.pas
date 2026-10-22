@@ -188,6 +188,25 @@ type
     procedure TestSwitchParserErrors();
   end;
 
+  { Test 15: Try, Catch & Throw }
+  TFloriaJSTryCatchTest = class(TTestCase)
+  published
+    procedure TestThrowAndCatch();
+    procedure TestCatchWithoutBinding();
+    procedure TestCatchParameterScope();
+    procedure TestFinallyAlwaysRuns();
+    procedure TestFinallyWithReturn();
+    procedure TestControlFlowPassesThrough();
+    procedure TestNestedTry();
+    procedure TestThrowFromFunction();
+    procedure TestThrowInsideCatch();
+    procedure TestErrorObject();
+    procedure TestUncaughtThrow();
+    procedure TestAsyncThrow();
+    procedure TestTryParserErrors();
+    procedure TestTryDoesNotLeak();
+  end;
+
 { TFloriaJSTypesTest }
 
 destructor TCountedASTNode.Destroy();
@@ -2857,6 +2876,411 @@ begin
   end;
 end;
 
+{ TFloriaJSTryCatchTest }
+
+procedure TFloriaJSTryCatchTest.TestThrowAndCatch();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try { throw "boom"; } catch (e) { r = "caught"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Try and catch success', res.Success);
+    AssertEquals('The catch clause runs for a thrown value', 'caught', res.StringValue);
+
+    res := engine.Execute('try { throw "boom"; } catch (e) { e; }');
+    AssertTrue('Catch the thrown value success', res.Success);
+    AssertEquals('The catch clause binds the thrown value', 'boom', res.StringValue);
+
+    res := engine.Execute('try { throw 42; } catch (e) { e; }');
+    AssertTrue('Catch a number success', res.Success);
+    AssertEquals('The catch clause binds a number', '42', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "none";' + LineEnding +
+      'try { r = "body"; } catch (e) { r = "caught"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Try without an error success', res.Success);
+    AssertEquals('The catch clause stays untouched without an error', 'body', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestCatchWithoutBinding();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try { throw "boom"; } catch { r = "caught"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Catch without a binding success', res.Success);
+    AssertEquals('A catch clause without a binding still catches', 'caught', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestCatchParameterScope();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let e = "outer";' + LineEnding +
+      'try { throw "inner"; } catch (e) { }' + LineEnding +
+      'e;'
+    );
+    AssertTrue('Catch parameter scope success', res.Success);
+    AssertEquals('The catch parameter is only visible inside the clause', 'outer', res.StringValue);
+
+    res := engine.Execute(
+      'try { throw "inner"; } catch (e) { e; }'
+    );
+    AssertTrue('Catch parameter value success', res.Success);
+    AssertEquals('The catch parameter holds the thrown value', 'inner', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestFinallyAlwaysRuns();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try { r = "body"; } finally { r = r + "-finally"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Finally after a normal block success', res.Success);
+    AssertEquals('The finally clause runs after a normal block', 'body-finally', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try { throw "boom"; } catch (e) { r = "caught"; } finally { r = r + "-finally"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Finally after a catch success', res.Success);
+    AssertEquals('The finally clause runs after the catch clause', 'caught-finally', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try { throw "boom"; } finally { r = "finally"; }'
+    );
+    AssertFalse('An uncaught error must be reported', res.Success);
+    AssertEquals('The finally clause runs for an uncaught error too', 'boom', res.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestFinallyWithReturn();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function f() { try { return "value"; } finally { } }' + LineEnding +
+      'f();'
+    );
+    AssertTrue('Return inside a try success', res.Success);
+    AssertEquals('A return inside a try leaves the function', 'value', res.StringValue);
+
+    res := engine.Execute(
+      'function f() { try { return "value"; } catch (e) { return "caught"; } }' + LineEnding +
+      'f();'
+    );
+    AssertTrue('Return inside a try with a catch success', res.Success);
+    AssertEquals('The catch clause does not swallow a return', 'value', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestControlFlowPassesThrough();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'for (let i = 0; i < 3; i = i + 1) {' + LineEnding +
+      '  try { break; } catch (e) { r = "caught"; }' + LineEnding +
+      '}' + LineEnding +
+      'r + "b";'
+    );
+    AssertTrue('Break inside a try success', res.Success);
+    AssertEquals('A break is not caught by the catch clause', 'b', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'for (let i = 0; i < 3; i = i + 1) {' + LineEnding +
+      '  try { continue; } catch (e) { r = "caught"; } finally { r = r + i; }' + LineEnding +
+      '}' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Continue inside a try success', res.Success);
+    AssertEquals('A continue belongs to the enclosing loop', '012', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestNestedTry();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try {' + LineEnding +
+      '  try { throw "boom"; } catch (e) { r = "inner"; }' + LineEnding +
+      '} catch (e) { r = "outer"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Nested try success', res.Success);
+    AssertEquals('The innermost catch clause handles the error', 'inner', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try { try { r = "in"; } finally { r = r + "-inner"; } } finally { r = r + "-outer"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Nested finally success', res.Success);
+    AssertEquals('Every finally clause runs', 'in-inner-outer', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestThrowFromFunction();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function boom() { throw "kaboom"; }' + LineEnding +
+      'let r = "";' + LineEnding +
+      'try { boom(); } catch (e) { r = "caught"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Throw from a function success', res.Success);
+    AssertEquals('An error of a function reaches the caller', 'caught', res.StringValue);
+
+    res := engine.Execute(
+      'function boom() { throw "kaboom"; }' + LineEnding +
+      'try { boom(); } catch (e) { e; }'
+    );
+    AssertTrue('The thrown value reaches the caller success', res.Success);
+    AssertEquals('The thrown value keeps its content', 'kaboom', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestThrowInsideCatch();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try {' + LineEnding +
+      '  try { throw "first"; } catch (e) { throw "second"; }' + LineEnding +
+      '} catch (e) { r = e; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Throw inside a catch success', res.Success);
+    AssertEquals('An error of a catch clause reaches the outer clause', 'second', res.StringValue);
+
+    res := engine.Execute(
+      'try { throw "boom"; } finally { throw "from finally"; }'
+    );
+    AssertFalse('An error of a finally clause must be reported', res.Success);
+    AssertEquals('An error of a finally clause replaces the pending one', 'from finally', res.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestErrorObject();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('try { throw Error("boom"); } catch (e) { e; }');
+    AssertTrue('Error object success', res.Success);
+    AssertEquals('An error object describes itself', 'Error: boom', res.StringValue);
+
+    res := engine.Execute('try { throw Error("boom"); } catch (e) { e.message; }');
+    AssertTrue('Error message success', res.Success);
+    AssertEquals('The message of an error object is readable', 'boom', res.StringValue);
+
+    res := engine.Execute('try { throw Error("boom"); } catch (e) { e.name; }');
+    AssertTrue('Error name success', res.Success);
+    AssertEquals('The name of an error object is readable', 'Error', res.StringValue);
+
+    res := engine.Execute('throw Error("boom");');
+    AssertFalse('An uncaught error object must be reported', res.Success);
+    AssertEquals('An uncaught error object reports its message', 'Error: boom', res.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestUncaughtThrow();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('throw "boom";');
+    AssertFalse('An uncaught error must be reported', res.Success);
+    AssertEquals('An uncaught error reports its value', 'boom', res.ErrorMessage);
+
+    res := engine.Execute('let r = "before"; throw 7; r;');
+    AssertFalse('An uncaught error stops the script', res.Success);
+    AssertEquals('An uncaught error reports its value', '7', res.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestAsyncThrow();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'async function f() { throw "nope"; }' + LineEnding +
+      'let r = "";' + LineEnding +
+      'try { await f(); } catch (e) { r = "caught"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Async throw success', res.Success);
+    AssertEquals('An error of an async function is catchable', 'caught', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'try { await Promise.reject("bad"); } catch (e) { r = e; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Rejected promise success', res.Success);
+    AssertEquals('A rejected promise can be awaited inside a try', 'bad', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestTryParserErrors();
+var
+  parser: TFloriaJSParser;
+  prog: TFloriaJSProgram;
+  tryStmt: TFloriaJSTryStmt;
+begin
+  parser := TFloriaJSParser.Create('try { }');
+  try
+    prog := parser.ParseProgram();
+    try
+      AssertTrue('A try without a catch and without a finally must be rejected',
+        parser.HasErrors());
+    finally
+      prog.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+
+  parser := TFloriaJSParser.Create('throw;');
+  try
+    prog := parser.ParseProgram();
+    try
+      AssertTrue('A throw without a value must be rejected', parser.HasErrors());
+    finally
+      prog.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+
+  parser := TFloriaJSParser.Create('try { throw "x"; } catch (e) { } finally { }');
+  try
+    prog := parser.ParseProgram();
+    try
+      AssertFalse('A well formed try statement must parse', parser.HasErrors());
+      AssertTrue('The program must hold a try statement',
+        prog.GetStatement(0) is TFloriaJSTryStmt);
+      tryStmt := TFloriaJSTryStmt(prog.GetStatement(0));
+      AssertTrue('The try statement holds a block', tryStmt.Block <> nil);
+      AssertTrue('The try statement holds a catch clause', tryStmt.CatchBlock <> nil);
+      AssertEquals('The catch clause binds a parameter', 'e', tryStmt.CatchParam);
+      AssertTrue('The try statement holds a finally clause', tryStmt.FinallyBlock <> nil);
+    finally
+      prog.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+end;
+
+procedure TFloriaJSTryCatchTest.TestTryDoesNotLeak();
+var
+  ctx: TFloriaJSContext;
+  objects, environments: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate('try { throw "x"; } catch (e) { }');
+    objects := ctx.Heap.GetObjectCount;
+    environments := ctx.Heap.GetEnvironmentCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('try { throw "x"; } catch (e) { } finally { }');
+
+    AssertTrue('Repeated try statements must not accumulate objects (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+    AssertTrue('Repeated try statements must not accumulate environments (' +
+      IntToStr(environments) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = environments);
+  finally
+    ctx.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -2875,6 +3299,7 @@ begin
   RegisterTest(TFloriaFTMLLifecycleTest);
   RegisterTest(TFloriaJSLifetimeTest);
   RegisterTest(TFloriaJSSwitchTest);
+  RegisterTest(TFloriaJSTryCatchTest);
 
   Application := TTestRunner.Create(nil);
   try

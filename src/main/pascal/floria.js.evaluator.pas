@@ -45,6 +45,8 @@ type
     function AssignToTarget(ATarget: TFloriaJSExprNode; const AVal: TFloriaJSValue; AOp: TFloriaJSTokenKind; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
     procedure RunPromiseJob(const AJob: TFloriaJSPromiseJob);
     function GetMemberValue(const AObj: TFloriaJSValue; const APropName: string): TFloriaJSValue;
+    function RunCatchClause(const ATryStmt: TFloriaJSTryStmt; const AThrown: TFloriaJSValue;
+      AEnv: TFloriaJSEnvironment): TFloriaJSValue;
   public
     constructor Create(AHeap: TFloriaJSHeap = nil);
     destructor Destroy(); override;
@@ -65,6 +67,10 @@ type
   end;
 
 implementation
+
+type
+  { What a try statement remembered while its try block was running }
+  TFloriaJSTryPending = (ftpNone, ftpError, ftpReturn, ftpBreak, ftpContinue);
 
 { EFloriaJSReturn }
 
@@ -200,6 +206,29 @@ end;
 function TFloriaJSEvaluator.GetClosureCount(): Integer;
 begin
   Result := FClosureCount;
+end;
+
+function TFloriaJSEvaluator.RunCatchClause(const ATryStmt: TFloriaJSTryStmt;
+  const AThrown: TFloriaJSValue; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
+var
+  catchEnv: TFloriaJSEnvironment;
+  closureMark: Integer;
+begin
+  { The thrown value is bound in a scope of its own, so it is only visible
+    inside the catch clause. }
+  catchEnv := NewEnv(AEnv);
+  closureMark := FClosureCount;
+
+  try
+    if ATryStmt.CatchParam <> '' then
+      catchEnv.Define(ATryStmt.CatchParam, AThrown);
+    Result := ExecuteStmt(ATryStmt.CatchBlock, catchEnv);
+  finally
+    { The catch scope can only outlive the clause when a closure captured it.
+      Otherwise it is reclaimed immediately. }
+    if FClosureCount = closureMark then
+      ReleaseEnv(catchEnv);
+  end;
 end;
 
 function TFloriaJSEvaluator.AssignToTarget(ATarget: TFloriaJSExprNode; const AVal: TFloriaJSValue; AOp: TFloriaJSTokenKind; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
@@ -551,11 +580,15 @@ var
   forStmt: TFloriaJSForStmt;
   switchStmt: TFloriaJSSwitchStmt;
   caseClause: TFloriaJSSwitchCase;
+  tryStmt: TFloriaJSTryStmt;
+  throwStmt: TFloriaJSThrowStmt;
   retStmt: TFloriaJSReturnStmt;
   fnDecl: TFloriaJSFunctionDecl;
   fnObj: TFloriaJSFunction;
   blockEnv, loopEnv, switchEnv: TFloriaJSEnvironment;
   initVal, retVal, discVal: TFloriaJSValue;
+  pendingValue: TFloriaJSValue;
+  pending: TFloriaJSTryPending;
   initNode: TFloriaJSASTNode;
   closureMark: Integer;
   startIdx, i, j, count: Integer;
@@ -755,7 +788,77 @@ begin
     Exit;
   end;
 
-  // 8. Return Statement
+  // 8. Try Statement
+  if AStmt is TFloriaJSTryStmt then
+  begin
+    tryStmt := TFloriaJSTryStmt(AStmt);
+
+    { The try block runs first. An error or a control flow signal is
+      remembered instead of travelling on, so that the catch clause and the
+      finally clause never run while an exception is in flight. Raising a
+      new error there would replace the pending one and would leave it
+      behind unreleased. }
+    pending := ftpNone;
+    pendingValue := JSMakeUndefined();
+
+    try
+      Result := ExecuteStmt(tryStmt.Block, AEnv);
+    except
+      on E: EFloriaJSReturn do
+      begin
+        pending := ftpReturn;
+        pendingValue := E.Value;
+      end;
+      on E: EFloriaJSBreak do
+        pending := ftpBreak;
+      on E: EFloriaJSContinue do
+        pending := ftpContinue;
+      on E: EFloriaJSThrow do
+      begin
+        pending := ftpError;
+        pendingValue := E.Value;
+      end;
+      on E: Exception do
+      begin
+        { A runtime error of the host is caught like any other error. }
+        pending := ftpError;
+        pendingValue := JSMakeString(E.Message);
+      end;
+    end;
+
+    { The catch clause handles a remembered error. Without a catch clause the
+      error keeps travelling outwards. }
+    if (pending = ftpError) and (tryStmt.CatchBlock <> nil) then
+    begin
+      Result := RunCatchClause(tryStmt, pendingValue, AEnv);
+      pending := ftpNone;
+    end;
+
+    { The finally clause runs in every case, also when the try block raised
+      an error or the clause is left with a return, a break or a continue.
+      An error it raises itself replaces the pending one. }
+    if tryStmt.FinallyBlock <> nil then
+      ExecuteStmt(tryStmt.FinallyBlock, AEnv);
+
+    { An error that was not handled and a control flow signal travel on. }
+    case pending of
+      ftpError:    raise EFloriaJSThrow.Create(pendingValue);
+      ftpReturn:   raise EFloriaJSReturn.Create(pendingValue);
+      ftpBreak:    raise EFloriaJSBreak.Create('');
+      ftpContinue: raise EFloriaJSContinue.Create('');
+    end;
+
+    Exit;
+  end;
+
+  // 9. Throw Statement
+  if AStmt is TFloriaJSThrowStmt then
+  begin
+    throwStmt := TFloriaJSThrowStmt(AStmt);
+    raise EFloriaJSThrow.Create(EvaluateExpr(throwStmt.Expression, AEnv));
+  end;
+
+  // 10. Return Statement
   if AStmt is TFloriaJSReturnStmt then
   begin
     retStmt := TFloriaJSReturnStmt(AStmt);
@@ -767,15 +870,15 @@ begin
     raise EFloriaJSReturn.Create(retVal);
   end;
 
-  // 8. Break Statement
+  // 11. Break Statement
   if AStmt is TFloriaJSBreakStmt then
     raise EFloriaJSBreak.Create('');
 
-  // 9. Continue Statement
+  // 12. Continue Statement
   if AStmt is TFloriaJSContinueStmt then
     raise EFloriaJSContinue.Create('');
 
-  // 10. Function Declaration
+  // 13. Function Declaration
   if AStmt is TFloriaJSFunctionDecl then
   begin
     fnDecl := TFloriaJSFunctionDecl(AStmt);
