@@ -207,6 +207,18 @@ type
     procedure TestTryDoesNotLeak();
   end;
 
+  { Test 16: Heap Reclamation }
+  TFloriaJSReclamationTest = class(TTestCase)
+  published
+    procedure TestUnreachableObjectIsReclaimed();
+    procedure TestUnreachableArrayIsReclaimed();
+    procedure TestFunctionDeclarationIsReclaimed();
+    procedure TestFunctionExpressionIsReclaimed();
+    procedure TestObjectWithFunctionIsReclaimed();
+    procedure TestReachableObjectSurvives();
+    procedure TestValueHandedToTheHostSurvivesUntilReleased();
+  end;
+
 { TFloriaJSTypesTest }
 
 destructor TCountedASTNode.Destroy();
@@ -3281,6 +3293,178 @@ begin
   end;
 end;
 
+{ TFloriaJSReclamationTest }
+
+procedure TFloriaJSReclamationTest.TestUnreachableObjectIsReclaimed();
+var
+  ctx: TFloriaJSContext;
+  objects: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate('var tmp = {}; tmp = null;');
+    objects := ctx.Heap.GetObjectCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('var tmp = {}; tmp = null;');
+
+    AssertTrue('Unreachable objects must not accumulate (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSReclamationTest.TestUnreachableArrayIsReclaimed();
+var
+  ctx: TFloriaJSContext;
+  objects: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate('var tmp = [1, 2, 3]; tmp = null;');
+    objects := ctx.Heap.GetObjectCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('var tmp = [1, 2, 3]; tmp = null;');
+
+    AssertTrue('Unreachable arrays must not accumulate (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSReclamationTest.TestFunctionDeclarationIsReclaimed();
+var
+  ctx: TFloriaJSContext;
+  objects: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    { Every declaration replaces the previous one, so the function that is
+      replaced must be reclaimed. }
+    ctx.Evaluate('function f() { return 1; }');
+    objects := ctx.Heap.GetObjectCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('function f() { return 1; }');
+
+    { The reclamation happens at the next safe point, so the script that
+      follows the loop gives it the chance to catch up. }
+    ctx.Evaluate('0;');
+
+    AssertTrue('Replaced function declarations must not accumulate (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSReclamationTest.TestFunctionExpressionIsReclaimed();
+var
+  ctx: TFloriaJSContext;
+  objects: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate('var f = function () { return 1; };');
+    objects := ctx.Heap.GetObjectCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('var f = function () { return 1; };');
+
+    { The reclamation happens at the next safe point, so the script that
+      follows the loop gives it the chance to catch up. }
+    ctx.Evaluate('0;');
+
+    AssertTrue('Replaced function expressions must not accumulate (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSReclamationTest.TestObjectWithFunctionIsReclaimed();
+var
+  ctx: TFloriaJSContext;
+  objects: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate('var tmp = {}; tmp.f = function () { return 1; }; tmp = null;');
+    objects := ctx.Heap.GetObjectCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('var tmp = {}; tmp.f = function () { return 1; }; tmp = null;');
+
+    AssertTrue('Objects with a function must not accumulate (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSReclamationTest.TestReachableObjectSurvives();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate('var keep = { value: 7 };');
+
+    { The evaluation of a script is a safe point at which the unreachable
+      objects are reclaimed. The object that is still bound must survive it. }
+    ctx.Evaluate('0;');
+
+    AssertEquals('A reachable object must survive the reclamation', '7',
+      ctx.Evaluate('keep.value;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSReclamationTest.TestValueHandedToTheHostSurvivesUntilReleased();
+var
+  ctx: TFloriaJSContext;
+  val: TFloriaJSValue;
+  objects: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    val := ctx.EvaluateValue('({ value: 7 });');
+    AssertTrue('The evaluated value must be an object',
+      val.IsObject() and (val.ObjVal <> nil));
+
+    { The host holds on to the value, so it must not be reclaimed. }
+    objects := ctx.Heap.GetObjectCount;
+    ctx.Evaluate('0;');
+    AssertTrue('A value that was handed out must not be reclaimed (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+    AssertTrue('A value that was handed out must be pinned', val.ObjVal.Pinned);
+
+    { The host gives the value back, so it becomes reclaimable. }
+    ctx.ReleaseValue(val);
+    ctx.Evaluate('0;');
+    AssertTrue('A value that was given back must be reclaimable (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount < objects);
+  finally
+    ctx.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -3300,6 +3484,7 @@ begin
   RegisterTest(TFloriaJSLifetimeTest);
   RegisterTest(TFloriaJSSwitchTest);
   RegisterTest(TFloriaJSTryCatchTest);
+  RegisterTest(TFloriaJSReclamationTest);
 
   Application := TTestRunner.Create(nil);
   try

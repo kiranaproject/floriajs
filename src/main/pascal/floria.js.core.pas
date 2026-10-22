@@ -36,6 +36,7 @@ type
     FOutput: TStringList;
 
     procedure InitContext();
+    function  EvaluateScript(const AScript: string): TFloriaJSValue;
   public
     constructor Create(AEngine: TFloriaJSEngine; const AName: string = 'global');
     destructor Destroy(); override;
@@ -52,6 +53,11 @@ type
     function  Evaluate(const AScript: string): TFloriaJSResult; virtual;
     function  EvaluateValue(const AScript: string): TFloriaJSValue; virtual;
     function  Call(const AFuncName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue; virtual;
+
+    { Gives a value that was handed out back to the runtime. The object the
+      value points at becomes eligible for reclamation once nothing refers to
+      it any more. }
+    procedure ReleaseValue(const AValue: TFloriaJSValue); virtual;
 
     procedure Reset(); virtual;
 
@@ -80,6 +86,7 @@ type
 
     function  Execute(const AScript: string): TFloriaJSResult; virtual;
     function  ExecuteValue(const AScript: string): TFloriaJSValue; virtual;
+    procedure ReleaseValue(const AValue: TFloriaJSValue); virtual;
     procedure RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
 
     property Initialized: Boolean read FInitialized;
@@ -172,7 +179,9 @@ begin
     Exit(FloriaJSMakeOkResult(''));
 
   try
-    val := EvaluateValue(AScript);
+    { Only the primitive parts of the result are handed out here, so the
+      result itself does not have to stay alive after the call. }
+    val := EvaluateScript(AScript);
     Result.Success := True;
     Result.ResultType := val.Kind;
     Result.StringValue := val.ToString();
@@ -186,6 +195,15 @@ begin
 end;
 
 function TFloriaJSContext.EvaluateValue(const AScript: string): TFloriaJSValue;
+begin
+  Result := EvaluateScript(AScript);
+  { The caller holds on to the returned value, so the object it points at must
+    stay alive for as long as the caller keeps it. }
+  if Result.IsObject() and (Result.ObjVal <> nil) then
+    Result.ObjVal.Pin;
+end;
+
+function TFloriaJSContext.EvaluateScript(const AScript: string): TFloriaJSValue;
 var
   parser: TFloriaJSParser;
   prog: TFloriaJSProgram;
@@ -218,6 +236,18 @@ begin
     Exit(JSMakeUndefined());
 
   Result := FEvaluator.CallFunction(fnVal, AArgs, JSMakeUndefined());
+  { The caller holds on to the returned value, so the object it points at must
+    stay alive for as long as the caller keeps it. }
+  if Result.IsObject() and (Result.ObjVal <> nil) then
+    Result.ObjVal.Pin;
+end;
+
+procedure TFloriaJSContext.ReleaseValue(const AValue: TFloriaJSValue);
+begin
+  { The object is given back to the runtime, which may reclaim it as soon as
+    nothing refers to it any more. }
+  if AValue.IsObject() and (AValue.ObjVal <> nil) then
+    AValue.ObjVal.Unpin;
 end;
 
 procedure TFloriaJSContext.Reset();
@@ -299,6 +329,12 @@ begin
     Result := FDefaultContext.EvaluateValue(AScript)
   else
     Result := JSMakeUndefined();
+end;
+
+procedure TFloriaJSEngine.ReleaseValue(const AValue: TFloriaJSValue);
+begin
+  if FDefaultContext <> nil then
+    FDefaultContext.ReleaseValue(AValue);
 end;
 
 procedure TFloriaJSEngine.RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);

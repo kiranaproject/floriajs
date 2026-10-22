@@ -36,6 +36,9 @@ type
     FRegistry: TStringList;
     FItemsById: TStringList;
     FDocumentObjects: TFPList;
+    FEscapedObjects: TFPList;
+    FEscapedASTs: TFPList;
+    FDocumentEscaped: Boolean;
     FLastError: string;
 
     function  InstantiateItem(AAST: TFloriaFTMLComponent; AParentItem: TFloriaFTMLItem; AParentEnv: TFloriaJSEnvironment): TFloriaFTMLItem;
@@ -43,6 +46,9 @@ type
     procedure TriggerCompletedSignals(AItem: TFloriaFTMLItem);
     procedure ReleaseDocument();
     procedure RemoveDocumentIds();
+    function  DocumentHasRuntimeClosure(): Boolean;
+    procedure ReleaseObjects(AObjects: TFPList);
+    procedure ReleaseEscapedDocuments();
   public
     constructor Create(AContext: TFloriaJSContext = nil);
     destructor Destroy(); override;
@@ -61,6 +67,7 @@ type
     { Item Lookup & Script Execution }
     function  FindItemById(const AId: string): TFloriaFTMLItem;
     function  Evaluate(const AScript: string): TFloriaJSValue;
+    procedure ReleaseValue(const AValue: TFloriaJSValue);
     function  HasErrors(): Boolean;
 
     property JSContext: TFloriaJSContext read FContext;
@@ -100,6 +107,9 @@ begin
   FItemsById.CaseSensitive := True;
 
   FDocumentObjects := TFPList.Create();
+  FEscapedObjects := TFPList.Create();
+  FEscapedASTs := TFPList.Create();
+  FDocumentEscaped := False;
 
   // Register standard built-in FTML components
   RegisterComponentType('Item', TFloriaFTMLItem);
@@ -119,6 +129,11 @@ begin
     items, so they must be destroyed while both are still valid. }
   ReleaseDocument();
 
+  { The documents a runtime closure still refers to are kept alive until the
+    engine goes away. They are released before the runtime, because their
+    objects hold references to values of the runtime. }
+  ReleaseEscapedDocuments();
+
   if FRootAST <> nil then
     FreeAndNil(FRootAST);
 
@@ -136,6 +151,12 @@ begin
 
   if FDocumentObjects <> nil then
     FreeAndNil(FDocumentObjects);
+
+  if FEscapedObjects <> nil then
+    FreeAndNil(FEscapedObjects);
+
+  if FEscapedASTs <> nil then
+    FreeAndNil(FEscapedASTs);
 
   inherited Destroy();
 end;
@@ -169,7 +190,12 @@ begin
 
   Result := itemClass.Create(ATypeName, Self);
   if FContext <> nil then
-    FContext.Heap.Track(Result);
+  begin
+    { The item belongs to the document, not to the heap, so the heap only
+      keeps track of it without ever reclaiming it on its own. }
+    FContext.Heap.Track(Result, False);
+    Result.RememberHeap(FContext.Heap);
+  end;
   Result.BindingManager := FBindingManager;
 
   { The item belongs to the current document: it is released again when the
@@ -353,6 +379,8 @@ var
   obj: TObject;
   item: TFloriaFTMLItem;
 begin
+  FDocumentEscaped := False;
+
   { Phase 1: unlink the anchor graph while every item is still alive, so no
     item is destroyed while a neighbour still references it. }
   if FDocumentObjects <> nil then
@@ -389,22 +417,131 @@ begin
   RemoveDocumentIds();
 
   { Phase 5: release the document owned heap objects. They are untracked first
-    so the shared JS heap does not free them a second time, and they are
-    destroyed in reverse creation order so children die before their parents. }
+    so the shared JS heap does not free them a second time. They are destroyed
+    in the order of their dependencies: the environments give up the
+    references they hold to the items and the functions of the document first,
+    then the items give up theirs, and the functions are destroyed last. }
   if FDocumentObjects <> nil then
   begin
-    for i := FDocumentObjects.Count - 1 downto 0 do
+    if DocumentHasRuntimeClosure() then
     begin
-      obj := TObject(FDocumentObjects[i]);
-      if FContext <> nil then
-        FContext.Heap.Untrack(obj);
-      obj.Free();
-    end;
-    FDocumentObjects.Clear();
+      { A runtime closure that was created in the document still refers to its
+        environments and to the code it was declared in. The document is
+        therefore kept alive until the engine goes away. }
+      FDocumentEscaped := True;
+      for i := 0 to FDocumentObjects.Count - 1 do
+        FEscapedObjects.Add(FDocumentObjects[i]);
+      FDocumentObjects.Clear();
+    end
+    else
+      ReleaseObjects(FDocumentObjects);
   end;
 
   FRootItem := nil;
   FRootEnv := nil;
+end;
+
+function TFloriaFTMLEngine.DocumentHasRuntimeClosure(): Boolean;
+var
+  i: Integer;
+  obj: TObject;
+begin
+  { A closure that was created in one of the environments of the document
+    keeps that environment alive, and with it the code it was declared in. }
+  Result := False;
+  if FDocumentObjects = nil then Exit;
+  for i := 0 to FDocumentObjects.Count - 1 do
+  begin
+    obj := TObject(FDocumentObjects[i]);
+    if obj is TFloriaJSEnvironment then
+    begin
+      if TFloriaJSEnvironment(obj).Captured then
+        Exit(True);
+    end;
+  end;
+end;
+
+procedure TFloriaFTMLEngine.ReleaseObjects(AObjects: TFPList);
+var
+  i: Integer;
+  obj: TObject;
+  environments, items, others: TFPList;
+begin
+  if AObjects = nil then Exit;
+
+  { The objects are sorted first, because the list still holds every object
+    while the groups are destroyed. }
+  environments := TFPList.Create();
+  items := TFPList.Create();
+  others := TFPList.Create();
+  try
+    for i := 0 to AObjects.Count - 1 do
+    begin
+      obj := TObject(AObjects[i]);
+      if obj is TFloriaJSEnvironment then
+        environments.Add(obj)
+      else if obj is TFloriaFTMLItem then
+        items.Add(obj)
+      else
+        others.Add(obj);
+    end;
+
+    { The environments are destroyed first, because every binding of an
+      environment holds a reference to the value it stores. }
+    for i := environments.Count - 1 downto 0 do
+    begin
+      obj := TObject(environments[i]);
+      if FContext <> nil then
+        FContext.Heap.Untrack(obj);
+      obj.Free();
+    end;
+
+    { Then the items, because every property of an item holds a reference to
+      the value it stores. }
+    for i := items.Count - 1 downto 0 do
+    begin
+      obj := TObject(items[i]);
+      if FContext <> nil then
+        FContext.Heap.Untrack(obj);
+      obj.Free();
+    end;
+
+    { And finally the remaining objects, which are the functions of the
+      document. They are the values that the other objects refer to. }
+    for i := others.Count - 1 downto 0 do
+    begin
+      obj := TObject(others[i]);
+      if FContext <> nil then
+        FContext.Heap.Untrack(obj);
+      obj.Free();
+    end;
+  finally
+    environments.Free();
+    items.Free();
+    others.Free();
+  end;
+
+  AObjects.Clear();
+end;
+
+procedure TFloriaFTMLEngine.ReleaseEscapedDocuments();
+var
+  i: Integer;
+begin
+  if FEscapedObjects <> nil then
+  begin
+    ReleaseObjects(FEscapedObjects);
+    FreeAndNil(FEscapedObjects);
+  end;
+
+  if FEscapedASTs <> nil then
+  begin
+    { The syntax trees are freed after the objects, because the functions of a
+      document point into the tree they were declared in. }
+    for i := FEscapedASTs.Count - 1 downto 0 do
+      TObject(FEscapedASTs[i]).Free();
+    FreeAndNil(FEscapedASTs);
+  end;
 end;
 
 function TFloriaFTMLEngine.LoadString(const AFTMLSource: string): TFloriaFTMLItem;
@@ -422,7 +559,17 @@ begin
     FBindingManager := TFloriaFTMLBindingManager.Create(FContext.Evaluator);
 
   if FRootAST <> nil then
-    FreeAndNil(FRootAST);
+  begin
+    if FDocumentEscaped then
+    begin
+      { A runtime closure still refers to the code the document was declared
+        in, so the syntax tree is kept alive. }
+      FEscapedASTs.Add(FRootAST);
+      FRootAST := nil;
+    end
+    else
+      FreeAndNil(FRootAST);
+  end;
 
   // Step 1: Parse FTML syntax
   parser := TFloriaJSParser.Create(AFTMLSource);
@@ -518,12 +665,22 @@ begin
     prog := parser.ParseProgram();
     try
       Result := FContext.Evaluator.ExecuteProgram(prog, targetEnv);
+      { The caller holds on to the returned value, so the object it points at
+        must stay alive for as long as the caller keeps it. }
+      if Result.IsObject() and (Result.ObjVal <> nil) then
+        Result.ObjVal.Pin;
     finally
       prog.Free();
     end;
   finally
     parser.Free();
   end;
+end;
+
+procedure TFloriaFTMLEngine.ReleaseValue(const AValue: TFloriaJSValue);
+begin
+  if FContext <> nil then
+    FContext.ReleaseValue(AValue);
 end;
 
 function TFloriaFTMLEngine.HasErrors(): Boolean;

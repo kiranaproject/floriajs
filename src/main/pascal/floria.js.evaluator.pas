@@ -564,6 +564,9 @@ begin
     fnExpr := TFloriaJSFunctionExpr(AExpr);
     fnObj := FHeap.NewUserFunction(fnExpr.Name, fnExpr.Parameters, fnExpr.Body, Pointer(AEnv), False, fnExpr.IsAsync);
     Inc(FClosureCount);
+    { The closure refers to the environment it was created in, so that
+      environment must outlive the scope it belongs to. }
+    AEnv.MarkCaptured;
     Exit(JSMakeFunction(fnObj));
   end;
 
@@ -884,6 +887,9 @@ begin
     fnDecl := TFloriaJSFunctionDecl(AStmt);
     fnObj := FHeap.NewUserFunction(fnDecl.Name, fnDecl.Parameters, fnDecl.Body, Pointer(AEnv), False, fnDecl.IsAsync);
     Inc(FClosureCount);
+    { The closure refers to the environment it was created in, so that
+      environment must outlive the scope it belongs to. }
+    AEnv.MarkCaptured;
     AEnv.Define(fnDecl.Name, JSMakeFunction(fnObj));
     Exit(JSMakeUndefined());
   end;
@@ -897,6 +903,12 @@ var
 begin
   Result := JSMakeUndefined();
   if AProg = nil then Exit;
+
+  { Safe point: no transient copy of a value of a running script is alive
+    here, so the heap can reclaim the objects that nothing refers to any
+    more. The objects that the host holds on to are pinned and stay alive. }
+  if FHeap <> nil then
+    FHeap.Collect();
 
   count := AProg.GetStatementCount();
   for i := 0 to count - 1 do

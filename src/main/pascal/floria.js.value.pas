@@ -72,10 +72,23 @@ type
     FPrototype: TFloriaJSObject;
     FProperties: array of TFloriaJSPropertyPair;
     FPropCount: Integer;
+    FRefCount: Integer;
+    FHeap: TFloriaJSHeap;
+    FHeapOwned: Boolean;
+    FPinned: Boolean;
     function FindPropertyIndex(const AName: string): Integer;
+    procedure SetPrototype(AProto: TFloriaJSObject);
   public
     constructor Create(AProto: TFloriaJSObject = nil);
     destructor Destroy(); override;
+
+    { Reference counting. Every container that stores a value owns a reference
+      to the object it points at. The heap reclaims an object once the last
+      owner gives up its reference. }
+    procedure Retain();
+    procedure Release();
+    procedure Pin();
+    procedure Unpin();
 
     function  GetProperty(const AName: string): TFloriaJSValue; virtual;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); virtual;
@@ -87,7 +100,11 @@ type
     function  GetPropertyValue(AIndex: Integer): TFloriaJSValue;
     procedure GetKeys(AOutKeys: TStrings);
 
-    property Prototype: TFloriaJSObject read FPrototype write FPrototype;
+    property Prototype: TFloriaJSObject read FPrototype write SetPrototype;
+    property RefCount: Integer read FRefCount;
+    property Pinned: Boolean read FPinned;
+    property Heap: TFloriaJSHeap read FHeap write FHeap;
+    property HeapOwned: Boolean read FHeapOwned write FHeapOwned;
   end;
 
   { Heap-allocated JavaScript Array }
@@ -190,7 +207,6 @@ type
   { Heap-allocated JavaScript Promise }
   TFloriaJSPromise = class(TFloriaJSObject)
   private
-    FHeap: TFloriaJSHeap;
     FState: TFloriaJSPromiseState;
     FResult: TFloriaJSValue;
     FReactions: array of TFloriaJSPromiseReaction;
@@ -199,6 +215,7 @@ type
     FCatchFn: TFloriaJSFunction;
     FFinallyFn: TFloriaJSFunction;
     procedure AddReaction(const AReaction: TFloriaJSPromiseReaction);
+    procedure ReleaseReaction(const AReaction: TFloriaJSPromiseReaction);
     procedure ScheduleReactions();
     procedure Attach(const AOnFulfilled, AOnRejected, AOnFinally: TFloriaJSValue; AIsFinally: Boolean; AChild: TFloriaJSPromise);
   public
@@ -215,7 +232,6 @@ type
 
     property State: TFloriaJSPromiseState read FState;
     property ResultValue: TFloriaJSValue read FResult;
-    property Heap: TFloriaJSHeap read FHeap;
   end;
 
   { Callback Used by the Evaluator to Execute Deferred Promise Jobs }
@@ -228,11 +244,13 @@ type
     FEnvironments: TFPList;
     FPromiseJobs: TFPList;
     FJobRunner: TFloriaJSJobRunner;
+    FClearing: Boolean;
+    FId: Integer;
   public
     constructor Create();
     destructor Destroy(); override;
 
-    function  Track(AObj: TFloriaJSObject): TFloriaJSObject;
+    function  Track(AObj: TFloriaJSObject; AHeapOwned: Boolean = True): TFloriaJSObject;
     function  TrackEnvironment(AEnv: TObject): TObject;
     function  Untrack(AObj: TObject): Boolean;
     function  NewObject(AProto: TFloriaJSObject = nil): TFloriaJSObject;
@@ -255,9 +273,16 @@ type
     function  PromiseRace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
+    { Reclaims the objects that no container refers to any more. It is only
+      safe to call this at a point where no transient copy of a value is in
+      use any more, such as the start of a program execution. }
+    procedure Collect();
+
     procedure Clear();
     function  GetObjectCount(): Integer;
     function  GetEnvironmentCount(): Integer;
+    property IsClearing: Boolean read FClearing;
+    property Id: Integer read FId;
   end;
 
 { Value Factory Helpers }
@@ -270,6 +295,16 @@ function JSMakeObject(AObj: TFloriaJSObject): TFloriaJSValue;
 function JSMakeArray(AArr: TFloriaJSArray): TFloriaJSValue;
 function JSMakeFunction(AFunc: TFloriaJSFunction): TFloriaJSValue;
 function JSMakePromise(APromise: TFloriaJSPromise): TFloriaJSValue;
+
+{ Reference Counting Helpers. A container that stores a value owns a reference
+  to the object it points at, so it retains the value when it takes it over
+  and releases it when it lets it go. }
+procedure JSRetainValue(const AValue: TFloriaJSValue);
+procedure JSReleaseValue(const AValue: TFloriaJSValue);
+
+{ Heap Liveness Helper. Owners that live outside of the heap use it to find
+  out whether the values they hold still point at live objects. }
+function JSHeapIsAlive(AHeap: TFloriaJSHeap; AHeapId: Integer): Boolean;
 
 { Binary Operations }
 function JSAdd(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
@@ -303,6 +338,54 @@ function JSUnaryBitNot(const AVal: TFloriaJSValue): TFloriaJSValue;
 function JSTypeOf(const AVal: TFloriaJSValue): string;
 
 implementation
+
+type
+  { Registry Entry of a Heap That Is Alive }
+  TFloriaJSHeapEntry = record
+    Heap: TFloriaJSHeap;
+    Id: Integer;
+  end;
+  PFloriaJSHeapEntry = ^TFloriaJSHeapEntry;
+
+var
+  { Registry of the heaps that are currently alive. It lets owners outside of
+    a heap find out whether the values they hold are still valid. }
+  GLiveHeaps: TFPList = nil;
+  { Source of the unique identifiers that tell two heaps apart, even when the
+    memory of a dead heap is reused by a new one. }
+  GNextHeapId: Integer = 0;
+
+{ Reference Counting Helpers }
+
+procedure JSRetainValue(const AValue: TFloriaJSValue);
+begin
+  if AValue.IsObject() and (AValue.ObjVal <> nil) then
+    AValue.ObjVal.Retain;
+end;
+
+procedure JSReleaseValue(const AValue: TFloriaJSValue);
+begin
+  if AValue.IsObject() and (AValue.ObjVal <> nil) then
+    AValue.ObjVal.Release;
+end;
+
+{ Heap Liveness Helper }
+
+function JSHeapIsAlive(AHeap: TFloriaJSHeap; AHeapId: Integer): Boolean;
+var
+  i: Integer;
+  entry: PFloriaJSHeapEntry;
+begin
+  Result := False;
+  if (AHeap = nil) or (GLiveHeaps = nil) then Exit;
+
+  for i := 0 to GLiveHeaps.Count - 1 do
+  begin
+    entry := PFloriaJSHeapEntry(GLiveHeaps[i]);
+    if (entry^.Heap = AHeap) and (entry^.Id = AHeapId) then
+      Exit(True);
+  end;
+end;
 
 { Value Factory Functions }
 
@@ -570,14 +653,83 @@ constructor TFloriaJSObject.Create(AProto: TFloriaJSObject);
 begin
   inherited Create();
   FPrototype := AProto;
+  FRefCount := 0;
+  FHeap := nil;
+  FHeapOwned := True;
+  FPinned := False;
   SetLength(FProperties, 0);
   FPropCount := 0;
+  { The prototype is a reference to another object, so it is owned as well. }
+  if FPrototype <> nil then
+    FPrototype.Retain;
 end;
 
 destructor TFloriaJSObject.Destroy();
+var
+  i: Integer;
 begin
+  { Every property holds a reference to the value it stores, and the prototype
+    is a reference to another object. The references are given up before the
+    object goes away, unless the heap is tearing down, because then every
+    object is released at once and the order would not matter. }
+  if (FHeap = nil) or (not FHeap.IsClearing) then
+  begin
+    for i := 0 to FPropCount - 1 do
+      JSReleaseValue(FProperties[i].Value);
+    if FPrototype <> nil then
+      FPrototype.Release;
+  end;
+  FPrototype := nil;
   SetLength(FProperties, 0);
+  FPropCount := 0;
+
+  { An object that is destroyed takes itself off the list of the heap, so that
+    the heap never keeps a pointer that is no longer valid. }
+  if FHeap <> nil then
+  begin
+    FHeap.Untrack(Self);
+    FHeap := nil;
+  end;
+
   inherited Destroy();
+end;
+
+procedure TFloriaJSObject.Retain();
+begin
+  Inc(FRefCount);
+end;
+
+procedure TFloriaJSObject.Release();
+begin
+  { The object is not freed here. The heap reclaims it at the next safe point,
+    so that the transient copies of a value stay valid while they are in use. }
+  if FRefCount > 0 then
+    Dec(FRefCount);
+end;
+
+procedure TFloriaJSObject.Pin();
+begin
+  { A pinned object has been handed over to the host, which may keep it for as
+    long as it likes, so the heap never reclaims it. }
+  FPinned := True;
+end;
+
+procedure TFloriaJSObject.Unpin();
+begin
+  { The host has given the object back, so the heap may reclaim it as soon as
+    nothing refers to it any more. }
+  FPinned := False;
+end;
+
+procedure TFloriaJSObject.SetPrototype(AProto: TFloriaJSObject);
+begin
+  if AProto = FPrototype then Exit;
+
+  if FPrototype <> nil then
+    FPrototype.Release;
+  FPrototype := AProto;
+  if FPrototype <> nil then
+    FPrototype.Retain;
 end;
 
 function TFloriaJSObject.FindPropertyIndex(const AName: string): Integer;
@@ -613,7 +765,11 @@ begin
   idx := FindPropertyIndex(AName);
   if idx >= 0 then
   begin
+    { A property owns the value it stores: the value that is replaced gives up
+      its reference and the new value takes a reference over. }
+    JSReleaseValue(FProperties[idx].Value);
     FProperties[idx].Value := AValue;
+    JSRetainValue(AValue);
     Exit;
   end;
 
@@ -627,6 +783,7 @@ begin
 
   FProperties[FPropCount].Key := AName;
   FProperties[FPropCount].Value := AValue;
+  JSRetainValue(AValue);
   Inc(FPropCount);
 end;
 
@@ -653,6 +810,9 @@ begin
     FProperties[i] := FProperties[i + 1];
 
   Dec(FPropCount);
+  { The removed value gives up the reference that the property held for it. }
+  JSReleaseValue(FProperties[FPropCount].Value);
+  FProperties[FPropCount].Value := JSMakeUndefined();
   Result := True;
 end;
 
@@ -709,8 +869,15 @@ begin
 end;
 
 destructor TFloriaJSArray.Destroy();
+var
+  i: Integer;
 begin
+  { Every element holds a reference to the value it stores. }
+  if (Heap = nil) or (not Heap.IsClearing) then
+    for i := 0 to FCount - 1 do
+      JSReleaseValue(FElements[i]);
   SetLength(FElements, 0);
+  FCount := 0;
   inherited Destroy();
 end;
 
@@ -750,15 +917,22 @@ begin
     for i := FCount to AIndex - 1 do
       FElements[i] := JSMakeUndefined();
     FCount := AIndex + 1;
+  end
+  else
+  begin
+    { The element that is replaced gives up the reference it held. }
+    JSReleaseValue(FElements[AIndex]);
   end;
 
   FElements[AIndex] := AValue;
+  JSRetainValue(AValue);
 end;
 
 procedure TFloriaJSArray.Push(const AValue: TFloriaJSValue);
 begin
   GrowCapacity(FCount + 1);
   FElements[FCount] := AValue;
+  JSRetainValue(AValue);
   Inc(FCount);
 end;
 
@@ -770,6 +944,8 @@ begin
   Dec(FCount);
   Result := FElements[FCount];
   FElements[FCount] := JSMakeUndefined();
+  { The element that is removed gives up the reference it held. }
+  JSReleaseValue(Result);
 end;
 
 function TFloriaJSArray.Shift(): TFloriaJSValue;
@@ -784,6 +960,8 @@ begin
     FElements[i] := FElements[i + 1];
 
   Dec(FCount);
+  { The element that is shifted out gives up the reference it held. }
+  JSReleaseValue(FElements[FCount]);
   FElements[FCount] := JSMakeUndefined();
 end;
 
@@ -796,6 +974,7 @@ begin
     FElements[i] := FElements[i - 1];
 
   FElements[0] := AValue;
+  JSRetainValue(AValue);
   Inc(FCount);
 end;
 
@@ -848,7 +1027,15 @@ begin
     if idx >= 0 then
     begin
       if idx < FCount then
-        FCount := idx
+      begin
+        { The elements that are dropped give up the references they held. }
+        while FCount > idx do
+        begin
+          Dec(FCount);
+          JSReleaseValue(FElements[FCount]);
+          FElements[FCount] := JSMakeUndefined();
+        end;
+      end
       else
         GrowCapacity(idx);
     end;
@@ -1006,7 +1193,16 @@ begin
 end;
 
 destructor TFloriaJSPromise.Destroy();
+var
+  i: Integer;
 begin
+  { The settlement value and every registered reaction hold references. }
+  if (FHeap = nil) or (not FHeap.IsClearing) then
+  begin
+    JSReleaseValue(FResult);
+    for i := 0 to FReactionCount - 1 do
+      ReleaseReaction(FReactions[i]);
+  end;
   SetLength(FReactions, 0);
   FReactionCount := 0;
   inherited Destroy();
@@ -1017,7 +1213,22 @@ begin
   if FReactionCount >= Length(FReactions) then
     SetLength(FReactions, FReactionCount + 4);
   FReactions[FReactionCount] := AReaction;
+  { The reaction holds the references to its callbacks and to its child. }
+  JSRetainValue(AReaction.OnFulfilled);
+  JSRetainValue(AReaction.OnRejected);
+  JSRetainValue(AReaction.OnFinally);
+  if AReaction.Child <> nil then
+    AReaction.Child.Retain;
   Inc(FReactionCount);
+end;
+
+procedure TFloriaJSPromise.ReleaseReaction(const AReaction: TFloriaJSPromiseReaction);
+begin
+  JSReleaseValue(AReaction.OnFulfilled);
+  JSReleaseValue(AReaction.OnRejected);
+  JSReleaseValue(AReaction.OnFinally);
+  if AReaction.Child <> nil then
+    AReaction.Child.Release;
 end;
 
 procedure TFloriaJSPromise.Attach(const AOnFulfilled, AOnRejected, AOnFinally: TFloriaJSValue; AIsFinally: Boolean; AChild: TFloriaJSPromise);
@@ -1066,6 +1277,8 @@ begin
     job.Child := reaction.Child;
     if FHeap <> nil then
       FHeap.EnqueuePromiseJob(job);
+    { The job takes the references over from the reaction. }
+    ReleaseReaction(reaction);
   end;
   FReactionCount := 0;
 end;
@@ -1090,7 +1303,10 @@ begin
   end;
 
   FState := fjspFulfilled;
+  { The promise holds the reference to the value it is settled with. }
+  JSReleaseValue(FResult);
   FResult := AValue;
+  JSRetainValue(AValue);
   ScheduleReactions();
 end;
 
@@ -1098,7 +1314,10 @@ procedure TFloriaJSPromise.Reject(const AValue: TFloriaJSValue);
 begin
   if FState <> fjspPending then Exit;
   FState := fjspRejected;
+  { The promise holds the reference to the value it is settled with. }
+  JSReleaseValue(FResult);
   FResult := AValue;
+  JSRetainValue(AValue);
   ScheduleReactions();
 end;
 
@@ -1150,16 +1369,46 @@ end;
 { TFloriaJSHeap }
 
 constructor TFloriaJSHeap.Create();
+var
+  entry: PFloriaJSHeapEntry;
 begin
   inherited Create();
   FObjects := TFPList.Create();
   FEnvironments := TFPList.Create();
   FPromiseJobs := TFPList.Create();
   FJobRunner := nil;
+  FClearing := False;
+  Inc(GNextHeapId);
+  FId := GNextHeapId;
+
+  { The heap registers itself, so that owners outside of it can find out
+    whether the values they hold are still valid. }
+  if GLiveHeaps = nil then
+    GLiveHeaps := TFPList.Create;
+  New(entry);
+  entry^.Heap := Self;
+  entry^.Id := FId;
+  GLiveHeaps.Add(entry);
 end;
 
 destructor TFloriaJSHeap.Destroy();
+var
+  i: Integer;
+  entry: PFloriaJSHeapEntry;
 begin
+  if GLiveHeaps <> nil then
+  begin
+    for i := GLiveHeaps.Count - 1 downto 0 do
+    begin
+      entry := PFloriaJSHeapEntry(GLiveHeaps[i]);
+      if entry^.Heap = Self then
+      begin
+        GLiveHeaps.Delete(i);
+        Dispose(entry);
+      end;
+    end;
+  end;
+
   Clear();
   if FPromiseJobs <> nil then
   begin
@@ -1176,10 +1425,18 @@ begin
   inherited Destroy();
 end;
 
-function TFloriaJSHeap.Track(AObj: TFloriaJSObject): TFloriaJSObject;
+function TFloriaJSHeap.Track(AObj: TFloriaJSObject; AHeapOwned: Boolean): TFloriaJSObject;
 begin
-  if (AObj <> nil) and (FObjects.IndexOf(AObj) < 0) then
-    FObjects.Add(AObj);
+  if AObj <> nil then
+  begin
+    if (FObjects.IndexOf(AObj) < 0) then
+      FObjects.Add(AObj);
+    if AObj.Heap = nil then
+      AObj.Heap := Self;
+    { An object that is owned by somebody else is only registered here, so the
+      heap keeps track of it without ever reclaiming it on its own. }
+    AObj.HeapOwned := AHeapOwned;
+  end;
   Result := AObj;
 end;
 
@@ -1263,6 +1520,13 @@ begin
   New(job);
   job^ := AJob;
   FPromiseJobs.Add(job);
+  { The queue holds the values of the job until the job has been run. }
+  JSRetainValue(AJob.OnFulfilled);
+  JSRetainValue(AJob.OnRejected);
+  JSRetainValue(AJob.OnFinally);
+  JSRetainValue(AJob.Value);
+  if AJob.Child <> nil then
+    AJob.Child.Retain;
 end;
 
 function TFloriaJSHeap.DequeuePromiseJob(out AJob: TFloriaJSPromiseJob): Boolean;
@@ -1275,6 +1539,8 @@ begin
   AJob := job^;
   FPromiseJobs.Delete(0);
   Dispose(job);
+  { The references of the job are handed over to the caller, which gives them
+    up again once the job has been run. }
   Result := True;
 end;
 
@@ -1288,8 +1554,17 @@ var
   job: TFloriaJSPromiseJob;
 begin
   while DequeuePromiseJob(job) do
+  begin
     if Assigned(FJobRunner) then
       FJobRunner(job);
+    { The job is done, so it gives up the references it was holding. }
+    JSReleaseValue(job.OnFulfilled);
+    JSReleaseValue(job.OnRejected);
+    JSReleaseValue(job.OnFinally);
+    JSReleaseValue(job.Value);
+    if job.Child <> nil then
+      job.Child.Release;
+  end;
 end;
 
 function TFloriaJSHeap.PromiseResolve(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -1432,9 +1707,41 @@ begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateUser(AName, AParams, ABody, AClosure, AOwnsBody, AIsAsync)));
 end;
 
+procedure TFloriaJSHeap.Collect();
+var
+  i: Integer;
+  obj: TFloriaJSObject;
+  freed: Boolean;
+begin
+  { Reclaims the objects that no container refers to any more. Reclaiming an
+    object gives up the references it holds, which can make other objects
+    unreachable as well, so the sweep repeats until nothing changes. }
+  repeat
+    freed := False;
+    if FObjects = nil then
+      Break;
+
+    for i := FObjects.Count - 1 downto 0 do
+    begin
+      obj := TFloriaJSObject(FObjects[i]);
+      { Only the objects that belong to the heap are reclaimed. An object that
+        is owned by somebody else stays alive until its owner lets it go. A
+        pinned object has been handed to the host, which may keep it for as
+        long as it likes. }
+      if obj.HeapOwned and (obj.RefCount <= 0) and (not obj.Pinned) then
+      begin
+        FObjects.Delete(i);
+        obj.Free;
+        freed := True;
+      end;
+    end;
+  until not freed;
+end;
+
 procedure TFloriaJSHeap.Clear();
 var
   i: Integer;
+  objects, environments: TFPList;
 begin
   if FPromiseJobs <> nil then
   begin
@@ -1445,17 +1752,39 @@ begin
     end;
   end;
 
-  if FObjects <> nil then
-  begin
-    for i := FObjects.Count - 1 downto 0 do
-      TObject(FObjects[i]).Free();
-    FObjects.Clear();
+  { The environments are released first, because every binding of an
+    environment holds a reference to the value it stores. The objects are
+    still alive at that point, so the references can be given up safely. }
+  environments := TFPList.Create();
+  try
+    if FEnvironments <> nil then
+      for i := 0 to FEnvironments.Count - 1 do
+        environments.Add(FEnvironments[i]);
+    if FEnvironments <> nil then
+      FEnvironments.Clear;
+    for i := 0 to environments.Count - 1 do
+      TObject(environments[i]).Free();
+  finally
+    environments.Free();
   end;
-  if FEnvironments <> nil then
-  begin
-    for i := FEnvironments.Count - 1 downto 0 do
-      TObject(FEnvironments[i]).Free();
-    FEnvironments.Clear();
+
+  { The list is copied before the objects are freed, because freeing an object
+    takes it off the list of the heap. The flag tells the objects that they
+    must not give up their references any more: every object is released at
+    once, so the order in which that happens does not matter. }
+  FClearing := True;
+  objects := TFPList.Create();
+  try
+    if FObjects <> nil then
+      for i := 0 to FObjects.Count - 1 do
+        objects.Add(FObjects[i]);
+    if FObjects <> nil then
+      FObjects.Clear;
+    for i := 0 to objects.Count - 1 do
+      TFloriaJSObject(objects[i]).Free();
+  finally
+    objects.Free();
+    FClearing := False;
   end;
 end;
 
@@ -1696,5 +2025,19 @@ begin
     Result := 'undefined';
   end;
 end;
+
+initialization
+  GLiveHeaps := TFPList.Create;
+
+finalization
+  if GLiveHeaps <> nil then
+  begin
+    while GLiveHeaps.Count > 0 do
+    begin
+      Dispose(PFloriaJSHeapEntry(GLiveHeaps[GLiveHeaps.Count - 1]));
+      GLiveHeaps.Delete(GLiveHeaps.Count - 1);
+    end;
+    FreeAndNil(GLiveHeaps);
+  end;
 
 end.

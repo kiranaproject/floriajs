@@ -99,6 +99,7 @@ type
     FAnchorDependents: TFPList;
     FAnchorTargets: TFPList;
     FIsResolvingAnchors: Boolean;
+    FHeapId: Integer;
 
     procedure SetPropertyInternal(const AName: string; const AValue: TFloriaJSValue; AFromBinding: Boolean);
     function  GetChildrenAsJSArray(): TFloriaJSValue;
@@ -142,6 +143,10 @@ type
     procedure DetachBinding(const AName: string);
     function  HasBinding(const AName: string): Boolean;
     function  GetBinding(const AName: string): TObject;
+
+    { Remembers which heap the values of the item belong to, so that the item
+      can find out whether they are still valid when it goes away. }
+    procedure RememberHeap(AHeap: TFloriaJSHeap);
 
     { Signal System }
     procedure AddSignalHandler(const ASignalName: string; AHandler: TFloriaJSStmtNode);
@@ -542,7 +547,15 @@ end;
 destructor TFloriaFTMLItem.Destroy();
 var
   edge: TFloriaAnchorEdge;
+  i: Integer;
 begin
+  { Every property holds a reference to the value it stores. The references are
+    only given up when the heap that produced the values is still alive,
+    because the values would not be valid any more otherwise. }
+  if JSHeapIsAlive(Heap, FHeapId) then
+    for i := 0 to FFTMLPropCount - 1 do
+      JSReleaseValue(FFTMLProperties[i].Value);
+  FFTMLPropCount := 0;
   SetLength(FFTMLProperties, 0);
   SetLength(FFTMLSignals, 0);
 
@@ -696,7 +709,11 @@ begin
   idx := FindPropertyIndex(AName);
   if idx >= 0 then
   begin
+    { The property owns the value it stores: the value that is replaced gives
+      up its reference and the new value takes a reference over. }
+    JSReleaseValue(FFTMLProperties[idx].Value);
     FFTMLProperties[idx].Value := ADefault;
+    JSRetainValue(ADefault);
     Exit(idx);
   end;
 
@@ -710,6 +727,7 @@ begin
 
   FFTMLProperties[FFTMLPropCount].Name := AName;
   FFTMLProperties[FFTMLPropCount].Value := ADefault;
+  JSRetainValue(ADefault);
   FFTMLProperties[FFTMLPropCount].HasBinding := False;
   FFTMLProperties[FFTMLPropCount].BindingRef := nil;
   idx := FFTMLPropCount;
@@ -717,12 +735,27 @@ begin
   Result := idx;
 end;
 
+procedure TFloriaFTMLItem.RememberHeap(AHeap: TFloriaJSHeap);
+begin
+  { The identifier of the heap tells it apart from a heap that reuses the
+    memory of a dead one. }
+  if AHeap <> nil then
+    FHeapId := AHeap.Id
+  else
+    FHeapId := 0;
+end;
+
 function TFloriaFTMLItem.GetChildrenAsJSArray(): TFloriaJSValue;
 var
   arr: TFloriaJSArray;
   i: Integer;
 begin
-  arr := TFloriaJSArray.Create();
+  { The array is created by the heap when the item belongs to one, so that it
+    can be reclaimed once nothing refers to it any more. }
+  if Heap <> nil then
+    arr := Heap.NewArray()
+  else
+    arr := TFloriaJSArray.Create();
   if FChildren <> nil then
   begin
     for i := 0 to FChildren.Count - 1 do
@@ -915,7 +948,11 @@ begin
   begin
     oldVal := FFTMLProperties[idx].Value;
     valChanged := not JSStrictEqual(oldVal, AValue);
+    { The property owns the value it stores: the value that is replaced gives
+      up its reference and the new value takes a reference over. }
+    JSReleaseValue(oldVal);
     FFTMLProperties[idx].Value := AValue;
+    JSRetainValue(AValue);
   end;
 
   // Assignment from script or host explicitly breaks existing binding

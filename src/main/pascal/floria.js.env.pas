@@ -34,6 +34,7 @@ type
     FDelegateObject: TFloriaJSObject;
     FBindings: array of TFloriaJSBinding;
     FBindingCount: Integer;
+    FCaptured: Boolean;
 
     function FindLocalIndex(const AName: string): Integer;
   public
@@ -42,6 +43,10 @@ type
 
     procedure Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean = False);
     procedure Undefine(const AName: string);
+    { Marks the environment as captured by a closure. A captured environment
+      must outlive the scope it belongs to, because the closure still refers
+      to it and to the scopes it is nested in. }
+    procedure MarkCaptured();
     function  Assign(const AName: string; const AValue: TFloriaJSValue): Boolean;
     function  Get(const AName: string; out AValue: TFloriaJSValue): Boolean;
     function  GetDefault(const AName: string; const ADefault: TFloriaJSValue): TFloriaJSValue;
@@ -54,6 +59,7 @@ type
 
     property Parent: TFloriaJSEnvironment read FParent;
     property DelegateObject: TFloriaJSObject read FDelegateObject write FDelegateObject;
+    property Captured: Boolean read FCaptured;
   end;
 
 implementation
@@ -65,14 +71,35 @@ begin
   inherited Create();
   FParent := AParent;
   FDelegateObject := nil;
+  FCaptured := False;
   SetLength(FBindings, 0);
   FBindingCount := 0;
 end;
 
 destructor TFloriaJSEnvironment.Destroy();
+var
+  i: Integer;
 begin
+  { Every binding holds a reference to the value it stores. }
+  for i := 0 to FBindingCount - 1 do
+    JSReleaseValue(FBindings[i].Value);
   SetLength(FBindings, 0);
+  FBindingCount := 0;
   inherited Destroy();
+end;
+
+procedure TFloriaJSEnvironment.MarkCaptured();
+var
+  env: TFloriaJSEnvironment;
+begin
+  { The scopes the environment is nested in are marked as well, because a
+    closure that captured the environment reaches them too. }
+  env := Self;
+  while env <> nil do
+  begin
+    env.FCaptured := True;
+    env := env.FParent;
+  end;
 end;
 
 function TFloriaJSEnvironment.FindLocalIndex(const AName: string): Integer;
@@ -94,7 +121,11 @@ begin
   idx := FindLocalIndex(AName);
   if idx >= 0 then
   begin
+    { A binding owns the value it stores: the value that is replaced gives up
+      its reference and the new value takes a reference over. }
+    JSReleaseValue(FBindings[idx].Value);
     FBindings[idx].Value := AValue;
+    JSRetainValue(AValue);
     FBindings[idx].IsConst := AIsConst;
     Exit;
   end;
@@ -109,6 +140,7 @@ begin
 
   FBindings[FBindingCount].Name := AName;
   FBindings[FBindingCount].Value := AValue;
+  JSRetainValue(AValue);
   FBindings[FBindingCount].IsConst := AIsConst;
   Inc(FBindingCount);
 end;
@@ -120,16 +152,18 @@ begin
   idx := FindLocalIndex(AName);
   if idx < 0 then Exit;
 
+  { The removed binding gives up the reference it held. The reference is given
+    up before the bindings are shifted, because the shift moves the value of
+    the next binding into the slot of the removed one. }
+  JSReleaseValue(FBindings[idx].Value);
+
   for i := idx to FBindingCount - 2 do
     FBindings[i] := FBindings[i + 1];
 
   Dec(FBindingCount);
-  if (FBindingCount >= 0) and (FBindingCount < Length(FBindings)) then
-  begin
-    FBindings[FBindingCount].Name := '';
-    FBindings[FBindingCount].Value := JSMakeUndefined();
-    FBindings[FBindingCount].IsConst := False;
-  end;
+  FBindings[FBindingCount].Name := '';
+  FBindings[FBindingCount].Value := JSMakeUndefined();
+  FBindings[FBindingCount].IsConst := False;
 end;
 
 function TFloriaJSEnvironment.Assign(const AName: string; const AValue: TFloriaJSValue): Boolean;
@@ -139,7 +173,11 @@ begin
   idx := FindLocalIndex(AName);
   if idx >= 0 then
   begin
+    { A binding owns the value it stores: the value that is replaced gives up
+      its reference and the new value takes a reference over. }
+    JSReleaseValue(FBindings[idx].Value);
     FBindings[idx].Value := AValue;
+    JSRetainValue(AValue);
     Exit(True);
   end;
 
