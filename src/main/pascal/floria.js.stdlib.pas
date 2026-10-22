@@ -271,7 +271,7 @@ end;
 
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
-  consoleObj, mathObj: TFloriaJSObject;
+  consoleObj, mathObj, promiseObj: TFloriaJSObject;
 begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
 
@@ -316,7 +316,15 @@ begin
   mathObj.SetProperty('trunc', JSMakeFunction(AHeap.NewNativeFunction('trunc', @JSMathTrunc)));
   AEnv.Define('Math', JSMakeObject(mathObj));
 
-  // 3. Global Functions
+  // 3. Promise
+  promiseObj := AHeap.NewObject();
+  promiseObj.SetProperty('resolve', JSMakeFunction(AHeap.NewNativeMethod('resolve', @AHeap.PromiseResolve)));
+  promiseObj.SetProperty('reject', JSMakeFunction(AHeap.NewNativeMethod('reject', @AHeap.PromiseReject)));
+  promiseObj.SetProperty('all', JSMakeFunction(AHeap.NewNativeMethod('all', @AHeap.PromiseAll)));
+  promiseObj.SetProperty('race', JSMakeFunction(AHeap.NewNativeMethod('race', @AHeap.PromiseRace)));
+  AEnv.Define('Promise', JSMakeObject(promiseObj));
+
+  // 4. Global Functions
   AEnv.Define('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));
   AEnv.Define('parseFloat', JSMakeFunction(AHeap.NewNativeFunction('parseFloat', @JSParseFloat)));
   AEnv.Define('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSIsNaN)));

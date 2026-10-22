@@ -35,11 +35,14 @@ type
     FRootEnv: TFloriaJSEnvironment;
     FRegistry: TStringList;
     FItemsById: TStringList;
+    FDocumentObjects: TFPList;
     FLastError: string;
 
     function  InstantiateItem(AAST: TFloriaFTMLComponent; AParentItem: TFloriaFTMLItem; AParentEnv: TFloriaJSEnvironment): TFloriaFTMLItem;
     procedure SetupItemBindings(AAST: TFloriaFTMLComponent; AItem: TFloriaFTMLItem);
     procedure TriggerCompletedSignals(AItem: TFloriaFTMLItem);
+    procedure ReleaseDocument();
+    procedure RemoveDocumentIds();
   public
     constructor Create(AContext: TFloriaJSContext = nil);
     destructor Destroy(); override;
@@ -96,6 +99,8 @@ begin
   FItemsById := TStringList.Create();
   FItemsById.CaseSensitive := True;
 
+  FDocumentObjects := TFPList.Create();
+
   // Register standard built-in FTML components
   RegisterComponentType('Item', TFloriaFTMLItem);
   RegisterComponentType('Rectangle', TFloriaFTMLRectangle);
@@ -110,6 +115,10 @@ end;
 
 destructor TFloriaFTMLEngine.Destroy();
 begin
+  { Release the live document first: bindings reference AST nodes and target
+    items, so they must be destroyed while both are still valid. }
+  ReleaseDocument();
+
   if FRootAST <> nil then
     FreeAndNil(FRootAST);
 
@@ -124,6 +133,9 @@ begin
 
   if FItemsById <> nil then
     FreeAndNil(FItemsById);
+
+  if FDocumentObjects <> nil then
+    FreeAndNil(FDocumentObjects);
 
   inherited Destroy();
 end;
@@ -159,6 +171,11 @@ begin
   if FContext <> nil then
     FContext.Heap.Track(Result);
   Result.BindingManager := FBindingManager;
+
+  { The item belongs to the current document: it is released again when the
+    document is unloaded instead of being retained by the shared JS heap. }
+  if FDocumentObjects <> nil then
+    FDocumentObjects.Add(Result);
 end;
 
 function TFloriaFTMLEngine.InstantiateItem(AAST: TFloriaFTMLComponent; AParentItem: TFloriaFTMLItem;
@@ -181,6 +198,8 @@ begin
   item.Env := itemEnv;
   if FContext <> nil then
     FContext.Heap.TrackEnvironment(itemEnv);
+  if FDocumentObjects <> nil then
+    FDocumentObjects.Add(itemEnv);
 
   // Register ID globally in document root scope and global context
   if AAST.Id <> '' then
@@ -200,6 +219,8 @@ begin
     if fnDecl <> nil then
     begin
       fnObj := FContext.Heap.NewUserFunction(fnDecl.Name, fnDecl.Parameters, fnDecl.Body, Pointer(itemEnv));
+      if FDocumentObjects <> nil then
+        FDocumentObjects.Add(fnObj);
       itemEnv.Define(fnDecl.Name, JSMakeObject(fnObj));
       item.SetProperty(fnDecl.Name, JSMakeObject(fnObj));
     end;
@@ -302,6 +323,90 @@ begin
     TFloriaFTMLRow(AItem).Relayout();
 end;
 
+procedure TFloriaFTMLEngine.RemoveDocumentIds();
+var
+  i: Integer;
+  id: string;
+  val: TFloriaJSValue;
+begin
+  if (FContext = nil) or (FItemsById = nil) then Exit;
+
+  { Document IDs are published into the shared global environment. They must be
+    withdrawn again, otherwise the global scope keeps dangling references to
+    items that no longer exist. Only remove an entry that still points at our
+    own item, so a second engine sharing the same context is left untouched. }
+  for i := 0 to FItemsById.Count - 1 do
+  begin
+    id := FItemsById[i];
+    if (id <> '') and FContext.GlobalEnv.HasLocal(id) and
+       FContext.GlobalEnv.Get(id, val) and val.IsObject() and
+       (TObject(val.ObjVal) = FItemsById.Objects[i]) then
+      FContext.GlobalEnv.Undefine(id);
+  end;
+
+  FItemsById.Clear();
+end;
+
+procedure TFloriaFTMLEngine.ReleaseDocument();
+var
+  i: Integer;
+  obj: TObject;
+  item: TFloriaFTMLItem;
+begin
+  { Phase 1: unlink the anchor graph while every item is still alive, so no
+    item is destroyed while a neighbour still references it. }
+  if FDocumentObjects <> nil then
+  begin
+    for i := 0 to FDocumentObjects.Count - 1 do
+    begin
+      obj := TObject(FDocumentObjects[i]);
+      if obj is TFloriaFTMLItem then
+        TFloriaFTMLItem(obj).DetachAnchors();
+    end;
+  end;
+
+  { Phase 2: drop the binding manager reference held by every item, otherwise
+    the items would keep pointing at a destroyed manager. }
+  if FDocumentObjects <> nil then
+  begin
+    for i := 0 to FDocumentObjects.Count - 1 do
+    begin
+      obj := TObject(FDocumentObjects[i]);
+      if obj is TFloriaFTMLItem then
+      begin
+        item := TFloriaFTMLItem(obj);
+        item.BindingManager := nil;
+        item.Env := nil;
+      end;
+    end;
+  end;
+
+  { Phase 3: destroy the binding manager; this destroys every binding it owns
+    and detaches them from the still living target items. }
+  FreeAndNil(FBindingManager);
+
+  { Phase 4: withdraw the document IDs from the shared global environment. }
+  RemoveDocumentIds();
+
+  { Phase 5: release the document owned heap objects. They are untracked first
+    so the shared JS heap does not free them a second time, and they are
+    destroyed in reverse creation order so children die before their parents. }
+  if FDocumentObjects <> nil then
+  begin
+    for i := FDocumentObjects.Count - 1 downto 0 do
+    begin
+      obj := TObject(FDocumentObjects[i]);
+      if FContext <> nil then
+        FContext.Heap.Untrack(obj);
+      obj.Free();
+    end;
+    FDocumentObjects.Clear();
+  end;
+
+  FRootItem := nil;
+  FRootEnv := nil;
+end;
+
 function TFloriaFTMLEngine.LoadString(const AFTMLSource: string): TFloriaFTMLItem;
 var
   parser: TFloriaJSParser;
@@ -309,20 +414,15 @@ var
 begin
   FLastError := '';
 
-  // Free previous bindings and AST
-  if FBindingManager <> nil then
-  begin
-    FreeAndNil(FBindingManager);
+  { Release the previously loaded document: its items, environments, functions,
+    bindings and identifiers must not survive a reload. }
+  ReleaseDocument();
+
+  if FBindingManager = nil then
     FBindingManager := TFloriaFTMLBindingManager.Create(FContext.Evaluator);
-  end;
 
   if FRootAST <> nil then
     FreeAndNil(FRootAST);
-
-  if FItemsById <> nil then
-    FItemsById.Clear();
-
-  FRootItem := nil;
 
   // Step 1: Parse FTML syntax
   parser := TFloriaJSParser.Create(AFTMLSource);
@@ -343,6 +443,8 @@ begin
   // Step 2: Document root lexical environment
   FRootEnv := TFloriaJSEnvironment.Create(FContext.GlobalEnv);
   FContext.Heap.TrackEnvironment(FRootEnv);
+  if FDocumentObjects <> nil then
+    FDocumentObjects.Add(FRootEnv);
 
   // Step 3: Instantiate component tree
   rootItem := InstantiateItem(FRootAST, nil, FRootEnv);

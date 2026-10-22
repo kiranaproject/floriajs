@@ -38,6 +38,8 @@ type
     tkConst,
     tkVar,
     tkFunction,
+    tkAsync,
+    tkAwait,
     tkReturn,
     tkIf,
     tkElse,
@@ -179,6 +181,8 @@ begin
     'const':      Result := tkConst;
     'var':        Result := tkVar;
     'function':   Result := tkFunction;
+    'async':      Result := tkAsync;
+    'await':      Result := tkAwait;
     'return':     Result := tkReturn;
     'if':         Result := tkIf;
     'else':       Result := tkElse;
@@ -805,6 +809,8 @@ begin
     tkConst:          Result := 'const';
     tkVar:            Result := 'var';
     tkFunction:       Result := 'function';
+    tkAsync:          Result := 'async';
+    tkAwait:          Result := 'await';
     tkReturn:         Result := 'return';
     tkIf:             Result := 'if';
     tkElse:           Result := 'else';

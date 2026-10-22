@@ -31,14 +31,24 @@ type
   private
     FLine: Integer;
     FColumn: Integer;
+    FRefCount: Integer;
   public
     constructor Create(ALine, AColumn: Integer);
     destructor Destroy(); override;
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); virtual; abstract;
 
+    { Reference counting for nodes that can be shared between several owners.
+      A node starts with a single reference, held by the node that owns it.
+      Retain adds a reference, Release drops one and destroys the node once its
+      last reference is gone. It is used for the body of a function, which is
+      shared between the declaration and every closure created from it. }
+    procedure Retain;
+    procedure Release;
+
     property Line: Integer read FLine write FLine;
     property Column: Integer read FColumn write FColumn;
+    property RefCount: Integer read FRefCount;
   end;
 
   { Base Expression Node }
@@ -244,8 +254,9 @@ type
     FParameters: TStringList;
     FBody: TFloriaJSStmtNode;
     FIsArrow: Boolean;
+    FIsAsync: Boolean;
   public
-    constructor Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer);
+    constructor Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer; AIsAsync: Boolean = False);
     destructor Destroy(); override;
 
     procedure AddParameter(const AParamName: string);
@@ -257,6 +268,7 @@ type
     property Parameters: TStringList read FParameters;
     property Body: TFloriaJSStmtNode read FBody;
     property IsArrow: Boolean read FIsArrow;
+    property IsAsync: Boolean read FIsAsync;
   end;
 
   { ────────────────────────────────────────────────────────────────────────── }
@@ -385,6 +397,44 @@ type
     property Body: TFloriaJSStmtNode read FBody;
   end;
 
+  { Switch Case Clause: case <expr>: stmts... or default: stmts... }
+  TFloriaJSSwitchCase = class
+  private
+    FTest: TFloriaJSExprNode; { nil for the default clause }
+    FBody: TFPList;
+    FIsDefault: Boolean;
+  public
+    constructor Create(ATest: TFloriaJSExprNode; AIsDefault: Boolean);
+    destructor Destroy(); override;
+
+    procedure AddStatement(AStmt: TFloriaJSStmtNode);
+    function  GetStatementCount(): Integer;
+    function  GetStatement(AIndex: Integer): TFloriaJSStmtNode;
+
+    property Test: TFloriaJSExprNode read FTest;
+    property IsDefault: Boolean read FIsDefault;
+    property Body: TFPList read FBody;
+  end;
+
+  { Switch Statement: switch (expr) with case and default clauses }
+  TFloriaJSSwitchStmt = class(TFloriaJSStmtNode)
+  private
+    FDiscriminant: TFloriaJSExprNode;
+    FCases: TFPList;
+  public
+    constructor Create(ADiscriminant: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddCase(ACase: TFloriaJSSwitchCase);
+    function  GetCaseCount(): Integer;
+    function  GetCase(AIndex: Integer): TFloriaJSSwitchCase;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Discriminant: TFloriaJSExprNode read FDiscriminant;
+    property Cases: TFPList read FCases;
+  end;
+
   { Break Statement: break; }
   TFloriaJSBreakStmt = class(TFloriaJSStmtNode)
   public
@@ -403,8 +453,9 @@ type
     FName: string;
     FParameters: TStringList;
     FBody: TFloriaJSBlockStmt;
+    FIsAsync: Boolean;
   public
-    constructor Create(const AName: string; ALine, ACol: Integer);
+    constructor Create(const AName: string; ALine, ACol: Integer; AIsAsync: Boolean = False);
     destructor Destroy(); override;
 
     procedure AddParameter(const AParamName: string);
@@ -415,6 +466,7 @@ type
     property Name: string read FName;
     property Parameters: TStringList read FParameters;
     property Body: TFloriaJSBlockStmt read FBody;
+    property IsAsync: Boolean read FIsAsync;
   end;
 
   { Program / Script Root: Collection of top-level statements }
@@ -515,6 +567,7 @@ type
     procedure VisitReturnStmt(ANode: TFloriaJSReturnStmt);
     procedure VisitWhileStmt(ANode: TFloriaJSWhileStmt);
     procedure VisitForStmt(ANode: TFloriaJSForStmt);
+    procedure VisitSwitchStmt(ANode: TFloriaJSSwitchStmt);
     procedure VisitBreakStmt(ANode: TFloriaJSBreakStmt);
     procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
     procedure VisitFunctionDecl(ANode: TFloriaJSFunctionDecl);
@@ -531,11 +584,28 @@ begin
   inherited Create();
   FLine := ALine;
   FColumn := AColumn;
+  FRefCount := 1;
 end;
 
 destructor TFloriaJSASTNode.Destroy();
 begin
   inherited Destroy();
+end;
+
+procedure TFloriaJSASTNode.Retain();
+begin
+  if Self = nil then
+    Exit;
+  Inc(FRefCount);
+end;
+
+procedure TFloriaJSASTNode.Release();
+begin
+  if Self = nil then
+    Exit;
+  Dec(FRefCount);
+  if FRefCount <= 0 then
+    Free;
 end;
 
 { TFloriaJSLiteralExpr }
@@ -877,11 +947,12 @@ end;
 
 { TFloriaJSFunctionExpr }
 
-constructor TFloriaJSFunctionExpr.Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer);
+constructor TFloriaJSFunctionExpr.Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer; AIsAsync: Boolean);
 begin
   inherited Create(ALine, ACol);
   FName := AName;
   FIsArrow := AIsArrow;
+  FIsAsync := AIsAsync;
   FParameters := TStringList.Create();
   FBody := nil;
 end;
@@ -889,7 +960,14 @@ end;
 destructor TFloriaJSFunctionExpr.Destroy();
 begin
   FreeAndNil(FParameters);
-  FreeAndNil(FBody);
+  { The body is shared with every closure created from this expression, so it
+    is released instead of being freed: a closure keeps a valid body even
+    after the script that declared it has been discarded. }
+  if FBody <> nil then
+  begin
+    FBody.Release;
+    FBody := nil;
+  end;
   inherited Destroy();
 end;
 
@@ -901,7 +979,11 @@ end;
 
 procedure TFloriaJSFunctionExpr.SetBody(ABody: TFloriaJSStmtNode);
 begin
-  FreeAndNil(FBody);
+  if FBody <> nil then
+  begin
+    FBody.Release;
+    FBody := nil;
+  end;
   FBody := ABody;
 end;
 
@@ -1121,6 +1203,102 @@ begin
   if AVisitor <> nil then AVisitor.VisitForStmt(Self);
 end;
 
+{ TFloriaJSSwitchCase }
+
+constructor TFloriaJSSwitchCase.Create(ATest: TFloriaJSExprNode; AIsDefault: Boolean);
+begin
+  inherited Create();
+  FTest := ATest;
+  FIsDefault := AIsDefault;
+  FBody := TFPList.Create();
+end;
+
+destructor TFloriaJSSwitchCase.Destroy();
+var
+  i: Integer;
+begin
+  if FBody <> nil then
+  begin
+    for i := FBody.Count - 1 downto 0 do
+      TFloriaJSStmtNode(FBody[i]).Free();
+    FreeAndNil(FBody);
+  end;
+  FreeAndNil(FTest);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSSwitchCase.AddStatement(AStmt: TFloriaJSStmtNode);
+begin
+  if (AStmt <> nil) and (FBody <> nil) then
+    FBody.Add(AStmt);
+end;
+
+function TFloriaJSSwitchCase.GetStatementCount(): Integer;
+begin
+  if FBody <> nil then
+    Result := FBody.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSSwitchCase.GetStatement(AIndex: Integer): TFloriaJSStmtNode;
+begin
+  if (FBody <> nil) and (AIndex >= 0) and (AIndex < FBody.Count) then
+    Result := TFloriaJSStmtNode(FBody[AIndex])
+  else
+    Result := nil;
+end;
+
+{ TFloriaJSSwitchStmt }
+
+constructor TFloriaJSSwitchStmt.Create(ADiscriminant: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FDiscriminant := ADiscriminant;
+  FCases := TFPList.Create();
+end;
+
+destructor TFloriaJSSwitchStmt.Destroy();
+var
+  i: Integer;
+begin
+  if FCases <> nil then
+  begin
+    for i := FCases.Count - 1 downto 0 do
+      TFloriaJSSwitchCase(FCases[i]).Free();
+    FreeAndNil(FCases);
+  end;
+  FreeAndNil(FDiscriminant);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSSwitchStmt.AddCase(ACase: TFloriaJSSwitchCase);
+begin
+  if (ACase <> nil) and (FCases <> nil) then
+    FCases.Add(ACase);
+end;
+
+function TFloriaJSSwitchStmt.GetCaseCount(): Integer;
+begin
+  if FCases <> nil then
+    Result := FCases.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSSwitchStmt.GetCase(AIndex: Integer): TFloriaJSSwitchCase;
+begin
+  if (FCases <> nil) and (AIndex >= 0) and (AIndex < FCases.Count) then
+    Result := TFloriaJSSwitchCase(FCases[AIndex])
+  else
+    Result := nil;
+end;
+
+procedure TFloriaJSSwitchStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitSwitchStmt(Self);
+end;
+
 { TFloriaJSBreakStmt }
 
 procedure TFloriaJSBreakStmt.Accept(AVisitor: IFloriaJSASTVisitor);
@@ -1137,10 +1315,11 @@ end;
 
 { TFloriaJSFunctionDecl }
 
-constructor TFloriaJSFunctionDecl.Create(const AName: string; ALine, ACol: Integer);
+constructor TFloriaJSFunctionDecl.Create(const AName: string; ALine, ACol: Integer; AIsAsync: Boolean);
 begin
   inherited Create(ALine, ACol);
   FName := AName;
+  FIsAsync := AIsAsync;
   FParameters := TStringList.Create();
   FBody := nil;
 end;
@@ -1148,7 +1327,14 @@ end;
 destructor TFloriaJSFunctionDecl.Destroy();
 begin
   FreeAndNil(FParameters);
-  FreeAndNil(FBody);
+  { The body is shared with every closure created from this declaration, so it
+    is released instead of being freed: a closure keeps a valid body even
+    after the script that declared it has been discarded. }
+  if FBody <> nil then
+  begin
+    FBody.Release;
+    FBody := nil;
+  end;
   inherited Destroy();
 end;
 
@@ -1160,7 +1346,11 @@ end;
 
 procedure TFloriaJSFunctionDecl.SetBody(ABody: TFloriaJSBlockStmt);
 begin
-  FreeAndNil(FBody);
+  if FBody <> nil then
+  begin
+    FBody.Release;
+    FBody := nil;
+  end;
   FBody := ABody;
 end;
 

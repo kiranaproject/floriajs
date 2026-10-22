@@ -41,6 +41,7 @@ type
     destructor Destroy(); override;
 
     procedure Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean = False);
+    procedure Undefine(const AName: string);
     function  Assign(const AName: string; const AValue: TFloriaJSValue): Boolean;
     function  Get(const AName: string; out AValue: TFloriaJSValue): Boolean;
     function  GetDefault(const AName: string; const ADefault: TFloriaJSValue): TFloriaJSValue;
@@ -110,6 +111,25 @@ begin
   FBindings[FBindingCount].Value := AValue;
   FBindings[FBindingCount].IsConst := AIsConst;
   Inc(FBindingCount);
+end;
+
+procedure TFloriaJSEnvironment.Undefine(const AName: string);
+var
+  idx, i: Integer;
+begin
+  idx := FindLocalIndex(AName);
+  if idx < 0 then Exit;
+
+  for i := idx to FBindingCount - 2 do
+    FBindings[i] := FBindings[i + 1];
+
+  Dec(FBindingCount);
+  if (FBindingCount >= 0) and (FBindingCount < Length(FBindings)) then
+  begin
+    FBindings[FBindingCount].Name := '';
+    FBindings[FBindingCount].Value := JSMakeUndefined();
+    FBindings[FBindingCount].IsConst := False;
+  end;
 end;
 
 function TFloriaJSEnvironment.Assign(const AName: string; const AValue: TFloriaJSValue): Boolean;

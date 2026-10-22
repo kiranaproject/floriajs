@@ -26,6 +26,10 @@ type
   TFloriaJSArray = class;
   TFloriaJSFunction = class;
   TFloriaJSHeap = class;
+  TFloriaJSPromise = class;
+
+  { Promise Settlement State }
+  TFloriaJSPromiseState = (fjspPending, fjspFulfilled, fjspRejected);
 
   { Dynamic JavaScript Runtime Value }
   TFloriaJSValue = record
@@ -43,6 +47,7 @@ type
     function IsObject(): Boolean;
     function IsArray(): Boolean;
     function IsFunction(): Boolean;
+    function IsPromise(): Boolean;
     function IsTruthy(): Boolean;
 
     function ToBoolean(): Boolean;
@@ -52,6 +57,7 @@ type
     function AsObject(): TFloriaJSObject;
     function AsArray(): TFloriaJSArray;
     function AsFunction(): TFloriaJSFunction;
+    function AsPromise(): TFloriaJSPromise;
   end;
 
   { Property Key-Value Entry }
@@ -122,15 +128,16 @@ type
     FParamNames: TStringList;
     FBody: TFloriaJSStmtNode;
     FClosureEnv: Pointer; // Lexical environment TFloriaJSEnvironment
-    FOwnsBody: Boolean;
+    FIsAsync: Boolean;
   public
     constructor CreateNative(const AName: string; AProc: TFloriaJSNativeProc);
     constructor CreateNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
-    constructor CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False);
+    constructor CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False);
     destructor Destroy(); override;
 
     property Name: string read FName write FName;
     property IsNative: Boolean read FIsNative;
+    property IsAsync: Boolean read FIsAsync;
     property NativeProc: TFloriaJSNativeProc read FNativeProc;
     property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
     property ParamNames: TStringList read FParamNames;
@@ -138,22 +145,101 @@ type
     property ClosureEnv: Pointer read FClosureEnv;
   end;
 
+  { Thrown JavaScript Value (used to propagate promise rejections) }
+  EFloriaJSThrow = class(Exception)
+  private
+    FValue: TFloriaJSValue;
+  public
+    constructor Create(const AValue: TFloriaJSValue);
+    property Value: TFloriaJSValue read FValue;
+  end;
+
+  { Promise Reaction Registered by then() / catch() / finally() }
+  TFloriaJSPromiseReaction = record
+    OnFulfilled: TFloriaJSValue;
+    OnRejected: TFloriaJSValue;
+    OnFinally: TFloriaJSValue;
+    IsFinally: Boolean;
+    Child: TFloriaJSPromise;
+  end;
+
+  { Deferred Microtask that Runs One Promise Reaction }
+  TFloriaJSPromiseJob = record
+    OnFulfilled: TFloriaJSValue;
+    OnRejected: TFloriaJSValue;
+    OnFinally: TFloriaJSValue;
+    IsFinally: Boolean;
+    IsRejection: Boolean;
+    Value: TFloriaJSValue;
+    Child: TFloriaJSPromise;
+  end;
+  PTFloriaJSPromiseJob = ^TFloriaJSPromiseJob;
+
+  { Heap-allocated JavaScript Promise }
+  TFloriaJSPromise = class(TFloriaJSObject)
+  private
+    FHeap: TFloriaJSHeap;
+    FState: TFloriaJSPromiseState;
+    FResult: TFloriaJSValue;
+    FReactions: array of TFloriaJSPromiseReaction;
+    FReactionCount: Integer;
+    FThenFn: TFloriaJSFunction;
+    FCatchFn: TFloriaJSFunction;
+    FFinallyFn: TFloriaJSFunction;
+    procedure AddReaction(const AReaction: TFloriaJSPromiseReaction);
+    procedure ScheduleReactions();
+    procedure Attach(const AOnFulfilled, AOnRejected, AOnFinally: TFloriaJSValue; AIsFinally: Boolean; AChild: TFloriaJSPromise);
+  public
+    constructor Create(AHeap: TFloriaJSHeap);
+    destructor Destroy(); override;
+
+    function  GetProperty(const AName: string): TFloriaJSValue; override;
+    function  HasProperty(const AName: string): Boolean; override;
+
+    procedure Fulfill(const AValue: TFloriaJSValue);
+    procedure Reject(const AValue: TFloriaJSValue);
+    function  Chain(const AOnFulfilled, AOnRejected: TFloriaJSValue): TFloriaJSPromise;
+    function  ChainFinally(const AOnFinally: TFloriaJSValue): TFloriaJSPromise;
+
+    property State: TFloriaJSPromiseState read FState;
+    property ResultValue: TFloriaJSValue read FResult;
+    property Heap: TFloriaJSHeap read FHeap;
+  end;
+
+  { Callback Used by the Evaluator to Execute Deferred Promise Jobs }
+  TFloriaJSJobRunner = procedure(const AJob: TFloriaJSPromiseJob) of object;
+
   { Heap Allocator & Lifetime Tracker }
   TFloriaJSHeap = class
   private
     FObjects: TFPList;
     FEnvironments: TFPList;
+    FPromiseJobs: TFPList;
+    FJobRunner: TFloriaJSJobRunner;
   public
     constructor Create();
     destructor Destroy(); override;
 
     function  Track(AObj: TFloriaJSObject): TFloriaJSObject;
     function  TrackEnvironment(AEnv: TObject): TObject;
+    function  Untrack(AObj: TObject): Boolean;
     function  NewObject(AProto: TFloriaJSObject = nil): TFloriaJSObject;
     function  NewArray(): TFloriaJSArray;
+    function  NewPromise(): TFloriaJSPromise;
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
     function  NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
-    function  NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False): TFloriaJSFunction;
+    function  NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False): TFloriaJSFunction;
+
+    procedure SetJobRunner(ARunner: TFloriaJSJobRunner);
+    procedure EnqueuePromiseJob(const AJob: TFloriaJSPromiseJob);
+    function  DequeuePromiseJob(out AJob: TFloriaJSPromiseJob): Boolean;
+    function  HasPromiseJobs(): Boolean;
+    procedure RunPendingJobs();
+
+    function  PromiseResolve(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  PromiseReject(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  PromiseAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  PromiseRace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     procedure Clear();
     function  GetObjectCount(): Integer;
@@ -169,6 +255,7 @@ function JSMakeString(const AStr: string): TFloriaJSValue;
 function JSMakeObject(AObj: TFloriaJSObject): TFloriaJSValue;
 function JSMakeArray(AArr: TFloriaJSArray): TFloriaJSValue;
 function JSMakeFunction(AFunc: TFloriaJSFunction): TFloriaJSValue;
+function JSMakePromise(APromise: TFloriaJSPromise): TFloriaJSValue;
 
 { Binary Operations }
 function JSAdd(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
@@ -283,6 +370,18 @@ begin
   Result.ObjVal := AFunc;
 end;
 
+function JSMakePromise(APromise: TFloriaJSPromise): TFloriaJSValue;
+begin
+  if APromise <> nil then
+    Result.Kind := fjstObject
+  else
+    Result.Kind := fjstUndefined;
+  Result.NumVal := 0.0;
+  Result.BoolVal := (APromise <> nil);
+  Result.StrVal := '';
+  Result.ObjVal := APromise;
+end;
+
 { TFloriaJSValue Methods }
 
 function TFloriaJSValue.IsUndefined(): Boolean;
@@ -323,6 +422,11 @@ end;
 function TFloriaJSValue.IsFunction(): Boolean;
 begin
   Result := (Kind = fjstFunction);
+end;
+
+function TFloriaJSValue.IsPromise(): Boolean;
+begin
+  Result := IsObject() and (ObjVal is TFloriaJSPromise);
 end;
 
 function TFloriaJSValue.IsTruthy(): Boolean;
@@ -436,6 +540,11 @@ end;
 function TFloriaJSValue.AsFunction(): TFloriaJSFunction;
 begin
   if Kind = fjstFunction then Result := TFloriaJSFunction(ObjVal) else Result := nil;
+end;
+
+function TFloriaJSValue.AsPromise(): TFloriaJSPromise;
+begin
+  if IsPromise() then Result := TFloriaJSPromise(ObjVal) else Result := nil;
 end;
 
 { TFloriaJSObject }
@@ -748,7 +857,7 @@ begin
   FParamNames := TStringList.Create();
   FBody := nil;
   FClosureEnv := nil;
-  FOwnsBody := False;
+  FIsAsync := False;
 end;
 
 constructor TFloriaJSFunction.CreateNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
@@ -761,10 +870,10 @@ begin
   FParamNames := TStringList.Create();
   FBody := nil;
   FClosureEnv := nil;
-  FOwnsBody := False;
+  FIsAsync := False;
 end;
 
-constructor TFloriaJSFunction.CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean);
+constructor TFloriaJSFunction.CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean);
 begin
   inherited Create(nil);
   FName := AName;
@@ -776,15 +885,236 @@ begin
     FParamNames.Assign(AParams);
   FBody := ABody;
   FClosureEnv := AClosure;
-  FOwnsBody := AOwnsBody;
+  FIsAsync := AIsAsync;
+  { The body points into the AST that declared it. Holding a reference on it
+    keeps the body alive for as long as this function exists, even when the
+    script that declared it has already been discarded. }
+  if (FBody <> nil) and not AOwnsBody then
+    FBody.Retain;
 end;
 
 destructor TFloriaJSFunction.Destroy();
 begin
   FreeAndNil(FParamNames);
-  if FOwnsBody and (FBody <> nil) then
-    FreeAndNil(FBody);
+  if FBody <> nil then
+  begin
+    FBody.Release;
+    FBody := nil;
+  end;
   inherited Destroy();
+end;
+
+{ EFloriaJSThrow }
+
+constructor EFloriaJSThrow.Create(const AValue: TFloriaJSValue);
+begin
+  inherited Create(AValue.ToString());
+  FValue := AValue;
+end;
+
+{ Promise native methods (dispatched through the promise's own heap) }
+
+function JSPromiseThen(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p: TFloriaJSPromise;
+  onFulfilled, onRejected: TFloriaJSValue;
+begin
+  p := AThis.AsPromise();
+  if p = nil then
+    Exit(JSMakeUndefined());
+
+  onFulfilled := JSMakeUndefined();
+  onRejected := JSMakeUndefined();
+  if Length(AArgs) > 0 then onFulfilled := AArgs[0];
+  if Length(AArgs) > 1 then onRejected := AArgs[1];
+
+  Result := JSMakePromise(p.Chain(onFulfilled, onRejected));
+end;
+
+function JSPromiseCatch(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p: TFloriaJSPromise;
+  onRejected: TFloriaJSValue;
+begin
+  p := AThis.AsPromise();
+  if p = nil then
+    Exit(JSMakeUndefined());
+
+  onRejected := JSMakeUndefined();
+  if Length(AArgs) > 0 then onRejected := AArgs[0];
+
+  Result := JSMakePromise(p.Chain(JSMakeUndefined(), onRejected));
+end;
+
+function JSPromiseFinally(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p: TFloriaJSPromise;
+  onFinally: TFloriaJSValue;
+begin
+  p := AThis.AsPromise();
+  if p = nil then
+    Exit(JSMakeUndefined());
+
+  onFinally := JSMakeUndefined();
+  if Length(AArgs) > 0 then onFinally := AArgs[0];
+
+  Result := JSMakePromise(p.ChainFinally(onFinally));
+end;
+
+{ TFloriaJSPromise }
+
+constructor TFloriaJSPromise.Create(AHeap: TFloriaJSHeap);
+begin
+  inherited Create(nil);
+  FHeap := AHeap;
+  FState := fjspPending;
+  FResult := JSMakeUndefined();
+  FReactionCount := 0;
+  FThenFn := nil;
+  FCatchFn := nil;
+  FFinallyFn := nil;
+end;
+
+destructor TFloriaJSPromise.Destroy();
+begin
+  SetLength(FReactions, 0);
+  FReactionCount := 0;
+  inherited Destroy();
+end;
+
+procedure TFloriaJSPromise.AddReaction(const AReaction: TFloriaJSPromiseReaction);
+begin
+  if FReactionCount >= Length(FReactions) then
+    SetLength(FReactions, FReactionCount + 4);
+  FReactions[FReactionCount] := AReaction;
+  Inc(FReactionCount);
+end;
+
+procedure TFloriaJSPromise.Attach(const AOnFulfilled, AOnRejected, AOnFinally: TFloriaJSValue; AIsFinally: Boolean; AChild: TFloriaJSPromise);
+var
+  reaction: TFloriaJSPromiseReaction;
+  job: TFloriaJSPromiseJob;
+begin
+  if FState = fjspPending then
+  begin
+    reaction.OnFulfilled := AOnFulfilled;
+    reaction.OnRejected := AOnRejected;
+    reaction.OnFinally := AOnFinally;
+    reaction.IsFinally := AIsFinally;
+    reaction.Child := AChild;
+    AddReaction(reaction);
+    Exit;
+  end;
+
+  { Already settled: the reaction runs as a microtask. }
+  if FHeap = nil then Exit;
+  job.OnFulfilled := AOnFulfilled;
+  job.OnRejected := AOnRejected;
+  job.OnFinally := AOnFinally;
+  job.IsFinally := AIsFinally;
+  job.IsRejection := (FState = fjspRejected);
+  job.Value := FResult;
+  job.Child := AChild;
+  FHeap.EnqueuePromiseJob(job);
+end;
+
+procedure TFloriaJSPromise.ScheduleReactions();
+var
+  i: Integer;
+  reaction: TFloriaJSPromiseReaction;
+  job: TFloriaJSPromiseJob;
+begin
+  for i := 0 to FReactionCount - 1 do
+  begin
+    reaction := FReactions[i];
+    job.OnFulfilled := reaction.OnFulfilled;
+    job.OnRejected := reaction.OnRejected;
+    job.OnFinally := reaction.OnFinally;
+    job.IsFinally := reaction.IsFinally;
+    job.IsRejection := (FState = fjspRejected);
+    job.Value := FResult;
+    job.Child := reaction.Child;
+    if FHeap <> nil then
+      FHeap.EnqueuePromiseJob(job);
+  end;
+  FReactionCount := 0;
+end;
+
+procedure TFloriaJSPromise.Fulfill(const AValue: TFloriaJSValue);
+var
+  inner: TFloriaJSPromise;
+begin
+  if FState <> fjspPending then Exit;
+
+  { A promise fulfills with another promise by adopting its settlement. }
+  if AValue.IsPromise() then
+  begin
+    inner := AValue.AsPromise();
+    if inner = Self then
+    begin
+      Reject(JSMakeString('Chaining cycle detected for promise'));
+      Exit;
+    end;
+    inner.Attach(JSMakeUndefined(), JSMakeUndefined(), JSMakeUndefined(), False, Self);
+    Exit;
+  end;
+
+  FState := fjspFulfilled;
+  FResult := AValue;
+  ScheduleReactions();
+end;
+
+procedure TFloriaJSPromise.Reject(const AValue: TFloriaJSValue);
+begin
+  if FState <> fjspPending then Exit;
+  FState := fjspRejected;
+  FResult := AValue;
+  ScheduleReactions();
+end;
+
+function TFloriaJSPromise.Chain(const AOnFulfilled, AOnRejected: TFloriaJSValue): TFloriaJSPromise;
+begin
+  Result := TFloriaJSPromise(FHeap.Track(TFloriaJSPromise.Create(FHeap)));
+  Attach(AOnFulfilled, AOnRejected, JSMakeUndefined(), False, Result);
+end;
+
+function TFloriaJSPromise.ChainFinally(const AOnFinally: TFloriaJSValue): TFloriaJSPromise;
+begin
+  Result := TFloriaJSPromise(FHeap.Track(TFloriaJSPromise.Create(FHeap)));
+  Attach(JSMakeUndefined(), JSMakeUndefined(), AOnFinally, True, Result);
+end;
+
+function TFloriaJSPromise.GetProperty(const AName: string): TFloriaJSValue;
+begin
+  if AName = 'then' then
+  begin
+    if (FThenFn = nil) and (FHeap <> nil) then
+      FThenFn := FHeap.NewNativeFunction('then', @JSPromiseThen);
+    Exit(JSMakeFunction(FThenFn));
+  end;
+
+  if AName = 'catch' then
+  begin
+    if (FCatchFn = nil) and (FHeap <> nil) then
+      FCatchFn := FHeap.NewNativeFunction('catch', @JSPromiseCatch);
+    Exit(JSMakeFunction(FCatchFn));
+  end;
+
+  if AName = 'finally' then
+  begin
+    if (FFinallyFn = nil) and (FHeap <> nil) then
+      FFinallyFn := FHeap.NewNativeFunction('finally', @JSPromiseFinally);
+    Exit(JSMakeFunction(FFinallyFn));
+  end;
+
+  Result := inherited GetProperty(AName);
+end;
+
+function TFloriaJSPromise.HasProperty(const AName: string): Boolean;
+begin
+  if (AName = 'then') or (AName = 'catch') or (AName = 'finally') then
+    Exit(True);
+  Result := inherited HasProperty(AName);
 end;
 
 { TFloriaJSHeap }
@@ -794,11 +1124,23 @@ begin
   inherited Create();
   FObjects := TFPList.Create();
   FEnvironments := TFPList.Create();
+  FPromiseJobs := TFPList.Create();
+  FJobRunner := nil;
 end;
 
 destructor TFloriaJSHeap.Destroy();
 begin
   Clear();
+  if FPromiseJobs <> nil then
+  begin
+    while FPromiseJobs.Count > 0 do
+    begin
+      Dispose(PTFloriaJSPromiseJob(FPromiseJobs[FPromiseJobs.Count - 1]));
+      FPromiseJobs.Delete(FPromiseJobs.Count - 1);
+    end;
+    FreeAndNil(FPromiseJobs);
+  end;
+  FJobRunner := nil;
   FreeAndNil(FEnvironments);
   FreeAndNil(FObjects);
   inherited Destroy();
@@ -818,6 +1160,34 @@ begin
   Result := AEnv;
 end;
 
+function TFloriaJSHeap.Untrack(AObj: TObject): Boolean;
+var
+  idx: Integer;
+begin
+  Result := False;
+  if AObj = nil then Exit;
+
+  if FObjects <> nil then
+  begin
+    idx := FObjects.IndexOf(AObj);
+    if idx >= 0 then
+    begin
+      FObjects.Delete(idx);
+      Exit(True);
+    end;
+  end;
+
+  if FEnvironments <> nil then
+  begin
+    idx := FEnvironments.IndexOf(AObj);
+    if idx >= 0 then
+    begin
+      FEnvironments.Delete(idx);
+      Exit(True);
+    end;
+  end;
+end;
+
 function TFloriaJSHeap.NewObject(AProto: TFloriaJSObject): TFloriaJSObject;
 begin
   Result := Track(TFloriaJSObject.Create(AProto));
@@ -826,6 +1196,178 @@ end;
 function TFloriaJSHeap.NewArray(): TFloriaJSArray;
 begin
   Result := TFloriaJSArray(Track(TFloriaJSArray.Create()));
+end;
+
+function TFloriaJSHeap.NewPromise(): TFloriaJSPromise;
+begin
+  Result := TFloriaJSPromise(Track(TFloriaJSPromise.Create(Self)));
+end;
+
+procedure TFloriaJSHeap.SetJobRunner(ARunner: TFloriaJSJobRunner);
+begin
+  FJobRunner := ARunner;
+end;
+
+procedure TFloriaJSHeap.EnqueuePromiseJob(const AJob: TFloriaJSPromiseJob);
+var
+  job: PTFloriaJSPromiseJob;
+begin
+  if FPromiseJobs = nil then Exit;
+  New(job);
+  job^ := AJob;
+  FPromiseJobs.Add(job);
+end;
+
+function TFloriaJSHeap.DequeuePromiseJob(out AJob: TFloriaJSPromiseJob): Boolean;
+var
+  job: PTFloriaJSPromiseJob;
+begin
+  Result := False;
+  if (FPromiseJobs = nil) or (FPromiseJobs.Count = 0) then Exit;
+  job := PTFloriaJSPromiseJob(FPromiseJobs[0]);
+  AJob := job^;
+  FPromiseJobs.Delete(0);
+  Dispose(job);
+  Result := True;
+end;
+
+function TFloriaJSHeap.HasPromiseJobs(): Boolean;
+begin
+  Result := (FPromiseJobs <> nil) and (FPromiseJobs.Count > 0);
+end;
+
+procedure TFloriaJSHeap.RunPendingJobs();
+var
+  job: TFloriaJSPromiseJob;
+begin
+  while DequeuePromiseJob(job) do
+    if Assigned(FJobRunner) then
+      FJobRunner(job);
+end;
+
+function TFloriaJSHeap.PromiseResolve(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p: TFloriaJSPromise;
+begin
+  if (Length(AArgs) > 0) and AArgs[0].IsPromise() then
+    Exit(AArgs[0]);
+
+  p := NewPromise();
+  if Length(AArgs) > 0 then
+    p.Fulfill(AArgs[0])
+  else
+    p.Fulfill(JSMakeUndefined());
+  Result := JSMakePromise(p);
+end;
+
+function TFloriaJSHeap.PromiseReject(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p: TFloriaJSPromise;
+begin
+  p := NewPromise();
+  if Length(AArgs) > 0 then
+    p.Reject(AArgs[0])
+  else
+    p.Reject(JSMakeUndefined());
+  Result := JSMakePromise(p);
+end;
+
+function TFloriaJSHeap.PromiseAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p, elem: TFloriaJSPromise;
+  arr: TFloriaJSArray;
+  outArr: TFloriaJSArray;
+  values: array of TFloriaJSValue;
+  i, count: Integer;
+  settled: TFloriaJSValue;
+begin
+  p := NewPromise();
+  if (Length(AArgs) = 0) or not AArgs[0].IsArray() then
+  begin
+    p.Fulfill(JSMakeArray(NewArray()));
+    Exit(JSMakePromise(p));
+  end;
+
+  arr := AArgs[0].AsArray();
+  count := arr.Length();
+  SetLength(values, count);
+
+  for i := 0 to count - 1 do
+  begin
+    settled := arr.GetElement(i);
+    if settled.IsPromise() then
+    begin
+      elem := settled.AsPromise();
+      { No host event sources exist, so draining the microtask queue settles
+        every promise that can still make progress. }
+      while (elem.State = fjspPending) and HasPromiseJobs() do
+        RunPendingJobs();
+
+      if elem.State = fjspRejected then
+      begin
+        p.Reject(elem.ResultValue);
+        Exit(JSMakePromise(p));
+      end;
+
+      if elem.State = fjspFulfilled then
+        values[i] := elem.ResultValue
+      else
+        values[i] := JSMakeUndefined();
+    end
+    else
+      values[i] := settled;
+  end;
+
+  outArr := NewArray();
+  for i := 0 to count - 1 do
+    outArr.SetElement(i, values[i]);
+  p.Fulfill(JSMakeArray(outArr));
+  Result := JSMakePromise(p);
+end;
+
+function TFloriaJSHeap.PromiseRace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p, elem: TFloriaJSPromise;
+  arr: TFloriaJSArray;
+  v: TFloriaJSValue;
+  i: Integer;
+begin
+  p := NewPromise();
+  if (Length(AArgs) = 0) or not AArgs[0].IsArray() then
+  begin
+    p.Fulfill(JSMakeUndefined());
+    Exit(JSMakePromise(p));
+  end;
+
+  arr := AArgs[0].AsArray();
+  for i := 0 to arr.Length() - 1 do
+  begin
+    v := arr.GetElement(i);
+    if v.IsPromise() then
+    begin
+      elem := v.AsPromise();
+      while (elem.State = fjspPending) and HasPromiseJobs() do
+        RunPendingJobs();
+      if elem.State = fjspRejected then
+      begin
+        p.Reject(elem.ResultValue);
+        Exit(JSMakePromise(p));
+      end;
+      if elem.State = fjspFulfilled then
+      begin
+        p.Fulfill(elem.ResultValue);
+        Exit(JSMakePromise(p));
+      end;
+    end
+    else
+    begin
+      p.Fulfill(v);
+      Exit(JSMakePromise(p));
+    end;
+  end;
+
+  p.Fulfill(JSMakeUndefined());
+  Result := JSMakePromise(p);
 end;
 
 function TFloriaJSHeap.NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
@@ -838,15 +1380,24 @@ begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateNativeMethod(AName, AMethod)));
 end;
 
-function TFloriaJSHeap.NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean): TFloriaJSFunction;
+function TFloriaJSHeap.NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean): TFloriaJSFunction;
 begin
-  Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateUser(AName, AParams, ABody, AClosure, AOwnsBody)));
+  Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateUser(AName, AParams, ABody, AClosure, AOwnsBody, AIsAsync)));
 end;
 
 procedure TFloriaJSHeap.Clear();
 var
   i: Integer;
 begin
+  if FPromiseJobs <> nil then
+  begin
+    while FPromiseJobs.Count > 0 do
+    begin
+      Dispose(PTFloriaJSPromiseJob(FPromiseJobs[FPromiseJobs.Count - 1]));
+      FPromiseJobs.Delete(FPromiseJobs.Count - 1);
+    end;
+  end;
+
   if FObjects <> nil then
   begin
     for i := FObjects.Count - 1 downto 0 do

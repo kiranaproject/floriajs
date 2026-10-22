@@ -65,17 +65,18 @@ type
     function  ParseUnaryPrefix(): TFloriaJSExprNode;
     function  ParseArrayLiteral(): TFloriaJSExprNode;
     function  ParseObjectLiteral(): TFloriaJSExprNode;
-    function  ParseFunctionExpr(): TFloriaJSExprNode;
+    function  ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
 
     { Statements & Declarations }
     function  ParseStatement(): TFloriaJSStmtNode;
     function  ParseDeclaration(): TFloriaJSStmtNode;
     function  ParseVarDeclaration(AKind: TFloriaJSTokenKind): TFloriaJSVarStmt;
-    function  ParseFunctionDeclaration(): TFloriaJSFunctionDecl;
+    function  ParseFunctionDeclaration(AIsAsync: Boolean = False): TFloriaJSFunctionDecl;
     function  ParseIfStatement(): TFloriaJSIfStmt;
     function  ParseWhileStatement(): TFloriaJSWhileStmt;
     function  ParseDoWhileStatement(): TFloriaJSWhileStmt;
     function  ParseForStatement(): TFloriaJSForStmt;
+    function  ParseSwitchStatement(): TFloriaJSSwitchStmt;
     function  ParseBlockStatement(): TFloriaJSBlockStmt;
     function  ParseReturnStatement(): TFloriaJSReturnStmt;
     function  ParseBreakStatement(): TFloriaJSBreakStmt;
@@ -297,6 +298,13 @@ begin
   if Match(tkLBrace) then
     Exit(ParseObjectLiteral());
 
+  { Async Function Expression }
+  if Match(tkAsync) then
+  begin
+    Consume(tkFunction, 'Expected ''function'' after ''async''');
+    Exit(ParseFunctionExpr(True));
+  end;
+
   { Function Expression }
   if Match(tkFunction) then
     Exit(ParseFunctionExpr());
@@ -382,7 +390,7 @@ begin
   Result := obj;
 end;
 
-function TFloriaJSParser.ParseFunctionExpr(): TFloriaJSExprNode;
+function TFloriaJSParser.ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
 var
   fnName: string;
   fnExpr: TFloriaJSFunctionExpr;
@@ -397,7 +405,7 @@ begin
   else
     fnName := '';
 
-  fnExpr := TFloriaJSFunctionExpr.Create(fnName, False, startLine, startCol);
+  fnExpr := TFloriaJSFunctionExpr.Create(fnName, False, startLine, startCol, AIsAsync);
   Consume(tkLParen, 'Expected ''('' after function name/keyword');
 
   if not Check(tkRParen) then
@@ -431,7 +439,7 @@ var
   computedProp: TFloriaJSExprNode;
 begin
   { Prefix parsing }
-  if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete] then
+  if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete, tkAwait] then
     left := ParseUnaryPrefix()
   else
     left := ParsePrimary();
@@ -468,6 +476,11 @@ begin
       begin
         if Match(tkIdentifier) then
           memberPropName := FPrevious.Text
+        else if FCurrent.Kind in [tkCatch, tkFinally, tkFunction, tkAsync, tkAwait, tkNew, tkDelete, tkTypeof, tkInstanceof, tkIn, tkThis, tkConst, tkLet, tkVar, tkIf, tkElse, tkFor, tkWhile, tkDo, tkBreak, tkContinue, tkSwitch, tkCase, tkDefault, tkTry, tkThrow, tkReturn, tkTrue, tkFalse, tkNull, tkUndefined] then
+        begin
+          memberPropName := FCurrent.Text;
+          Advance();
+        end
         else
         begin
           ErrorAtCurrent('Expected property name after ''.''');
@@ -544,6 +557,11 @@ begin
     Result := ParseVarDeclaration(tkConst)
   else if Match(tkVar) then
     Result := ParseVarDeclaration(tkVar)
+  else if Match(tkAsync) then
+  begin
+    Consume(tkFunction, 'Expected ''function'' after ''async''');
+    Result := ParseFunctionDeclaration(True)
+  end
   else if Match(tkFunction) then
     Result := ParseFunctionDeclaration()
   else
@@ -582,7 +600,7 @@ begin
   Result := varStmt;
 end;
 
-function TFloriaJSParser.ParseFunctionDeclaration(): TFloriaJSFunctionDecl;
+function TFloriaJSParser.ParseFunctionDeclaration(AIsAsync: Boolean = False): TFloriaJSFunctionDecl;
 var
   fnName: string;
   fnDecl: TFloriaJSFunctionDecl;
@@ -600,7 +618,7 @@ begin
     fnName := 'anonymous';
   end;
 
-  fnDecl := TFloriaJSFunctionDecl.Create(fnName, startLine, startCol);
+  fnDecl := TFloriaJSFunctionDecl.Create(fnName, startLine, startCol, AIsAsync);
   Consume(tkLParen, 'Expected ''('' after function name');
 
   if not Check(tkRParen) then
@@ -632,6 +650,8 @@ begin
     Result := ParseDoWhileStatement()
   else if Match(tkFor) then
     Result := ParseForStatement()
+  else if Match(tkSwitch) then
+    Result := ParseSwitchStatement()
   else if Match(tkReturn) then
     Result := ParseReturnStatement()
   else if Match(tkBreak) then
@@ -746,6 +766,56 @@ begin
 
   body := ParseStatement();
   Result := TFloriaJSForStmt.Create(init, test, update, body, startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseSwitchStatement(): TFloriaJSSwitchStmt;
+var
+  discriminant, testExpr: TFloriaJSExprNode;
+  switchStmt: TFloriaJSSwitchStmt;
+  caseClause: TFloriaJSSwitchCase;
+  startLine, startCol: Integer;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  Consume(tkLParen, 'Expected ''('' after ''switch''');
+  discriminant := ParseExpression();
+  Consume(tkRParen, 'Expected '')'' after switch discriminant');
+  Consume(tkLBrace, 'Expected ''{'' at start of switch body');
+
+  switchStmt := TFloriaJSSwitchStmt.Create(discriminant, startLine, startCol);
+
+  while (not Check(tkRBrace)) and (not IsAtEnd()) do
+  begin
+    if Match(tkCase) then
+    begin
+      testExpr := ParseExpression();
+      Consume(tkColon, 'Expected '':'' after case expression');
+      caseClause := TFloriaJSSwitchCase.Create(testExpr, False);
+    end
+    else if Match(tkDefault) then
+    begin
+      Consume(tkColon, 'Expected '':'' after ''default''');
+      caseClause := TFloriaJSSwitchCase.Create(nil, True);
+    end
+    else
+    begin
+      ErrorAtCurrent('Expected ''case'' or ''default'' in switch body');
+      Break;
+    end;
+
+    { The statements of a clause run until the next case/default label. }
+    while (not Check(tkCase)) and (not Check(tkDefault)) and
+          (not Check(tkRBrace)) and (not IsAtEnd()) do
+    begin
+      caseClause.AddStatement(ParseDeclaration());
+    end;
+
+    switchStmt.AddCase(caseClause);
+  end;
+
+  Consume(tkRBrace, 'Expected ''}'' after switch body');
+  Result := switchStmt;
 end;
 
 function TFloriaJSParser.ParseBlockStatement(): TFloriaJSBlockStmt;

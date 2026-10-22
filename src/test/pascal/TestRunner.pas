@@ -22,6 +22,14 @@ uses
   floria.js.core, floria.ftml.types, floria.ftml.binding, floria.ftml.engine, floriajs;
 
 type
+  { Counts how often an AST node is destroyed, so the reference counting of a
+    shared node can be observed. }
+  TCountedASTNode = class(TFloriaJSBlockStmt)
+  public
+    DestroyCount: Integer;
+    destructor Destroy(); override;
+  end;
+
   { Test 1: Core Types & Result Helpers }
   TFloriaJSTypesTest = class(TTestCase)
   published
@@ -145,7 +153,48 @@ type
     procedure TestQmlLayoutAliases();
   end;
 
+  { Test 12: Document Lifetime & Resource Release }
+  TFloriaFTMLLifecycleTest = class(TTestCase)
+  published
+    procedure TestReloadDoesNotGrowHeap();
+    procedure TestReloadWithdrawsDocumentIds();
+    procedure TestExternalContextIsRestoredOnFree();
+    procedure TestFailedLoadKeepsEngineConsistent();
+    procedure TestRuntimeClosureSurvivesDocumentReload();
+  end;
+
+  { Test 13: Runtime Environment Lifetime }
+  TFloriaJSLifetimeTest = class(TTestCase)
+  published
+    procedure TestLoopDoesNotAccumulateEnvironments();
+    procedure TestRecursionDoesNotAccumulateEnvironments();
+    procedure TestClosureKeepsItsScopeAlive();
+    procedure TestFunctionOutlivesItsScript();
+    procedure TestFunctionExpressionOutlivesItsScript();
+    procedure TestRecursiveFunctionOutlivesItsScript();
+    procedure TestNestedFunctionDeclarationIsReusable();
+    procedure TestSharedNodeReferenceCounting();
+    procedure TestFunctionBodySurvivesItsDeclaration();
+  end;
+
+  { Test 14: Switch Statements }
+  TFloriaJSSwitchTest = class(TTestCase)
+  published
+    procedure TestSwitchMatching();
+    procedure TestSwitchDefaultClause();
+    procedure TestSwitchFallThrough();
+    procedure TestSwitchBreakAndContinue();
+    procedure TestSwitchNestedAndInFunction();
+    procedure TestSwitchParserErrors();
+  end;
+
 { TFloriaJSTypesTest }
+
+destructor TCountedASTNode.Destroy();
+begin
+  Inc(DestroyCount);
+  inherited Destroy();
+end;
 
 procedure TFloriaJSTypesTest.TestVersionConstant();
 begin
@@ -2214,6 +2263,600 @@ begin
   end;
 end;
 
+{ TFloriaFTMLLifecycleTest }
+
+const
+  LIFECYCLE_FTML =
+    'Rectangle {' +
+    '  id: mainWindow;' +
+    '  width: 600;' +
+    '  height: 400;' +
+    '  Rectangle {' +
+    '    id: cardView;' +
+    '    width: parent.width - 40;' +
+    '    Text { id: sizeLabel; text: "Card: " + cardView.width; }' +
+    '  }' +
+    '}';
+
+procedure TFloriaFTMLLifecycleTest.TestReloadDoesNotGrowHeap();
+var
+  engine: TFloriaFTMLEngine;
+  objCount, envCount, i: Integer;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    engine.LoadString(LIFECYCLE_FTML);
+    objCount := engine.JSContext.Heap.GetObjectCount;
+    envCount := engine.JSContext.Heap.GetEnvironmentCount;
+
+    for i := 1 to 3 do
+      engine.LoadString(LIFECYCLE_FTML);
+
+    AssertTrue('Heap object count must not grow across reloads (' +
+      IntToStr(objCount) + ' -> ' + IntToStr(engine.JSContext.Heap.GetObjectCount) + ')',
+      objCount = engine.JSContext.Heap.GetObjectCount);
+    AssertTrue('Heap environment count must not grow across reloads (' +
+      IntToStr(envCount) + ' -> ' + IntToStr(engine.JSContext.Heap.GetEnvironmentCount) + ')',
+      envCount = engine.JSContext.Heap.GetEnvironmentCount);
+    AssertTrue('Bindings must not be duplicated by reloads (' +
+      IntToStr(engine.BindingManager.BindingCount) + ')',
+      engine.BindingManager.BindingCount = 2);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLLifecycleTest.TestReloadWithdrawsDocumentIds();
+var
+  engine: TFloriaFTMLEngine;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    engine.LoadString(LIFECYCLE_FTML);
+    AssertNotNull('mainWindow resolves before reload', engine.FindItemById('mainWindow'));
+
+    engine.LoadString('Rectangle { id: otherWindow; width: 300; height: 200; }');
+
+    AssertTrue('Stale document id must not resolve after reload',
+      engine.FindItemById('mainWindow') = nil);
+    AssertNotNull('New document id resolves', engine.FindItemById('otherWindow'));
+    AssertTrue('Global scope must not keep the stale document id',
+      not engine.JSContext.GlobalEnv.HasLocal('mainWindow'));
+    AssertTrue('Global scope must expose the new document id',
+      engine.JSContext.GlobalEnv.HasLocal('otherWindow'));
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLLifecycleTest.TestExternalContextIsRestoredOnFree();
+var
+  ctx: TFloriaJSContext;
+  engine: TFloriaFTMLEngine;
+  baseObjects, baseEnvs: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    { A pristine context only holds the shared standard library. }
+    baseObjects := ctx.Heap.GetObjectCount;
+    baseEnvs := ctx.Heap.GetEnvironmentCount;
+
+    engine := TFloriaFTMLEngine.Create(ctx);
+    try
+      engine.LoadString(LIFECYCLE_FTML);
+      AssertTrue('Loading a document must grow the shared context',
+        ctx.Heap.GetObjectCount > baseObjects);
+    finally
+      engine.Free();
+    end;
+
+    AssertTrue('Freeing the engine must release the document objects (' +
+      IntToStr(ctx.Heap.GetObjectCount) + ' vs ' + IntToStr(baseObjects) + ')',
+      ctx.Heap.GetObjectCount = baseObjects);
+    AssertTrue('Freeing the engine must release the document environments (' +
+      IntToStr(ctx.Heap.GetEnvironmentCount) + ' vs ' + IntToStr(baseEnvs) + ')',
+      ctx.Heap.GetEnvironmentCount = baseEnvs);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaFTMLLifecycleTest.TestFailedLoadKeepsEngineConsistent();
+var
+  engine: TFloriaFTMLEngine;
+  baselineObjects, baselineEnvs: Integer;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    { A pristine engine only holds the shared standard library. }
+    baselineObjects := engine.JSContext.Heap.GetObjectCount;
+    baselineEnvs := engine.JSContext.Heap.GetEnvironmentCount;
+
+    engine.LoadString(LIFECYCLE_FTML);
+    AssertTrue('Loading a document must grow the heap',
+      engine.JSContext.Heap.GetObjectCount > baselineObjects);
+
+    AssertTrue('A malformed document must fail to load',
+      engine.LoadString('Rectangle { id: broken; width: ') = nil);
+    AssertTrue('A failed load must report an error', engine.HasErrors());
+
+    { The failed document must not leave the previous document behind. }
+    AssertTrue('Failed load must release the previous document objects (' +
+      IntToStr(engine.JSContext.Heap.GetObjectCount) + ' vs ' +
+      IntToStr(baselineObjects) + ')',
+      engine.JSContext.Heap.GetObjectCount = baselineObjects);
+    AssertTrue('Failed load must release the previous document environments (' +
+      IntToStr(engine.JSContext.Heap.GetEnvironmentCount) + ' vs ' +
+      IntToStr(baselineEnvs) + ')',
+      engine.JSContext.Heap.GetEnvironmentCount = baselineEnvs);
+    AssertTrue('Failed load must withdraw the previous document ids',
+      engine.FindItemById('mainWindow') = nil);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLLifecycleTest.TestRuntimeClosureSurvivesDocumentReload();
+var
+  engine: TFloriaFTMLEngine;
+  btn: TFloriaFTMLItem;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    { The handler publishes a closure into the global scope at runtime. That
+      closure points into the document AST, which a reload discards. }
+    AssertTrue('The document must load',
+      engine.LoadString(
+        'Button { id: btn; onClicked: { helper = function() { return 42; }; } }') <> nil);
+
+    btn := engine.FindItemById('btn');
+    AssertTrue('The button must be registered', btn <> nil);
+    btn.EmitSignal('clicked');
+
+    res := engine.JSContext.Evaluate('helper();');
+    AssertEquals('The runtime closure must work while the document is loaded',
+      '42', res.StringValue);
+
+    { Reloading discards the AST the closure was declared in. }
+    AssertTrue('The second document must load',
+      engine.LoadString('Text { id: label; }') <> nil);
+
+    res := engine.JSContext.Evaluate('helper();');
+    AssertEquals('The runtime closure must survive a document reload', '42',
+      res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+{ TFloriaJSLifetimeTest }
+
+procedure TFloriaJSLifetimeTest.TestLoopDoesNotAccumulateEnvironments();
+var
+  ctx: TFloriaJSContext;
+  baseline: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    baseline := ctx.Heap.GetEnvironmentCount;
+
+    ctx.Evaluate('var total = 0;');
+    ctx.Evaluate('for (var i = 0; i < 5000; i++) { total = total + 1; }');
+
+    AssertTrue('A long running loop must not accumulate environments (' +
+      IntToStr(baseline) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = baseline);
+    AssertEquals('The loop must still produce the correct result', '5000',
+      ctx.Evaluate('total;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSLifetimeTest.TestRecursionDoesNotAccumulateEnvironments();
+var
+  ctx: TFloriaJSContext;
+  baseline: Integer;
+  res: TFloriaJSResult;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    baseline := ctx.Heap.GetEnvironmentCount;
+
+    { The function is declared and called inside the same script, because the
+      script AST is released when the evaluation ends. }
+    res := ctx.Evaluate(
+      'function rec(n) { if (n <= 0) { return 0; } return rec(n - 1) + 1; }' +
+      'rec(200);');
+
+    AssertTrue('The recursion must succeed', res.Success);
+    AssertEquals('The recursion must still produce the correct result', '200',
+      res.StringValue);
+    AssertTrue('Deep recursion must not accumulate environments (' +
+      IntToStr(baseline) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = baseline);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSLifetimeTest.TestClosureKeepsItsScopeAlive();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('A closure must keep its captured scope alive', '2',
+      ctx.Evaluate(
+        'function mk() { var c = 0; return function() { c = c + 1; return c; }; } ' +
+        'var f = mk(); f(); f();').StringValue);
+
+    AssertEquals('A closure created inside a loop must capture the loop scope', '2',
+      ctx.Evaluate(
+        'var t = 0; for (var i = 0; i < 3; i++) { var g = function() { return i; }; t = g(); } t;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSLifetimeTest.TestFunctionOutlivesItsScript();
+var
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    res := ctx.Evaluate('function add(a, b) { return a + b; }');
+    AssertTrue('The declaration must succeed', res.Success);
+
+    { The AST of the declaring script is released when the evaluation ends:
+      the function must survive it and stay callable from a later script. }
+    res := ctx.Evaluate('add(2, 3);');
+    AssertTrue('The function must still be callable', res.Success);
+    AssertEquals('The function must still return the correct result', '5',
+      res.StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSLifetimeTest.TestFunctionExpressionOutlivesItsScript();
+var
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    res := ctx.Evaluate('var twice = function(n) { return n * 2; };');
+    AssertTrue('The declaration must succeed', res.Success);
+
+    res := ctx.Evaluate('twice(21);');
+    AssertTrue('The closure must still be callable', res.Success);
+    AssertEquals('The closure must still return the correct result', '42',
+      res.StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSLifetimeTest.TestRecursiveFunctionOutlivesItsScript();
+var
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    res := ctx.Evaluate(
+      'function rec(n) { if (n <= 0) { return 0; } return rec(n - 1) + 1; }');
+    AssertTrue('The declaration must succeed', res.Success);
+
+    res := ctx.Evaluate('rec(5);');
+    AssertTrue('The recursive function must still be callable', res.Success);
+    AssertEquals('The recursive function must still return the correct result',
+      '5', res.StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSLifetimeTest.TestNestedFunctionDeclarationIsReusable();
+var
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    { The nested declaration is executed twice: each execution creates its own
+      closure, and both must keep pointing at a valid body. }
+    res := ctx.Evaluate(
+      'function outer() { function inner() { return 7; } return inner(); } ' +
+      'outer() + outer();');
+    AssertTrue('The script must succeed', res.Success);
+    AssertEquals('A nested declaration must stay usable on every execution',
+      '14', res.StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSLifetimeTest.TestSharedNodeReferenceCounting();
+var
+  node: TCountedASTNode;
+begin
+  node := TCountedASTNode.Create(1, 1);
+  try
+    AssertEquals('A new node must start with a single reference', 1,
+      node.RefCount);
+
+    node.Retain;
+    AssertEquals('Retain must add a reference', 2, node.RefCount);
+
+    node.Release;
+    AssertEquals('The node must survive while a reference is left', 0,
+      node.DestroyCount);
+    AssertEquals('The node must still be usable after a release', 1,
+      node.RefCount);
+
+    node.Release;
+    AssertEquals('The node must be destroyed with its last reference', 1,
+      node.DestroyCount);
+  finally
+    { The last release already destroyed the node. }
+    node := nil;
+  end;
+end;
+
+procedure TFloriaJSLifetimeTest.TestFunctionBodySurvivesItsDeclaration();
+var
+  decl: TFloriaJSFunctionDecl;
+  block: TFloriaJSBlockStmt;
+  retStmt: TFloriaJSReturnStmt;
+  fn: TFloriaJSFunction;
+  evaluator: TFloriaJSEvaluator;
+  env: TFloriaJSEnvironment;
+  args: array of TFloriaJSValue;
+  val: TFloriaJSValue;
+begin
+  evaluator := TFloriaJSEvaluator.Create;
+  try
+    env := TFloriaJSEnvironment.Create(nil);
+    try
+      decl := TFloriaJSFunctionDecl.Create('f', 1, 1);
+      block := TFloriaJSBlockStmt.Create(1, 1);
+      retStmt := TFloriaJSReturnStmt.Create(
+        TFloriaJSLiteralExpr.CreateNumber(42, 1, 1), 1, 1);
+      block.AddStatement(retStmt);
+      decl.SetBody(block);
+
+      fn := TFloriaJSFunction.CreateUser('f', nil, decl.Body, Pointer(env), False);
+
+      { The declaration is discarded, exactly as it is when the script that
+        created it ends: the body must stay alive for the closure. }
+      decl.Free();
+
+      val := evaluator.CallFunction(JSMakeFunction(fn), args, JSMakeUndefined());
+      AssertEquals('The closure must still execute its body', '42',
+        val.ToString());
+    finally
+      env.Free();
+      fn.Free();
+    end;
+  finally
+    evaluator.Free();
+  end;
+end;
+
+{ TFloriaJSSwitchTest }
+
+procedure TFloriaJSSwitchTest.TestSwitchMatching();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'switch (2) {' + LineEnding +
+      '  case 1: r = "one"; break;' + LineEnding +
+      '  case 2: r = "two"; break;' + LineEnding +
+      '  case 3: r = "three"; break;' + LineEnding +
+      '}' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch success', res.Success);
+    AssertEquals('Only the matching case runs', 'two', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "keep";' + LineEnding +
+      'switch (9) { case 1: r = "one"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch without a match success', res.Success);
+    AssertEquals('A switch without a match changes nothing', 'keep', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'switch ("1") { case 1: r = "number"; break; default: r = "fallback"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch strict equality success', res.Success);
+    AssertEquals('A string does not match a numeric case', 'fallback', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSSwitchTest.TestSwitchDefaultClause();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'switch (42) { case 1: r = "one"; break; default: r = "other"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch default success', res.Success);
+    AssertEquals('The default clause runs when no case matches', 'other', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'switch (1) { default: r = "other"; break; case 1: r = "one"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch default placement success', res.Success);
+    AssertEquals('A matching case wins over the default clause', 'one', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSSwitchTest.TestSwitchFallThrough();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'switch (1) {' + LineEnding +
+      '  case 1: r = r + "a";' + LineEnding +
+      '  case 2: r = r + "b"; break;' + LineEnding +
+      '  case 3: r = r + "c";' + LineEnding +
+      '}' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch fall through success', res.Success);
+    AssertEquals('A clause falls through to the next one', 'ab', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'switch (2) { case 1: r = r + "a"; default: r = r + "d"; case 3: r = r + "c"; }' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch fall through default success', res.Success);
+    AssertEquals('The default clause also falls through', 'dc', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSSwitchTest.TestSwitchBreakAndContinue();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'for (let i = 0; i < 3; i = i + 1) {' + LineEnding +
+      '  switch (i) {' + LineEnding +
+      '    case 1: r = r + "x"; break;' + LineEnding +
+      '    default: r = r + "d";' + LineEnding +
+      '  }' + LineEnding +
+      '  r = r + ".";' + LineEnding +
+      '}' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch break success', res.Success);
+    AssertEquals('A break leaves the switch but not the loop', 'd.x.d.', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'for (let i = 0; i < 4; i = i + 1) {' + LineEnding +
+      '  switch (i) { case 1: continue; default: r = r + i; }' + LineEnding +
+      '}' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Switch continue success', res.Success);
+    AssertEquals('A continue belongs to the enclosing loop', '023', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSSwitchTest.TestSwitchNestedAndInFunction();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function classify(v) {' + LineEnding +
+      '  switch (v) {' + LineEnding +
+      '    case 1: return "one";' + LineEnding +
+      '    case 2: return "two";' + LineEnding +
+      '    default: return "other";' + LineEnding +
+      '  }' + LineEnding +
+      '}' + LineEnding +
+      'classify(2) + "/" + classify(7);'
+    );
+    AssertTrue('Switch in a function success', res.Success);
+    AssertEquals('A switch returns from the function it belongs to', 'two/other', res.StringValue);
+
+    res := engine.Execute(
+      'let r = "";' + LineEnding +
+      'switch (1) {' + LineEnding +
+      '  case 1:' + LineEnding +
+      '    switch (2) { case 2: r = "inner"; break; default: r = "inner default"; }' + LineEnding +
+      '    r = r + "-outer";' + LineEnding +
+      '    break;' + LineEnding +
+      '}' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Nested switch success', res.Success);
+    AssertEquals('Nested switches keep their own clauses', 'inner-outer', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSSwitchTest.TestSwitchParserErrors();
+var
+  parser: TFloriaJSParser;
+  prog: TFloriaJSProgram;
+  switchStmt: TFloriaJSSwitchStmt;
+begin
+  parser := TFloriaJSParser.Create('switch (1) { case 1 r = 1; }');
+  try
+    prog := parser.ParseProgram();
+    try
+      AssertTrue('A case without a colon must be rejected', parser.HasErrors());
+    finally
+      prog.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+
+  parser := TFloriaJSParser.Create('switch (1) { case 1: r = 1; default: r = 2; }');
+  try
+    prog := parser.ParseProgram();
+    try
+      AssertFalse('A well formed switch must parse', parser.HasErrors());
+      AssertTrue('The program must hold a switch statement',
+        prog.GetStatement(0) is TFloriaJSSwitchStmt);
+      switchStmt := TFloriaJSSwitchStmt(prog.GetStatement(0));
+      AssertEquals('The switch holds two clauses', 2, switchStmt.GetCaseCount());
+      AssertFalse('The first clause is not the default one',
+        switchStmt.GetCase(0).IsDefault);
+      AssertTrue('The second clause is the default one',
+        switchStmt.GetCase(1).IsDefault);
+    finally
+      prog.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -2229,6 +2872,9 @@ begin
   RegisterTest(TFloriaFTMLBindingTest);
   RegisterTest(TFloriaFTMLEngineTest);
   RegisterTest(TFloriaFTMLAnchorsAndLayoutsTest);
+  RegisterTest(TFloriaFTMLLifecycleTest);
+  RegisterTest(TFloriaJSLifetimeTest);
+  RegisterTest(TFloriaJSSwitchTest);
 
   Application := TTestRunner.Create(nil);
   try

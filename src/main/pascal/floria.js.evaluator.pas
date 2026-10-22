@@ -17,7 +17,7 @@ unit floria.js.evaluator;
 interface
 
 uses
-  Classes, SysUtils, floria.js.types, floria.js.lexer, floria.js.ast,
+  Classes, SysUtils, Math, floria.js.types, floria.js.lexer, floria.js.ast,
   floria.js.value, floria.js.env;
 
 type
@@ -38,9 +38,13 @@ type
     FOwnsHeap: Boolean;
     FMaxCallDepth: Integer;
     FCurrentCallDepth: Integer;
+    FClosureCount: Integer;
 
     function NewEnv(AParent: TFloriaJSEnvironment): TFloriaJSEnvironment;
+    procedure ReleaseEnv(AEnv: TFloriaJSEnvironment);
     function AssignToTarget(ATarget: TFloriaJSExprNode; const AVal: TFloriaJSValue; AOp: TFloriaJSTokenKind; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
+    procedure RunPromiseJob(const AJob: TFloriaJSPromiseJob);
+    function GetMemberValue(const AObj: TFloriaJSValue; const APropName: string): TFloriaJSValue;
   public
     constructor Create(AHeap: TFloriaJSHeap = nil);
     destructor Destroy(); override;
@@ -50,6 +54,11 @@ type
     function ExecuteProgram(AProg: TFloriaJSProgram; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
 
     function CallFunction(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
+
+    procedure DrainMicrotasks();
+
+    procedure RetainEnv(AEnv: TFloriaJSEnvironment);
+    function GetClosureCount(): Integer;
 
     property Heap: TFloriaJSHeap read FHeap;
     property MaxCallDepth: Integer read FMaxCallDepth write FMaxCallDepth;
@@ -82,13 +91,87 @@ begin
   end;
   FMaxCallDepth := 1024;
   FCurrentCallDepth := 0;
+  FClosureCount := 0;
+  if FHeap <> nil then
+    FHeap.SetJobRunner(@RunPromiseJob);
 end;
 
 destructor TFloriaJSEvaluator.Destroy();
 begin
+  if FHeap <> nil then
+    FHeap.SetJobRunner(nil);
   if FOwnsHeap then
     FreeAndNil(FHeap);
   inherited Destroy();
+end;
+
+function TFloriaJSEvaluator.GetMemberValue(const AObj: TFloriaJSValue; const APropName: string): TFloriaJSValue;
+var
+  i: Integer;
+begin
+  if AObj.IsObject() then
+    Exit(AObj.AsObject().GetProperty(APropName));
+
+  if AObj.IsString() then
+  begin
+    if APropName = 'length' then
+      Exit(JSMakeNumber(Length(AObj.StrVal)));
+    if TryStrToInt(APropName, i) and (i >= 0) and (i < Length(AObj.StrVal)) then
+      Exit(JSMakeString(Copy(AObj.StrVal, i + 1, 1)));
+  end;
+
+  Exit(JSMakeUndefined());
+end;
+
+procedure TFloriaJSEvaluator.RunPromiseJob(const AJob: TFloriaJSPromiseJob);
+var
+  handler, res: TFloriaJSValue;
+begin
+  if AJob.Child = nil then Exit;
+
+  if AJob.IsFinally then
+  begin
+    try
+      if AJob.OnFinally.IsFunction() then
+        CallFunction(AJob.OnFinally, [], JSMakeUndefined());
+      if AJob.IsRejection then
+        AJob.Child.Reject(AJob.Value)
+      else
+        AJob.Child.Fulfill(AJob.Value);
+    except
+      on E: EFloriaJSThrow do AJob.Child.Reject(E.Value);
+      on E: Exception do AJob.Child.Reject(JSMakeString(E.Message));
+    end;
+    Exit;
+  end;
+
+  if AJob.IsRejection then
+    handler := AJob.OnRejected
+  else
+    handler := AJob.OnFulfilled;
+
+  if not handler.IsFunction() then
+  begin
+    if AJob.IsRejection then
+      AJob.Child.Reject(AJob.Value)
+    else
+      AJob.Child.Fulfill(AJob.Value);
+    Exit;
+  end;
+
+  try
+    res := CallFunction(handler, [AJob.Value], JSMakeUndefined());
+    AJob.Child.Fulfill(res);
+  except
+    on E: EFloriaJSThrow do AJob.Child.Reject(E.Value);
+    on E: Exception do AJob.Child.Reject(JSMakeString(E.Message));
+  end;
+end;
+
+procedure TFloriaJSEvaluator.DrainMicrotasks();
+begin
+  if FHeap <> nil then
+    FHeap.RunPendingJobs();
 end;
 
 function TFloriaJSEvaluator.NewEnv(AParent: TFloriaJSEnvironment): TFloriaJSEnvironment;
@@ -96,6 +179,27 @@ begin
   Result := TFloriaJSEnvironment.Create(AParent);
   if FHeap <> nil then
     FHeap.TrackEnvironment(Result);
+end;
+
+procedure TFloriaJSEvaluator.ReleaseEnv(AEnv: TFloriaJSEnvironment);
+begin
+  if AEnv = nil then Exit;
+  if FHeap <> nil then
+    FHeap.Untrack(AEnv);
+  AEnv.Free();
+end;
+
+procedure TFloriaJSEvaluator.RetainEnv(AEnv: TFloriaJSEnvironment);
+begin
+  { Hands ownership of an environment to the JS heap, so it stays alive for
+    as long as the runtime instead of being reclaimed with its creator. }
+  if (AEnv <> nil) and (FHeap <> nil) then
+    FHeap.TrackEnvironment(AEnv);
+end;
+
+function TFloriaJSEvaluator.GetClosureCount(): Integer;
+begin
+  Result := FClosureCount;
 end;
 
 function TFloriaJSEvaluator.AssignToTarget(ATarget: TFloriaJSExprNode; const AVal: TFloriaJSValue; AOp: TFloriaJSTokenKind; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
@@ -182,6 +286,7 @@ var
   arrLit: TFloriaJSArrayExpr;
   objLit: TFloriaJSObjectExpr;
   fnExpr: TFloriaJSFunctionExpr;
+  promise: TFloriaJSPromise;
   lVal, rVal, objVal, thisVal, fnVal: TFloriaJSValue;
   arrObj: TFloriaJSArray;
   jsObj: TFloriaJSObject;
@@ -235,6 +340,25 @@ begin
             Exit(JSMakeString(JSTypeOf(AEnv.GetDefault(TFloriaJSIdentifierExpr(unary.Operand).Name, JSMakeUndefined()))))
           else
             Exit(JSMakeString(JSTypeOf(EvaluateExpr(unary.Operand, AEnv))));
+        end;
+        tkAwait:
+        begin
+          lVal := EvaluateExpr(unary.Operand, AEnv);
+          if lVal.IsPromise() then
+          begin
+            promise := lVal.AsPromise();
+            { There is no host event source, so drain the microtask queue to
+              let every promise that can still settle do so. }
+            while (promise.State = fjspPending) and FHeap.HasPromiseJobs() do
+              FHeap.RunPendingJobs();
+
+            if promise.State = fjspRejected then
+              raise EFloriaJSThrow.Create(promise.ResultValue);
+            if promise.State = fjspFulfilled then
+              Exit(promise.ResultValue);
+            Exit(JSMakeUndefined());
+          end;
+          Exit(lVal);
         end;
         tkPlusPlus:
         begin
@@ -363,18 +487,7 @@ begin
     else
       propName := EvaluateExpr(member.PropertyExpr, AEnv).ToString();
 
-    if objVal.IsObject() then
-      Exit(objVal.AsObject().GetProperty(propName));
-
-    if objVal.IsString() then
-    begin
-      if propName = 'length' then
-        Exit(JSMakeNumber(Length(objVal.StrVal)));
-      if TryStrToInt(propName, i) and (i >= 0) and (i < Length(objVal.StrVal)) then
-        Exit(JSMakeString(Copy(objVal.StrVal, i + 1, 1)));
-    end;
-
-    Exit(JSMakeUndefined());
+    Exit(GetMemberValue(objVal, propName));
   end;
 
   // 8. Call Expression
@@ -420,7 +533,8 @@ begin
   if AExpr is TFloriaJSFunctionExpr then
   begin
     fnExpr := TFloriaJSFunctionExpr(AExpr);
-    fnObj := FHeap.NewUserFunction(fnExpr.Name, fnExpr.Parameters, fnExpr.Body, Pointer(AEnv));
+    fnObj := FHeap.NewUserFunction(fnExpr.Name, fnExpr.Parameters, fnExpr.Body, Pointer(AEnv), False, fnExpr.IsAsync);
+    Inc(FClosureCount);
     Exit(JSMakeFunction(fnObj));
   end;
 
@@ -435,13 +549,16 @@ var
   ifStmt: TFloriaJSIfStmt;
   whileStmt: TFloriaJSWhileStmt;
   forStmt: TFloriaJSForStmt;
+  switchStmt: TFloriaJSSwitchStmt;
+  caseClause: TFloriaJSSwitchCase;
   retStmt: TFloriaJSReturnStmt;
   fnDecl: TFloriaJSFunctionDecl;
   fnObj: TFloriaJSFunction;
-  blockEnv, loopEnv: TFloriaJSEnvironment;
-  initVal, retVal: TFloriaJSValue;
+  blockEnv, loopEnv, switchEnv: TFloriaJSEnvironment;
+  initVal, retVal, discVal: TFloriaJSValue;
   initNode: TFloriaJSASTNode;
-  i, count: Integer;
+  closureMark: Integer;
+  startIdx, i, j, count: Integer;
 begin
   if AStmt = nil then
     Exit(JSMakeUndefined());
@@ -475,10 +592,19 @@ begin
   begin
     blockStmt := TFloriaJSBlockStmt(AStmt);
     blockEnv := NewEnv(AEnv);
-    Result := JSMakeUndefined();
-    count := blockStmt.GetStatementCount();
-    for i := 0 to count - 1 do
-      Result := ExecuteStmt(blockStmt.GetStatement(i), blockEnv);
+    closureMark := FClosureCount;
+    try
+      Result := JSMakeUndefined();
+      count := blockStmt.GetStatementCount();
+      for i := 0 to count - 1 do
+        Result := ExecuteStmt(blockStmt.GetStatement(i), blockEnv);
+    finally
+      { A block scope can only outlive its execution when a closure captured
+        it. When no closure was created the scope is reclaimed immediately,
+        which keeps repeated block execution from growing the heap. }
+      if FClosureCount = closureMark then
+        ReleaseEnv(blockEnv);
+    end;
     Exit;
   end;
 
@@ -531,39 +657,105 @@ begin
   begin
     forStmt := TFloriaJSForStmt(AStmt);
     loopEnv := NewEnv(AEnv);
+    closureMark := FClosureCount;
 
-    initNode := forStmt.Init;
-    if initNode <> nil then
-    begin
-      if initNode is TFloriaJSStmtNode then
-        ExecuteStmt(TFloriaJSStmtNode(initNode), loopEnv)
-      else if initNode is TFloriaJSExprNode then
-        EvaluateExpr(TFloriaJSExprNode(initNode), loopEnv);
-    end;
-
-    Result := JSMakeUndefined();
-    while True do
-    begin
-      if forStmt.Test <> nil then
+    try
+      initNode := forStmt.Init;
+      if initNode <> nil then
       begin
-        if not EvaluateExpr(forStmt.Test, loopEnv).ToBoolean() then
-          Break;
+        if initNode is TFloriaJSStmtNode then
+          ExecuteStmt(TFloriaJSStmtNode(initNode), loopEnv)
+        else if initNode is TFloriaJSExprNode then
+          EvaluateExpr(TFloriaJSExprNode(initNode), loopEnv);
       end;
 
-      try
-        Result := ExecuteStmt(forStmt.Body, loopEnv);
-      except
-        on EFloriaJSBreak do Break;
-        on EFloriaJSContinue do ;
-      end;
+      Result := JSMakeUndefined();
+      while True do
+      begin
+        if forStmt.Test <> nil then
+        begin
+          if not EvaluateExpr(forStmt.Test, loopEnv).ToBoolean() then
+            Break;
+        end;
 
-      if forStmt.Update <> nil then
-        EvaluateExpr(forStmt.Update, loopEnv);
+        try
+          Result := ExecuteStmt(forStmt.Body, loopEnv);
+        except
+          on EFloriaJSBreak do Break;
+          on EFloriaJSContinue do ;
+        end;
+
+        if forStmt.Update <> nil then
+          EvaluateExpr(forStmt.Update, loopEnv);
+      end;
+    finally
+      { The loop scope can only escape the loop when a closure captured it. }
+      if FClosureCount = closureMark then
+        ReleaseEnv(loopEnv);
     end;
     Exit;
   end;
 
-  // 7. Return Statement
+  // 7. Switch Statement
+  if AStmt is TFloriaJSSwitchStmt then
+  begin
+    switchStmt := TFloriaJSSwitchStmt(AStmt);
+    switchEnv := NewEnv(AEnv);
+    closureMark := FClosureCount;
+
+    try
+      discVal := EvaluateExpr(switchStmt.Discriminant, switchEnv);
+
+      { Locate the clause to start from: the first case whose test matches
+        the discriminant, or the default clause when nothing matches. }
+      startIdx := -1;
+      for i := 0 to switchStmt.GetCaseCount() - 1 do
+      begin
+        caseClause := switchStmt.GetCase(i);
+        if caseClause.IsDefault then
+          Continue;
+        if JSStrictEqual(discVal, EvaluateExpr(caseClause.Test, switchEnv)) then
+        begin
+          startIdx := i;
+          Break;
+        end;
+      end;
+
+      if startIdx < 0 then
+        for i := 0 to switchStmt.GetCaseCount() - 1 do
+          if switchStmt.GetCase(i).IsDefault then
+          begin
+            startIdx := i;
+            Break;
+          end;
+
+      Result := JSMakeUndefined();
+      if startIdx < 0 then
+        Exit;
+
+      { Clauses fall through to the ones that follow them, until a break
+        statement ends the switch. }
+      try
+        for i := startIdx to switchStmt.GetCaseCount() - 1 do
+        begin
+          caseClause := switchStmt.GetCase(i);
+          for j := 0 to caseClause.GetStatementCount() - 1 do
+            Result := ExecuteStmt(caseClause.GetStatement(j), switchEnv);
+        end;
+      except
+        on EFloriaJSBreak do ;  { A break leaves the switch }
+        on EFloriaJSContinue do raise; { A continue belongs to the enclosing loop }
+      end;
+    finally
+      { The switch scope can only outlive the switch when a closure captured
+        it. Otherwise it is reclaimed immediately. }
+      if FClosureCount = closureMark then
+        ReleaseEnv(switchEnv);
+    end;
+    Exit;
+  end;
+
+  // 8. Return Statement
   if AStmt is TFloriaJSReturnStmt then
   begin
     retStmt := TFloriaJSReturnStmt(AStmt);
@@ -587,7 +779,8 @@ begin
   if AStmt is TFloriaJSFunctionDecl then
   begin
     fnDecl := TFloriaJSFunctionDecl(AStmt);
-    fnObj := FHeap.NewUserFunction(fnDecl.Name, fnDecl.Parameters, fnDecl.Body, Pointer(AEnv));
+    fnObj := FHeap.NewUserFunction(fnDecl.Name, fnDecl.Parameters, fnDecl.Body, Pointer(AEnv), False, fnDecl.IsAsync);
+    Inc(FClosureCount);
     AEnv.Define(fnDecl.Name, JSMakeFunction(fnObj));
     Exit(JSMakeUndefined());
   end;
@@ -605,12 +798,24 @@ begin
   count := AProg.GetStatementCount();
   for i := 0 to count - 1 do
     Result := ExecuteStmt(AProg.GetStatement(i), AEnv);
+
+  { Run deferred promise reactions (then/catch/finally) before returning.
+    The completion value of the script stays the one captured while the last
+    statement ran, exactly as it is in JavaScript. }
+  if FHeap <> nil then
+  begin
+    FHeap.RunPendingJobs();
+    while FHeap.HasPromiseJobs() do
+      FHeap.RunPendingJobs();
+  end;
 end;
 
 function TFloriaJSEvaluator.CallFunction(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
 var
   fn: TFloriaJSFunction;
   callEnv: TFloriaJSEnvironment;
+  closureMark: Integer;
+  promise: TFloriaJSPromise;
   i, paramCount: Integer;
 begin
   if not AFuncVal.IsFunction() then
@@ -647,13 +852,48 @@ begin
         callEnv.Define(fn.ParamNames[i], JSMakeUndefined());
     end;
 
+    closureMark := FClosureCount;
+
+    { Async functions execute synchronously up to the first await (as in
+      JavaScript) but always hand back a promise. }
+    if fn.IsAsync then
+    begin
+      promise := FHeap.NewPromise();
+      try
+        try
+          if fn.Body <> nil then
+            ExecuteStmt(fn.Body, callEnv);
+          promise.Fulfill(JSMakeUndefined());
+        except
+          on E: EFloriaJSReturn do
+            promise.Fulfill(E.Value);
+          on E: EFloriaJSThrow do
+            promise.Reject(E.Value);
+          on E: Exception do
+            promise.Reject(JSMakeString(E.Message));
+        end;
+      finally
+        if FClosureCount = closureMark then
+          ReleaseEnv(callEnv);
+      end;
+      Exit(JSMakePromise(promise));
+    end;
+
     try
-      if fn.Body <> nil then
-        ExecuteStmt(fn.Body, callEnv);
-      Result := JSMakeUndefined();
-    except
-      on E: EFloriaJSReturn do
-        Result := E.Value;
+      try
+        if fn.Body <> nil then
+          ExecuteStmt(fn.Body, callEnv);
+        Result := JSMakeUndefined();
+      except
+        on E: EFloriaJSReturn do
+          Result := E.Value;
+      end;
+    finally
+      { The activation scope can only escape the call when a closure captured
+        it. Otherwise it is reclaimed right away, so recursive or repeated
+        calls do not accumulate environments. }
+      if FClosureCount = closureMark then
+        ReleaseEnv(callEnv);
     end;
   finally
     Dec(FCurrentCallDepth);

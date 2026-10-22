@@ -165,6 +165,7 @@ type
     { Anchors & Constraints }
     procedure ResolveAnchors();
     function  HasAnchors(): Boolean;
+    procedure DetachAnchors();
 
     { Flex & Grid Child Properties }
     function  GetFlexGrow(): Double;
@@ -541,28 +542,20 @@ end;
 destructor TFloriaFTMLItem.Destroy();
 var
   edge: TFloriaAnchorEdge;
-  i: Integer;
 begin
   SetLength(FFTMLProperties, 0);
   SetLength(FFTMLSignals, 0);
 
-  // Unregister self from all anchor targets
-  if FAnchorTargets <> nil then
-  begin
-    for i := 0 to FAnchorTargets.Count - 1 do
-      TFloriaFTMLItem(FAnchorTargets[i]).RemoveAnchorDependent(Self);
-    FAnchorTargets.Clear();
-    FreeAndNil(FAnchorTargets);
-  end;
+  // Unlink from the anchor graph. During a bulk document teardown this has
+  // already been performed for every item, so the lists are empty here and
+  // no cross-item call is made against a possibly destroyed neighbour.
+  DetachAnchors();
 
-  // Clear dependents targeting self
+  if FAnchorTargets <> nil then
+    FreeAndNil(FAnchorTargets);
+
   if FAnchorDependents <> nil then
-  begin
-    for i := 0 to FAnchorDependents.Count - 1 do
-      TFloriaFTMLItem(FAnchorDependents[i]).UnregisterAnchorTarget(Self);
-    FAnchorDependents.Clear();
     FreeAndNil(FAnchorDependents);
-  end;
 
   // Free anchor lines
   for edge := Low(TFloriaAnchorEdge) to High(TFloriaAnchorEdge) do
@@ -580,6 +573,27 @@ begin
     FreeAndNil(FChildren);
   end;
   inherited Destroy();
+end;
+
+procedure TFloriaFTMLItem.DetachAnchors();
+var
+  i: Integer;
+begin
+  // Unregister self from all anchor targets
+  if FAnchorTargets <> nil then
+  begin
+    for i := 0 to FAnchorTargets.Count - 1 do
+      TFloriaFTMLItem(FAnchorTargets[i]).RemoveAnchorDependent(Self);
+    FAnchorTargets.Clear();
+  end;
+
+  // Clear dependents targeting self
+  if FAnchorDependents <> nil then
+  begin
+    for i := 0 to FAnchorDependents.Count - 1 do
+      TFloriaFTMLItem(FAnchorDependents[i]).UnregisterAnchorTarget(Self);
+    FAnchorDependents.Clear();
+  end;
 end;
 
 procedure TFloriaFTMLItem.AddChild(AChild: TFloriaFTMLItem);
@@ -1468,6 +1482,7 @@ var
   idx: Integer;
   evaluator: TFloriaJSEvaluator;
   sigEnv: TFloriaJSEnvironment;
+  closureMark: Integer;
   i: Integer;
 begin
   Result := JSMakeUndefined();
@@ -1496,6 +1511,7 @@ begin
     if evaluator <> nil then
     begin
       sigEnv := TFloriaJSEnvironment.Create(FEnv);
+      closureMark := evaluator.GetClosureCount();
       try
         sigEnv.DelegateObject := Self;
         if Length(AArgs) > 0 then
@@ -1505,7 +1521,13 @@ begin
 
         Result := evaluator.ExecuteStmt(FFTMLSignals[idx].HandlerStmt, sigEnv);
       finally
-        sigEnv.Free();
+        { The signal scope may only outlive the handler when a closure captured
+          it. In that case the scope is handed over to the runtime instead of
+          being released, so the closure keeps a valid scope chain. }
+        if evaluator.GetClosureCount() = closureMark then
+          sigEnv.Free()
+        else
+          evaluator.RetainEnv(sigEnv);
       end;
     end;
   end;
