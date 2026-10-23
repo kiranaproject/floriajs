@@ -18,7 +18,7 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
-  floria.js.arrays, floria.js.strings, floria.js.objects;
+  floria.js.arrays, floria.js.strings, floria.js.objects, floria.js.json;
 
 type
   { Output Logging Callback }
@@ -553,7 +553,7 @@ begin
   FloriaJSRegisterArray(AEnv, AHeap);
   FloriaJSRegisterString(AHeap);
   FloriaJSRegisterObjects(AHeap, @AHeap.ObjectCtor);
-  // 1. console
+  FloriaJSRegisterJSON(AEnv, AHeap);  // 1. console
   consoleObj := AHeap.NewObject();
   consoleObj.SetProperty('log', JSMakeFunction(AHeap.NewNativeFunction('log', @JSConsoleLog)));
   consoleObj.SetProperty('error', JSMakeFunction(AHeap.NewNativeFunction('error', @JSConsoleError)));
