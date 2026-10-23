@@ -312,6 +312,41 @@ begin
   Result := JSMakeNumber(Sqrt(s));
 end;
 
+function JSMathImul(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  da, db: Double;
+  a, b: LongInt;
+begin
+  if Length(AArgs) < 2 then Exit(JSMakeNumber(0));
+  da := AArgs[0].ToNumber();
+  db := AArgs[1].ToNumber();
+  if IsNaN(da) or IsInfinite(da) then da := 0;
+  if IsNaN(db) or IsInfinite(db) then db := 0;
+  a := LongInt(Cardinal(Trunc(da)));
+  b := LongInt(Cardinal(Trunc(db)));
+  Result := JSMakeNumber(LongInt(a * b));
+end;
+
+function JSMathClz32(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+  u: Cardinal;
+  n: Integer;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(32));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) or IsInfinite(d) then d := 0;
+  u := Cardinal(LongInt(Trunc(d)));
+  if u = 0 then Exit(JSMakeNumber(32));
+  n := 0;
+  if (u and $FFFF0000) = 0 then begin Inc(n, 16); u := u shl 16; end;
+  if (u and $FF000000) = 0 then begin Inc(n, 8); u := u shl 8; end;
+  if (u and $F0000000) = 0 then begin Inc(n, 4); u := u shl 4; end;
+  if (u and $C0000000) = 0 then begin Inc(n, 2); u := u shl 2; end;
+  if (u and $80000000) = 0 then begin Inc(n, 1); end;
+  Result := JSMakeNumber(n);
+end;
+
 
 { Global Helper Functions }
 
@@ -595,6 +630,8 @@ begin
   mathObj.SetProperty('sign', JSMakeFunction(AHeap.NewNativeFunction('sign', @JSMathSign)));
   mathObj.SetProperty('cbrt', JSMakeFunction(AHeap.NewNativeFunction('cbrt', @JSMathCbrt)));
   mathObj.SetProperty('hypot', JSMakeFunction(AHeap.NewNativeFunction('hypot', @JSMathHypot)));
+  mathObj.SetProperty('imul', JSMakeFunction(AHeap.NewNativeFunction('imul', @JSMathImul)));
+  mathObj.SetProperty('clz32', JSMakeFunction(AHeap.NewNativeFunction('clz32', @JSMathClz32)));
   AEnv.Define('Math', JSMakeObject(mathObj));
 
   // 3. Promise

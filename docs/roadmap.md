@@ -177,30 +177,30 @@ These items mostly affect semantics rather than enabling new syntax.
 
 ### 11. Silent operator gaps
 
-- [ ] `in` returns a real boolean instead of `undefined`
-- [ ] `instanceof` returns a real boolean, using the prototype chain
-- [ ] Optional chaining: `a?.b`, `a?.[k]`, `a?.()`
-- [ ] Nullish assignment: `??=`
-- [ ] Power assignment: `**=`
-- [ ] Comma operator: `(a, b)`
-- [ ] Labeled `break` / `continue`
+- [x] `in` returns a real boolean instead of `undefined`
+- [x] `instanceof` returns a real boolean, using the prototype chain
+- [x] Optional chaining: `a?.b`, `a?.[k]`, `a?.()`
+- [x] Nullish assignment: `??=`
+- [x] Power assignment: `**=`
+- [x] Comma operator: `(a, b)`
+- [x] Labeled `break` / `continue`
 
 ### 12. Error handling polish
 
-- [ ] `TypeError`, `RangeError`, `ReferenceError` constructor objects
+- [x] `TypeError`, `RangeError`, `ReferenceError` constructor objects
 - [ ] Throwing a `TypeError` from the runtime where JavaScript requires it
       (see the cross-cutting item below)
 - [ ] Error `name`, `message`, and `toString()` behaviour matching JavaScript
 
 ### 13. Math extensions
 
-- [ ] `Math.log2`, `Math.log10`, `Math.sign`, `Math.hypot`
-- [ ] `Math.cbrt`, `Math.imul`, `Math.clz32` (lower priority)
-- [ ] Keep the existing `Math` constants and functions unchanged
+- [x] `Math.log2`, `Math.log10`, `Math.sign`, `Math.hypot`
+- [x] `Math.cbrt`, `Math.imul`, `Math.clz32` (lower priority)
+- [x] Keep the existing `Math` constants and functions unchanged
 
 ### 14. Numeric and lexer gaps
 
-- [ ] Numeric separators: `1_000_000`
+- [x] Numeric separators: `1_000_000`
 - [ ] Confirm exponent notation and hex/octal/binary literals in edge cases
 
 ---

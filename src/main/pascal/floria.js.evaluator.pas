@@ -28,8 +28,17 @@ type
     constructor Create(const AValue: TFloriaJSValue);
   end;
 
-  EFloriaJSBreak = class(Exception);
-  EFloriaJSContinue = class(Exception);
+  EFloriaJSBreak = class(Exception)
+  public
+    LabelName: string;
+    constructor Create(const ALabelName: string = '');
+  end;
+
+  EFloriaJSContinue = class(Exception)
+  public
+    LabelName: string;
+    constructor Create(const ALabelName: string = '');
+  end;
 
   { Runtime AST Evaluator }
   TFloriaJSEvaluator = class
@@ -81,6 +90,22 @@ constructor EFloriaJSReturn.Create(const AValue: TFloriaJSValue);
 begin
   inherited Create('return');
   Value := AValue;
+end;
+
+{ EFloriaJSBreak }
+
+constructor EFloriaJSBreak.Create(const ALabelName: string = '');
+begin
+  inherited Create('break');
+  LabelName := ALabelName;
+end;
+
+{ EFloriaJSContinue }
+
+constructor EFloriaJSContinue.Create(const ALabelName: string = '');
+begin
+  inherited Create('continue');
+  LabelName := ALabelName;
 end;
 
 { TFloriaJSEvaluator }
@@ -603,6 +628,7 @@ begin
     rVal := EvaluateExpr(bin.Right, AEnv);
 
     case bin.Op of
+      tkComma:              Exit(rVal);
       tkPlus:               Exit(JSAdd(lVal, rVal));
       tkMinus:              Exit(JSSubtract(lVal, rVal));
       tkMultiply:           Exit(JSMultiply(lVal, rVal));
@@ -758,11 +784,13 @@ var
   tryStmt: TFloriaJSTryStmt;
   throwStmt: TFloriaJSThrowStmt;
   retStmt: TFloriaJSReturnStmt;
+  labeledStmt: TFloriaJSLabeledStmt;
   fnDecl: TFloriaJSFunctionDecl;
   fnObj: TFloriaJSFunction;
   blockEnv, loopEnv, switchEnv: TFloriaJSEnvironment;
   initVal, retVal, discVal: TFloriaJSValue;
   pendingValue: TFloriaJSValue;
+  pendingLabel: string;
   pending: TFloriaJSTryPending;
   initNode: TFloriaJSASTNode;
   closureMark: Integer;
@@ -842,8 +870,18 @@ begin
         try
           Result := ExecuteStmt(whileStmt.Body, AEnv);
         except
-          on EFloriaJSBreak do Break;
-          on EFloriaJSContinue do ;
+          on E: EFloriaJSBreak do
+          begin
+            if (E.LabelName = '') or (E.LabelName = whileStmt.LabelName) then
+              Break
+            else
+              raise;
+          end;
+          on E: EFloriaJSContinue do
+          begin
+            if (E.LabelName <> '') and (E.LabelName <> whileStmt.LabelName) then
+              raise;
+          end;
         end;
       until not EvaluateExpr(whileStmt.Condition, AEnv).ToBoolean();
     end
@@ -854,8 +892,18 @@ begin
         try
           Result := ExecuteStmt(whileStmt.Body, AEnv);
         except
-          on EFloriaJSBreak do Break;
-          on EFloriaJSContinue do ;
+          on E: EFloriaJSBreak do
+          begin
+            if (E.LabelName = '') or (E.LabelName = whileStmt.LabelName) then
+              Break
+            else
+              raise;
+          end;
+          on E: EFloriaJSContinue do
+          begin
+            if (E.LabelName <> '') and (E.LabelName <> whileStmt.LabelName) then
+              raise;
+          end;
         end;
       end;
     end;
@@ -891,8 +939,18 @@ begin
         try
           Result := ExecuteStmt(forStmt.Body, loopEnv);
         except
-          on EFloriaJSBreak do Break;
-          on EFloriaJSContinue do ;
+          on E: EFloriaJSBreak do
+          begin
+            if (E.LabelName = '') or (E.LabelName = forStmt.LabelName) then
+              Break
+            else
+              raise;
+          end;
+          on E: EFloriaJSContinue do
+          begin
+            if (E.LabelName <> '') and (E.LabelName <> forStmt.LabelName) then
+              raise;
+          end;
         end;
 
         if forStmt.Update <> nil then
@@ -955,7 +1013,11 @@ begin
             Result := ExecuteStmt(caseClause.GetStatement(j), switchEnv);
         end;
       except
-        on EFloriaJSBreak do ;  { A break leaves the switch }
+        on E: EFloriaJSBreak do
+        begin
+          if E.LabelName <> '' then
+            raise;
+        end;
         on EFloriaJSContinue do raise; { A continue belongs to the enclosing loop }
       end;
     finally
@@ -981,6 +1043,7 @@ begin
       behind unreleased. }
     pending := ftpNone;
     pendingValue := JSMakeUndefined();
+    pendingLabel := '';
 
     try
       Result := ExecuteStmt(tryStmt.Block, AEnv);
@@ -991,9 +1054,15 @@ begin
         pendingValue := E.Value;
       end;
       on E: EFloriaJSBreak do
+      begin
         pending := ftpBreak;
+        pendingLabel := E.LabelName;
+      end;
       on E: EFloriaJSContinue do
+      begin
         pending := ftpContinue;
+        pendingLabel := E.LabelName;
+      end;
       on E: EFloriaJSThrow do
       begin
         pending := ftpError;
@@ -1025,8 +1094,8 @@ begin
     case pending of
       ftpError:    raise EFloriaJSThrow.Create(pendingValue);
       ftpReturn:   raise EFloriaJSReturn.Create(pendingValue);
-      ftpBreak:    raise EFloriaJSBreak.Create('');
-      ftpContinue: raise EFloriaJSContinue.Create('');
+      ftpBreak:    raise EFloriaJSBreak.Create(pendingLabel);
+      ftpContinue: raise EFloriaJSContinue.Create(pendingLabel);
     end;
 
     Exit;
@@ -1053,11 +1122,33 @@ begin
 
   // 11. Break Statement
   if AStmt is TFloriaJSBreakStmt then
-    raise EFloriaJSBreak.Create('');
+    raise EFloriaJSBreak.Create(TFloriaJSBreakStmt(AStmt).LabelName);
 
   // 12. Continue Statement
   if AStmt is TFloriaJSContinueStmt then
-    raise EFloriaJSContinue.Create('');
+    raise EFloriaJSContinue.Create(TFloriaJSContinueStmt(AStmt).LabelName);
+
+  // 13. Labeled Statement
+  if AStmt is TFloriaJSLabeledStmt then
+  begin
+    labeledStmt := TFloriaJSLabeledStmt(AStmt);
+    try
+      Result := ExecuteStmt(labeledStmt.Body, AEnv);
+    except
+      on E: EFloriaJSBreak do
+      begin
+        if (E.LabelName = '') or (E.LabelName = labeledStmt.LabelName) then
+          Exit(JSMakeUndefined())
+        else
+          raise;
+      end;
+      on E: EFloriaJSContinue do
+      begin
+        raise;
+      end;
+    end;
+    Exit;
+  end;
 
   // 13. Function Declaration
   if AStmt is TFloriaJSFunctionDecl then

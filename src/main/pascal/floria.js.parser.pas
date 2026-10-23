@@ -62,6 +62,7 @@ type
     { Expression Pratt Parsing }
     function  GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
     function  ParsePrecedence(APrec: Integer): TFloriaJSExprNode;
+    function  ParseAssignmentExpression(): TFloriaJSExprNode;
     function  ParsePrimary(): TFloriaJSExprNode;
     function  ParseUnaryPrefix(): TFloriaJSExprNode;
     function  ParseNewExpression(ANewToken: TFloriaJSToken): TFloriaJSExprNode;
@@ -227,6 +228,8 @@ end;
 function TFloriaJSParser.GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
 begin
   case AKind of
+    tkComma:
+      Result := PREC_COMMA;
     tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
     tkPowerAssign, tkNullishAssign:
       Result := PREC_ASSIGNMENT;
@@ -412,7 +415,7 @@ begin
       repeat
         if Check(tkRParen) then
           Break;
-        callExpr.AddArgument(ParseExpression());
+        callExpr.AddArgument(ParseAssignmentExpression());
       until not Match(tkComma);
     end;
     Consume(tkRParen, 'Expected '')'' after argument list');
@@ -435,7 +438,7 @@ begin
     repeat
       if Check(tkRBracket) then
         Break;
-      arr.AddElement(ParseExpression());
+      arr.AddElement(ParseAssignmentExpression());
     until not Match(tkComma);
   end;
 
@@ -469,7 +472,7 @@ begin
       end;
 
       Consume(tkColon, 'Expected '':'' after object property key');
-      propVal := ParseExpression();
+      propVal := ParseAssignmentExpression();
       obj.AddProperty(propKey, propVal);
     until not Match(tkComma);
   end;
@@ -558,7 +561,7 @@ begin
           repeat
             if Check(tkRParen) then
               Break;
-            callExpr.AddArgument(ParseExpression());
+            callExpr.AddArgument(ParseAssignmentExpression());
           until not Match(tkComma);
         end;
         Consume(tkRParen, 'Expected '')'' after argument list');
@@ -594,7 +597,7 @@ begin
       { Conditional Ternary: cond ? consequent : alternate }
       tkQuestion:
       begin
-        consequent := ParseExpression();
+        consequent := ParseAssignmentExpression();
         Consume(tkColon, 'Expected '':'' in ternary conditional expression');
         alternate := ParsePrecedence(PREC_CONDITIONAL);
         left := TFloriaJSConditionalExpr.Create(left, consequent, alternate, op.Line, op.Column);
@@ -636,9 +639,14 @@ begin
   Result := left;
 end;
 
-function TFloriaJSParser.ParseExpression(): TFloriaJSExprNode;
+function TFloriaJSParser.ParseAssignmentExpression(): TFloriaJSExprNode;
 begin
   Result := ParsePrecedence(PREC_ASSIGNMENT);
+end;
+
+function TFloriaJSParser.ParseExpression(): TFloriaJSExprNode;
+begin
+  Result := ParsePrecedence(PREC_COMMA);
 end;
 
 { Statement Parsing }
@@ -683,7 +691,7 @@ begin
     end;
 
     if Match(tkAssign) then
-      declInit := ParseExpression()
+      declInit := ParseAssignmentExpression()
     else
       declInit := nil;
 
@@ -735,7 +743,26 @@ begin
 end;
 
 function TFloriaJSParser.ParseStatement(): TFloriaJSStmtNode;
+var
+  lbl: string;
+  stmt: TFloriaJSStmtNode;
+  startLine, startCol: Integer;
 begin
+  if (FCurrent.Kind = tkIdentifier) and (FLexer.PeekToken().Kind = tkColon) then
+  begin
+    startLine := FCurrent.Line;
+    startCol := FCurrent.Column;
+    lbl := FCurrent.Text;
+    Advance(); { Consume identifier }
+    Advance(); { Consume ':' }
+    stmt := ParseStatement();
+    if stmt is TFloriaJSForStmt then
+      TFloriaJSForStmt(stmt).LabelName := lbl
+    else if stmt is TFloriaJSWhileStmt then
+      TFloriaJSWhileStmt(stmt).LabelName := lbl;
+    Exit(TFloriaJSLabeledStmt.Create(lbl, stmt, startLine, startCol));
+  end;
+
   if Match(tkIf) then
     Result := ParseIfStatement()
   else if Match(tkWhile) then
@@ -837,6 +864,8 @@ begin
     init := nil
   else if Match(tkLet) then
     init := ParseVarDeclaration(tkLet)
+  else if Match(tkConst) then
+    init := ParseVarDeclaration(tkConst)
   else if Match(tkVar) then
     init := ParseVarDeclaration(tkVar)
   else
@@ -1020,21 +1049,29 @@ end;
 function TFloriaJSParser.ParseBreakStatement(): TFloriaJSBreakStmt;
 var
   startLine, startCol: Integer;
+  lbl: string;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
+  lbl := '';
+  if Match(tkIdentifier) then
+    lbl := FPrevious.Text;
   Match(tkSemicolon);
-  Result := TFloriaJSBreakStmt.Create(startLine, startCol);
+  Result := TFloriaJSBreakStmt.Create(startLine, startCol, lbl);
 end;
 
 function TFloriaJSParser.ParseContinueStatement(): TFloriaJSContinueStmt;
 var
   startLine, startCol: Integer;
+  lbl: string;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
+  lbl := '';
+  if Match(tkIdentifier) then
+    lbl := FPrevious.Text;
   Match(tkSemicolon);
-  Result := TFloriaJSContinueStmt.Create(startLine, startCol);
+  Result := TFloriaJSContinueStmt.Create(startLine, startCol, lbl);
 end;
 
 function TFloriaJSParser.ParseExpressionStatement(): TFloriaJSExprStmt;

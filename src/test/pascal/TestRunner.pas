@@ -111,6 +111,7 @@ type
     procedure TestMathBuiltin();
     procedure TestPascalHostCallback();
     procedure TestConsoleCapture();
+    procedure TestCommaOperatorAndLabeledBreak();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -1706,6 +1707,59 @@ begin
     AssertTrue('console.log execution success', res.Success);
     AssertTrue('Output buffer captured log', ctx.Output.Count > 0);
     AssertEquals('Output message content', 'Captured message 123', ctx.Output[ctx.Output.Count - 1]);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestCommaOperatorAndLabeledBreak();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { Comma operator in parentheses }
+    res := engine.Execute('var a = (1, 2); a;');
+    AssertTrue('Comma operator success', res.Success);
+    AssertEquals('Comma operator returns right value', 2.0, res.NumberValue, 0.0001);
+
+    { Multi-comma sequence }
+    res := engine.Execute('(10, 20, 30);');
+    AssertTrue('Multi comma success', res.Success);
+    AssertEquals('Multi comma returns last value', 30.0, res.NumberValue, 0.0001);
+
+    { Labeled break from nested loop }
+    res := engine.Execute(
+      'var r = 0;' + LineEnding +
+      'outer: for (var i = 0; i < 3; i++) {' + LineEnding +
+      '  for (var j = 0; j < 3; j++) {' + LineEnding +
+      '    r = r + 1;' + LineEnding +
+      '    break outer;' + LineEnding +
+      '  }' + LineEnding +
+      '}' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Labeled break success', res.Success);
+    AssertEquals('Labeled break stops outer loop', 1.0, res.NumberValue, 0.0001);
+
+    { Classic for with const }
+    res := engine.Execute(
+      'var s = 0;' + LineEnding +
+      'for (const i = 0; i < 2; i++) { s = s + 1; }' + LineEnding +
+      's;'
+    );
+    AssertTrue('For const success', res.Success);
+    AssertEquals('For const runs correctly', 2.0, res.NumberValue, 0.0001);
+
+    { Math.imul and Math.clz32 }
+    res := engine.Execute('Math.imul(2, 4);');
+    AssertTrue('Math.imul success', res.Success);
+    AssertEquals('Math.imul(2, 4) = 8', 8.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('Math.clz32(1);');
+    AssertTrue('Math.clz32 success', res.Success);
+    AssertEquals('Math.clz32(1) = 31', 31.0, res.NumberValue, 0.0001);
   finally
     engine.Free();
   end;

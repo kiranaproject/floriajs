@@ -374,6 +374,7 @@ type
     FCondition: TFloriaJSExprNode;
     FBody: TFloriaJSStmtNode;
     FIsDoWhile: Boolean;
+    FLabel: string;
   public
     constructor Create(ACond: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; AIsDoWhile: Boolean; ALine, ACol: Integer);
     destructor Destroy(); override;
@@ -383,6 +384,7 @@ type
     property Condition: TFloriaJSExprNode read FCondition;
     property Body: TFloriaJSStmtNode read FBody;
     property IsDoWhile: Boolean read FIsDoWhile;
+    property LabelName: string read FLabel write FLabel;
   end;
 
   { For Loop: for (init; test; update) body }
@@ -392,6 +394,7 @@ type
     FTest: TFloriaJSExprNode;
     FUpdate: TFloriaJSExprNode;
     FBody: TFloriaJSStmtNode;
+    FLabel: string;
   public
     constructor Create(AInit: TFloriaJSASTNode; ATest, AUpdate: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
     destructor Destroy(); override;
@@ -402,6 +405,7 @@ type
     property Test: TFloriaJSExprNode read FTest;
     property Update: TFloriaJSExprNode read FUpdate;
     property Body: TFloriaJSStmtNode read FBody;
+    property LabelName: string read FLabel write FLabel;
   end;
 
   { Switch Case Clause: case <expr>: stmts... or default: stmts... }
@@ -480,14 +484,37 @@ type
 
   { Break Statement: break; }
   TFloriaJSBreakStmt = class(TFloriaJSStmtNode)
+  private
+    FLabel: string;
   public
+    constructor Create(ALine, ACol: Integer; const ALabel: string = '');
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+    property LabelName: string read FLabel;
   end;
 
   { Continue Statement: continue; }
   TFloriaJSContinueStmt = class(TFloriaJSStmtNode)
+  private
+    FLabel: string;
   public
+    constructor Create(ALine, ACol: Integer; const ALabel: string = '');
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+    property LabelName: string read FLabel;
+  end;
+
+  { Labeled Statement: label: statement }
+  TFloriaJSLabeledStmt = class(TFloriaJSStmtNode)
+  private
+    FLabel: string;
+    FBody: TFloriaJSStmtNode;
+  public
+    constructor Create(const ALabel: string; ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property LabelName: string read FLabel;
+    property Body: TFloriaJSStmtNode read FBody;
   end;
 
   // Function Declaration: function foo(a, b) { ... }
@@ -615,6 +642,7 @@ type
     procedure VisitThrowStmt(ANode: TFloriaJSThrowStmt);
     procedure VisitBreakStmt(ANode: TFloriaJSBreakStmt);
     procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
+    procedure VisitLabeledStmt(ANode: TFloriaJSLabeledStmt);
     procedure VisitFunctionDecl(ANode: TFloriaJSFunctionDecl);
     procedure VisitProgram(ANode: TFloriaJSProgram);
     procedure VisitFTMLComponent(ANode: TFloriaFTMLComponent);
@@ -1412,6 +1440,12 @@ end;
 
 { TFloriaJSBreakStmt }
 
+constructor TFloriaJSBreakStmt.Create(ALine, ACol: Integer; const ALabel: string = '');
+begin
+  inherited Create(ALine, ACol);
+  FLabel := ALabel;
+end;
+
 procedure TFloriaJSBreakStmt.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
   if AVisitor <> nil then AVisitor.VisitBreakStmt(Self);
@@ -1419,9 +1453,35 @@ end;
 
 { TFloriaJSContinueStmt }
 
+constructor TFloriaJSContinueStmt.Create(ALine, ACol: Integer; const ALabel: string = '');
+begin
+  inherited Create(ALine, ACol);
+  FLabel := ALabel;
+end;
+
 procedure TFloriaJSContinueStmt.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
   if AVisitor <> nil then AVisitor.VisitContinueStmt(Self);
+end;
+
+{ TFloriaJSLabeledStmt }
+
+constructor TFloriaJSLabeledStmt.Create(const ALabel: string; ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FLabel := ALabel;
+  FBody := ABody;
+end;
+
+destructor TFloriaJSLabeledStmt.Destroy();
+begin
+  FreeAndNil(FBody);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSLabeledStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitLabeledStmt(Self);
 end;
 
 { TFloriaJSFunctionDecl }

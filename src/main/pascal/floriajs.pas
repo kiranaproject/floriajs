@@ -73,6 +73,7 @@ type
   TFloriaJSThrowStmt       = floria.js.ast.TFloriaJSThrowStmt;
   TFloriaJSBreakStmt       = floria.js.ast.TFloriaJSBreakStmt;
   TFloriaJSContinueStmt    = floria.js.ast.TFloriaJSContinueStmt;
+  TFloriaJSLabeledStmt     = floria.js.ast.TFloriaJSLabeledStmt;
   TFloriaJSFunctionDecl    = floria.js.ast.TFloriaJSFunctionDecl;
   TFloriaJSProgram         = floria.js.ast.TFloriaJSProgram;
 
