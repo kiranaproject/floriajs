@@ -380,6 +380,13 @@ begin
         tkDivideAssign:   computedVal := JSDivide(oldVal, AVal);
         tkModuloAssign:   computedVal := JSModulo(oldVal, AVal);
         tkPowerAssign:    computedVal := JSPower(oldVal, AVal);
+        tkNullishAssign:
+          begin
+            if (oldVal.IsUndefined() or oldVal.IsNull()) then
+              computedVal := AVal
+            else
+              computedVal := oldVal;
+          end;
       else
         computedVal := AVal;
       end;
@@ -416,6 +423,13 @@ begin
         tkDivideAssign:   computedVal := JSDivide(oldVal, AVal);
         tkModuloAssign:   computedVal := JSModulo(oldVal, AVal);
         tkPowerAssign:    computedVal := JSPower(oldVal, AVal);
+        tkNullishAssign:
+          begin
+            if (oldVal.IsUndefined() or oldVal.IsNull()) then
+              computedVal := AVal
+            else
+              computedVal := oldVal;
+          end;
       else
         computedVal := AVal;
       end;
