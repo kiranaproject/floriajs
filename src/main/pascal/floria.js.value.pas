@@ -303,6 +303,9 @@ type
     function  PromiseAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseRace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  TypeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  RangeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  ReferenceErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     { Reclaims the objects that no container refers to any more. It is only
@@ -1677,6 +1680,39 @@ begin
     msg := '';
 
   Result := JSMakeObject(NewError('Error', msg));
+end;
+
+function TFloriaJSHeap.TypeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  msg: string;
+begin
+  if Length(AArgs) > 0 then
+    msg := AArgs[0].ToString()
+  else
+    msg := '';
+  Result := JSMakeObject(NewError('TypeError', msg));
+end;
+
+function TFloriaJSHeap.RangeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  msg: string;
+begin
+  if Length(AArgs) > 0 then
+    msg := AArgs[0].ToString()
+  else
+    msg := '';
+  Result := JSMakeObject(NewError('RangeError', msg));
+end;
+
+function TFloriaJSHeap.ReferenceErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  msg: string;
+begin
+  if Length(AArgs) > 0 then
+    msg := AArgs[0].ToString()
+  else
+    msg := '';
+  Result := JSMakeObject(NewError('ReferenceError', msg));
 end;
 
 function TFloriaJSHeap.ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;

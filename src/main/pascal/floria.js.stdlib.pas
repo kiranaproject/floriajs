@@ -607,6 +607,9 @@ begin
 
   // 4. Error
   AEnv.Define('Error', JSMakeFunction(AHeap.NewNativeMethod('Error', @AHeap.ErrorCtor)));
+  AEnv.Define('TypeError', JSMakeFunction(AHeap.NewNativeMethod('TypeError', @AHeap.TypeErrorCtor)));
+  AEnv.Define('RangeError', JSMakeFunction(AHeap.NewNativeMethod('RangeError', @AHeap.RangeErrorCtor)));
+  AEnv.Define('ReferenceError', JSMakeFunction(AHeap.NewNativeMethod('ReferenceError', @AHeap.ReferenceErrorCtor)));
 
   // 5. Object
   { Object is installed by FloriaJSRegisterObjects; define the global name }
