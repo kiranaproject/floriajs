@@ -35,6 +35,7 @@ type
     FBindings: array of TFloriaJSBinding;
     FBindingCount: Integer;
     FCaptured: Boolean;
+    FDetached: Boolean;
 
     function FindLocalIndex(const AName: string): Integer;
   public
@@ -47,6 +48,12 @@ type
       must outlive the scope it belongs to, because the closure still refers
       to it and to the scopes it is nested in. }
     procedure MarkCaptured();
+    { The scope that created the environment is done with it, but a closure may
+      still refer to it. The environment is not released immediately: the
+      runtime decides at the next safe point whether it is still reachable. }
+    procedure Detach();
+    { Counts how many bindings of the environment hold the given object. }
+    function  CountReferences(AObj: TFloriaJSObject): Integer;
     function  Assign(const AName: string; const AValue: TFloriaJSValue): Boolean;
     function  Get(const AName: string; out AValue: TFloriaJSValue): Boolean;
     function  GetDefault(const AName: string; const ADefault: TFloriaJSValue): TFloriaJSValue;
@@ -60,6 +67,7 @@ type
     property Parent: TFloriaJSEnvironment read FParent;
     property DelegateObject: TFloriaJSObject read FDelegateObject write FDelegateObject;
     property Captured: Boolean read FCaptured;
+    property Detached: Boolean read FDetached;
   end;
 
 implementation
@@ -72,6 +80,7 @@ begin
   FParent := AParent;
   FDelegateObject := nil;
   FCaptured := False;
+  FDetached := False;
   SetLength(FBindings, 0);
   FBindingCount := 0;
 end;
@@ -100,6 +109,22 @@ begin
     env.FCaptured := True;
     env := env.FParent;
   end;
+end;
+
+procedure TFloriaJSEnvironment.Detach();
+begin
+  FDetached := True;
+end;
+
+function TFloriaJSEnvironment.CountReferences(AObj: TFloriaJSObject): Integer;
+var
+  i: Integer;
+begin
+  Result := 0;
+  if AObj = nil then Exit;
+  for i := 0 to FBindingCount - 1 do
+    if FBindings[i].Value.IsObject() and (FBindings[i].Value.ObjVal = AObj) then
+      Inc(Result);
 end;
 
 function TFloriaJSEnvironment.FindLocalIndex(const AName: string): Integer;

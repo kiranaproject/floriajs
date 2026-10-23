@@ -42,6 +42,7 @@ type
 
     function NewEnv(AParent: TFloriaJSEnvironment): TFloriaJSEnvironment;
     procedure ReleaseEnv(AEnv: TFloriaJSEnvironment);
+    procedure ReclaimOrphanedEnvironments();
     function AssignToTarget(ATarget: TFloriaJSExprNode; const AVal: TFloriaJSValue; AOp: TFloriaJSTokenKind; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
     procedure RunPromiseJob(const AJob: TFloriaJSPromiseJob);
     function GetMemberValue(const AObj: TFloriaJSValue; const APropName: string): TFloriaJSValue;
@@ -60,6 +61,7 @@ type
     procedure DrainMicrotasks();
 
     procedure RetainEnv(AEnv: TFloriaJSEnvironment);
+    procedure OrphanEnv(AEnv: TFloriaJSEnvironment);
     function GetClosureCount(): Integer;
 
     property Heap: TFloriaJSHeap read FHeap;
@@ -203,6 +205,85 @@ begin
     FHeap.TrackEnvironment(AEnv);
 end;
 
+procedure TFloriaJSEvaluator.OrphanEnv(AEnv: TFloriaJSEnvironment);
+begin
+  if AEnv = nil then Exit;
+  if FHeap <> nil then
+    FHeap.TrackEnvironment(AEnv);
+  AEnv.Detach;
+end;
+
+procedure TFloriaJSEvaluator.ReclaimOrphanedEnvironments();
+var
+  i, j: Integer;
+  env: TFloriaJSEnvironment;
+  obj: TFloriaJSObject;
+  fn: TFloriaJSFunction;
+  kept: TFPList;
+  hasOrphans, keep: Boolean;
+
+  procedure MarkKept(AEnv: TFloriaJSEnvironment);
+  var
+    cur: TFloriaJSEnvironment;
+  begin
+    cur := AEnv;
+    while cur <> nil do
+    begin
+      if kept.IndexOf(cur) >= 0 then Exit;
+      kept.Add(cur);
+      cur := cur.Parent;
+    end;
+  end;
+
+begin
+  if FHeap = nil then Exit;
+
+  hasOrphans := False;
+  for i := 0 to FHeap.GetEnvironmentCount() - 1 do
+    if TFloriaJSEnvironment(FHeap.GetEnvironment(i)).Detached then
+    begin
+      hasOrphans := True;
+      Break;
+    end;
+  if not hasOrphans then Exit;
+
+  kept := TFPList.Create();
+  try
+    for i := 0 to FHeap.GetEnvironmentCount() - 1 do
+    begin
+      env := TFloriaJSEnvironment(FHeap.GetEnvironment(i));
+      if (env = nil) or (not env.Detached) then Continue;
+
+      keep := False;
+      for j := 0 to FHeap.GetObjectCount() - 1 do
+      begin
+        obj := FHeap.GetObject(j);
+        if not (obj is TFloriaJSFunction) then Continue;
+        fn := TFloriaJSFunction(obj);
+        if fn.ClosureEnv <> Pointer(env) then Continue;
+        if fn.Pinned or (fn.RefCount > env.CountReferences(fn)) then
+        begin
+          keep := True;
+          Break;
+        end;
+      end;
+
+      if keep then
+        MarkKept(env);
+    end;
+
+    for i := FHeap.GetEnvironmentCount() - 1 downto 0 do
+    begin
+      env := TFloriaJSEnvironment(FHeap.GetEnvironment(i));
+      if (env = nil) or (not env.Detached) or (kept.IndexOf(env) >= 0) then Continue;
+      FHeap.Untrack(env);
+      env.Free();
+    end;
+  finally
+    kept.Free();
+  end;
+end;
+
 function TFloriaJSEvaluator.GetClosureCount(): Integer;
 begin
   Result := FClosureCount;
@@ -227,7 +308,9 @@ begin
     { The catch scope can only outlive the clause when a closure captured it.
       Otherwise it is reclaimed immediately. }
     if FClosureCount = closureMark then
-      ReleaseEnv(catchEnv);
+      ReleaseEnv(catchEnv)
+    else
+      OrphanEnv(catchEnv);
   end;
 end;
 
@@ -639,7 +722,9 @@ begin
         it. When no closure was created the scope is reclaimed immediately,
         which keeps repeated block execution from growing the heap. }
       if FClosureCount = closureMark then
-        ReleaseEnv(blockEnv);
+        ReleaseEnv(blockEnv)
+      else
+        OrphanEnv(blockEnv);
     end;
     Exit;
   end;
@@ -727,7 +812,9 @@ begin
     finally
       { The loop scope can only escape the loop when a closure captured it. }
       if FClosureCount = closureMark then
-        ReleaseEnv(loopEnv);
+        ReleaseEnv(loopEnv)
+      else
+        OrphanEnv(loopEnv);
     end;
     Exit;
   end;
@@ -786,7 +873,9 @@ begin
       { The switch scope can only outlive the switch when a closure captured
         it. Otherwise it is reclaimed immediately. }
       if FClosureCount = closureMark then
-        ReleaseEnv(switchEnv);
+        ReleaseEnv(switchEnv)
+      else
+        OrphanEnv(switchEnv);
     end;
     Exit;
   end;
@@ -905,10 +994,14 @@ begin
   if AProg = nil then Exit;
 
   { Safe point: no transient copy of a value of a running script is alive
-    here, so the heap can reclaim the objects that nothing refers to any
-    more. The objects that the host holds on to are pinned and stay alive. }
+    here, so the runtime can reclaim the environments and the objects that
+    nothing refers to any more. The objects that the host holds on to are
+    pinned and stay alive. }
   if FHeap <> nil then
+  begin
+    ReclaimOrphanedEnvironments();
     FHeap.Collect();
+  end;
 
   count := AProg.GetStatementCount();
   for i := 0 to count - 1 do
@@ -989,7 +1082,9 @@ begin
         end;
       finally
         if FClosureCount = closureMark then
-          ReleaseEnv(callEnv);
+          ReleaseEnv(callEnv)
+        else
+          OrphanEnv(callEnv);
       end;
       Exit(JSMakePromise(promise));
     end;
@@ -1008,7 +1103,9 @@ begin
         it. Otherwise it is reclaimed right away, so recursive or repeated
         calls do not accumulate environments. }
       if FClosureCount = closureMark then
-        ReleaseEnv(callEnv);
+        ReleaseEnv(callEnv)
+      else
+        OrphanEnv(callEnv);
     end;
   finally
     Dec(FCurrentCallDepth);

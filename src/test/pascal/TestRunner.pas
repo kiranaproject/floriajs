@@ -175,6 +175,7 @@ type
     procedure TestNestedFunctionDeclarationIsReusable();
     procedure TestSharedNodeReferenceCounting();
     procedure TestFunctionBodySurvivesItsDeclaration();
+    procedure TestClosureEscapingItsScopeSurvives();
   end;
 
   { Test 14: Switch Statements }
@@ -217,6 +218,8 @@ type
     procedure TestObjectWithFunctionIsReclaimed();
     procedure TestReachableObjectSurvives();
     procedure TestValueHandedToTheHostSurvivesUntilReleased();
+    procedure TestBlockScopedFunctionIsReclaimed();
+    procedure TestFunctionDeclaredInLoopBodyIsReclaimed();
   end;
 
 { TFloriaJSTypesTest }
@@ -2678,6 +2681,27 @@ begin
   end;
 end;
 
+procedure TFloriaJSLifetimeTest.TestClosureEscapingItsScopeSurvives();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('A closure must outlive the scope that created it', '3',
+      ctx.Evaluate(
+        'function mk() { var c = 0; return function () { c = c + 1; return c; }; }' +
+        'var f = mk(); f(); f(); f();').StringValue);
+
+    { A safe point reclaims the scopes that no closure can reach any more:
+      the scope of the escaping closure must not be one of them. }
+    ctx.Evaluate('0;');
+    AssertEquals('The captured scope must survive the reclamation', '5',
+      ctx.Evaluate('f(); f();').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
 { TFloriaJSSwitchTest }
 
 procedure TFloriaJSSwitchTest.TestSwitchMatching();
@@ -3460,6 +3484,60 @@ begin
     AssertTrue('A value that was given back must be reclaimable (' +
       IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
       ctx.Heap.GetObjectCount < objects);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSReclamationTest.TestBlockScopedFunctionIsReclaimed();
+var
+  ctx: TFloriaJSContext;
+  environments: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate('{ function inner() { return 1; } }');
+    ctx.Evaluate('0;');
+    environments := ctx.Heap.GetEnvironmentCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('{ function inner() { return 1; } }');
+
+    { The reclamation happens at the next safe point, so the script that
+      follows the loop gives it the chance to catch up. }
+    ctx.Evaluate('0;');
+
+    AssertTrue('Functions declared in a block must not keep its scope alive (' +
+      IntToStr(environments) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = environments);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSReclamationTest.TestFunctionDeclaredInLoopBodyIsReclaimed();
+var
+  ctx: TFloriaJSContext;
+  environments: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate(
+      'for (var j = 0; j < 3; j++) { function inner() { return 1; } }');
+    ctx.Evaluate('0;');
+    environments := ctx.Heap.GetEnvironmentCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate(
+        'for (var j = 0; j < 3; j++) { function inner() { return 1; } }');
+
+    ctx.Evaluate('0;');
+
+    AssertTrue('Functions declared in a loop body must not keep its scope alive (' +
+      IntToStr(environments) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = environments);
   finally
     ctx.Free();
   end;

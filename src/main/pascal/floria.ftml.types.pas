@@ -1559,12 +1559,13 @@ begin
         Result := evaluator.ExecuteStmt(FFTMLSignals[idx].HandlerStmt, sigEnv);
       finally
         { The signal scope may only outlive the handler when a closure captured
-          it. In that case the scope is handed over to the runtime instead of
-          being released, so the closure keeps a valid scope chain. }
+          it. In that case the scope is handed over to the runtime, which keeps
+          the closure's scope chain alive and reclaims the scope once the
+          closure is unreachable. }
         if evaluator.GetClosureCount() = closureMark then
           sigEnv.Free()
         else
-          evaluator.RetainEnv(sigEnv);
+          evaluator.OrphanEnv(sigEnv);
       end;
     end;
   end;

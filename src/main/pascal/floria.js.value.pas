@@ -281,6 +281,8 @@ type
     procedure Clear();
     function  GetObjectCount(): Integer;
     function  GetEnvironmentCount(): Integer;
+    function  GetObject(AIndex: Integer): TFloriaJSObject;
+    function  GetEnvironment(AIndex: Integer): TObject;
     property IsClearing: Boolean read FClearing;
     property Id: Integer read FId;
   end;
@@ -1802,6 +1804,22 @@ begin
     Result := FEnvironments.Count
   else
     Result := 0;
+end;
+
+function TFloriaJSHeap.GetObject(AIndex: Integer): TFloriaJSObject;
+begin
+  if (FObjects <> nil) and (AIndex >= 0) and (AIndex < FObjects.Count) then
+    Result := TFloriaJSObject(FObjects[AIndex])
+  else
+    Result := nil;
+end;
+
+function TFloriaJSHeap.GetEnvironment(AIndex: Integer): TObject;
+begin
+  if (FEnvironments <> nil) and (AIndex >= 0) and (AIndex < FEnvironments.Count) then
+    Result := TObject(FEnvironments[AIndex])
+  else
+    Result := nil;
 end;
 
 { Binary Arithmetic Operations }
