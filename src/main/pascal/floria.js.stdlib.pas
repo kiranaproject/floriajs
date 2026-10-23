@@ -18,7 +18,7 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
-  floria.js.arrays, floria.js.strings;
+  floria.js.arrays, floria.js.strings, floria.js.objects;
 
 type
   { Output Logging Callback }
@@ -543,6 +543,7 @@ end;
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj: TFloriaJSObject;
+  functionResult: TFloriaJSValue;
 begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
 
@@ -551,7 +552,7 @@ begin
   // 0. Array prototype and the Array global object
   FloriaJSRegisterArray(AEnv, AHeap);
   FloriaJSRegisterString(AHeap);
-
+  FloriaJSRegisterObjects(AHeap, @AHeap.ObjectCtor);
   // 1. console
   consoleObj := AHeap.NewObject();
   consoleObj.SetProperty('log', JSMakeFunction(AHeap.NewNativeFunction('log', @JSConsoleLog)));
@@ -608,7 +609,9 @@ begin
   AEnv.Define('Error', JSMakeFunction(AHeap.NewNativeMethod('Error', @AHeap.ErrorCtor)));
 
   // 5. Object
-  AEnv.Define('Object', JSMakeFunction(AHeap.NewNativeMethod('Object', @AHeap.ObjectCtor)));
+  { Object is installed by FloriaJSRegisterObjects; define the global name }
+  if AEnv.Get('Object', functionResult) = False then
+    AEnv.Define('Object', JSMakeFunction(AHeap.NewNativeMethod('Object', @AHeap.ObjectCtor)));
 
   // 6. Global Functions
   AEnv.Define('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));

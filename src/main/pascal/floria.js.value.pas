@@ -101,6 +101,8 @@ type
     function  HasProperty(const AName: string): Boolean; virtual;
     function  DeleteProperty(const AName: string): Boolean; virtual;
 
+    function  GetOwnProperty(const AName: string): TFloriaJSValue;
+    function  HasOwnProperty(const AName: string): Boolean; virtual;
     function  GetPropertyCount(): Integer;
     function  GetPropertyKey(AIndex: Integer): string;
     function  GetPropertyValue(AIndex: Integer): TFloriaJSValue;
@@ -846,6 +848,22 @@ begin
   JSReleaseValue(FProperties[FPropCount].Value);
   FProperties[FPropCount].Value := JSMakeUndefined();
   Result := True;
+end;
+
+function TFloriaJSObject.GetOwnProperty(const AName: string): TFloriaJSValue;
+var
+  idx: Integer;
+begin
+  idx := FindPropertyIndex(AName);
+  if idx >= 0 then
+    Result := FProperties[idx].Value
+  else
+    Result := JSMakeUndefined();
+end;
+
+function TFloriaJSObject.HasOwnProperty(const AName: string): Boolean;
+begin
+  Result := FindPropertyIndex(AName) >= 0;
 end;
 
 function TFloriaJSObject.GetPropertyCount(): Integer;
