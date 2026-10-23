@@ -46,6 +46,7 @@ type
     function AssignToTarget(ATarget: TFloriaJSExprNode; const AVal: TFloriaJSValue; AOp: TFloriaJSTokenKind; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
     procedure RunPromiseJob(const AJob: TFloriaJSPromiseJob);
     function GetMemberValue(const AObj: TFloriaJSValue; const APropName: string): TFloriaJSValue;
+    function ConstructObject(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
     function RunCatchClause(const ATryStmt: TFloriaJSTryStmt; const AThrown: TFloriaJSValue;
       AEnv: TFloriaJSEnvironment): TFloriaJSValue;
   public
@@ -129,6 +130,38 @@ begin
   end;
 
   Exit(JSMakeUndefined());
+end;
+
+function TFloriaJSEvaluator.ConstructObject(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
+var
+  fn: TFloriaJSFunction;
+  protoVal: TFloriaJSValue;
+  obj: TFloriaJSObject;
+  resultVal: TFloriaJSValue;
+begin
+  if not AFuncVal.IsFunction() then
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
+
+  fn := AFuncVal.AsFunction();
+  if fn = nil then
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
+
+  { The object starts out with the prototype of its constructor, so the
+    properties the constructor publishes there are visible to it. }
+  protoVal := fn.GetProperty('prototype');
+  if protoVal.IsObject() then
+    obj := FHeap.NewObject(protoVal.AsObject())
+  else
+    obj := FHeap.NewObject();
+
+  resultVal := CallFunction(AFuncVal, AArgs, JSMakeObject(obj));
+
+  { A constructor that returns an object replaces the object that was created
+    for it; a primitive return value is ignored, as in JavaScript. }
+  if resultVal.IsObject() then
+    Exit(resultVal);
+
+  Result := JSMakeObject(obj);
 end;
 
 procedure TFloriaJSEvaluator.RunPromiseJob(const AJob: TFloriaJSPromiseJob);
@@ -602,21 +635,27 @@ begin
     Exit(GetMemberValue(objVal, propName));
   end;
 
-  // 8. Call Expression
+  // 8. Call Expression (and construction with new)
   if AExpr is TFloriaJSCallExpr then
   begin
     call := TFloriaJSCallExpr(AExpr);
     fnVal := EvaluateExpr(call.Callee, AEnv);
 
-    if call.Callee is TFloriaJSMemberExpr then
-      thisVal := EvaluateExpr(TFloriaJSMemberExpr(call.Callee).Target, AEnv)
-    else
-      thisVal := JSMakeUndefined();
+    if not call.IsNew then
+    begin
+      if call.Callee is TFloriaJSMemberExpr then
+        thisVal := EvaluateExpr(TFloriaJSMemberExpr(call.Callee).Target, AEnv)
+      else
+        thisVal := JSMakeUndefined();
+    end;
 
     count := call.GetArgumentCount();
     SetLength(argVals, count);
     for i := 0 to count - 1 do
       argVals[i] := EvaluateExpr(call.GetArgument(i), AEnv);
+
+    if call.IsNew then
+      Exit(ConstructObject(fnVal, argVals));
 
     Exit(CallFunction(fnVal, argVals, thisVal));
   end;

@@ -327,7 +327,10 @@ begin
   // 4. Error
   AEnv.Define('Error', JSMakeFunction(AHeap.NewNativeMethod('Error', @AHeap.ErrorCtor)));
 
-  // 5. Global Functions
+  // 5. Object
+  AEnv.Define('Object', JSMakeFunction(AHeap.NewNativeMethod('Object', @AHeap.ObjectCtor)));
+
+  // 6. Global Functions
   AEnv.Define('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));
   AEnv.Define('parseFloat', JSMakeFunction(AHeap.NewNativeFunction('parseFloat', @JSParseFloat)));
   AEnv.Define('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSIsNaN)));

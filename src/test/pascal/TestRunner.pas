@@ -79,6 +79,7 @@ type
     procedure TestExponentiationRightAssociative();
     procedure TestTernaryAndNullish();
     procedure TestMemberAndCallChaining();
+    procedure TestNewAndThisExpressions();
     procedure TestVariableDeclarations();
     procedure TestIfElseStatement();
     procedure TestWhileAndForLoops();
@@ -220,6 +221,22 @@ type
     procedure TestValueHandedToTheHostSurvivesUntilReleased();
     procedure TestBlockScopedFunctionIsReclaimed();
     procedure TestFunctionDeclaredInLoopBodyIsReclaimed();
+  end;
+
+  { Test 17: Object Construction with the new Operator }
+  TFloriaJSConstructionTest = class(TTestCase)
+  published
+    procedure TestConstructorSetsProperties();
+    procedure TestConstructorArguments();
+    procedure TestPrototypeMembers();
+    procedure TestReturnedObjectReplacesInstance();
+    procedure TestPrimitiveReturnIsIgnored();
+    procedure TestConstructorThroughMember();
+    procedure TestObjectConstructor();
+    procedure TestNonConstructorThrows();
+    procedure TestThisInObjectMethod();
+    procedure TestNewDoesNotAccumulateObjects();
+    procedure TestPrototypeIsReclaimedWithItsFunction();
   end;
 
 { TFloriaJSTypesTest }
@@ -1052,6 +1069,56 @@ begin
       AssertEquals('Property name is sin', 'sin', member.PropertyName);
       AssertFalse('Not computed', member.Computed);
       AssertTrue('Target is Math', (member.Target is TFloriaJSIdentifierExpr) and (TFloriaJSIdentifierExpr(member.Target).Name = 'Math'));
+    finally
+      expr.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+end;
+
+procedure TFloriaJSParserTest.TestNewAndThisExpressions();
+var
+  parser: TFloriaJSParser;
+  expr: TFloriaJSExprNode;
+  call: TFloriaJSCallExpr;
+  member: TFloriaJSMemberExpr;
+begin
+  parser := TFloriaJSParser.Create('new Ns.Ctor(1, this)');
+  try
+    expr := parser.ParseExpression();
+    try
+      AssertFalse('Parser should have no errors', parser.HasErrors());
+      AssertTrue('Must be a call expression', expr is TFloriaJSCallExpr);
+      call := TFloriaJSCallExpr(expr);
+      AssertTrue('The call must be a construction', call.IsNew);
+      AssertEquals('Argument count is 2', 2, call.GetArgumentCount());
+
+      AssertTrue('Callee is a member expression', call.Callee is TFloriaJSMemberExpr);
+      member := TFloriaJSMemberExpr(call.Callee);
+      AssertEquals('Property name is Ctor', 'Ctor', member.PropertyName);
+      AssertTrue('Target is the Ns identifier',
+        (member.Target is TFloriaJSIdentifierExpr) and
+        (TFloriaJSIdentifierExpr(member.Target).Name = 'Ns'));
+
+      AssertTrue('The second argument must be this',
+        (call.GetArgument(1) is TFloriaJSIdentifierExpr) and
+        (TFloriaJSIdentifierExpr(call.GetArgument(1)).Name = 'this'));
+    finally
+      expr.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+
+  parser := TFloriaJSParser.Create('new Ctor');
+  try
+    expr := parser.ParseExpression();
+    try
+      AssertFalse('A construction without parentheses must parse', parser.HasErrors());
+      AssertTrue('Must be a construction', (expr is TFloriaJSCallExpr) and
+        TFloriaJSCallExpr(expr).IsNew);
+      AssertEquals('It has no arguments', 0, TFloriaJSCallExpr(expr).GetArgumentCount());
     finally
       expr.Free();
     end;
@@ -3543,6 +3610,239 @@ begin
   end;
 end;
 
+{ TFloriaJSConstructionTest }
+
+procedure TFloriaJSConstructionTest.TestConstructorSetsProperties();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('A constructor must be able to set a property on this', '7',
+      ctx.Evaluate(
+        'function Point(x) { this.x = x; }' +
+        'var p = new Point(7); p.x;').StringValue);
+
+    AssertEquals('The new object must be the value of the expression', 'changed',
+      ctx.Evaluate(
+        'function C() { this.kind = "changed"; }' +
+        'var c = new C(); c.kind;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestConstructorArguments();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('The arguments must reach the constructor', '15',
+      ctx.Evaluate(
+        'function Sum(a, b) { this.v = a + b; }' +
+        '(new Sum(7, 8)).v;').StringValue);
+
+    AssertEquals('A construction without parentheses must still work', 'undefined',
+      ctx.Evaluate(
+        'function Empty() {}' +
+        '(new Empty()).missing;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestPrototypeMembers();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('A method published on the prototype must be callable', '42',
+      ctx.Evaluate(
+        'function Acc() { this.n = 40; }' +
+        'Acc.prototype.get = function () { return this.n + 2; };' +
+        'var a = new Acc(); a.get();').StringValue);
+
+    AssertEquals('A value published on the prototype must be visible', 'yes',
+      ctx.Evaluate(
+        'function T() {}' +
+        'T.prototype.kind = "yes";' +
+        '(new T()).kind;').StringValue);
+
+    AssertEquals('Every function must expose a prototype object', 'object',
+      ctx.Evaluate('function T() {} typeof T.prototype;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestReturnedObjectReplacesInstance();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('An object returned by the constructor must replace the instance', '9',
+      ctx.Evaluate(
+        'function R() { this.a = 1; return { a: 9 }; }' +
+        '(new R()).a;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestPrimitiveReturnIsIgnored();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('A primitive return value must be ignored', '5',
+      ctx.Evaluate(
+        'function R() { this.a = 5; return 99; }' +
+        '(new R()).a;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestConstructorThroughMember();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('A constructor reached through a member expression must work', '11',
+      ctx.Evaluate(
+        'var ns = { C: function (v) { this.v = v; } };' +
+        'var o = new ns.C(11); o.v;').StringValue);
+
+    AssertEquals('The result of a construction can be used as a receiver', '4',
+      ctx.Evaluate(
+        'function C() { this.v = 4; }' +
+        'new C().v;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestObjectConstructor();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('The Object constructor must be available', 'function',
+      ctx.Evaluate('typeof Object;').StringValue);
+
+    AssertEquals('new Object() must create an object', 'object',
+      ctx.Evaluate('var o = new Object(); typeof o;').StringValue);
+
+    AssertEquals('A construction can be used as an ordinary expression', '1',
+      ctx.Evaluate('var o = new Object(); 1;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestNonConstructorThrows();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('Constructing a non-function must throw a TypeError', 'TypeError',
+      ctx.Evaluate(
+        'try { new 5; } catch (e) { e.name; }').StringValue);
+
+    AssertEquals('The TypeError must explain the failure', 'Value is not a constructor',
+      ctx.Evaluate(
+        'try { var x = 1; new x; } catch (e) { e.message; }').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestThisInObjectMethod();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('A method call must bind this to its receiver', '4',
+      ctx.Evaluate(
+        'var o = { n: 4, m: function () { return this.n; } };' +
+        'o.m();').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestNewDoesNotAccumulateObjects();
+var
+  ctx: TFloriaJSContext;
+  objects, environments: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    { The prototype object is created on first use, so let it exist before the
+      baseline is measured. }
+    ctx.Evaluate('function C() { this.v = 1; } var obj = new C(); obj = null;');
+    ctx.Evaluate('0;');
+    objects := ctx.Heap.GetObjectCount;
+    environments := ctx.Heap.GetEnvironmentCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('var obj = new C(); obj = null;');
+
+    ctx.Evaluate('0;');
+
+    AssertTrue('Constructed objects must not accumulate (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+    AssertTrue('Constructor calls must not accumulate environments (' +
+      IntToStr(environments) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = environments);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSConstructionTest.TestPrototypeIsReclaimedWithItsFunction();
+var
+  ctx: TFloriaJSContext;
+  objects: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    { The prototype belongs to the function; when the function becomes
+      unreachable, the prototype must go with it. }
+    ctx.Evaluate(
+      'function C() { this.v = 1; }' +
+      'C.prototype.m = function () { return this.v; };' +
+      'C = null;');
+    ctx.Evaluate('0;');
+    objects := ctx.Heap.GetObjectCount;
+
+    for i := 1 to 300 do
+      ctx.Evaluate(
+        'function C() { this.v = 1; }' +
+        'C.prototype.m = function () { return this.v; };' +
+        'C = null;');
+
+    ctx.Evaluate('0;');
+
+    AssertTrue('Prototypes must be reclaimed with their function (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+  finally
+    ctx.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -3563,6 +3863,7 @@ begin
   RegisterTest(TFloriaJSSwitchTest);
   RegisterTest(TFloriaJSTryCatchTest);
   RegisterTest(TFloriaJSReclamationTest);
+  RegisterTest(TFloriaJSConstructionTest);
 
   Application := TTestRunner.Create(nil);
   try

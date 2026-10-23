@@ -164,6 +164,8 @@ type
     constructor CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False);
     destructor Destroy(); override;
 
+    function GetProperty(const AName: string): TFloriaJSValue; override;
+
     property Name: string read FName write FName;
     property IsNative: Boolean read FIsNative;
     property IsAsync: Boolean read FIsAsync;
@@ -272,6 +274,7 @@ type
     function  PromiseAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseRace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     { Reclaims the objects that no container refers to any more. It is only
       safe to call this at a point where no transient copy of a value is in
@@ -1123,6 +1126,24 @@ begin
   inherited Destroy();
 end;
 
+function TFloriaJSFunction.GetProperty(const AName: string): TFloriaJSValue;
+var
+  protoObj: TFloriaJSObject;
+begin
+  { Every function is a potential constructor, so it offers the prototype
+    object that the objects it creates inherit from. It is created on first
+    use. It deliberately does not point back at the function through a
+    constructor property: that reference cycle would keep both objects alive
+    forever under reference counting. }
+  if (AName = 'prototype') and (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
+  begin
+    protoObj := FHeap.NewObject();
+    SetProperty('prototype', JSMakeObject(protoObj));
+  end;
+
+  Result := inherited GetProperty(AName);
+end;
+
 { EFloriaJSThrow }
 
 constructor EFloriaJSThrow.Create(const AValue: TFloriaJSValue);
@@ -1502,6 +1523,19 @@ begin
     msg := '';
 
   Result := JSMakeObject(NewError('Error', msg));
+end;
+
+function TFloriaJSHeap.ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  { An object argument is returned unchanged. A construction already created
+    the object that is bound to this, so the constructor hands it back; a
+    plain call creates a new object. }
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() then
+    Exit(AArgs[0]);
+  if AThis.IsObject() then
+    Exit(AThis);
+
+  Result := JSMakeObject(NewObject());
 end;
 
 function TFloriaJSHeap.NewPromise(): TFloriaJSPromise;

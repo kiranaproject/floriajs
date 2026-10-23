@@ -188,13 +188,14 @@ type
     property Computed: Boolean read FComputed;
   end;
 
-  { Call Expression: func(a, b, c) }
+  { Call Expression: func(a, b, c) or Construction: new Func(a, b, c) }
   TFloriaJSCallExpr = class(TFloriaJSExprNode)
   private
     FCallee: TFloriaJSExprNode;
     FArguments: TFPList;
+    FIsNew: Boolean;
   public
-    constructor Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer);
+    constructor Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer; AIsNew: Boolean = False);
     destructor Destroy(); override;
 
     procedure AddArgument(AArg: TFloriaJSExprNode);
@@ -205,6 +206,8 @@ type
 
     property Callee: TFloriaJSExprNode read FCallee;
     property Arguments: TFPList read FArguments;
+    { True when the call constructs a new object with the new operator. }
+    property IsNew: Boolean read FIsNew;
   end;
 
   { Array Literal: [1, 2, 3] }
@@ -833,11 +836,12 @@ end;
 
 { TFloriaJSCallExpr }
 
-constructor TFloriaJSCallExpr.Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer);
+constructor TFloriaJSCallExpr.Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer; AIsNew: Boolean);
 begin
   inherited Create(ALine, ACol);
   FCallee := ACallee;
   FArguments := TFPList.Create();
+  FIsNew := AIsNew;
 end;
 
 destructor TFloriaJSCallExpr.Destroy();

@@ -63,6 +63,8 @@ type
     function  ParsePrecedence(APrec: Integer): TFloriaJSExprNode;
     function  ParsePrimary(): TFloriaJSExprNode;
     function  ParseUnaryPrefix(): TFloriaJSExprNode;
+    function  ParseNewExpression(ANewToken: TFloriaJSToken): TFloriaJSExprNode;
+    function  ParseMemberTail(ALeft: TFloriaJSExprNode): TFloriaJSExprNode;
     function  ParseArrayLiteral(): TFloriaJSExprNode;
     function  ParseObjectLiteral(): TFloriaJSExprNode;
     function  ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
@@ -293,6 +295,11 @@ begin
   if Match(tkIdentifier) then
     Exit(TFloriaJSIdentifierExpr.Create(tok.Text, tok.Line, tok.Column));
 
+  { this — the receiver of a method or constructor call. It is bound like an
+    ordinary name in the activation scope of the call. }
+  if Match(tkThis) then
+    Exit(TFloriaJSIdentifierExpr.Create('this', tok.Line, tok.Column));
+
   { Array Literal }
   if Match(tkLBracket) then
     Exit(ParseArrayLiteral());
@@ -334,6 +341,82 @@ begin
   Advance();
   operand := ParsePrecedence(PREC_UNARY);
   Result := TFloriaJSUnaryExpr.Create(op.Kind, operand, True, op.Line, op.Column);
+end;
+
+function TFloriaJSParser.ParseMemberTail(ALeft: TFloriaJSExprNode): TFloriaJSExprNode;
+var
+  op: TFloriaJSToken;
+  memberPropName: string;
+  computedProp: TFloriaJSExprNode;
+begin
+  Result := ALeft;
+  while (FCurrent.Kind = tkDot) or (FCurrent.Kind = tkLBracket) do
+  begin
+    op := FCurrent;
+    Advance();
+
+    if op.Kind = tkDot then
+    begin
+      if Match(tkIdentifier) then
+        memberPropName := FPrevious.Text
+      else if FCurrent.Kind in [tkCatch, tkFinally, tkFunction, tkAsync, tkAwait, tkNew, tkDelete, tkTypeof, tkInstanceof, tkIn, tkThis, tkConst, tkLet, tkVar, tkIf, tkElse, tkFor, tkWhile, tkDo, tkBreak, tkContinue, tkSwitch, tkCase, tkDefault, tkTry, tkThrow, tkReturn, tkTrue, tkFalse, tkNull, tkUndefined] then
+      begin
+        memberPropName := FCurrent.Text;
+        Advance();
+      end
+      else
+      begin
+        ErrorAtCurrent('Expected property name after ''.''');
+        memberPropName := '';
+      end;
+      Result := TFloriaJSMemberExpr.CreateNamed(Result, memberPropName, op.Line, op.Column);
+    end
+    else
+    begin
+      computedProp := ParseExpression();
+      Consume(tkRBracket, 'Expected '']'' after computed property accessor');
+      Result := TFloriaJSMemberExpr.CreateComputed(Result, computedProp, op.Line, op.Column);
+    end;
+  end;
+end;
+
+function TFloriaJSParser.ParseNewExpression(ANewToken: TFloriaJSToken): TFloriaJSExprNode;
+var
+  callee: TFloriaJSExprNode;
+  callExpr: TFloriaJSCallExpr;
+  nested: TFloriaJSToken;
+begin
+  { The callee of new is a member expression. An argument list that follows it
+    belongs to the construction, not to a call of the callee, so only the
+    property access suffixes are taken here. }
+  if FCurrent.Kind = tkNew then
+  begin
+    nested := FCurrent;
+    Advance();
+    callee := ParseNewExpression(nested);
+  end
+  else
+    callee := ParsePrimary();
+
+  callee := ParseMemberTail(callee);
+
+  callExpr := TFloriaJSCallExpr.Create(callee, ANewToken.Line, ANewToken.Column, True);
+
+  { The argument list is optional: new Foo is the same as new Foo(). }
+  if Match(tkLParen) then
+  begin
+    if not Check(tkRParen) then
+    begin
+      repeat
+        if Check(tkRParen) then
+          Break;
+        callExpr.AddArgument(ParseExpression());
+      until not Match(tkComma);
+    end;
+    Consume(tkRParen, 'Expected '')'' after argument list');
+  end;
+
+  Result := callExpr;
 end;
 
 function TFloriaJSParser.ParseArrayLiteral(): TFloriaJSExprNode;
@@ -442,7 +525,13 @@ var
   computedProp: TFloriaJSExprNode;
 begin
   { Prefix parsing }
-  if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete, tkAwait] then
+  if FCurrent.Kind = tkNew then
+  begin
+    op := FCurrent;
+    Advance();
+    left := ParseNewExpression(op);
+  end
+  else if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete, tkAwait] then
     left := ParseUnaryPrefix()
   else
     left := ParsePrimary();
