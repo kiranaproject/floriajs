@@ -607,6 +607,21 @@ begin
       tkShiftLeft:          Exit(JSShiftLeft(lVal, rVal));
       tkShiftRight:         Exit(JSShiftRight(lVal, rVal));
       tkShiftRightUnsigned: Exit(JSShiftRightUnsigned(lVal, rVal));
+      tkIn:
+        begin
+          if not rVal.IsObject() then
+            Exit(JSMakeBoolean(False));
+          Exit(JSMakeBoolean(rVal.AsObject().HasProperty(lVal.ToString())));
+        end;
+      tkInstanceof:
+        begin
+          if not lVal.IsObject() then
+            Exit(JSMakeBoolean(False));
+          if not rVal.IsFunction() then
+            Exit(JSMakeBoolean(False));
+          { Walk prototype chain }
+          Exit(JSMakeBoolean(JSInstanceOf(lVal, rVal)));
+        end;
     else
       Exit(JSMakeUndefined());
     end;

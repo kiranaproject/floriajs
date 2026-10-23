@@ -355,6 +355,7 @@ function JSLessThan(const ALeft, ARight: TFloriaJSValue): Boolean;
 function JSLessEqual(const ALeft, ARight: TFloriaJSValue): Boolean;
 function JSGreaterThan(const ALeft, ARight: TFloriaJSValue): Boolean;
 function JSGreaterEqual(const ALeft, ARight: TFloriaJSValue): Boolean;
+function JSInstanceOf(const ALeft, ARight: TFloriaJSValue): Boolean;
 
 { Bitwise Operations }
 function JSBitAnd(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
@@ -2144,6 +2145,25 @@ begin
     Result := (ALeft.StrVal > ARight.StrVal)
   else
     Result := (ALeft.ToNumber() > ARight.ToNumber());
+end;
+
+function JSInstanceOf(const ALeft, ARight: TFloriaJSValue): Boolean;
+var
+  pproto: TFloriaJSObject;
+  cproto: TFloriaJSValue;
+begin
+  Result := False;
+  if not ALeft.IsObject() then Exit;
+  if not ARight.IsFunction() then Exit;
+  cproto := ARight.AsFunction().GetProperty('prototype');
+  if not cproto.IsObject() then Exit;
+  pproto := ALeft.AsObject().Prototype;
+  while pproto <> nil do
+  begin
+    if pproto = cproto.AsObject() then
+      Exit(True);
+    pproto := pproto.Prototype;
+  end;
 end;
 
 function JSGreaterEqual(const ALeft, ARight: TFloriaJSValue): Boolean;
