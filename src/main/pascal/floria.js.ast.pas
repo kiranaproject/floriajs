@@ -175,9 +175,10 @@ type
     FPropertyExpr: TFloriaJSExprNode;
     FPropertyName: string;
     FComputed: Boolean;
+    FIsOptional: Boolean;
   public
-    constructor CreateNamed(ATarget: TFloriaJSExprNode; const APropName: string; ALine, ACol: Integer);
-    constructor CreateComputed(ATarget, APropExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+    constructor CreateNamed(ATarget: TFloriaJSExprNode; const APropName: string; ALine, ACol: Integer; AIsOptional: Boolean = False);
+    constructor CreateComputed(ATarget, APropExpr: TFloriaJSExprNode; ALine, ACol: Integer; AIsOptional: Boolean = False);
     destructor Destroy(); override;
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
@@ -186,6 +187,7 @@ type
     property PropertyExpr: TFloriaJSExprNode read FPropertyExpr;
     property PropertyName: string read FPropertyName;
     property Computed: Boolean read FComputed;
+    property IsOptional: Boolean read FIsOptional;
   end;
 
   { Call Expression: func(a, b, c) or Construction: new Func(a, b, c) }
@@ -194,8 +196,9 @@ type
     FCallee: TFloriaJSExprNode;
     FArguments: TFPList;
     FIsNew: Boolean;
+    FIsOptional: Boolean;
   public
-    constructor Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer; AIsNew: Boolean = False);
+    constructor Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer; AIsNew: Boolean = False; AIsOptional: Boolean = False);
     destructor Destroy(); override;
 
     procedure AddArgument(AArg: TFloriaJSExprNode);
@@ -208,6 +211,7 @@ type
     property Arguments: TFPList read FArguments;
     { True when the call constructs a new object with the new operator. }
     property IsNew: Boolean read FIsNew;
+    property IsOptional: Boolean read FIsOptional;
   end;
 
   { Array Literal: [1, 2, 3] }
@@ -804,22 +808,24 @@ end;
 
 { TFloriaJSMemberExpr }
 
-constructor TFloriaJSMemberExpr.CreateNamed(ATarget: TFloriaJSExprNode; const APropName: string; ALine, ACol: Integer);
+constructor TFloriaJSMemberExpr.CreateNamed(ATarget: TFloriaJSExprNode; const APropName: string; ALine, ACol: Integer; AIsOptional: Boolean);
 begin
   inherited Create(ALine, ACol);
   FTarget := ATarget;
   FPropertyName := APropName;
   FPropertyExpr := nil;
   FComputed := False;
+  FIsOptional := AIsOptional;
 end;
 
-constructor TFloriaJSMemberExpr.CreateComputed(ATarget, APropExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+constructor TFloriaJSMemberExpr.CreateComputed(ATarget, APropExpr: TFloriaJSExprNode; ALine, ACol: Integer; AIsOptional: Boolean);
 begin
   inherited Create(ALine, ACol);
   FTarget := ATarget;
   FPropertyName := '';
   FPropertyExpr := APropExpr;
   FComputed := True;
+  FIsOptional := AIsOptional;
 end;
 
 destructor TFloriaJSMemberExpr.Destroy();
@@ -836,12 +842,13 @@ end;
 
 { TFloriaJSCallExpr }
 
-constructor TFloriaJSCallExpr.Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer; AIsNew: Boolean);
+constructor TFloriaJSCallExpr.Create(ACallee: TFloriaJSExprNode; ALine, ACol: Integer; AIsNew: Boolean; AIsOptional: Boolean);
 begin
   inherited Create(ALine, ACol);
   FCallee := ACallee;
   FArguments := TFPList.Create();
   FIsNew := AIsNew;
+  FIsOptional := AIsOptional;
 end;
 
 destructor TFloriaJSCallExpr.Destroy();

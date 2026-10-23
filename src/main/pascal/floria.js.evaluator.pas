@@ -668,6 +668,9 @@ begin
     member := TFloriaJSMemberExpr(AExpr);
     objVal := EvaluateExpr(member.Target, AEnv);
 
+    if member.IsOptional and (objVal.IsNull() or objVal.IsUndefined()) then
+      Exit(JSMakeUndefined());
+
     if not member.Computed then
       propName := member.PropertyName
     else
@@ -681,6 +684,12 @@ begin
   begin
     call := TFloriaJSCallExpr(AExpr);
     fnVal := EvaluateExpr(call.Callee, AEnv);
+
+    if call.IsOptional then
+    begin
+      if fnVal.IsNull() or fnVal.IsUndefined() then
+        Exit(JSMakeUndefined());
+    end;
 
     if not call.IsNew then
     begin
