@@ -70,6 +70,7 @@ type
     function  ParseArrayLiteral(): TFloriaJSExprNode;
     function  ParseObjectLiteral(): TFloriaJSExprNode;
     function  ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
+    function  ExtractParameters(AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
 
     { Statements & Declarations }
     function  ParseStatement(): TFloriaJSStmtNode;
@@ -231,7 +232,7 @@ begin
     tkComma:
       Result := PREC_COMMA;
     tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
-    tkPowerAssign, tkNullishAssign:
+    tkPowerAssign, tkNullishAssign, tkArrow:
       Result := PREC_ASSIGNMENT;
     tkQuestion:
       Result := PREC_CONDITIONAL;
@@ -274,6 +275,9 @@ function TFloriaJSParser.ParsePrimary(): TFloriaJSExprNode;
 var
   tok: TFloriaJSToken;
   expr: TFloriaJSExprNode;
+  fnExpr: TFloriaJSFunctionExpr;
+  callExpr: TFloriaJSCallExpr;
+  paramName: string;
 begin
   tok := FCurrent;
 
@@ -313,11 +317,70 @@ begin
   if Match(tkLBrace) then
     Exit(ParseObjectLiteral());
 
-  { Async Function Expression }
+  { Async Function Expression or Async Arrow Function }
   if Match(tkAsync) then
   begin
-    Consume(tkFunction, 'Expected ''function'' after ''async''');
-    Exit(ParseFunctionExpr(True));
+    if Match(tkFunction) then
+      Exit(ParseFunctionExpr(True));
+
+    if Match(tkLParen) then
+    begin
+      if Match(tkRParen) then
+      begin
+        if Match(tkArrow) then
+        begin
+          fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column, True);
+          if Check(tkLBrace) then
+            fnExpr.SetBody(ParseBlockStatement())
+          else
+            fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+          Exit(fnExpr);
+        end
+        else
+        begin
+          callExpr := TFloriaJSCallExpr.Create(TFloriaJSIdentifierExpr.Create('async', tok.Line, tok.Column), tok.Line, tok.Column);
+          Exit(callExpr);
+        end;
+      end
+      else
+      begin
+        expr := ParseExpression();
+        Consume(tkRParen, 'Expected '')'' after expression');
+        if Match(tkArrow) then
+        begin
+          fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column, True);
+          if not ExtractParameters(expr, fnExpr.Parameters) then
+            ErrorAtCurrent('Invalid arrow function parameter');
+          expr.Free();
+          if Check(tkLBrace) then
+            fnExpr.SetBody(ParseBlockStatement())
+          else
+            fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+          Exit(fnExpr);
+        end
+        else
+        begin
+          callExpr := TFloriaJSCallExpr.Create(TFloriaJSIdentifierExpr.Create('async', tok.Line, tok.Column), tok.Line, tok.Column);
+          callExpr.AddArgument(expr);
+          Exit(callExpr);
+        end;
+      end;
+    end
+    else if (FCurrent.Kind = tkIdentifier) and (FLexer.PeekToken().Kind = tkArrow) then
+    begin
+      Advance();
+      paramName := FPrevious.Text;
+      Consume(tkArrow, 'Expected ''=>'' after async parameter');
+      fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column, True);
+      fnExpr.AddParameter(paramName);
+      if Check(tkLBrace) then
+        fnExpr.SetBody(ParseBlockStatement())
+      else
+        fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+      Exit(fnExpr);
+    end
+    else
+      Exit(TFloriaJSIdentifierExpr.Create('async', tok.Line, tok.Column));
   end;
 
   { Function Expression }
@@ -327,8 +390,35 @@ begin
   { Parenthesized Grouping or Arrow function }
   if Match(tkLParen) then
   begin
+    if Match(tkRParen) then
+    begin
+      if Match(tkArrow) then
+      begin
+        fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column);
+        if Check(tkLBrace) then
+          fnExpr.SetBody(ParseBlockStatement())
+        else
+          fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+        Exit(fnExpr);
+      end;
+      ErrorAtCurrent('Expected expression');
+      Exit(TFloriaJSLiteralExpr.CreateUndefined(tok.Line, tok.Column));
+    end;
+
     expr := ParseExpression();
     Consume(tkRParen, 'Expected '')'' after expression');
+    if Match(tkArrow) then
+    begin
+      fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column);
+      if not ExtractParameters(expr, fnExpr.Parameters) then
+        ErrorAtCurrent('Invalid arrow function parameter');
+      expr.Free();
+      if Check(tkLBrace) then
+        fnExpr.SetBody(ParseBlockStatement())
+      else
+        fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+      Exit(fnExpr);
+    end;
     Exit(expr);
   end;
 
@@ -518,6 +608,27 @@ begin
   Result := fnExpr;
 end;
 
+function TFloriaJSParser.ExtractParameters(AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
+begin
+  if AExpr = nil then
+    Exit(True);
+
+  if AExpr is TFloriaJSIdentifierExpr then
+  begin
+    AParams.Add(TFloriaJSIdentifierExpr(AExpr).Name);
+    Exit(True);
+  end;
+
+  if (AExpr is TFloriaJSBinaryExpr) and (TFloriaJSBinaryExpr(AExpr).Op = tkComma) then
+  begin
+    Result := ExtractParameters(TFloriaJSBinaryExpr(AExpr).Left, AParams) and
+              ExtractParameters(TFloriaJSBinaryExpr(AExpr).Right, AParams);
+    Exit;
+  end;
+
+  Result := False;
+end;
+
 function TFloriaJSParser.ParsePrecedence(APrec: Integer): TFloriaJSExprNode;
 var
   left: TFloriaJSExprNode;
@@ -526,6 +637,7 @@ var
   right: TFloriaJSExprNode;
   consequent, alternate: TFloriaJSExprNode;
   callExpr: TFloriaJSCallExpr;
+  fnExpr: TFloriaJSFunctionExpr;
   memberPropName: string;
   computedProp: TFloriaJSExprNode;
 begin
@@ -599,7 +711,7 @@ begin
       begin
         consequent := ParseAssignmentExpression();
         Consume(tkColon, 'Expected '':'' in ternary conditional expression');
-        alternate := ParsePrecedence(PREC_CONDITIONAL);
+        alternate := ParseAssignmentExpression();
         left := TFloriaJSConditionalExpr.Create(left, consequent, alternate, op.Line, op.Column);
       end;
 
@@ -610,12 +722,24 @@ begin
         left := TFloriaJSAssignExpr.Create(left, op.Kind, right, op.Line, op.Column);
       end;
 
-      { Arrow Function: x => expr }
+      { Arrow Function: x => expr or x => { statements } }
       tkArrow:
       begin
-        right := ParsePrecedence(PREC_ASSIGNMENT);
-        callExpr := nil; { placeholder }
-        left := TFloriaJSBinaryExpr.Create(left, op.Kind, right, op.Line, op.Column);
+        if left is TFloriaJSIdentifierExpr then
+        begin
+          fnExpr := TFloriaJSFunctionExpr.Create('', True, left.Line, left.Column);
+          fnExpr.AddParameter(TFloriaJSIdentifierExpr(left).Name);
+          left.Free();
+          if Check(tkLBrace) then
+            fnExpr.SetBody(ParseBlockStatement())
+          else
+            fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), op.Line, op.Column));
+          left := fnExpr;
+        end
+        else
+        begin
+          ErrorAtCurrent('Invalid arrow function parameter');
+        end;
       end;
 
       { Postfix Increment / Decrement: x++, x-- }
@@ -659,10 +783,11 @@ begin
     Result := ParseVarDeclaration(tkConst)
   else if Match(tkVar) then
     Result := ParseVarDeclaration(tkVar)
-  else if Match(tkAsync) then
+  else if (FCurrent.Kind = tkAsync) and (FLexer.PeekToken().Kind = tkFunction) then
   begin
-    Consume(tkFunction, 'Expected ''function'' after ''async''');
-    Result := ParseFunctionDeclaration(True)
+    Advance(); { Consume tkAsync }
+    Advance(); { Consume tkFunction }
+    Result := ParseFunctionDeclaration(True);
   end
   else if Match(tkFunction) then
     Result := ParseFunctionDeclaration()

@@ -168,10 +168,11 @@ type
     FBody: TFloriaJSStmtNode;
     FClosureEnv: Pointer; // Lexical environment TFloriaJSEnvironment
     FIsAsync: Boolean;
+    FIsArrow: Boolean;
   public
     constructor CreateNative(const AName: string; AProc: TFloriaJSNativeProc);
     constructor CreateNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
-    constructor CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False);
+    constructor CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False; AIsArrow: Boolean = False);
     destructor Destroy(); override;
 
     function GetProperty(const AName: string): TFloriaJSValue; override;
@@ -179,6 +180,7 @@ type
     property Name: string read FName write FName;
     property IsNative: Boolean read FIsNative;
     property IsAsync: Boolean read FIsAsync;
+    property IsArrow: Boolean read FIsArrow write FIsArrow;
     property NativeProc: TFloriaJSNativeProc read FNativeProc;
     property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
     property ParamNames: TStringList read FParamNames;
@@ -275,7 +277,7 @@ type
     function  NewPromise(): TFloriaJSPromise;
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
     function  NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
-    function  NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False): TFloriaJSFunction;
+    function  NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False; AIsArrow: Boolean = False): TFloriaJSFunction;
 
     { The shared prototypes are created on first use and pinned, so they stay
       alive for as long as the heap does even when no value refers to them. }
@@ -1160,6 +1162,7 @@ begin
   FBody := nil;
   FClosureEnv := nil;
   FIsAsync := False;
+  FIsArrow := False;
 end;
 
 constructor TFloriaJSFunction.CreateNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
@@ -1173,9 +1176,10 @@ begin
   FBody := nil;
   FClosureEnv := nil;
   FIsAsync := False;
+  FIsArrow := False;
 end;
 
-constructor TFloriaJSFunction.CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean);
+constructor TFloriaJSFunction.CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean; AIsArrow: Boolean);
 begin
   inherited Create(nil);
   FName := AName;
@@ -1188,6 +1192,7 @@ begin
   FBody := ABody;
   FClosureEnv := AClosure;
   FIsAsync := AIsAsync;
+  FIsArrow := AIsArrow;
   { The body points into the AST that declared it. Holding a reference on it
     keeps the body alive for as long as this function exists, even when the
     script that declared it has already been discarded. }
@@ -1214,8 +1219,8 @@ begin
     object that the objects it creates inherit from. It is created on first
     use. It deliberately does not point back at the function through a
     constructor property: that reference cycle would keep both objects alive
-    forever under reference counting. }
-  if (AName = 'prototype') and (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
+    forever under reference counting. Arrow functions do not have a prototype. }
+  if (AName = 'prototype') and (not FIsArrow) and (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
   begin
     protoObj := FHeap.NewObject();
     SetProperty('prototype', JSMakeObject(protoObj));
@@ -1928,9 +1933,9 @@ begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateNativeMethod(AName, AMethod)));
 end;
 
-function TFloriaJSHeap.NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean): TFloriaJSFunction;
+function TFloriaJSHeap.NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean; AIsArrow: Boolean): TFloriaJSFunction;
 begin
-  Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateUser(AName, AParams, ABody, AClosure, AOwnsBody, AIsAsync)));
+  Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateUser(AName, AParams, ABody, AClosure, AOwnsBody, AIsAsync, AIsArrow)));
 end;
 
 procedure TFloriaJSHeap.Collect();

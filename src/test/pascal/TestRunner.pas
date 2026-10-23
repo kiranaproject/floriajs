@@ -86,6 +86,7 @@ type
     procedure TestFunctionDeclaration();
     procedure TestDeclarativeFTMLComponent();
     procedure TestParserErrorHandling();
+    procedure TestArrowFunctionParsing();
   end;
 
   { Test 6: Value System & Heap Objects }
@@ -112,6 +113,7 @@ type
     procedure TestPascalHostCallback();
     procedure TestConsoleCapture();
     procedure TestCommaOperatorAndLabeledBreak();
+    procedure TestArrowFunctions();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -1340,6 +1342,49 @@ begin
   end;
 end;
 
+procedure TFloriaJSParserTest.TestArrowFunctionParsing();
+var
+  parser: TFloriaJSParser;
+  expr: TFloriaJSExprNode;
+  fnExpr: TFloriaJSFunctionExpr;
+begin
+  parser := TFloriaJSParser.Create('x => x + 1');
+  try
+    expr := parser.ParseExpression();
+    try
+      AssertFalse('Single param arrow should have no errors', parser.HasErrors());
+      AssertTrue('Must be function expr', expr is TFloriaJSFunctionExpr);
+      fnExpr := TFloriaJSFunctionExpr(expr);
+      AssertTrue('IsArrow must be True', fnExpr.IsArrow);
+      AssertEquals('Parameter count is 1', 1, fnExpr.Parameters.Count);
+      AssertEquals('Parameter name is x', 'x', fnExpr.Parameters[0]);
+    finally
+      expr.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+
+  parser := TFloriaJSParser.Create('(a, b) => { return a + b; }');
+  try
+    expr := parser.ParseExpression();
+    try
+      AssertFalse('Multi param arrow should have no errors', parser.HasErrors());
+      AssertTrue('Must be function expr', expr is TFloriaJSFunctionExpr);
+      fnExpr := TFloriaJSFunctionExpr(expr);
+      AssertTrue('IsArrow must be True', fnExpr.IsArrow);
+      AssertEquals('Parameter count is 2', 2, fnExpr.Parameters.Count);
+      AssertEquals('Parameter 0 is a', 'a', fnExpr.Parameters[0]);
+      AssertEquals('Parameter 1 is b', 'b', fnExpr.Parameters[1]);
+      AssertTrue('Body must be block stmt', fnExpr.Body is TFloriaJSBlockStmt);
+    finally
+      expr.Free();
+    end;
+  finally
+    parser.Free();
+  end;
+end;
+
 { TFloriaJSValueTest }
 
 procedure TFloriaJSValueTest.TestPrimitiveValues();
@@ -1760,6 +1805,90 @@ begin
     res := engine.Execute('Math.clz32(1);');
     AssertTrue('Math.clz32 success', res.Success);
     AssertEquals('Math.clz32(1) = 31', 31.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestArrowFunctions();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { 1. Concise body with single unparenthesized parameter }
+    res := engine.Execute('var f = x => x + 10; f(5);');
+    AssertTrue('Concise single param arrow success', res.Success);
+    AssertEquals('f(5) = 15', 15.0, res.NumberValue, 0.0001);
+
+    { 2. Concise body with multiple parenthesized parameters }
+    res := engine.Execute('var add = (a, b) => a + b; add(3, 4);');
+    AssertTrue('Concise multi param arrow success', res.Success);
+    AssertEquals('add(3, 4) = 7', 7.0, res.NumberValue, 0.0001);
+
+    { 3. Zero-parameter arrow function }
+    res := engine.Execute('var k = () => 42; k();');
+    AssertTrue('Zero param arrow success', res.Success);
+    AssertEquals('k() = 42', 42.0, res.NumberValue, 0.0001);
+
+    { 4. Block body with return }
+    res := engine.Execute('var f = (x) => { return x * 2; }; f(21);');
+    AssertTrue('Block body arrow success', res.Success);
+    AssertEquals('f(21) = 42', 42.0, res.NumberValue, 0.0001);
+
+    { 5. Block body without return evaluates to undefined }
+    res := engine.Execute('var f = (x) => { var y = x * 2; }; f(21);');
+    AssertTrue('Block body void success', res.Success);
+    AssertEquals('Void arrow returns undefined', Ord(fjstUndefined), Ord(res.ResultType));
+
+    { 6. Chained / curried arrow functions }
+    res := engine.Execute('var curried = a => b => a * b; curried(6)(7);');
+    AssertTrue('Curried arrow success', res.Success);
+    AssertEquals('curried(6)(7) = 42', 42.0, res.NumberValue, 0.0001);
+
+    { 7. Array methods with arrow functions }
+    res := engine.Execute('[1, 2, 3].map(x => x * 10).join(",");');
+    AssertTrue('Array map with arrow success', res.Success);
+    AssertEquals('Mapped array string', '10,20,30', res.StringValue);
+
+    { 8. Lexical this binding }
+    res := engine.Execute(
+      'var obj = {' + LineEnding +
+      '  base: 100,' + LineEnding +
+      '  getAdder: function() {' + LineEnding +
+      '    return (x) => this.base + x;' + LineEnding +
+      '  }' + LineEnding +
+      '};' + LineEnding +
+      'var adder = obj.getAdder();' + LineEnding +
+      'adder(23);'
+    );
+    AssertTrue('Lexical this arrow success', res.Success);
+    AssertEquals('Lexical this resolves to obj.base (123)', 123.0, res.NumberValue, 0.0001);
+
+    { 9. Arrow functions cannot be used as constructors }
+    res := engine.Execute(
+      'var caught = false;' + LineEnding +
+      'try {' + LineEnding +
+      '  var Arrow = () => {};' + LineEnding +
+      '  new Arrow();' + LineEnding +
+      '} catch (e) {' + LineEnding +
+      '  caught = (e.name === "TypeError");' + LineEnding +
+      '}' + LineEnding +
+      'caught;'
+    );
+    AssertTrue('Arrow constructor TypeError test success', res.Success);
+    AssertTrue('new (() => {}) throws TypeError', res.BooleanValue);
+
+    { 10. Arrow functions do not have prototype property }
+    res := engine.Execute('var f = () => {}; typeof f.prototype;');
+    AssertTrue('Arrow prototype test success', res.Success);
+    AssertEquals('f.prototype is undefined', 'undefined', res.StringValue);
+
+    { 11. Async arrow function }
+    res := engine.Execute('var f = async (x) => x + 1; typeof f;');
+    AssertTrue('Async arrow typeof success', res.Success);
+    AssertEquals('typeof async arrow is function', 'function', res.StringValue);
   finally
     engine.Free();
   end;

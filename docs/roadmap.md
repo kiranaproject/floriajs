@@ -125,14 +125,13 @@ with Priority 1 despite being a larger item.
 
 ### 6. Arrow functions
 
-Status: hard gap. The parser has an `tkArrow` hook, but it currently builds a
-plain binary node instead of a function.
+Status: supported. Parser handles concise bodies and block bodies, zero, single, and multi parameters, async arrows, and runtime enforces lexical `this` without constructor instantiation.
 
-- [ ] `x => expression`
-- [ ] `(x, y) => expression`
-- [ ] `(x) => { statements }`
-- [ ] Lexical `this` (arrow functions must not rebind `this`)
-- [ ] Interaction with the existing closure and environment reclamation rules
+- [x] `x => expression`
+- [x] `(x, y) => expression`
+- [x] `(x) => { statements }`
+- [x] Lexical `this` (arrow functions must not rebind `this`)
+- [x] Interaction with the existing closure and environment reclamation rules
 
 ### 7. Template literal interpolation
 

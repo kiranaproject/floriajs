@@ -178,7 +178,7 @@ begin
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
 
   fn := AFuncVal.AsFunction();
-  if fn = nil then
+  if (fn = nil) or fn.IsArrow then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
 
   { The object starts out with the prototype of its constructor, so the
@@ -760,7 +760,7 @@ begin
   if AExpr is TFloriaJSFunctionExpr then
   begin
     fnExpr := TFloriaJSFunctionExpr(AExpr);
-    fnObj := FHeap.NewUserFunction(fnExpr.Name, fnExpr.Parameters, fnExpr.Body, Pointer(AEnv), False, fnExpr.IsAsync);
+    fnObj := FHeap.NewUserFunction(fnExpr.Name, fnExpr.Parameters, fnExpr.Body, Pointer(AEnv), False, fnExpr.IsAsync, fnExpr.IsArrow);
     Inc(FClosureCount);
     { The closure refers to the environment it was created in, so that
       environment must outlive the scope it belongs to. }
@@ -1230,7 +1230,8 @@ begin
 
     // 2. User-defined AST function
     callEnv := NewEnv(TFloriaJSEnvironment(fn.ClosureEnv));
-    callEnv.Define('this', AThis);
+    if not fn.IsArrow then
+      callEnv.Define('this', AThis);
     paramCount := fn.ParamNames.Count;
     for i := 0 to paramCount - 1 do
     begin
