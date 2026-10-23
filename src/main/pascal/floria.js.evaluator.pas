@@ -379,6 +379,7 @@ begin
         tkMultiplyAssign: computedVal := JSMultiply(oldVal, AVal);
         tkDivideAssign:   computedVal := JSDivide(oldVal, AVal);
         tkModuloAssign:   computedVal := JSModulo(oldVal, AVal);
+        tkPowerAssign:    computedVal := JSPower(oldVal, AVal);
       else
         computedVal := AVal;
       end;
@@ -414,6 +415,7 @@ begin
         tkMultiplyAssign: computedVal := JSMultiply(oldVal, AVal);
         tkDivideAssign:   computedVal := JSDivide(oldVal, AVal);
         tkModuloAssign:   computedVal := JSModulo(oldVal, AVal);
+        tkPowerAssign:    computedVal := JSPower(oldVal, AVal);
       else
         computedVal := AVal;
       end;
