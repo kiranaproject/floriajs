@@ -22,23 +22,24 @@ uses
 const
   { Operator Precedence Levels }
   PREC_NONE           = 0;
-  PREC_ASSIGNMENT     = 1;  { = += -= *= /= %= }
-  PREC_CONDITIONAL    = 2;  { ? : }
-  PREC_NULLISH        = 3;  { ?? }
-  PREC_LOGICAL_OR     = 4;  { || }
-  PREC_LOGICAL_AND    = 5;  { && }
-  PREC_BIT_OR         = 6;  { | }
-  PREC_BIT_XOR        = 7;  { ^ }
-  PREC_BIT_AND        = 8;  { & }
-  PREC_EQUALITY       = 9;  { == != === !== }
-  PREC_RELATIONAL     = 10; { < <= > >= in instanceof }
-  PREC_SHIFT          = 11; { << >> >>> }
-  PREC_ADDITIVE       = 12; { + - }
-  PREC_MULTIPLICATIVE = 13; { * / % }
-  PREC_EXPONENTIATION = 14; { ** }
-  PREC_UNARY          = 15; { ! ~ + - typeof delete ++ -- }
-  PREC_POSTFIX        = 16; { ++ -- }
-  PREC_CALL           = 17; { () [] . }
+  PREC_COMMA          = 1;  { , }
+  PREC_ASSIGNMENT     = 2;  { = += -= *= /= %= **= ??= }
+  PREC_CONDITIONAL    = 3;  { ? : }
+  PREC_NULLISH        = 4;  { ?? }
+  PREC_LOGICAL_OR     = 5;  { || }
+  PREC_LOGICAL_AND    = 6;  { && }
+  PREC_BIT_OR         = 7;  { | }
+  PREC_BIT_XOR        = 8;  { ^ }
+  PREC_BIT_AND        = 9;  { & }
+  PREC_EQUALITY       = 10; { == != === !== }
+  PREC_RELATIONAL     = 11; { < <= > >= in instanceof }
+  PREC_SHIFT          = 12; { << >> >>> }
+  PREC_ADDITIVE       = 13; { + - }
+  PREC_MULTIPLICATIVE = 14; { * / % }
+  PREC_EXPONENTIATION = 15; { ** }
+  PREC_UNARY          = 16; { ! ~ + - typeof delete ++ -- await }
+  PREC_POSTFIX        = 17; { ++ -- }
+  PREC_CALL           = 18; { () [] . ?. }
 
 type
   { TFloriaJSParser — Fast Pratt Precedence & Recursive-Descent Parser }
@@ -226,7 +227,8 @@ end;
 function TFloriaJSParser.GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
 begin
   case AKind of
-    tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign:
+    tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
+    tkPowerAssign, tkNullishAssign:
       Result := PREC_ASSIGNMENT;
     tkQuestion:
       Result := PREC_CONDITIONAL;
@@ -256,7 +258,7 @@ begin
       Result := PREC_EXPONENTIATION;
     tkPlusPlus, tkMinusMinus:
       Result := PREC_POSTFIX;
-    tkLParen, tkDot, tkLBracket:
+    tkLParen, tkDot, tkLBracket, tkQuestionDot:
       Result := PREC_CALL;
   else
     Result := PREC_NONE;

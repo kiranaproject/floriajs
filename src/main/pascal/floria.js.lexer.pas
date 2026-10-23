@@ -78,6 +78,7 @@ type
     tkComma,          // ,
     tkDot,            // .
     tkQuestion,       // ?
+    tkQuestionDot,    // ?.
 
     { Operators }
     tkAssign,         { = }
@@ -88,8 +89,10 @@ type
     tkMinusMinus,     { -- }
     tkMinusAssign,    { -= }
     tkMultiply,       { * }
-    tkPower,          { ** }
     tkMultiplyAssign, { *= }
+    tkPower,          { ** }
+    tkPowerAssign,    { **= }
+    tkNullishAssign,  { ??= }
     tkDivide,         { / }
     tkDivideAssign,   { /= }
     tkModulo,         { % }
@@ -656,7 +659,22 @@ begin
       '?':
       begin
         if MatchChar('?') then
-          Exit(MakeToken(tkNullish, '??', startLine, startCol, startPos))
+        begin
+          if MatchChar('=') then
+            Exit(MakeToken(tkNullishAssign, '??=', startLine, startCol, startPos))
+          else
+            Exit(MakeToken(tkNullish, '??', startLine, startCol, startPos));
+        end
+        else if MatchChar('.') then
+        begin
+          { Optional chaining: ?. must not be confused with ternary ? followed by
+            numeric property access. If followed by a digit, treat as ?.ternary
+            is handled elsewhere, but simply prefer ?. in that ambiguous form. }
+          if (FPos <= Length(FSource)) and IsDigit(FSource[FPos]) then
+            Exit(MakeToken(tkQuestion, '?', startLine, startCol, startPos))
+          else
+            Exit(MakeToken(tkQuestionDot, '?.', startLine, startCol, startPos));
+        end
         else
           Exit(MakeToken(tkQuestion, '?', startLine, startCol, startPos));
       end;
@@ -684,7 +702,12 @@ begin
       '*':
       begin
         if MatchChar('*') then
-          Exit(MakeToken(tkPower, '**', startLine, startCol, startPos))
+        begin
+          if MatchChar('=') then
+            Exit(MakeToken(tkPowerAssign, '**=', startLine, startCol, startPos))
+          else
+            Exit(MakeToken(tkPower, '**', startLine, startCol, startPos));
+        end
         else if MatchChar('=') then
           Exit(MakeToken(tkMultiplyAssign, '*=', startLine, startCol, startPos))
         else
@@ -847,6 +870,7 @@ begin
     tkComma:          Result := ',';
     tkDot:            Result := '.';
     tkQuestion:       Result := '?';
+    tkQuestionDot:    Result := '?.';
     tkAssign:         Result := '=';
     tkPlus:           Result := '+';
     tkPlusPlus:       Result := '++';
@@ -856,6 +880,7 @@ begin
     tkMinusAssign:    Result := '-=';
     tkMultiply:       Result := '*';
     tkPower:          Result := '**';
+    tkPowerAssign:    Result := '**=';
     tkMultiplyAssign: Result := '*=';
     tkDivide:         Result := '/';
     tkDivideAssign:   Result := '/=';
@@ -873,6 +898,7 @@ begin
     tkAnd:            Result := '&&';
     tkOr:             Result := '||';
     tkNullish:        Result := '??';
+    tkNullishAssign:  Result := '??=';
     tkBitAnd:         Result := '&';
     tkBitOr:          Result := '|';
     tkBitXor:         Result := '^';
