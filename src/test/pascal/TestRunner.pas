@@ -239,6 +239,19 @@ type
     procedure TestPrototypeIsReclaimedWithItsFunction();
   end;
 
+  { Test 18: JavaScript-visible Array Methods }
+  TFloriaJSArrayMethodsTest = class(TTestCase)
+  published
+    procedure TestPushPopShiftUnshift();
+    procedure TestJoinConcatReverseSlice();
+    procedure TestIndexOfLastIndexOfIncludes();
+    procedure TestMapFilterReduce();
+    procedure TestForEachSomeEveryFind();
+    procedure TestSortAndSplice();
+    procedure TestArrayStatics();
+    procedure TestArrayCallbacksDoNotAccumulateObjects();
+  end;
+
 { TFloriaJSTypesTest }
 
 destructor TCountedASTNode.Destroy();
@@ -3843,6 +3856,245 @@ begin
   end;
 end;
 
+{ TFloriaJSArrayMethodsTest }
+
+procedure TFloriaJSArrayMethodsTest.TestPushPopShiftUnshift();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('push must append and return the new length', '4',
+      ctx.Evaluate(
+        'var a = [1, 2]; a.push(3, 4);').StringValue);
+
+    AssertEquals('push must keep the appended elements', '1,2,3,4',
+      ctx.Evaluate('a.join(",");').StringValue);
+
+    AssertEquals('pop must return the last element', '4',
+      ctx.Evaluate('a.pop();').StringValue);
+
+    AssertEquals('shift must return the first element', '1',
+      ctx.Evaluate('a.shift();').StringValue);
+
+    AssertEquals('unshift must insert at the front and return the length', '3',
+      ctx.Evaluate('a.unshift(0);').StringValue);
+
+    AssertEquals('the mutation order must be reflected in the array', '0-2-3',
+      ctx.Evaluate('a.join("-");').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSArrayMethodsTest.TestJoinConcatReverseSlice();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('join must use the separator', '1-2-3',
+      ctx.Evaluate('[1, 2, 3].join("-");').StringValue);
+
+    AssertEquals('join without an argument must use a comma', '1,2,3',
+      ctx.Evaluate('[1, 2, 3].join();').StringValue);
+
+    AssertEquals('concat must flatten array arguments once', '1,2,3,4,5',
+      ctx.Evaluate('[1, 2].concat([3, 4], 5).join(",");').StringValue);
+
+    AssertEquals('slice must copy the selected range', '2,3',
+      ctx.Evaluate('[1, 2, 3].slice(1).join(",");').StringValue);
+
+    AssertEquals('slice must accept negative indices', '2',
+      ctx.Evaluate('[1, 2, 3].slice(-2, -1).join(",");').StringValue);
+
+    AssertEquals('reverse must reverse the array in place', '3,2,1',
+      ctx.Evaluate('[1, 2, 3].reverse().join(",");').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSArrayMethodsTest.TestIndexOfLastIndexOfIncludes();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('indexOf must find the first match', '1',
+      ctx.Evaluate('[1, 2, 3, 2].indexOf(2);').StringValue);
+
+    AssertEquals('lastIndexOf must find the last match', '3',
+      ctx.Evaluate('[1, 2, 3, 2].lastIndexOf(2);').StringValue);
+
+    AssertEquals('indexOf must return -1 when the value is absent', '-1',
+      ctx.Evaluate('[1, 2, 3].indexOf(9);').StringValue);
+
+    AssertEquals('includes must report a present value', 'true',
+      ctx.Evaluate('[1, 2, 3].includes(2);').StringValue);
+
+    AssertEquals('includes must find NaN', 'true',
+      ctx.Evaluate('[1, NaN].includes(NaN);').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSArrayMethodsTest.TestMapFilterReduce();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('map must transform every element', '2,4,6',
+      ctx.Evaluate('[1, 2, 3].map(function (x) { return x * 2; }).join(",");').StringValue);
+
+    AssertEquals('map must pass the index to the callback', '0:1,1:2',
+      ctx.Evaluate(
+        '[1, 2].map(function (x, i) { return i + ":" + x; }).join(",");').StringValue);
+
+    AssertEquals('filter must keep the matching elements', '2,4',
+      ctx.Evaluate(
+        '[1, 2, 3, 4].filter(function (x) { return x % 2 === 0; }).join(",");').StringValue);
+
+    AssertEquals('reduce must combine with an initial value', '16',
+      ctx.Evaluate(
+        '[1, 2, 3].reduce(function (a, b) { return a + b; }, 10);').StringValue);
+
+    AssertEquals('reduce must use the first element without an initial value', '6',
+      ctx.Evaluate(
+        '[1, 2, 3].reduce(function (a, b) { return a + b; });').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSArrayMethodsTest.TestForEachSomeEveryFind();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('forEach must visit every element', '6',
+      ctx.Evaluate(
+        'var total = 0;' +
+        '[1, 2, 3].forEach(function (x) { total += x; });' +
+        'total;').StringValue);
+
+    AssertEquals('some must find a matching element', 'true',
+      ctx.Evaluate('[1, 2, 3].some(function (x) { return x > 2; });').StringValue);
+
+    AssertEquals('some must report false when nothing matches', 'false',
+      ctx.Evaluate('[1, 2, 3].some(function (x) { return x > 9; });').StringValue);
+
+    AssertEquals('every must report true when all elements match', 'true',
+      ctx.Evaluate('[1, 2, 3].every(function (x) { return x > 0; });').StringValue);
+
+    AssertEquals('every must report false when an element fails', 'false',
+      ctx.Evaluate('[1, 2, 3].every(function (x) { return x > 1; });').StringValue);
+
+    AssertEquals('find must return the element', '2',
+      ctx.Evaluate('[1, 2, 3].find(function (x) { return x > 1; });').StringValue);
+
+    AssertEquals('findIndex must return the position', '1',
+      ctx.Evaluate('[1, 2, 3].findIndex(function (x) { return x > 1; });').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSArrayMethodsTest.TestSortAndSplice();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('sort without a comparator must compare string forms', '1,2,3',
+      ctx.Evaluate('[3, 1, 2].sort().join(",");').StringValue);
+
+    AssertEquals('sort must use a comparator when one is given', '3,2,1',
+      ctx.Evaluate(
+        '[3, 1, 2].sort(function (a, b) { return b - a; }).join(",");').StringValue);
+
+    AssertEquals('splice must return the removed elements', '2,3',
+      ctx.Evaluate(
+        'var a = [1, 2, 3, 4];' +
+        'var removed = a.splice(1, 2, 9, 8);' +
+        'removed.join(",");').StringValue);
+
+    AssertEquals('splice must insert the replacement elements in place', '1,9,8,4',
+      ctx.Evaluate('a.join(",");').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSArrayMethodsTest.TestArrayStatics();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('Array.isArray must accept an array', 'true',
+      ctx.Evaluate('Array.isArray([1, 2]);').StringValue);
+
+    AssertEquals('Array.isArray must reject a non-array', 'false',
+      ctx.Evaluate('Array.isArray("abc");').StringValue);
+
+    AssertEquals('Array.from must split a string into characters', 'a-b-c',
+      ctx.Evaluate('Array.from("abc").join("-");').StringValue);
+
+    AssertEquals('Array.from must apply the mapping function', '2,3',
+      ctx.Evaluate(
+        'Array.from([1, 2], function (x) { return x + 1; }).join(",");').StringValue);
+
+    AssertEquals('Array.of must collect its arguments', '1,2,3',
+      ctx.Evaluate('Array.of(1, 2, 3).join(",");').StringValue);
+
+    AssertEquals('new Array(n) must create a sparse array of that length', '3',
+      ctx.Evaluate('(new Array(3)).length;').StringValue);
+
+    AssertEquals('Array(a, b) must collect its arguments', '2',
+      ctx.Evaluate('Array(1, 2).length;').StringValue);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSArrayMethodsTest.TestArrayCallbacksDoNotAccumulateObjects();
+var
+  ctx: TFloriaJSContext;
+  objects, environments: Integer;
+  i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    { The shared array and string prototypes are created on first use, so let
+      them exist before the baseline is measured. }
+    ctx.Evaluate(
+      'var a = [1, 2, 3];' +
+      'var f = function (x) { return x * 2; };' +
+      'a.map(f);');
+    ctx.Evaluate('0;');
+    objects := ctx.Heap.GetObjectCount;
+    environments := ctx.Heap.GetEnvironmentCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate('a.map(f).join(",");');
+
+    ctx.Evaluate('0;');
+
+    AssertTrue('Array callbacks must not accumulate objects (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+    AssertTrue('Array callbacks must not accumulate environments (' +
+      IntToStr(environments) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = environments);
+  finally
+    ctx.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -3864,6 +4116,7 @@ begin
   RegisterTest(TFloriaJSTryCatchTest);
   RegisterTest(TFloriaJSReclamationTest);
   RegisterTest(TFloriaJSConstructionTest);
+  RegisterTest(TFloriaJSArrayMethodsTest);
 
   Application := TTestRunner.Create(nil);
   try

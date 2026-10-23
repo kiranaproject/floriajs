@@ -1,0 +1,828 @@
+{ ************************************************************************** }
+{                                                                          }
+{   Floria JS (floriajs) — Built-in Array Methods                          }
+{                                                                          }
+{   Implements the JavaScript-visible Array prototype and the Array global  }
+{   object. Callback-based methods (map, filter, sort, ...) reach user      }
+{   functions through the heap's function invoker, which the evaluator      }
+{   installs, so this unit does not depend on the evaluator.                }
+{                                                                          }
+{   Copyright (c) 2026 Dio Affriza                                         }
+{   SPDX-License-Identifier: MPL-2.0                                       }
+{                                                                          }
+{ ************************************************************************** }
+
+unit floria.js.arrays;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env;
+
+procedure FloriaJSRegisterArray(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
+
+implementation
+
+function ThisArray(const AThis: TFloriaJSValue): TFloriaJSArray;
+begin
+  Result := AThis.AsArray();
+end;
+
+function NumberToInt(const AValue: TFloriaJSValue): Integer;
+var
+  d: Double;
+begin
+  d := AValue.ToNumber();
+  if IsNaN(d) then
+    Exit(0);
+  if d >= 2147483647.0 then
+    Exit(2147483647);
+  if d <= -2147483648.0 then
+    Exit(-2147483648);
+  Result := Trunc(d);
+end;
+
+function IntArg(const AArgs: array of TFloriaJSValue; AIndex, ADefault: Integer): Integer;
+begin
+  if AIndex > High(AArgs) then
+    Exit(ADefault);
+  if AArgs[AIndex].IsUndefined() then
+    Exit(ADefault);
+  Result := NumberToInt(AArgs[AIndex]);
+end;
+
+function NormalizeIndex(AIndex, ALen: Integer): Integer;
+begin
+  if AIndex < 0 then
+  begin
+    Result := ALen + AIndex;
+    if Result < 0 then Result := 0;
+  end
+  else if AIndex > ALen then
+    Result := ALen
+  else
+    Result := AIndex;
+end;
+
+function SameValueZero(const ALeft, ARight: TFloriaJSValue): Boolean;
+begin
+  { NaN is considered equal to itself by includes/indexOf-style lookups that
+    use SameValueZero, unlike the strict equality operator. }
+  if ALeft.IsNumber() and ARight.IsNumber() then
+  begin
+    if IsNaN(ALeft.ToNumber()) and IsNaN(ARight.ToNumber()) then
+      Exit(True);
+  end;
+  Result := JSStrictEqual(ALeft, ARight);
+end;
+
+procedure RequireCallback(AHeap: TFloriaJSHeap; const ACallback: TFloriaJSValue;
+  const AMethod: string);
+begin
+  if not ACallback.IsFunction() then
+    raise EFloriaJSThrow.Create(JSMakeObject(
+      AHeap.NewError('TypeError', AMethod + ' callback is not a function')));
+end;
+
+function CompareValues(AHeap: TFloriaJSHeap; const AComparator: TFloriaJSValue;
+  const ALeft, ARight: TFloriaJSValue): Integer;
+var
+  res: TFloriaJSValue;
+  d: Double;
+  args: array[0..1] of TFloriaJSValue;
+begin
+  if AComparator.IsFunction() then
+  begin
+    args[0] := ALeft;
+    args[1] := ARight;
+    res := AHeap.InvokeFunction(AComparator, args, JSMakeUndefined());
+    d := res.ToNumber();
+    if IsNaN(d) then
+      Exit(0);
+    if d < 0 then
+      Exit(-1);
+    if d > 0 then
+      Exit(1);
+    Exit(0);
+  end;
+
+  { The default sort compares the string forms of the elements. }
+  Result := CompareStr(ALeft.ToString(), ARight.ToString());
+end;
+
+{ Mutating methods }
+
+function JSArrayPush(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  i: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  for i := 0 to High(AArgs) do
+    arr.Push(AArgs[i]);
+
+  Result := JSMakeNumber(arr.Length());
+end;
+
+function JSArrayPop(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+  Result := arr.Pop();
+end;
+
+function JSArrayShift(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+  Result := arr.Shift();
+end;
+
+function JSArrayUnshift(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  i: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  { unshift(a, b) puts a before b, so the arguments are inserted backwards. }
+  for i := High(AArgs) downto 0 do
+    arr.Unshift(AArgs[i]);
+
+  Result := JSMakeNumber(arr.Length());
+end;
+
+function JSArrayReverse(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  i, j: Integer;
+  left, right: TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  i := 0;
+  j := arr.Length() - 1;
+  while i < j do
+  begin
+    left := arr.GetElement(i);
+    right := arr.GetElement(j);
+    arr.SetElement(i, right);
+    arr.SetElement(j, left);
+    Inc(i);
+    Dec(j);
+  end;
+
+  Result := AThis;
+end;
+
+function JSArraySort(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  comparator: TFloriaJSValue;
+  values: array of TFloriaJSValue;
+  n, i, j: Integer;
+  key: TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  n := arr.Length();
+  if n > 1 then
+  begin
+    SetLength(values, n);
+    for i := 0 to n - 1 do
+      values[i] := arr.GetElement(i);
+
+    comparator := JSMakeUndefined();
+    if Length(AArgs) > 0 then
+      comparator := AArgs[0];
+
+    { Insertion sort keeps the implementation simple and preserves the order
+      of elements that compare equal. }
+    for i := 1 to n - 1 do
+    begin
+      key := values[i];
+      j := i - 1;
+      while (j >= 0) and (CompareValues(arr.Heap, comparator, values[j], key) > 0) do
+      begin
+        values[j + 1] := values[j];
+        Dec(j);
+      end;
+      values[j + 1] := key;
+    end;
+
+    for i := 0 to n - 1 do
+      arr.SetElement(i, values[i]);
+  end;
+
+  Result := AThis;
+end;
+
+function JSArraySplice(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr, removed: TFloriaJSArray;
+  start, deleteCount, count, i: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  start := NormalizeIndex(IntArg(AArgs, 0, 0), arr.Length());
+
+  if Length(AArgs) <= 1 then
+    deleteCount := arr.Length() - start
+  else
+    deleteCount := NumberToInt(AArgs[1]);
+
+  if deleteCount < 0 then deleteCount := 0;
+  if deleteCount > arr.Length() - start then
+    deleteCount := arr.Length() - start;
+
+  removed := arr.Heap.NewArray();
+  for i := 1 to deleteCount do
+  begin
+    removed.Push(arr.GetElement(start));
+    arr.RemoveAt(start);
+  end;
+
+  count := Length(AArgs) - 2;
+  for i := 0 to count - 1 do
+    arr.InsertAt(start + i, AArgs[i + 2]);
+
+  Result := JSMakeArray(removed);
+end;
+
+{ Non-mutating accessors }
+
+function JSArrayJoin(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  separator: string;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  separator := ',';
+  if (Length(AArgs) > 0) and not AArgs[0].IsUndefined() then
+    separator := AArgs[0].ToString();
+
+  Result := JSMakeString(arr.Join(separator));
+end;
+
+function JSArrayConcat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr, res, other: TFloriaJSArray;
+  i, k: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  res := arr.Heap.NewArray();
+  for i := 0 to arr.Length() - 1 do
+    res.Push(arr.GetElement(i));
+
+  for i := 0 to High(AArgs) do
+  begin
+    if AArgs[i].IsArray() then
+    begin
+      other := AArgs[i].AsArray();
+      if other <> nil then
+        for k := 0 to other.Length() - 1 do
+          res.Push(other.GetElement(k));
+    end
+    else
+      res.Push(AArgs[i]);
+  end;
+
+  Result := JSMakeArray(res);
+end;
+
+function JSArraySlice(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr, res: TFloriaJSArray;
+  start, finish, i: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  start := NormalizeIndex(IntArg(AArgs, 0, 0), arr.Length());
+  finish := NormalizeIndex(IntArg(AArgs, 1, arr.Length()), arr.Length());
+
+  res := arr.Heap.NewArray();
+  for i := start to finish - 1 do
+    res.Push(arr.GetElement(i));
+
+  Result := JSMakeArray(res);
+end;
+
+function JSArrayIndexOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  needle: TFloriaJSValue;
+  i, start: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  needle := JSMakeUndefined();
+  if Length(AArgs) > 0 then needle := AArgs[0];
+
+  start := IntArg(AArgs, 1, 0);
+  if start < 0 then
+  begin
+    start := arr.Length() + start;
+    if start < 0 then start := 0;
+  end;
+
+  for i := start to arr.Length() - 1 do
+    if JSStrictEqual(arr.GetElement(i), needle) then
+      Exit(JSMakeNumber(i));
+
+  Result := JSMakeNumber(-1);
+end;
+
+function JSArrayLastIndexOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  needle: TFloriaJSValue;
+  i, start: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  needle := JSMakeUndefined();
+  if Length(AArgs) > 0 then needle := AArgs[0];
+
+  start := IntArg(AArgs, 1, arr.Length() - 1);
+  if start < 0 then
+    start := arr.Length() + start
+  else if start >= arr.Length() then
+    start := arr.Length() - 1;
+
+  for i := start downto 0 do
+    if JSStrictEqual(arr.GetElement(i), needle) then
+      Exit(JSMakeNumber(i));
+
+  Result := JSMakeNumber(-1);
+end;
+
+function JSArrayIncludes(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  needle: TFloriaJSValue;
+  i, start: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  needle := JSMakeUndefined();
+  if Length(AArgs) > 0 then needle := AArgs[0];
+
+  start := IntArg(AArgs, 1, 0);
+  if start < 0 then
+  begin
+    start := arr.Length() + start;
+    if start < 0 then start := 0;
+  end;
+
+  for i := start to arr.Length() - 1 do
+    if SameValueZero(arr.GetElement(i), needle) then
+      Exit(JSMakeBoolean(True));
+
+  Result := JSMakeBoolean(False);
+end;
+
+{ Callback-driven methods }
+
+function JSArrayMap(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  res: TFloriaJSArray;
+  callback, thisArg: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'map');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  res := arr.Heap.NewArray();
+  for i := 0 to arr.Length() - 1 do
+  begin
+    cbArgs[0] := arr.GetElement(i);
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    res.Push(arr.Heap.InvokeFunction(callback, cbArgs, thisArg));
+  end;
+
+  Result := JSMakeArray(res);
+end;
+
+function JSArrayFilter(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  res: TFloriaJSArray;
+  callback, thisArg, element: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'filter');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  res := arr.Heap.NewArray();
+  for i := 0 to arr.Length() - 1 do
+  begin
+    element := arr.GetElement(i);
+    cbArgs[0] := element;
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    if arr.Heap.InvokeFunction(callback, cbArgs, thisArg).ToBoolean() then
+      res.Push(element);
+  end;
+
+  Result := JSMakeArray(res);
+end;
+
+function JSArrayForEach(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  callback, thisArg: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'forEach');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  for i := 0 to arr.Length() - 1 do
+  begin
+    cbArgs[0] := arr.GetElement(i);
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    arr.Heap.InvokeFunction(callback, cbArgs, thisArg);
+  end;
+
+  Result := JSMakeUndefined();
+end;
+
+function JSArraySome(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  callback, thisArg: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'some');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  for i := 0 to arr.Length() - 1 do
+  begin
+    cbArgs[0] := arr.GetElement(i);
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    if arr.Heap.InvokeFunction(callback, cbArgs, thisArg).ToBoolean() then
+      Exit(JSMakeBoolean(True));
+  end;
+
+  Result := JSMakeBoolean(False);
+end;
+
+function JSArrayEvery(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  callback, thisArg: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'every');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  for i := 0 to arr.Length() - 1 do
+  begin
+    cbArgs[0] := arr.GetElement(i);
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    if not arr.Heap.InvokeFunction(callback, cbArgs, thisArg).ToBoolean() then
+      Exit(JSMakeBoolean(False));
+  end;
+
+  Result := JSMakeBoolean(True);
+end;
+
+function JSArrayFind(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  callback, thisArg, element: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'find');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  for i := 0 to arr.Length() - 1 do
+  begin
+    element := arr.GetElement(i);
+    cbArgs[0] := element;
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    if arr.Heap.InvokeFunction(callback, cbArgs, thisArg).ToBoolean() then
+      Exit(element);
+  end;
+
+  Result := JSMakeUndefined();
+end;
+
+function JSArrayFindIndex(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  callback, thisArg: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'findIndex');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  for i := 0 to arr.Length() - 1 do
+  begin
+    cbArgs[0] := arr.GetElement(i);
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    if arr.Heap.InvokeFunction(callback, cbArgs, thisArg).ToBoolean() then
+      Exit(JSMakeNumber(i));
+  end;
+
+  Result := JSMakeNumber(-1);
+end;
+
+function JSArrayReduce(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  callback, accumulator: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..3] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'reduce');
+
+  if Length(AArgs) > 1 then
+  begin
+    accumulator := AArgs[1];
+    i := 0;
+  end
+  else
+  begin
+    if arr.Length() = 0 then
+      Exit(JSMakeUndefined());
+    accumulator := arr.GetElement(0);
+    i := 1;
+  end;
+
+  while i < arr.Length() do
+  begin
+    cbArgs[0] := accumulator;
+    cbArgs[1] := arr.GetElement(i);
+    cbArgs[2] := JSMakeNumber(i);
+    cbArgs[3] := AThis;
+    accumulator := arr.Heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+    Inc(i);
+  end;
+
+  Result := accumulator;
+end;
+
+function JSArrayReduceRight(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  callback, accumulator: TFloriaJSValue;
+  i: Integer;
+  cbArgs: array[0..3] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'reduceRight');
+
+  if Length(AArgs) > 1 then
+  begin
+    accumulator := AArgs[1];
+    i := arr.Length() - 1;
+  end
+  else
+  begin
+    if arr.Length() = 0 then
+      Exit(JSMakeUndefined());
+    accumulator := arr.GetElement(arr.Length() - 1);
+    i := arr.Length() - 2;
+  end;
+
+  while i >= 0 do
+  begin
+    cbArgs[0] := accumulator;
+    cbArgs[1] := arr.GetElement(i);
+    cbArgs[2] := JSMakeNumber(i);
+    cbArgs[3] := AThis;
+    accumulator := arr.Heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+    Dec(i);
+  end;
+
+  Result := accumulator;
+end;
+
+{ Array global object }
+
+function JSArrayIsArray(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := JSMakeBoolean((Length(AArgs) > 0) and AArgs[0].IsArray());
+end;
+
+function MaybeMap(AHeap: TFloriaJSHeap; const AMapFn, AMapThis, AItem: TFloriaJSValue;
+  AIndex: Integer): TFloriaJSValue;
+var
+  cbArgs: array[0..1] of TFloriaJSValue;
+begin
+  if not AMapFn.IsFunction() then
+    Exit(AItem);
+  cbArgs[0] := AItem;
+  cbArgs[1] := JSMakeNumber(AIndex);
+  Result := AHeap.InvokeFunction(AMapFn, cbArgs, AMapThis);
+end;
+
+function JSArrayFrom(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  res, src: TFloriaJSArray;
+  source, mapFn, mapThis, item: TFloriaJSValue;
+  i, len: Integer;
+  s: string;
+  obj: TFloriaJSObject;
+begin
+  { Static methods are called through the Array object, whose heap owns the
+    new array. }
+  if AThis.IsFunction() then
+    heap := AThis.AsFunction().Heap
+  else
+    heap := nil;
+  if heap = nil then Exit(JSMakeUndefined());
+
+  res := heap.NewArray();
+  if Length(AArgs) = 0 then
+    Exit(JSMakeArray(res));
+
+  source := AArgs[0];
+  mapFn := JSMakeUndefined();
+  if Length(AArgs) > 1 then mapFn := AArgs[1];
+  mapThis := JSMakeUndefined();
+  if Length(AArgs) > 2 then mapThis := AArgs[2];
+
+  if source.IsArray() then
+  begin
+    src := source.AsArray();
+    for i := 0 to src.Length() - 1 do
+      res.Push(MaybeMap(heap, mapFn, mapThis, src.GetElement(i), i));
+  end
+  else if source.IsString() then
+  begin
+    s := source.StrVal;
+    for i := 1 to Length(s) do
+      res.Push(MaybeMap(heap, mapFn, mapThis, JSMakeString(Copy(s, i, 1)), i - 1));
+  end
+  else if source.IsObject() then
+  begin
+    obj := source.AsObject();
+    len := NumberToInt(obj.GetProperty('length'));
+    for i := 0 to len - 1 do
+    begin
+      item := obj.GetProperty(IntToStr(i));
+      res.Push(MaybeMap(heap, mapFn, mapThis, item, i));
+    end;
+  end;
+
+  Result := JSMakeArray(res);
+end;
+
+function JSArrayOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  res: TFloriaJSArray;
+  i: Integer;
+begin
+  if AThis.IsFunction() then
+    heap := AThis.AsFunction().Heap
+  else
+    heap := nil;
+  if heap = nil then Exit(JSMakeUndefined());
+
+  res := heap.NewArray();
+  for i := 0 to High(AArgs) do
+    res.Push(AArgs[i]);
+
+  Result := JSMakeArray(res);
+end;
+
+procedure RegisterMethod(AHeap: TFloriaJSHeap; AProto: TFloriaJSObject;
+  const AName: string; AProc: TFloriaJSNativeProc);
+begin
+  AProto.SetProperty(AName, JSMakeFunction(AHeap.NewNativeFunction(AName, AProc)));
+end;
+
+procedure FloriaJSRegisterArray(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
+var
+  proto: TFloriaJSObject;
+  arrayObj: TFloriaJSFunction;
+begin
+  if (AEnv = nil) or (AHeap = nil) then Exit;
+
+  proto := AHeap.GetArrayPrototype();
+  RegisterMethod(AHeap, proto, 'push', @JSArrayPush);
+  RegisterMethod(AHeap, proto, 'pop', @JSArrayPop);
+  RegisterMethod(AHeap, proto, 'shift', @JSArrayShift);
+  RegisterMethod(AHeap, proto, 'unshift', @JSArrayUnshift);
+  RegisterMethod(AHeap, proto, 'join', @JSArrayJoin);
+  RegisterMethod(AHeap, proto, 'concat', @JSArrayConcat);
+  RegisterMethod(AHeap, proto, 'reverse', @JSArrayReverse);
+  RegisterMethod(AHeap, proto, 'sort', @JSArraySort);
+  RegisterMethod(AHeap, proto, 'slice', @JSArraySlice);
+  RegisterMethod(AHeap, proto, 'splice', @JSArraySplice);
+  RegisterMethod(AHeap, proto, 'indexOf', @JSArrayIndexOf);
+  RegisterMethod(AHeap, proto, 'lastIndexOf', @JSArrayLastIndexOf);
+  RegisterMethod(AHeap, proto, 'includes', @JSArrayIncludes);
+  RegisterMethod(AHeap, proto, 'map', @JSArrayMap);
+  RegisterMethod(AHeap, proto, 'filter', @JSArrayFilter);
+  RegisterMethod(AHeap, proto, 'forEach', @JSArrayForEach);
+  RegisterMethod(AHeap, proto, 'some', @JSArraySome);
+  RegisterMethod(AHeap, proto, 'every', @JSArrayEvery);
+  RegisterMethod(AHeap, proto, 'find', @JSArrayFind);
+  RegisterMethod(AHeap, proto, 'findIndex', @JSArrayFindIndex);
+  RegisterMethod(AHeap, proto, 'reduce', @JSArrayReduce);
+  RegisterMethod(AHeap, proto, 'reduceRight', @JSArrayReduceRight);
+
+  arrayObj := AHeap.NewNativeMethod('Array', @AHeap.ArrayCtor);
+  arrayObj.SetProperty('isArray', JSMakeFunction(AHeap.NewNativeFunction('isArray', @JSArrayIsArray)));
+  arrayObj.SetProperty('from', JSMakeFunction(AHeap.NewNativeFunction('from', @JSArrayFrom)));
+  arrayObj.SetProperty('of', JSMakeFunction(AHeap.NewNativeFunction('of', @JSArrayOf)));
+  AEnv.Define('Array', JSMakeFunction(arrayObj));
+end;
+
+end.

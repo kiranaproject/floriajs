@@ -60,6 +60,12 @@ type
     function AsPromise(): TFloriaJSPromise;
   end;
 
+  { Callback Used by Heap-Side Built-ins to Invoke a JavaScript Function.
+    The evaluator installs it, so native methods such as Array.map can call
+    back into user code without depending on the evaluator unit. }
+  TFloriaJSFunctionInvoker = function(const AFuncVal: TFloriaJSValue;
+    const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue of object;
+
   { Property Key-Value Entry }
   TFloriaJSPropertyPair = record
     Key: string;
@@ -123,6 +129,8 @@ type
     function  Pop(): TFloriaJSValue;
     function  Shift(): TFloriaJSValue;
     procedure Unshift(const AValue: TFloriaJSValue);
+    procedure InsertAt(AIndex: Integer; const AValue: TFloriaJSValue);
+    procedure RemoveAt(AIndex: Integer);
     function  Join(const ASeparator: string = ','): string;
     function  Length(): Integer;
 
@@ -246,6 +254,9 @@ type
     FEnvironments: TFPList;
     FPromiseJobs: TFPList;
     FJobRunner: TFloriaJSJobRunner;
+    FInvoker: TFloriaJSFunctionInvoker;
+    FArrayPrototype: TFloriaJSObject;
+    FStringPrototype: TFloriaJSObject;
     FClearing: Boolean;
     FId: Integer;
   public
@@ -262,6 +273,16 @@ type
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
     function  NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
     function  NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False): TFloriaJSFunction;
+
+    { The shared prototypes are created on first use and pinned, so they stay
+      alive for as long as the heap does even when no value refers to them. }
+    function  GetArrayPrototype(): TFloriaJSObject;
+    function  GetStringPrototype(): TFloriaJSObject;
+    function  ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+
+    procedure SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
+    function  InvokeFunction(const AFuncVal: TFloriaJSValue;
+      const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
 
     procedure SetJobRunner(ARunner: TFloriaJSJobRunner);
     procedure EnqueuePromiseJob(const AJob: TFloriaJSPromiseJob);
@@ -983,6 +1004,37 @@ begin
   Inc(FCount);
 end;
 
+procedure TFloriaJSArray.InsertAt(AIndex: Integer; const AValue: TFloriaJSValue);
+var
+  i: Integer;
+begin
+  if AIndex < 0 then AIndex := 0;
+  if AIndex > FCount then AIndex := FCount;
+
+  GrowCapacity(FCount + 1);
+  for i := FCount downto AIndex + 1 do
+    FElements[i] := FElements[i - 1];
+
+  FElements[AIndex] := AValue;
+  JSRetainValue(AValue);
+  Inc(FCount);
+end;
+
+procedure TFloriaJSArray.RemoveAt(AIndex: Integer);
+var
+  i: Integer;
+begin
+  if (AIndex < 0) or (AIndex >= FCount) then Exit;
+
+  { The element that is removed gives up the reference it held. }
+  JSReleaseValue(FElements[AIndex]);
+  for i := AIndex to FCount - 2 do
+    FElements[i] := FElements[i + 1];
+
+  Dec(FCount);
+  FElements[FCount] := JSMakeUndefined();
+end;
+
 function TFloriaJSArray.Join(const ASeparator: string): string;
 var
   sb: TStringBuilder;
@@ -1400,6 +1452,9 @@ begin
   FEnvironments := TFPList.Create();
   FPromiseJobs := TFPList.Create();
   FJobRunner := nil;
+  FInvoker := nil;
+  FArrayPrototype := nil;
+  FStringPrototype := nil;
   FClearing := False;
   Inc(GNextHeapId);
   FId := GNextHeapId;
@@ -1443,6 +1498,9 @@ begin
     FreeAndNil(FPromiseJobs);
   end;
   FJobRunner := nil;
+  FInvoker := nil;
+  FArrayPrototype := nil;
+  FStringPrototype := nil;
   FreeAndNil(FEnvironments);
   FreeAndNil(FObjects);
   inherited Destroy();
@@ -1506,6 +1564,69 @@ end;
 function TFloriaJSHeap.NewArray(): TFloriaJSArray;
 begin
   Result := TFloriaJSArray(Track(TFloriaJSArray.Create()));
+  if Result <> nil then
+    Result.Prototype := GetArrayPrototype();
+end;
+
+function TFloriaJSHeap.GetArrayPrototype(): TFloriaJSObject;
+begin
+  if FArrayPrototype = nil then
+  begin
+    FArrayPrototype := NewObject();
+    { The prototype is shared by every array, so the heap keeps it alive
+      until the heap itself is cleared. }
+    FArrayPrototype.Pin();
+  end;
+  Result := FArrayPrototype;
+end;
+
+function TFloriaJSHeap.GetStringPrototype(): TFloriaJSObject;
+begin
+  if FStringPrototype = nil then
+  begin
+    FStringPrototype := NewObject();
+    FStringPrototype.Pin();
+  end;
+  Result := FStringPrototype;
+end;
+
+function TFloriaJSHeap.ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  n, i: Integer;
+begin
+  { A single numeric argument is the requested length; anything else is an
+    element of the new array. }
+  if (Length(AArgs) = 1) and AArgs[0].IsNumber() then
+  begin
+    arr := NewArray();
+    n := Trunc(AArgs[0].ToNumber());
+    if n < 0 then n := 0;
+    for i := 1 to n do
+      arr.Push(JSMakeUndefined());
+  end
+  else
+  begin
+    arr := NewArray();
+    for i := 0 to High(AArgs) do
+      arr.Push(AArgs[i]);
+  end;
+
+  Result := JSMakeArray(arr);
+end;
+
+procedure TFloriaJSHeap.SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
+begin
+  FInvoker := AInvoker;
+end;
+
+function TFloriaJSHeap.InvokeFunction(const AFuncVal: TFloriaJSValue;
+  const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Assigned(FInvoker) then
+    Result := FInvoker(AFuncVal, AArgs, AThis)
+  else
+    Result := JSMakeUndefined();
 end;
 
 function TFloriaJSHeap.NewError(const AName, AMessage: string): TFloriaJSError;
@@ -1820,6 +1941,10 @@ begin
       TFloriaJSObject(objects[i]).Free();
   finally
     objects.Free();
+    { The shared prototypes were part of the objects list and have just been
+      freed, so the cached pointers must not outlive them. }
+    FArrayPrototype := nil;
+    FStringPrototype := nil;
     FClearing := False;
   end;
 end;

@@ -102,13 +102,19 @@ begin
   FCurrentCallDepth := 0;
   FClosureCount := 0;
   if FHeap <> nil then
+  begin
     FHeap.SetJobRunner(@RunPromiseJob);
+    FHeap.SetFunctionInvoker(@CallFunction);
+  end;
 end;
 
 destructor TFloriaJSEvaluator.Destroy();
 begin
   if FHeap <> nil then
+  begin
     FHeap.SetJobRunner(nil);
+    FHeap.SetFunctionInvoker(nil);
+  end;
   if FOwnsHeap then
     FreeAndNil(FHeap);
   inherited Destroy();
@@ -127,6 +133,10 @@ begin
       Exit(JSMakeNumber(Length(AObj.StrVal)));
     if TryStrToInt(APropName, i) and (i >= 0) and (i < Length(AObj.StrVal)) then
       Exit(JSMakeString(Copy(AObj.StrVal, i + 1, 1)));
+    { Strings are primitives, so their methods live on a shared prototype
+      that the heap owns rather than on the string itself. }
+    if FHeap <> nil then
+      Exit(FHeap.GetStringPrototype().GetProperty(APropName));
   end;
 
   Exit(JSMakeUndefined());

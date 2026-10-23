@@ -17,7 +17,8 @@ unit floria.js.stdlib;
 interface
 
 uses
-  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env;
+  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
+  floria.js.arrays;
 
 type
   { Output Logging Callback }
@@ -276,6 +277,9 @@ begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
 
   GLogOutput := ALogOutput;
+
+  // 0. Array prototype and the Array global object
+  FloriaJSRegisterArray(AEnv, AHeap);
 
   // 1. console
   consoleObj := AHeap.NewObject();
