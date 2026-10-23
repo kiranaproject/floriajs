@@ -33,18 +33,23 @@ Recently implemented and now passing in the scan:
 - `switch`, `try` / `catch` / `finally`, `throw`
 - `new` and `this` (including constructor prototypes and methods)
 - `async` / `await`, promises, `do...while`, exponentiation
-- closures, block scoping for `let`, recursion and environment reclamation
+- Closures, block scoping for `let`, recursion and environment reclamation
+- Array prototype and static methods (`push`, `pop`, `shift`, `unshift`, `join`, `concat`, `reverse`, `sort`, `slice`, `splice`, `indexOf`, `lastIndexOf`, `includes`, `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `find`, `Array.isArray`, `Array.from`)
+- String prototype methods (`charAt`, `indexOf`, `slice`, `toUpperCase`, `trim`, `split`, `replace`, `concat`, `repeat`, etc.)
+- Arrow functions (`x => expr`, `(x, y) => expr`, `(x) => { statements }`, `() => ...` with lexical `this`)
+- Operators: comma operator `(a, b)`, `in`, `instanceof`, optional chaining `?.`, `??=`, `**=`, labeled `break`/`continue`
+- Standard globals: `NaN`, `Infinity`, `Number()`, `String()`, `Boolean()`, `parseInt` (radix support), `parseFloat` (partial numeric prefix)
+- Math extensions: `Math.log2`, `Math.log10`, `Math.sign`, `Math.trunc`, `Math.hypot`, `Math.cbrt`, `Math.imul`, `Math.clz32`
+- Numeric separators (`1_000_000`), exponent literals (`1e3`), hex string parsing
 
 ## Two kinds of gaps
 
 1. **Hard gaps** — the parser or lexer rejects the syntax. Easy to notice.
 2. **Silent gaps** — the syntax is accepted but the runtime is missing the
    behaviour. Examples:
-   - `[1,2,3].join("-")` → `undefined`
-   - `var a = [1]; a.push(2); a.length` → `1`
-   - `Math.sign(-3)` → `undefined`
-   - `parseInt("10", 2)` → `10` (the radix is ignored)
+   - `[k]: 1` inside object literals
    - `` `v=${n + 1}` `` → the literal text `v=${n + 1}`
+   - `Object.keys({a: 1})` → `undefined`
 
 Priority is therefore given to closing silent gaps first, then to syntax that
 unlocks idiomatic modern JavaScript.
@@ -58,54 +63,44 @@ They are also what FTML handlers and UI bindings are most likely to use.
 
 ### 1. Array methods
 
-Status: not exposed. `TFloriaJSArray` has Pascal-side `Push`, `Pop`, `Shift`,
-`Unshift` and `Join`, but no JavaScript-visible methods. Every method call
-currently returns `undefined` because the property is missing.
+Status: supported and verified. Full suite of Array prototype and static methods implemented in `src/main/pascal/floria.js.arrays.pas` with unit tests in `TestRunner.pas` and gap-scan probes.
 
-- [ ] `push`, `pop`, `shift`, `unshift`
-- [ ] `join`, `concat`, `reverse`, `sort` (with optional comparator)
-- [ ] `indexOf`, `lastIndexOf`, `includes`
-- [ ] `slice`, `splice`
-- [ ] `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `find`
-- [ ] `Array.isArray`, `Array.from`
-- [ ] Correct array length/assignment behaviour while the methods run
-
-Touch points: `src/main/pascal/floria.js.value.pas` (`TFloriaJSArray.GetProperty`),
-`src/main/pascal/floria.js.stdlib.pas`, `src/main/pascal/floria.js.evaluator.pas`
-(callback invocation with the right `this`).
+- [x] `push`, `pop`, `shift`, `unshift`
+- [x] `join`, `concat`, `reverse`, `sort` (with optional comparator)
+- [x] `indexOf`, `lastIndexOf`, `includes`
+- [x] `slice`, `splice`
+- [x] `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `find` (plus `findIndex`, `reduceRight`)
+- [x] `Array.isArray`, `Array.from` (plus `Array.of`)
+- [x] Correct array length/assignment behaviour while the methods run
 
 ### 2. String methods
 
-Status: not exposed. `GetMemberValue` in the evaluator only handles `length` and
-numeric indexing; every other property is `undefined`.
+Status: supported and verified. Full suite of String prototype methods implemented in `src/main/pascal/floria.js.strings.pas` and registered via `FloriaJSRegisterString` on the heap's string prototype.
 
-- [ ] `charAt`, `charCodeAt`
-- [ ] `indexOf`, `lastIndexOf`, `includes`, `startsWith`, `endsWith`
-- [ ] `slice`, `substring`, `substr`
-- [ ] `toUpperCase`, `toLowerCase`
-- [ ] `trim`, `trimStart`, `trimEnd`
-- [ ] `split`
-- [ ] `replace` / `replaceAll` (string patterns first; regex later)
-- [ ] `concat`, `repeat`, `padStart`, `padEnd`
-
-Touch points: `src/main/pascal/floria.js.evaluator.pas` (`GetMemberValue`) and a
-string helper module or extension of `floria.js.stdlib.pas`.
+- [x] `charAt`, `charCodeAt`
+- [x] `indexOf`, `lastIndexOf`, `includes`, `startsWith`, `endsWith`
+- [x] `slice`, `substring`, `substr`
+- [x] `toUpperCase`, `toLowerCase`
+- [x] `trim`, `trimStart`, `trimEnd`
+- [x] `split`
+- [x] `replace` / `replaceAll` (string patterns)
+- [x] `concat`, `repeat`, `padStart`, `padEnd`
 
 ### 3. Standard globals
 
-Status: mostly missing. These are one-line definitions but their absence makes
-basic coercion and comparisons fail.
+Status: partially complete. Constants and type conversion functions are in place; static methods on `Number`, `globalThis`, and `arguments` binding remain.
 
-- [ ] `NaN`, `Infinity`
-- [ ] `Number()`, `String()`, `Boolean()` constructors and conversions
+- [x] `NaN`, `Infinity`
+- [x] `Number()`, `String()`, `Boolean()` constructors and conversions
 - [ ] `Number.isNaN`, `Number.isFinite`, `Number.parseInt`, `Number.parseFloat`
 - [ ] `globalThis`
 - [ ] `arguments` inside function calls
-- [ ] Fix `parseInt` to honour the radix argument
-- [ ] Fix `parseFloat` (currently raises *Invalid floating point operation* on
-      partially numeric input such as `"3.5x"`)
+- [x] Fix `parseInt` to honour the radix argument
+- [x] Fix `parseFloat` (handles partial numeric prefix like `"3.5x"`)
 
 ### 4. Object utilities
+
+Status: partially complete. Helpers exist in `src/main/pascal/floria.js.objects.pas`, but global `Object` wiring in the environment and `hasOwnProperty` on regular objects need connection.
 
 - [ ] `Object.keys`, `Object.values`, `Object.entries`
 - [ ] `Object.assign`, `Object.create`
@@ -116,16 +111,15 @@ basic coercion and comparisons fail.
 
 ### 5. JSON
 
+Status: stub only. `JSON.stringify` and `JSON.parse` in `src/main/pascal/floria.js.json.pas` currently return string representations without structured serialization or parsing.
+
 - [ ] `JSON.stringify` for primitives, arrays, objects, nested values
 - [ ] `JSON.parse`
 - [ ] Round-trip tests, including `undefined`/function properties being omitted
 
-JSON is a common way for host integrations to exchange data, so it is grouped
-with Priority 1 despite being a larger item.
-
 ### 6. Arrow functions
 
-Status: supported. Parser handles concise bodies and block bodies, zero, single, and multi parameters, async arrows, and runtime enforces lexical `this` without constructor instantiation.
+Status: supported and verified. Parser handles concise bodies and block bodies, zero, single, and multi parameters, async arrows, and runtime enforces lexical `this` without constructor instantiation.
 
 - [x] `x => expression`
 - [x] `(x, y) => expression`
@@ -144,6 +138,8 @@ Status: silently wrong. `` `v=${n + 1}` `` evaluates to the literal string.
 
 ### 8. Object and array literal completion
 
+Status: hard gaps in parser for shorthand, computed keys, spread, and object methods.
+
 - [ ] Object shorthand: `{ x }`
 - [ ] Computed keys: `{ [k]: value }`
 - [ ] Object spread: `{ ...source }`
@@ -154,14 +150,17 @@ Status: silently wrong. `` `v=${n + 1}` `` evaluates to the literal string.
 
 ### 9. Iteration statements
 
+Status: classic `for` loop `const` and labeled `break`/`continue` completed; `for...of` and `for...in` remain hard parser gaps.
+
 - [ ] `for...of` over arrays and strings
 - [ ] `for...in` over enumerable keys
 - [ ] `for (const x of ...)` and `for (let x of ...)`
-- [ ] `for (const i = 0; ...; ...)` in classic `for` loops (currently a parse
-      error)
-- [ ] `break`/`continue` inside the new loops
+- [x] `for (const i = 0; ...; ...)` in classic `for` loops
+- [x] `break`/`continue` inside loops (including multi-level labeled loops)
 
 ### 10. Function parameter forms
+
+Status: hard gaps in parser.
 
 - [ ] Default parameters: `function f(a = 3)`
 - [ ] Rest parameters: `function f(...args)`
@@ -200,7 +199,7 @@ These items mostly affect semantics rather than enabling new syntax.
 ### 14. Numeric and lexer gaps
 
 - [x] Numeric separators: `1_000_000`
-- [ ] Confirm exponent notation and hex/octal/binary literals in edge cases
+- [x] Exponent notation (`1e3`) and hex literals (`0x10`) confirmed in lexer/parser
 
 ---
 
