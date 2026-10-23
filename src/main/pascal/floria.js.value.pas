@@ -257,6 +257,7 @@ type
     FInvoker: TFloriaJSFunctionInvoker;
     FArrayPrototype: TFloriaJSObject;
     FStringPrototype: TFloriaJSObject;
+    FOwnedHelpers: TFPList;
     FClearing: Boolean;
     FId: Integer;
   public
@@ -279,6 +280,11 @@ type
     function  GetArrayPrototype(): TFloriaJSObject;
     function  GetStringPrototype(): TFloriaJSObject;
     function  ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+
+    { Built-in units use helpers that need the heap (for example to create the
+      array returned by String.split). The heap owns them and frees them when
+      it is cleared. }
+    procedure OwnHelper(AHelper: TObject);
 
     procedure SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
     function  InvokeFunction(const AFuncVal: TFloriaJSValue;
@@ -1455,6 +1461,7 @@ begin
   FInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
+  FOwnedHelpers := TFPList.Create();
   FClearing := False;
   Inc(GNextHeapId);
   FId := GNextHeapId;
@@ -1503,6 +1510,7 @@ begin
   FStringPrototype := nil;
   FreeAndNil(FEnvironments);
   FreeAndNil(FObjects);
+  FreeAndNil(FOwnedHelpers);
   inherited Destroy();
 end;
 
@@ -1618,6 +1626,12 @@ end;
 procedure TFloriaJSHeap.SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
 begin
   FInvoker := AInvoker;
+end;
+
+procedure TFloriaJSHeap.OwnHelper(AHelper: TObject);
+begin
+  if (AHelper <> nil) and (FOwnedHelpers <> nil) then
+    FOwnedHelpers.Add(AHelper);
 end;
 
 function TFloriaJSHeap.InvokeFunction(const AFuncVal: TFloriaJSValue;
@@ -1945,6 +1959,12 @@ begin
       freed, so the cached pointers must not outlive them. }
     FArrayPrototype := nil;
     FStringPrototype := nil;
+    if FOwnedHelpers <> nil then
+    begin
+      for i := FOwnedHelpers.Count - 1 downto 0 do
+        TObject(FOwnedHelpers[i]).Free();
+      FOwnedHelpers.Clear();
+    end;
     FClearing := False;
   end;
 end;

@@ -18,7 +18,7 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
-  floria.js.arrays;
+  floria.js.arrays, floria.js.strings;
 
 type
   { Output Logging Callback }
@@ -86,6 +86,42 @@ begin
   else
     WriteLn(msg);
   Result := JSMakeUndefined();
+end;
+
+{ Global Constants and Conversions }
+
+function JSGlobalNaN(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := JSMakeNumber(NaN);
+end;
+
+function JSGlobalInfinity(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := JSMakeNumber(Infinity);
+end;
+
+function JSNumberConst(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then
+    Result := JSMakeNumber(0)
+  else
+    Result := JSMakeNumber(AArgs[0].ToNumber());
+end;
+
+function JSStringConst(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then
+    Result := JSMakeString('')
+  else
+    Result := JSMakeString(AArgs[0].ToString());
+end;
+
+function JSBooleanConst(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then
+    Result := JSMakeBoolean(False)
+  else
+    Result := JSMakeBoolean(AArgs[0].ToBoolean());
 end;
 
 { Math Methods }
@@ -218,41 +254,275 @@ begin
 end;
 
 function JSMathTrunc(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
 begin
   if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
-  Result := JSMakeNumber(Trunc(AArgs[0].ToNumber()));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) or IsInfinite(d) then
+    Exit(JSMakeNumber(d));
+  if d >= 0 then
+    Result := JSMakeNumber(Trunc(d))
+  else
+    Result := JSMakeNumber(-Trunc(-d));
 end;
+
+function JSMathLog2(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := JSMakeNumber(Log2(AArgs[0].ToNumber()));
+end;
+
+function JSMathLog10(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := JSMakeNumber(Log10(AArgs[0].ToNumber()));
+end;
+
+function JSMathSign(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) then Exit(JSMakeNumber(NaN));
+  if d > 0 then Exit(JSMakeNumber(1));
+  if d < 0 then Exit(JSMakeNumber(-1));
+  Exit(JSMakeNumber(0));
+end;
+
+function JSMathCbrt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := JSMakeNumber(Power(AArgs[0].ToNumber(), 1.0 / 3.0));
+end;
+
+function JSMathHypot(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  i: Integer;
+  d, s: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(0));
+  s := 0;
+  for i := 0 to High(AArgs) do
+  begin
+    d := AArgs[i].ToNumber();
+    s := s + d * d;
+  end;
+  Result := JSMakeNumber(Sqrt(s));
+end;
+
 
 { Global Helper Functions }
 
 function JSParseInt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
-  s: string;
+  s, part: string;
+  radixVal: Double;
+  radix: Integer;
+  i: Integer;
+  sign: Integer;
   n: Int64;
-  code: Integer;
+  c: Char;
 begin
   if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
   s := Trim(AArgs[0].ToString());
-  Val(s, n, code);
-  if code = 0 then
-    Result := JSMakeNumber(Double(n))
+  if s = '' then Exit(JSMakeNumber(NaN));
+
+  sign := 1;
+  i := 1;
+  if s[1] = '+' then
+    Inc(i)
+  else if s[1] = '-' then
+  begin
+    sign := -1;
+    Inc(i);
+  end;
+
+  if i + 1 <= Length(s) then
+  begin
+    if (s[i] = '0') and ((s[i + 1] = 'x') or (s[i + 1] = 'X')) then
+    begin
+      radix := 16;
+      i := i + 2;
+    end
+    else if (s[i] = '0') and ((s[i + 1] = 'o') or (s[i + 1] = 'O')) then
+    begin
+      radix := 8;
+      i := i + 2;
+    end
+    else if (s[i] = '0') and ((s[i + 1] = 'b') or (s[i + 1] = 'B')) then
+    begin
+      radix := 2;
+      i := i + 2;
+    end;
+  end;
+
+  radixVal := 0;
+  if Length(AArgs) >= 2 then
+  begin
+    radixVal := AArgs[1].ToNumber();
+    radix := Trunc(radixVal);
+    if (radix = 0) and ((i + 1 <= Length(s)) and (s[i] = '0') and ((s[i + 1] = 'x') or (s[i + 1] = 'X'))) then
+      radix := 16;
+  end;
+
+  if (radix < 2) or (radix > 36) then
+    Exit(JSMakeNumber(NaN));
+
+  if radix = 16 then
+  begin
+    part := '';
+    while i <= Length(s) do
+    begin
+      c := UpCase(s[i]);
+      if (c >= '0') and (c <= '9') then
+        part := part + s[i]
+      else if (c >= 'A') and (c <= 'F') then
+        part := part + s[i]
+      else
+        Break;
+      Inc(i);
+    end;
+    if part = '' then Exit(JSMakeNumber(NaN));
+    val('$' + part, n, i);
+    if i = 0 then
+      Result := JSMakeNumber(Double(sign) * Double(n))
+    else
+      Result := JSMakeNumber(NaN);
+    Exit;
+  end;
+
+  if radix = 8 then
+  begin
+    part := '';
+    while i <= Length(s) do
+    begin
+      c := s[i];
+      if (c >= '0') and (c <= '7') then
+        part := part + c
+      else
+        Break;
+      Inc(i);
+    end;
+    if part = '' then Exit(JSMakeNumber(NaN));
+    val('&' + part, n, i);
+    if i = 0 then
+      Result := JSMakeNumber(Double(sign) * Double(n))
+    else
+      Result := JSMakeNumber(NaN);
+    Exit;
+  end;
+
+  if radix = 2 then
+  begin
+    part := '';
+    while i <= Length(s) do
+    begin
+      c := s[i];
+      if (c >= '0') and (c <= '1') then
+        part := part + c
+      else
+        Break;
+      Inc(i);
+    end;
+    if part = '' then Exit(JSMakeNumber(NaN));
+    val('%' + part, n, i);
+    if i = 0 then
+      Result := JSMakeNumber(Double(sign) * Double(n))
+    else
+      Result := JSMakeNumber(NaN);
+    Exit;
+  end;
+
+  part := '';
+  while i <= Length(s) do
+  begin
+    c := s[i];
+    if (c >= '0') and (c <= '9') and ((Ord(c) - Ord('0')) < radix) then
+      part := part + c
+    else
+      Break;
+    Inc(i);
+  end;
+  if part = '' then Exit(JSMakeNumber(NaN));
+  val(part, n, i);
+  if i = 0 then
+    Result := JSMakeNumber(Double(sign) * Double(n))
   else
     Result := JSMakeNumber(NaN);
 end;
 
 function JSParseFloat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
-  s: string;
+  s, part: string;
   d: Double;
   code: Integer;
+  i: Integer;
+  c: Char;
 begin
   if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
   s := Trim(AArgs[0].ToString());
-  Val(s, d, code);
-  if code = 0 then
-    Result := JSMakeNumber(d)
-  else
+  if s = '' then Exit(JSMakeNumber(NaN));
+  if (s = 'Infinity') or (s = '+Infinity') then Exit(JSMakeNumber(Infinity));
+  if s = '-Infinity' then Exit(JSMakeNumber(-Infinity));
+  if (s = 'NaN') or (s = '+NaN') or (s = '-NaN') then Exit(JSMakeNumber(NaN));
+
+  part := '';
+  i := 1;
+  if s[1] = '+' then
+    Inc(i)
+  else if s[1] = '-' then
+  begin
+    part := '-';
+    Inc(i);
+  end;
+
+  while i <= Length(s) do
+  begin
+    c := s[i];
+    if (c >= '0') and (c <= '9') then
+    begin
+      part := part + c;
+      Inc(i);
+      Continue;
+    end;
+    if (c = '.') then
+    begin
+      part := part + c;
+      Inc(i);
+      Continue;
+    end;
+    if ((c = 'e') or (c = 'E')) then
+    begin
+      part := part + c;
+      Inc(i);
+      if (i <= Length(s)) and ((s[i] = '+') or (s[i] = '-')) then
+      begin
+        part := part + s[i];
+        Inc(i);
+      end;
+      Continue;
+    end;
+    Break;
+  end;
+
+  if (part = '') or (part = '-') or (part = '.') or (part = '-.') then
+    Exit(JSMakeNumber(NaN));
+  if (part[Length(part)] = '.') then
+  begin
+    { keep as is? or strip? try to parse }
+  end;
+
+  try
+    Val(part, d, code);
+    if code = 0 then
+      Result := JSMakeNumber(d)
+    else
+      Result := JSMakeNumber(NaN);
+  except
     Result := JSMakeNumber(NaN);
+  end;
 end;
 
 function JSIsNaN(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -280,6 +550,7 @@ begin
 
   // 0. Array prototype and the Array global object
   FloriaJSRegisterArray(AEnv, AHeap);
+  FloriaJSRegisterString(AHeap);
 
   // 1. console
   consoleObj := AHeap.NewObject();
@@ -318,6 +589,11 @@ begin
   mathObj.SetProperty('sqrt', JSMakeFunction(AHeap.NewNativeFunction('sqrt', @JSMathSqrt)));
   mathObj.SetProperty('tan', JSMakeFunction(AHeap.NewNativeFunction('tan', @JSMathTan)));
   mathObj.SetProperty('trunc', JSMakeFunction(AHeap.NewNativeFunction('trunc', @JSMathTrunc)));
+  mathObj.SetProperty('log2', JSMakeFunction(AHeap.NewNativeFunction('log2', @JSMathLog2)));
+  mathObj.SetProperty('log10', JSMakeFunction(AHeap.NewNativeFunction('log10', @JSMathLog10)));
+  mathObj.SetProperty('sign', JSMakeFunction(AHeap.NewNativeFunction('sign', @JSMathSign)));
+  mathObj.SetProperty('cbrt', JSMakeFunction(AHeap.NewNativeFunction('cbrt', @JSMathCbrt)));
+  mathObj.SetProperty('hypot', JSMakeFunction(AHeap.NewNativeFunction('hypot', @JSMathHypot)));
   AEnv.Define('Math', JSMakeObject(mathObj));
 
   // 3. Promise
@@ -339,6 +615,12 @@ begin
   AEnv.Define('parseFloat', JSMakeFunction(AHeap.NewNativeFunction('parseFloat', @JSParseFloat)));
   AEnv.Define('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSIsNaN)));
   AEnv.Define('isFinite', JSMakeFunction(AHeap.NewNativeFunction('isFinite', @JSIsFinite)));
+  AEnv.Define('NaN', JSMakeNumber(NaN));
+  AEnv.Define('Infinity', JSMakeNumber(Infinity));
+  AEnv.Define('undefined', JSMakeUndefined());
+  AEnv.Define('Number', JSMakeFunction(AHeap.NewNativeFunction('Number', @JSNumberConst)));
+  AEnv.Define('String', JSMakeFunction(AHeap.NewNativeFunction('String', @JSStringConst)));
+  AEnv.Define('Boolean', JSMakeFunction(AHeap.NewNativeFunction('Boolean', @JSBooleanConst)));
 end;
 
 end.

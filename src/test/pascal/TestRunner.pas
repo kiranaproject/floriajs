@@ -4099,6 +4099,8 @@ var
   Application: TTestRunner;
 
 begin
+  SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
+
   RegisterTest(TFloriaJSTypesTest);
   RegisterTest(TFloriaJSEngineTest);
   RegisterTest(TFloriaJSLexerTest);
