@@ -422,15 +422,29 @@ begin
   end;
 
   { Decimal integer part }
-  while (not IsAtEnd()) and IsDigit(PeekChar()) do
-    AdvanceChar();
+  while (not IsAtEnd()) do
+  begin
+    if IsDigit(PeekChar()) then
+      AdvanceChar()
+    else if PeekChar() = '_' then
+      AdvanceChar()
+    else
+      Break;
+  end;
 
   { Fractional part }
   if (PeekChar() = '.') and IsDigit(PeekNextChar()) then
   begin
     AdvanceChar(); { Consume '.' }
-    while (not IsAtEnd()) and IsDigit(PeekChar()) do
-      AdvanceChar();
+    while (not IsAtEnd()) do
+    begin
+      if IsDigit(PeekChar()) then
+        AdvanceChar()
+      else if PeekChar() = '_' then
+        AdvanceChar()
+      else
+        Break;
+    end;
   end;
 
   { Scientific exponent: e or E }
@@ -439,11 +453,20 @@ begin
     AdvanceChar();
     if PeekChar() in ['+', '-'] then
       AdvanceChar();
-    while (not IsAtEnd()) and IsDigit(PeekChar()) do
-      AdvanceChar();
+    while (not IsAtEnd()) do
+    begin
+      if IsDigit(PeekChar()) then
+        AdvanceChar()
+      else if PeekChar() = '_' then
+        AdvanceChar()
+      else
+        Break;
+    end;
   end;
 
   numStr := Copy(FSource, startPos, FPos - startPos);
+  { Remove numeric separators }
+  numStr := StringReplace(numStr, '_', '', [rfReplaceAll]);
   fs.DecimalSeparator := '.';
   if not TryStrToFloat(numStr, val, fs) then
     val := 0.0;
