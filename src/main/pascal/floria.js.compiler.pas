@@ -2043,6 +2043,7 @@ begin
   end
   else if APattern is TFloriaJSArrayExpr then
   begin
+    FBytecode.Emit(opAssertIterable, 0, APattern.Line);
     arrExpr := TFloriaJSArrayExpr(APattern);
     count := arrExpr.GetElementCount();
     for i := 0 to count - 1 do

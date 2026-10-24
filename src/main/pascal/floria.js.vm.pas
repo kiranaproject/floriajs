@@ -1342,8 +1342,19 @@ begin
               iterStr := objVal.StrVal;
               for i := 1 to Length(iterStr) do
                 arrObj.Push(JSMakeString(iterStr[i]));
-            end;
+            end
+            else
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
             Push(JSMakeObject(arrObj));
+          end;
+
+        opAssertIterable:
+          begin
+            objVal := Peek();
+            if objVal.IsNull() or objVal.IsUndefined() then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Cannot destructure non-iterable: value is null or undefined')));
+            if not (objVal.IsArray() or objVal.IsString()) then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
           end;
 
         opHalt:

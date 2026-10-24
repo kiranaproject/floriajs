@@ -6210,6 +6210,63 @@ begin
     );
     AssertTrue('Const target rejection in destructuring assignment succeeds', res.Success);
     AssertTrue('Const target rejection threw TypeError', res.BooleanValue);
+
+    // 10. Non-iterable array destructuring rejection (P0-03)
+    // [a] = 5 throws TypeError
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { var a; [a] = 5; } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('[a] = 5 must throw TypeError', res.Success and res.BooleanValue);
+
+    // [a] = { 0: 7, length: 1 } throws TypeError
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { var a; [a] = { 0: 7, length: 1 }; } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('[a] = {0:7, length:1} must throw TypeError', res.Success and res.BooleanValue);
+
+    // [a] = new Set([1]) throws TypeError (until P2-05 iterators)
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { var a; [a] = new Set([1]); } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('[a] = new Set([1]) must throw TypeError without iterator support', res.Success and res.BooleanValue);
+
+    // [x, y] = "ab" assigns x="a", y="b"
+    res := engine.Execute(
+      'var x, y;' +
+      '[x, y] = "ab";' +
+      'x === "a" && y === "b";'
+    );
+    AssertTrue('String array destructuring assigns characters', res.Success and res.BooleanValue);
+
+    // [a, b] = [1] -> b === undefined
+    res := engine.Execute(
+      'var a, b;' +
+      '[a, b] = [1];' +
+      'a === 1 && b === undefined;'
+    );
+    AssertTrue('Missing elements are undefined', res.Success and res.BooleanValue);
+
+    // [a=7, b=8] = [undefined] defaults correctly
+    res := engine.Execute(
+      'var a, b;' +
+      '[a = 7, b = 8] = [undefined];' +
+      'a === 7 && b === 8;'
+    );
+    AssertTrue('Explicit undefined triggers default', res.Success and res.BooleanValue);
+
+    // RHS evaluated once and is expression result
+    res := engine.Execute(
+      'var count = 0; var a;' +
+      'var r = ([a] = (++count, [42]));' +
+      'r[0] === 42 && count === 1 && a === 42;'
+    );
+    AssertTrue('RHS evaluated once and returned as result', res.Success and res.BooleanValue);
   finally
     engine.Free();
   end;
