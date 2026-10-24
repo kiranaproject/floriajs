@@ -18,9 +18,13 @@ interface
 
 uses
   Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.parser,
-  floria.js.value, floria.js.env, floria.js.evaluator, floria.js.stdlib;
+  floria.js.value, floria.js.env, floria.js.evaluator, floria.js.stdlib,
+  floria.js.bytecode, floria.js.vm, floria.js.compiler;
 
 type
+  { Execution Backend Engine }
+  TFloriaJSExecutionBackend = (fjbInterpreter, fjbBytecodeVM);
+
   { Forward Declarations }
   TFloriaJSEngine = class;
   TFloriaJSContext = class;
@@ -33,6 +37,9 @@ type
     FHeap: TFloriaJSHeap;
     FGlobalEnv: TFloriaJSEnvironment;
     FEvaluator: TFloriaJSEvaluator;
+    FVM: TFloriaJSVM;
+    FCompiler: TFloriaJSCompiler;
+    FBackend: TFloriaJSExecutionBackend;
     FOutput: TStringList;
 
     procedure InitContext();
@@ -52,6 +59,7 @@ type
 
     function  Evaluate(const AScript: string): TFloriaJSResult; virtual;
     function  EvaluateValue(const AScript: string): TFloriaJSValue; virtual;
+    function  EvaluateBytecode(const AScript: string): TFloriaJSResult; virtual;
     function  Call(const AFuncName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue; virtual;
 
     { Gives a value that was handed out back to the runtime. The object the
@@ -66,6 +74,9 @@ type
     property Heap: TFloriaJSHeap read FHeap;
     property GlobalEnv: TFloriaJSEnvironment read FGlobalEnv;
     property Evaluator: TFloriaJSEvaluator read FEvaluator;
+    property VM: TFloriaJSVM read FVM;
+    property Compiler: TFloriaJSCompiler read FCompiler;
+    property Backend: TFloriaJSExecutionBackend read FBackend write FBackend;
     property Output: TStringList read FOutput;
   end;
 
@@ -76,6 +87,9 @@ type
     FContexts: TFPList;
     FDefaultContext: TFloriaJSContext;
     FMemoryLimit: NativeUInt;
+    FBackend: TFloriaJSExecutionBackend;
+    function  GetBackend(): TFloriaJSExecutionBackend;
+    procedure SetBackend(ABackend: TFloriaJSExecutionBackend);
   public
     constructor Create();
     destructor Destroy(); override;
@@ -86,12 +100,14 @@ type
 
     function  Execute(const AScript: string): TFloriaJSResult; virtual;
     function  ExecuteValue(const AScript: string): TFloriaJSValue; virtual;
+    function  ExecuteBytecode(const AScript: string): TFloriaJSResult; virtual;
     procedure ReleaseValue(const AValue: TFloriaJSValue); virtual;
     procedure RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
 
     property Initialized: Boolean read FInitialized;
     property DefaultContext: TFloriaJSContext read FDefaultContext;
     property MemoryLimit: NativeUInt read FMemoryLimit write FMemoryLimit;
+    property Backend: TFloriaJSExecutionBackend read GetBackend write SetBackend;
   end;
 
 implementation
@@ -103,16 +119,24 @@ begin
   inherited Create();
   FEngine := AEngine;
   FName := AName;
+  FBackend := fjbInterpreter;
+  if AEngine <> nil then
+    FBackend := AEngine.Backend;
   FOutput := TStringList.Create();
   FHeap := TFloriaJSHeap.Create();
   FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil)));
   FEvaluator := TFloriaJSEvaluator.Create(FHeap);
+  FVM := TFloriaJSVM.Create(FHeap);
+  FVM.GlobalEnv := FGlobalEnv;
+  FCompiler := TFloriaJSCompiler.Create();
 
   InitContext();
 end;
 
 destructor TFloriaJSContext.Destroy();
 begin
+  FreeAndNil(FCompiler);
+  FreeAndNil(FVM);
   FreeAndNil(FEvaluator);
   FreeAndNil(FHeap);
   FGlobalEnv := nil;
@@ -123,6 +147,8 @@ end;
 procedure TFloriaJSContext.InitContext();
 begin
   FloriaJSRegisterStdLib(FGlobalEnv, FHeap, FOutput);
+  if FVM <> nil then
+    FVM.GlobalEnv := FGlobalEnv;
 end;
 
 procedure TFloriaJSContext.SetVariable(const AKey, AValue: string);
@@ -194,6 +220,19 @@ begin
   end;
 end;
 
+function TFloriaJSContext.EvaluateBytecode(const AScript: string): TFloriaJSResult;
+var
+  savedBackend: TFloriaJSExecutionBackend;
+begin
+  savedBackend := FBackend;
+  FBackend := fjbBytecodeVM;
+  try
+    Result := Evaluate(AScript);
+  finally
+    FBackend := savedBackend;
+  end;
+end;
+
 function TFloriaJSContext.EvaluateValue(const AScript: string): TFloriaJSValue;
 begin
   Result := EvaluateScript(AScript);
@@ -207,6 +246,7 @@ function TFloriaJSContext.EvaluateScript(const AScript: string): TFloriaJSValue;
 var
   parser: TFloriaJSParser;
   prog: TFloriaJSProgram;
+  code: TFloriaJSBytecode;
 begin
   if Length(Trim(AScript)) = 0 then
     Exit(JSMakeUndefined());
@@ -218,7 +258,17 @@ begin
       if parser.HasErrors() then
         raise Exception.Create(parser.GetError(0));
 
-      Result := FEvaluator.ExecuteProgram(prog, FGlobalEnv);
+      if FBackend = fjbBytecodeVM then
+      begin
+        code := FCompiler.CompileProgram(prog);
+        try
+          Result := FVM.Execute(code, FGlobalEnv);
+        finally
+          code.Free();
+        end;
+      end
+      else
+        Result := FEvaluator.ExecuteProgram(prog, FGlobalEnv);
     finally
       prog.Free();
     end;
@@ -235,7 +285,11 @@ begin
   if not fnVal.IsFunction() then
     Exit(JSMakeUndefined());
 
-  Result := FEvaluator.CallFunction(fnVal, AArgs, JSMakeUndefined());
+  if FBackend = fjbBytecodeVM then
+    Result := FVM.CallFunction(fnVal, AArgs, JSMakeUndefined())
+  else
+    Result := FEvaluator.CallFunction(fnVal, AArgs, JSMakeUndefined());
+
   { The caller holds on to the returned value, so the object it points at must
     stay alive for as long as the caller keeps it. }
   if Result.IsObject() and (Result.ObjVal <> nil) then
@@ -254,6 +308,7 @@ procedure TFloriaJSContext.Reset();
 begin
   FHeap.Clear();
   FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil)));
+  FVM.ResetStack();
   FOutput.Clear();
   InitContext();
 end;
@@ -264,9 +319,25 @@ constructor TFloriaJSEngine.Create();
 begin
   inherited Create();
   FInitialized := False;
+  FBackend := fjbInterpreter;
   FMemoryLimit := 64 * 1024 * 1024; { Default 64MB memory limit }
   FContexts := TFPList.Create();
   Initialize();
+end;
+
+function TFloriaJSEngine.GetBackend(): TFloriaJSExecutionBackend;
+begin
+  Result := FBackend;
+end;
+
+procedure TFloriaJSEngine.SetBackend(ABackend: TFloriaJSExecutionBackend);
+var
+  i: Integer;
+begin
+  FBackend := ABackend;
+  if FContexts <> nil then
+    for i := 0 to FContexts.Count - 1 do
+      TFloriaJSContext(FContexts[i]).Backend := ABackend;
 end;
 
 destructor TFloriaJSEngine.Destroy();
@@ -319,6 +390,14 @@ function TFloriaJSEngine.Execute(const AScript: string): TFloriaJSResult;
 begin
   if FDefaultContext <> nil then
     Result := FDefaultContext.Evaluate(AScript)
+  else
+    Result := FloriaJSMakeErrorResult('No active execution context');
+end;
+
+function TFloriaJSEngine.ExecuteBytecode(const AScript: string): TFloriaJSResult;
+begin
+  if FDefaultContext <> nil then
+    Result := FDefaultContext.EvaluateBytecode(AScript)
   else
     Result := FloriaJSMakeErrorResult('No active execution context');
 end;

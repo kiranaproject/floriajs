@@ -19,7 +19,8 @@ uses
   fpcunit, testregistry, consoletestrunner,
   floria.js.types, floria.js.lexer, floria.js.ast, floria.js.parser,
   floria.js.value, floria.js.env, floria.js.evaluator, floria.js.stdlib,
-  floria.js.core, floria.ftml.types, floria.ftml.binding, floria.ftml.engine, floriajs;
+  floria.js.core, floria.js.bytecode, floria.js.vm, floria.js.compiler,
+  floria.ftml.types, floria.ftml.binding, floria.ftml.engine, floriajs;
 
 type
   { Counts how often an AST node is destroyed, so the reference counting of a
@@ -46,6 +47,7 @@ type
     procedure TestContextVariables();
     procedure TestScriptExecution();
     procedure TestContextDestruction();
+    procedure TestBytecodeVMBackendExecution();
   end;
 
   { Test 3: Lexer & Tokenizer Suite }
@@ -263,6 +265,18 @@ type
     procedure TestArrayCallbacksDoNotAccumulateObjects();
   end;
 
+  { Test 19: QML V4-Class Bytecode & VM Execution Engine }
+  TFloriaJSVMTest = class(TTestCase)
+  published
+    procedure TestBasicBytecodeArithmetic();
+    procedure TestBytecodeLocalVariables();
+    procedure TestBytecodeControlFlowAndJumps();
+    procedure TestBytecodeFunctionsAndCalls();
+    procedure TestBytecodeObjectsAndProperties();
+    procedure TestBytecodeTryCatch();
+    procedure TestCompileAndRunScript();
+  end;
+
 { TFloriaJSTypesTest }
 
 destructor TCountedASTNode.Destroy();
@@ -372,6 +386,31 @@ begin
     ctx := engine.CreateContext('temp');
     AssertNotNull('Context must exist', ctx);
     engine.DestroyContext(ctx);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEngineTest.TestBytecodeVMBackendExecution();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Test direct ExecuteBytecode
+    res := engine.ExecuteBytecode('var a = 20, b = 22; a + b;');
+    AssertTrue('ExecuteBytecode success', res.Success);
+    AssertEquals('ExecuteBytecode result', 42.0, res.NumberValue, 0.0001);
+
+    // Switch engine backend to VM
+    engine.Backend := fjbBytecodeVM;
+    AssertEquals('Engine backend is VM', Ord(fjbBytecodeVM), Ord(engine.Backend));
+    AssertEquals('Default context backend is VM', Ord(fjbBytecodeVM), Ord(engine.DefaultContext.Backend));
+
+    res := engine.Execute('function fib(n) { if (n <= 1) return n; return fib(n - 1) + fib(n - 2); } fib(8);');
+    AssertTrue('VM backend recursive fib success', res.Success);
+    AssertEquals('VM backend fib(8) == 21', 21.0, res.NumberValue, 0.0001);
   finally
     engine.Free();
   end;
@@ -5000,6 +5039,330 @@ begin
   end;
 end;
 
+{ TFloriaJSVMTest }
+
+procedure TFloriaJSVMTest.TestBasicBytecodeArithmetic();
+var
+  code: TFloriaJSBytecode;
+  vm: TFloriaJSVM;
+  res: TFloriaJSValue;
+begin
+  code := TFloriaJSBytecode.Create('arithmetic');
+  vm := TFloriaJSVM.Create();
+  try
+    // (10 + 20) * 5 = 150
+    code.Emit(opConst, code.AddNumberConstant(10.0));
+    code.Emit(opConst, code.AddNumberConstant(20.0));
+    code.Emit(opAdd);
+    code.Emit(opConst, code.AddNumberConstant(5.0));
+    code.Emit(opMul);
+    code.Emit(opReturn);
+
+    res := vm.Execute(code);
+    AssertTrue('Arithmetic result is number', res.IsNumber());
+    AssertEquals('Arithmetic calculation matches expected', 150.0, res.NumVal, 0.0001);
+
+    // String concatenation: "hello " + "world"
+    code.Free();
+    code := TFloriaJSBytecode.Create('str_concat');
+    code.Emit(opConst, code.AddStringConstant('hello '));
+    code.Emit(opConst, code.AddStringConstant('world'));
+    code.Emit(opAdd);
+    code.Emit(opReturn);
+
+    res := vm.Execute(code);
+    AssertTrue('Concat result is string', res.IsString());
+    AssertEquals('Concat value matches expected', 'hello world', res.StrVal);
+  finally
+    code.Free();
+    vm.Free();
+  end;
+end;
+
+procedure TFloriaJSVMTest.TestBytecodeLocalVariables();
+var
+  code: TFloriaJSBytecode;
+  vm: TFloriaJSVM;
+  res: TFloriaJSValue;
+  aIdx, bIdx, cIdx: Integer;
+begin
+  code := TFloriaJSBytecode.Create('locals');
+  vm := TFloriaJSVM.Create();
+  try
+    aIdx := code.AddLocal('a');
+    bIdx := code.AddLocal('b');
+    cIdx := code.AddLocal('c');
+
+    // a = 42; b = 8; c = a - b; return c;
+    code.Emit(opConst, code.AddNumberConstant(42.0));
+    code.Emit(opSetLoc, aIdx);
+
+    code.Emit(opConst, code.AddNumberConstant(8.0));
+    code.Emit(opSetLoc, bIdx);
+
+    code.Emit(opLoadLoc, aIdx);
+    code.Emit(opLoadLoc, bIdx);
+    code.Emit(opSub);
+    code.Emit(opSetLoc, cIdx);
+
+    code.Emit(opLoadLoc, cIdx);
+    code.Emit(opReturn);
+
+    res := vm.Execute(code);
+    AssertTrue('Locals result is number', res.IsNumber());
+    AssertEquals('Locals subtraction result', 34.0, res.NumVal, 0.0001);
+  finally
+    code.Free();
+    vm.Free();
+  end;
+end;
+
+procedure TFloriaJSVMTest.TestBytecodeControlFlowAndJumps();
+var
+  code: TFloriaJSBytecode;
+  vm: TFloriaJSVM;
+  res: TFloriaJSValue;
+  iIdx: Integer;
+  loopStart, jumpIfFalseIdx: Integer;
+begin
+  code := TFloriaJSBytecode.Create('loop');
+  vm := TFloriaJSVM.Create();
+  try
+    iIdx := code.AddLocal('i');
+
+    // i = 0;
+    code.Emit(opZero);
+    code.Emit(opSetLoc, iIdx);
+
+    // while (i < 5) i = i + 1;
+    loopStart := code.CurrentIP();
+    code.Emit(opLoadLoc, iIdx);
+    code.Emit(opConst, code.AddNumberConstant(5.0));
+    code.Emit(opLt);
+    jumpIfFalseIdx := code.Emit(opJumpIfFalse, 0);
+
+    code.Emit(opLoadLoc, iIdx);
+    code.Emit(opOne);
+    code.Emit(opAdd);
+    code.Emit(opSetLoc, iIdx);
+    code.Emit(opJump, loopStart);
+
+    code.PatchJump(jumpIfFalseIdx, code.CurrentIP());
+    code.Emit(opLoadLoc, iIdx);
+    code.Emit(opReturn);
+
+    res := vm.Execute(code);
+    AssertTrue('Loop counter result is number', res.IsNumber());
+    AssertEquals('Loop counter reached 5', 5.0, res.NumVal, 0.0001);
+  finally
+    code.Free();
+    vm.Free();
+  end;
+end;
+
+procedure TFloriaJSVMTest.TestBytecodeFunctionsAndCalls();
+var
+  mainCode, subCode: TFloriaJSBytecode;
+  vm: TFloriaJSVM;
+  res: TFloriaJSValue;
+  fnIdx: Integer;
+begin
+  mainCode := TFloriaJSBytecode.Create('main');
+  subCode := TFloriaJSBytecode.Create('add');
+  vm := TFloriaJSVM.Create();
+  try
+    // sub function add(x, y) { return x + y; }
+    subCode.AddArgument('x');
+    subCode.AddArgument('y');
+    subCode.Emit(opLoadLoc, 0);
+    subCode.Emit(opLoadLoc, 1);
+    subCode.Emit(opAdd);
+    subCode.Emit(opReturn);
+
+    fnIdx := mainCode.AddSubFunction(subCode);
+    mainCode.AddLocal('fn');
+
+    // var fn = add; return fn(100, 200);
+    mainCode.Emit(opClosure, fnIdx);
+    mainCode.Emit(opSetLoc, 0);
+
+    mainCode.Emit(opLoadLoc, 0);      // Callee
+    mainCode.Emit(opUndefined);        // This
+    mainCode.Emit(opConst, mainCode.AddNumberConstant(100.0));
+    mainCode.Emit(opConst, mainCode.AddNumberConstant(200.0));
+    mainCode.Emit(opCall, 2);
+    mainCode.Emit(opReturn);
+
+    res := vm.Execute(mainCode);
+    AssertTrue('Function call result is number', res.IsNumber());
+    AssertEquals('Function call returned 300', 300.0, res.NumVal, 0.0001);
+  finally
+    mainCode.Free();
+    vm.Free();
+  end;
+end;
+
+procedure TFloriaJSVMTest.TestBytecodeObjectsAndProperties();
+var
+  code: TFloriaJSBytecode;
+  vm: TFloriaJSVM;
+  res: TFloriaJSValue;
+begin
+  code := TFloriaJSBytecode.Create('objects');
+  vm := TFloriaJSVM.Create();
+  try
+    // var o = {}; o.foo = 99; return o.foo;
+    code.Emit(opNewObject);
+    code.Emit(opDup);
+    code.Emit(opConst, code.AddNumberConstant(99.0));
+    code.Emit(opSetPropNamed, code.AddStringConstant('foo'));
+    code.Emit(opPop); // pop the assigned 99
+
+    code.Emit(opGetPropNamed, code.AddStringConstant('foo'));
+    code.Emit(opReturn);
+
+    res := vm.Execute(code);
+    AssertTrue('Object property is number', res.IsNumber());
+    AssertEquals('Object property read matches 99', 99.0, res.NumVal, 0.0001);
+  finally
+    code.Free();
+    vm.Free();
+  end;
+end;
+
+procedure TFloriaJSVMTest.TestBytecodeTryCatch();
+var
+  code: TFloriaJSBytecode;
+  vm: TFloriaJSVM;
+  res: TFloriaJSValue;
+  tryIdx, catchTarget: Integer;
+begin
+  code := TFloriaJSBytecode.Create('try_catch');
+  vm := TFloriaJSVM.Create();
+  try
+    // try { throw "error_msg"; } catch (e) { return "caught: " + e; }
+    tryIdx := code.Emit(opPushTry, 0);
+    code.Emit(opConst, code.AddStringConstant('error_msg'));
+    code.Emit(opThrow);
+    code.Emit(opPopTry);
+    code.Emit(opConst, code.AddStringConstant('not_caught'));
+    code.Emit(opReturn);
+
+    catchTarget := code.CurrentIP();
+    code.PatchJump(tryIdx, catchTarget);
+    // On catch, the thrown value is on top of stack
+    code.Emit(opConst, code.AddStringConstant('caught: '));
+    code.Emit(opSwap);
+    code.Emit(opAdd);
+    code.Emit(opReturn);
+
+    res := vm.Execute(code);
+    AssertTrue('Catch returned string', res.IsString());
+    AssertEquals('Caught error string matches', 'caught: error_msg', res.StrVal);
+  finally
+    code.Free();
+    vm.Free();
+  end;
+end;
+
+procedure TFloriaJSVMTest.TestCompileAndRunScript();
+var
+  vm: TFloriaJSVM;
+  compiler: TFloriaJSCompiler;
+  parser: TFloriaJSParser;
+  prog: TFloriaJSProgram;
+  code: TFloriaJSBytecode;
+  env: TFloriaJSEnvironment;
+  res: TFloriaJSValue;
+
+  function Run(const AScript: string): TFloriaJSValue;
+  begin
+    parser := TFloriaJSParser.Create(AScript);
+    try
+      prog := parser.ParseProgram();
+      try
+        code := compiler.CompileProgram(prog);
+        try
+          Result := vm.Execute(code, env);
+        finally
+          code.Free();
+        end;
+      finally
+        prog.Free();
+      end;
+    finally
+      parser.Free();
+    end;
+  end;
+
+begin
+  vm := TFloriaJSVM.Create();
+  compiler := TFloriaJSCompiler.Create();
+  env := TFloriaJSEnvironment.Create(nil);
+  vm.GlobalEnv := env;
+  try
+    // 1. Basic Arithmetic via compiler
+    res := Run('var a = 10, b = 25; a + b;');
+    AssertTrue('Compiled script result is number', res.IsNumber());
+    AssertEquals('Compiled arithmetic sum', 35.0, res.NumVal, 0.0001);
+
+    // 2. Loop & Accumulator
+    res := Run('var sum = 0; for (var i = 1; i <= 10; i = i + 1) sum = sum + i; sum;');
+    AssertTrue('Compiled loop result is number', res.IsNumber());
+    AssertEquals('Compiled loop sum 1..10', 55.0, res.NumVal, 0.0001);
+
+    // 3. User Function & Recursion (Factorial)
+    res := Run('function factorial(n) { if (n <= 1) return 1; return n * factorial(n - 1); } factorial(5);');
+    AssertTrue('Compiled factorial result is number', res.IsNumber());
+    AssertEquals('Compiled factorial(5) == 120', 120.0, res.NumVal, 0.0001);
+
+    // 4. Object Literal & Property Access
+    res := Run('var o = { x: 10, y: 20 }; o.x + o.y;');
+    AssertTrue('Compiled object sum is number', res.IsNumber());
+    AssertEquals('Compiled object property sum', 30.0, res.NumVal, 0.0001);
+
+    // 5. Arrow Function
+    res := Run('var mult = (x, y) => x * y; mult(6, 7);');
+    AssertTrue('Compiled arrow function result is number', res.IsNumber());
+    AssertEquals('Compiled arrow function product', 42.0, res.NumVal, 0.0001);
+
+    // 6. Try / Catch
+    res := Run('try { throw "boom"; } catch (e) { "caught:" + e; }');
+    AssertTrue('Compiled try/catch result is string', res.IsString());
+    AssertEquals('Compiled try/catch caught message', 'caught:boom', res.StrVal);
+
+    // 7. Switch Statement
+    res := Run('var x = 2, out = ""; switch (x) { case 1: out = "one"; break; case 2: out = "two"; break; default: out = "def"; } out;');
+    AssertTrue('Compiled switch result is string', res.IsString());
+    AssertEquals('Compiled switch matched case', 'two', res.StrVal);
+
+    res := Run('var x = 99, out = ""; switch (x) { case 1: out = "one"; break; default: out = "def"; } out;');
+    AssertEquals('Compiled switch default case', 'def', res.StrVal);
+
+    // 8. For..of Statement
+    res := Run('var sum = 0; for (const x of [10, 20, 30]) sum = sum + x; sum;');
+    AssertTrue('Compiled for..of array result is number', res.IsNumber());
+    AssertEquals('Compiled for..of array sum', 60.0, res.NumVal, 0.0001);
+
+    res := Run('var chars = ""; for (const ch of "abc") chars = chars + ch + "-"; chars;');
+    AssertEquals('Compiled for..of string result', 'a-b-c-', res.StrVal);
+
+    // 9. For..in Statement
+    res := Run('var o = { a: 1, b: 2 }, keys = ""; for (var k in o) keys = keys + k + ";"; keys;');
+    AssertTrue('Compiled for..in result is string', res.IsString());
+    AssertEquals('Compiled for..in keys', 'a;b;', res.StrVal);
+
+    // 10. Labeled Break Statement
+    res := Run('var hit = 0; outer: for (var i = 0; i < 5; i = i + 1) { for (var j = 0; j < 5; j = j + 1) { if (i == 2 && j == 1) break outer; hit = hit + 1; } } hit;');
+    AssertTrue('Compiled labeled break result is number', res.IsNumber());
+    AssertEquals('Compiled labeled break count', 11.0, res.NumVal, 0.0001);
+  finally
+    env.Free();
+    compiler.Free();
+    vm.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -5024,6 +5387,7 @@ begin
   RegisterTest(TFloriaJSReclamationTest);
   RegisterTest(TFloriaJSConstructionTest);
   RegisterTest(TFloriaJSArrayMethodsTest);
+  RegisterTest(TFloriaJSVMTest);
 
   Application := TTestRunner.Create(nil);
   try

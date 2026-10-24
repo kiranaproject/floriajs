@@ -172,6 +172,7 @@ type
     FNativeMethod: TFloriaJSNativeMethod;
     FParamNames: TStringList;
     FBody: TFloriaJSStmtNode;
+    FBytecode: TObject;
     FClosureEnv: Pointer; // Lexical environment TFloriaJSEnvironment
     FIsAsync: Boolean;
     FIsArrow: Boolean;
@@ -179,6 +180,7 @@ type
     constructor CreateNative(const AName: string; AProc: TFloriaJSNativeProc);
     constructor CreateNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
     constructor CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False; AIsArrow: Boolean = False);
+    constructor CreateBytecode(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean = False; AIsAsync: Boolean = False);
     destructor Destroy(); override;
 
     function GetProperty(const AName: string): TFloriaJSValue; override;
@@ -191,6 +193,7 @@ type
     property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
     property ParamNames: TStringList read FParamNames;
     property Body: TFloriaJSStmtNode read FBody;
+    property Bytecode: TObject read FBytecode write FBytecode;
     property ClosureEnv: Pointer read FClosureEnv;
   end;
 
@@ -290,6 +293,7 @@ type
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
     function  NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
     function  NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False; AIsArrow: Boolean = False): TFloriaJSFunction;
+    function  NewBytecodeFunction(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean = False; AIsAsync: Boolean = False): TFloriaJSFunction;
 
     { The shared prototypes are created on first use and pinned, so they stay
       alive for as long as the heap does even when no value refers to them. }
@@ -1317,6 +1321,21 @@ begin
     FBody.Retain();
 end;
 
+constructor TFloriaJSFunction.CreateBytecode(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean; AIsAsync: Boolean);
+begin
+  inherited Create(nil);
+  FName := AName;
+  FIsNative := False;
+  FNativeProc := nil;
+  FNativeMethod := nil;
+  FParamNames := TStringList.Create();
+  FBody := nil;
+  FBytecode := ABytecode;
+  FClosureEnv := AClosure;
+  FIsAsync := AIsAsync;
+  FIsArrow := AIsArrow;
+end;
+
 destructor TFloriaJSFunction.Destroy();
 var
   i: Integer;
@@ -2211,6 +2230,11 @@ end;
 function TFloriaJSHeap.NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean; AIsArrow: Boolean): TFloriaJSFunction;
 begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateUser(AName, AParams, ABody, AClosure, AOwnsBody, AIsAsync, AIsArrow)));
+end;
+
+function TFloriaJSHeap.NewBytecodeFunction(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean; AIsAsync: Boolean): TFloriaJSFunction;
+begin
+  Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateBytecode(AName, ABytecode, AClosure, AIsArrow, AIsAsync)));
 end;
 
 procedure TFloriaJSHeap.Collect();
