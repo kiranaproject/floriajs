@@ -293,6 +293,7 @@ begin
 
   objectObj := AHeap.NewNativeMethod('Object', AObjectCtor);
   objectObj.SetProperty('prototype', JSMakeObject(proto));
+  proto.SetProperty('constructor', JSMakeFunction(objectObj));
   objectObj.SetProperty('keys', JSMakeFunction(AHeap.NewNativeFunction('keys', @JSObjectKeys)));
   objectObj.SetProperty('values', JSMakeFunction(AHeap.NewNativeFunction('values', @JSObjectValues)));
   objectObj.SetProperty('entries', JSMakeFunction(AHeap.NewNativeFunction('entries', @JSObjectEntries)));

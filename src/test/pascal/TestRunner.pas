@@ -307,6 +307,7 @@ type
     procedure TestDestructuringAssignment();
     procedure TestVarHoistingAndFunctionCollisions();
     procedure TestChainWideOptionalChaining();
+    procedure TestConstructorBackReferencesLifetimeSafe();
   end;
 
 { TFloriaJSTypesTest }
@@ -6337,6 +6338,67 @@ begin
     AssertTrue('Nested optional call is undefined', res.BooleanValue);
   finally
     engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestConstructorBackReferencesLifetimeSafe();
+var
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+  initCount, i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    // 1. Prototype replaced with new object, function collected, old prototype accessed
+    ctx.Evaluate(
+      'function F() {}' +
+      'var p1 = F.prototype;' +
+      'F.prototype = {};' +
+      'F = null;'
+    );
+    ctx.Heap.Collect();
+    res := ctx.Evaluate('p1.constructor === Object;');
+    AssertTrue('Detached prototype constructor delegates safely to Object after GC', res.Success and res.BooleanValue);
+
+    // 2. Prototype deleted, function collected, old prototype accessed
+    ctx.Evaluate(
+      'function G() {}' +
+      'var p2 = G.prototype;' +
+      'delete G.prototype;' +
+      'G = null;'
+    );
+    ctx.Heap.Collect();
+    res := ctx.Evaluate('p2.constructor === Object;');
+    AssertTrue('Deleted prototype constructor delegates safely to Object after GC', res.Success and res.BooleanValue);
+
+    // 3. Function collected without prototype replacement (prototype held by user var)
+    ctx.Evaluate(
+      'function H() {}' +
+      'var p3 = H.prototype;' +
+      'H = null;'
+    );
+    ctx.Heap.Collect();
+    res := ctx.Evaluate('p3.constructor === Object;');
+    AssertTrue('Orphaned prototype constructor delegates safely to Object after function GC', res.Success and res.BooleanValue);
+
+    // 4. Repeated detachment and reclamation does not leak memory or crash
+    initCount := ctx.Heap.GetObjectCount();
+    for i := 1 to 200 do
+    begin
+      ctx.Evaluate(
+        'function Temp() {}' +
+        'var oldP = Temp.prototype;' +
+        'Temp.prototype = {};' +
+        'Temp = null;' +
+        'oldP = null;'
+      );
+    end;
+    ctx.Heap.Collect();
+    AssertTrue('Detached prototypes are reclaimed without leak (' +
+      IntToStr(initCount) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount()) + ')',
+      ctx.Heap.GetObjectCount() <= initCount + 5);
+  finally
+    ctx.Free();
   end;
 end;
 

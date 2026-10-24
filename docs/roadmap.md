@@ -319,7 +319,7 @@ the **rest of the chain**, including calls, computed keys, and arguments.
 
 ---
 
-### [ ] P0-06 — Make constructor back-references lifetime-safe
+### [x] P0-06 — Make constructor back-references lifetime-safe
 
 **Risk.** `TFloriaJSPrototypeObject` stores the owner function in a raw pointer.
 `TFloriaJSFunction.Destroy` only clears the owner of the function’s **current**
