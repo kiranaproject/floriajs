@@ -356,7 +356,7 @@ prototype’s `constructor`, and extend the function-prototype leak test.
 
 ---
 
-### [ ] P0-07 — Complete declaration validation and switch-case hoisting
+### [x] P0-07 — Complete declaration validation and switch-case hoisting
 
 **Failures.**
 

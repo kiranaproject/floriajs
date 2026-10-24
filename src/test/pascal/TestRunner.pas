@@ -308,6 +308,7 @@ type
     procedure TestVarHoistingAndFunctionCollisions();
     procedure TestChainWideOptionalChaining();
     procedure TestConstructorBackReferencesLifetimeSafe();
+    procedure TestDeclarationValidationAndSwitchHoisting();
   end;
 
 { TFloriaJSTypesTest }
@@ -6399,6 +6400,67 @@ begin
       ctx.Heap.GetObjectCount() <= initCount + 5);
   finally
     ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestDeclarationValidationAndSwitchHoisting();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. Function parameter vs body let/const collision is SyntaxError
+    res := engine.Execute('function f(a) { let a = 1; return a; }');
+    AssertFalse('Parameter redeclaration with let must be rejected', res.Success);
+    res := engine.Execute('function f(a) { const a = 1; return a; }');
+    AssertFalse('Parameter redeclaration with const must be rejected', res.Success);
+
+    // 2. For loop let duplicate declaration is SyntaxError
+    res := engine.Execute('for (let i = 0, i = 1; i < 2; i++) {}');
+    AssertFalse('Duplicate let in for loop header must be rejected', res.Success);
+
+    // 3. Catch parameter vs catch block let/const collision is SyntaxError
+    res := engine.Execute('try { throw 1; } catch (e) { let e = 2; }');
+    AssertFalse('Catch parameter redeclaration with let must be rejected', res.Success);
+    res := engine.Execute('try { throw 1; } catch (e) { const e = 2; }');
+    AssertFalse('Catch parameter redeclaration with const must be rejected', res.Success);
+
+    // 4. Duplicate let across switch case clauses is SyntaxError
+    res := engine.Execute('switch (1) { case 1: let x = 1; break; case 2: let x = 2; break; }');
+    AssertFalse('Duplicate let across switch cases must be rejected', res.Success);
+
+    // 5. Switch-case function declaration hoisting before textual declaration
+    res := engine.Execute(
+      'var r = 0;' +
+      'switch (1) {' +
+      '  case 1:' +
+      '    r = f();' +
+      '    break;' +
+      '  function f() { return 42; }' +
+      '}' +
+      'r === 42;'
+    );
+    AssertTrue('Function declared in switch body is hoisted and callable before declaration', res.Success and res.BooleanValue);
+
+    // 6. Valid shadowing cases that must continue to work
+    // Parameter vs var
+    res := engine.Execute('function f(a) { var a = 10; return a; } f(5) === 10;');
+    AssertTrue('Parameter shadowed by var is valid', res.Success and res.BooleanValue);
+
+    // Parameter vs inner block let
+    res := engine.Execute('function f(a) { { let a = 20; } return a; } f(5) === 5;');
+    AssertTrue('Parameter shadowed in inner block let is valid', res.Success and res.BooleanValue);
+
+    // Catch param vs inner block let
+    res := engine.Execute('var r = 0; try { throw 1; } catch (e) { { let e = 99; r = e; } } r === 99;');
+    AssertTrue('Catch param shadowed in inner block let is valid', res.Success and res.BooleanValue);
+
+    // For loop init let vs inner block let
+    res := engine.Execute('var sum = 0; for (let i = 0; i < 2; i++) { let i = 10; sum += i; } sum === 20;');
+    AssertTrue('For loop let shadowed in inner block let is valid', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
   end;
 end;
 
