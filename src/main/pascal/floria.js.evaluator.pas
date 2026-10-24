@@ -1204,6 +1204,7 @@ var
   callEnv: TFloriaJSEnvironment;
   closureMark: Integer;
   promise: TFloriaJSPromise;
+  argsArr: TFloriaJSArray;
   i, paramCount: Integer;
 begin
   if not AFuncVal.IsFunction() then
@@ -1231,7 +1232,16 @@ begin
     // 2. User-defined AST function
     callEnv := NewEnv(TFloriaJSEnvironment(fn.ClosureEnv));
     if not fn.IsArrow then
+    begin
       callEnv.Define('this', AThis);
+      if FHeap <> nil then
+      begin
+        argsArr := FHeap.NewArray();
+        for i := 0 to High(AArgs) do
+          argsArr.Push(AArgs[i]);
+        callEnv.Define('arguments', JSMakeArray(argsArr));
+      end;
+    end;
     paramCount := fn.ParamNames.Count;
     for i := 0 to paramCount - 1 do
     begin

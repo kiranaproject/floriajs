@@ -19,7 +19,7 @@ interface
 uses
   Classes, SysUtils, floria.js.types, floria.js.value, floria.js.env;
 
-procedure FloriaJSRegisterObjects(AHeap: TFloriaJSHeap; AObjectCtor: TFloriaJSNativeMethod);
+procedure FloriaJSRegisterObjects(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; AObjectCtor: TFloriaJSNativeMethod);
 
 implementation
 
@@ -81,10 +81,9 @@ end;
 function JSObjectKeys(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   obj: TFloriaJSObject;
-  arr: TFloriaJSArray;
   heap: TFloriaJSHeap;
 begin
-  if (Length(AArgs) = 0) or not AArgs[0].IsObject() or (AArgs[0].IsFunction()) then
+  if (Length(AArgs) = 0) or not AArgs[0].IsObject() then
   begin
     heap := nil;
     if AThis.IsFunction() then
@@ -92,50 +91,75 @@ begin
     else if AThis.IsObject() then
       heap := AThis.AsObject().Heap;
     if heap <> nil then
-      arr := heap.NewArray()
+      Exit(JSMakeArray(heap.NewArray()))
     else
-      arr := nil;
-    Exit(JSMakeArray(arr));
+      Exit(JSMakeUndefined());
   end;
 
   obj := AArgs[0].AsObject();
-  Result := JSMakeArray(GetKeysArray(obj.Heap, obj));
+  heap := obj.Heap;
+  if (heap = nil) and AThis.IsFunction() then
+    heap := AThis.AsFunction().Heap;
+  if heap = nil then
+    Exit(JSMakeUndefined());
+
+  Result := JSMakeArray(GetKeysArray(heap, obj));
 end;
 
 function JSObjectValues(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   obj: TFloriaJSObject;
-  arr: TFloriaJSArray;
+  heap: TFloriaJSHeap;
 begin
-  if (Length(AArgs) = 0) or not AArgs[0].IsObject() or AArgs[0].IsFunction() then
+  if (Length(AArgs) = 0) or not AArgs[0].IsObject() then
   begin
+    heap := nil;
     if AThis.IsFunction() then
-      arr := AThis.AsFunction().Heap.NewArray()
+      heap := AThis.AsFunction().Heap
+    else if AThis.IsObject() then
+      heap := AThis.AsObject().Heap;
+    if heap <> nil then
+      Exit(JSMakeArray(heap.NewArray()))
     else
-      arr := nil;
-    Exit(JSMakeArray(arr));
+      Exit(JSMakeUndefined());
   end;
 
   obj := AArgs[0].AsObject();
-  Result := JSMakeArray(GetValuesArray(obj.Heap, obj));
+  heap := obj.Heap;
+  if (heap = nil) and AThis.IsFunction() then
+    heap := AThis.AsFunction().Heap;
+  if heap = nil then
+    Exit(JSMakeUndefined());
+
+  Result := JSMakeArray(GetValuesArray(heap, obj));
 end;
 
 function JSObjectEntries(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   obj: TFloriaJSObject;
-  arr: TFloriaJSArray;
+  heap: TFloriaJSHeap;
 begin
-  if (Length(AArgs) = 0) or not AArgs[0].IsObject() or AArgs[0].IsFunction() then
+  if (Length(AArgs) = 0) or not AArgs[0].IsObject() then
   begin
+    heap := nil;
     if AThis.IsFunction() then
-      arr := AThis.AsFunction().Heap.NewArray()
+      heap := AThis.AsFunction().Heap
+    else if AThis.IsObject() then
+      heap := AThis.AsObject().Heap;
+    if heap <> nil then
+      Exit(JSMakeArray(heap.NewArray()))
     else
-      arr := nil;
-    Exit(JSMakeArray(arr));
+      Exit(JSMakeUndefined());
   end;
 
   obj := AArgs[0].AsObject();
-  Result := JSMakeArray(GetEntriesArray(obj.Heap, obj));
+  heap := obj.Heap;
+  if (heap = nil) and AThis.IsFunction() then
+    heap := AThis.AsFunction().Heap;
+  if heap = nil then
+    Exit(JSMakeUndefined());
+
+  Result := JSMakeArray(GetEntriesArray(heap, obj));
 end;
 
 function JSObjectAssign(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -149,7 +173,7 @@ begin
   target := AArgs[0].AsObject();
   for i := 1 to High(AArgs) do
   begin
-    if not AArgs[i].IsObject() or AArgs[i].IsFunction() or AArgs[i].IsArray() then
+    if not AArgs[i].IsObject() then
       Continue;
     src := AArgs[i].AsObject();
     for j := 0 to src.GetPropertyCount() - 1 do
@@ -168,7 +192,12 @@ begin
     heap := AThis.AsFunction().Heap
   else
     heap := nil;
+  if (heap = nil) and (Length(AArgs) > 0) and AArgs[0].IsObject() then
+    heap := AArgs[0].AsObject().Heap;
   if heap = nil then Exit(JSMakeObject(nil));
+
+  if (Length(AArgs) > 0) and AArgs[0].IsNull() then
+    Exit(JSMakeObject(heap.NewObject(nil, True)));
 
   proto := nil;
   if (Length(AArgs) > 0) and AArgs[0].IsObject() and (not AArgs[0].IsFunction()) then
@@ -177,17 +206,31 @@ begin
   Result := JSMakeObject(heap.NewObject(proto));
 end;
 
+function JSObjectGetPrototypeOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+begin
+  if (Length(AArgs) = 0) or not AArgs[0].IsObject() then
+    Exit(JSMakeUndefined());
+
+  obj := AArgs[0].AsObject();
+  if (obj <> nil) and (obj.Prototype <> nil) then
+    Exit(JSMakeObject(obj.Prototype))
+  else
+    Exit(JSMakeNull());
+end;
+
 function JSObjectPrototypeHasOwnProperty(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   obj: TFloriaJSObject;
   name: string;
 begin
-  if (Length(AArgs) = 0) then
+  if Length(AArgs) = 0 then
     Exit(JSMakeBoolean(False));
 
   name := AArgs[0].ToString();
 
-  if AThis.IsObject() and (not AThis.IsFunction()) then
+  if AThis.IsObject() then
   begin
     obj := AThis.AsObject();
     if obj <> nil then
@@ -197,41 +240,40 @@ begin
   Exit(JSMakeBoolean(False));
 end;
 
-function JSFunctionToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+function JSObjectPrototypeToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 begin
-  if AThis.IsFunction() then
-    Result := JSMakeString('function ' + AThis.AsFunction().Name + '() { [native code] }')
+  if AThis.IsArray() then
+    Result := JSMakeString('[object Array]')
+  else if AThis.IsFunction() then
+    Result := JSMakeString('[object Function]')
   else
     Result := JSMakeString('[object Object]');
 end;
 
-procedure FloriaJSRegisterObjects(AHeap: TFloriaJSHeap; AObjectCtor: TFloriaJSNativeMethod);
+procedure FloriaJSRegisterObjects(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; AObjectCtor: TFloriaJSNativeMethod);
 var
   objectObj: TFloriaJSFunction;
-  funcProto: TFloriaJSObject;
+  proto: TFloriaJSObject;
 begin
   if (AHeap = nil) then Exit;
 
+  proto := AHeap.GetObjectPrototype();
+  proto.SetProperty('hasOwnProperty',
+    JSMakeFunction(AHeap.NewNativeFunction('hasOwnProperty', @JSObjectPrototypeHasOwnProperty)));
+  proto.SetProperty('toString',
+    JSMakeFunction(AHeap.NewNativeFunction('toString', @JSObjectPrototypeToString)));
+
   objectObj := AHeap.NewNativeMethod('Object', AObjectCtor);
+  objectObj.SetProperty('prototype', JSMakeObject(proto));
   objectObj.SetProperty('keys', JSMakeFunction(AHeap.NewNativeFunction('keys', @JSObjectKeys)));
   objectObj.SetProperty('values', JSMakeFunction(AHeap.NewNativeFunction('values', @JSObjectValues)));
   objectObj.SetProperty('entries', JSMakeFunction(AHeap.NewNativeFunction('entries', @JSObjectEntries)));
   objectObj.SetProperty('assign', JSMakeFunction(AHeap.NewNativeFunction('assign', @JSObjectAssign)));
   objectObj.SetProperty('create', JSMakeFunction(AHeap.NewNativeFunction('create', @JSObjectCreate)));
+  objectObj.SetProperty('getPrototypeOf', JSMakeFunction(AHeap.NewNativeFunction('getPrototypeOf', @JSObjectGetPrototypeOf)));
 
-  { Object.prototype hasOwnProperty }
-  { The built-in object prototype is the prototype of objects created by
-    NewObject(nil); attach hasOwnProperty to it when available. }
-  if AHeap.GetArrayPrototype() <> nil then
-  begin
-    AHeap.GetArrayPrototype().SetProperty('hasOwnProperty',
-      JSMakeFunction(AHeap.NewNativeFunction('hasOwnProperty', @JSObjectPrototypeHasOwnProperty)));
-  end;
-
-  if AObjectCtor <> nil then
-  begin
-    { installed by caller }
-  end;
+  if AEnv <> nil then
+    AEnv.Define('Object', JSMakeFunction(objectObj));
 end;
 
 end.

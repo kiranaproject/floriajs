@@ -261,6 +261,7 @@ type
     FInvoker: TFloriaJSFunctionInvoker;
     FArrayPrototype: TFloriaJSObject;
     FStringPrototype: TFloriaJSObject;
+    FObjectPrototype: TFloriaJSObject;
     FOwnedHelpers: TFPList;
     FClearing: Boolean;
     FId: Integer;
@@ -271,7 +272,7 @@ type
     function  Track(AObj: TFloriaJSObject; AHeapOwned: Boolean = True): TFloriaJSObject;
     function  TrackEnvironment(AEnv: TObject): TObject;
     function  Untrack(AObj: TObject): Boolean;
-    function  NewObject(AProto: TFloriaJSObject = nil): TFloriaJSObject;
+    function  NewObject(AProto: TFloriaJSObject = nil; ANoProto: Boolean = False): TFloriaJSObject;
     function  NewArray(): TFloriaJSArray;
     function  NewError(const AName, AMessage: string): TFloriaJSError;
     function  NewPromise(): TFloriaJSPromise;
@@ -283,6 +284,7 @@ type
       alive for as long as the heap does even when no value refers to them. }
     function  GetArrayPrototype(): TFloriaJSObject;
     function  GetStringPrototype(): TFloriaJSObject;
+    function  GetObjectPrototype(): TFloriaJSObject;
     function  ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     { Built-in units use helpers that need the heap (for example to create the
@@ -1211,6 +1213,19 @@ begin
   inherited Destroy();
 end;
 
+function JSFunctionToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  fnName: string;
+begin
+  if AThis.IsFunction() then
+  begin
+    fnName := AThis.AsFunction().Name;
+    Result := JSMakeString('function ' + fnName + '() { [native code] }');
+  end
+  else
+    Result := JSMakeString('[object Object]');
+end;
+
 function TFloriaJSFunction.GetProperty(const AName: string): TFloriaJSValue;
 var
   protoObj: TFloriaJSObject;
@@ -1225,6 +1240,9 @@ begin
     protoObj := FHeap.NewObject();
     SetProperty('prototype', JSMakeObject(protoObj));
   end;
+
+  if (AName = 'toString') and (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
+    Exit(JSMakeFunction(FHeap.NewNativeFunction('toString', @JSFunctionToString)));
 
   Result := inherited GetProperty(AName);
 end;
@@ -1535,6 +1553,7 @@ begin
   FInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
+  FObjectPrototype := nil;
   FreeAndNil(FEnvironments);
   FreeAndNil(FObjects);
   FreeAndNil(FOwnedHelpers);
@@ -1591,8 +1610,20 @@ begin
   end;
 end;
 
-function TFloriaJSHeap.NewObject(AProto: TFloriaJSObject): TFloriaJSObject;
+function TFloriaJSHeap.GetObjectPrototype(): TFloriaJSObject;
 begin
+  if FObjectPrototype = nil then
+  begin
+    FObjectPrototype := Track(TFloriaJSObject.Create(nil));
+    FObjectPrototype.Pin();
+  end;
+  Result := FObjectPrototype;
+end;
+
+function TFloriaJSHeap.NewObject(AProto: TFloriaJSObject; ANoProto: Boolean): TFloriaJSObject;
+begin
+  if (AProto = nil) and (not ANoProto) and (FObjectPrototype <> nil) then
+    AProto := FObjectPrototype;
   Result := Track(TFloriaJSObject.Create(AProto));
 end;
 
@@ -1607,7 +1638,7 @@ function TFloriaJSHeap.GetArrayPrototype(): TFloriaJSObject;
 begin
   if FArrayPrototype = nil then
   begin
-    FArrayPrototype := NewObject();
+    FArrayPrototype := NewObject(GetObjectPrototype());
     { The prototype is shared by every array, so the heap keeps it alive
       until the heap itself is cleared. }
     FArrayPrototype.Pin();
@@ -1619,7 +1650,7 @@ function TFloriaJSHeap.GetStringPrototype(): TFloriaJSObject;
 begin
   if FStringPrototype = nil then
   begin
-    FStringPrototype := NewObject();
+    FStringPrototype := NewObject(GetObjectPrototype());
     FStringPrototype.Pin();
   end;
   Result := FStringPrototype;
@@ -2019,6 +2050,7 @@ begin
       freed, so the cached pointers must not outlive them. }
     FArrayPrototype := nil;
     FStringPrototype := nil;
+    FObjectPrototype := nil;
     if FOwnedHelpers <> nil then
     begin
       for i := FOwnedHelpers.Count - 1 downto 0 do

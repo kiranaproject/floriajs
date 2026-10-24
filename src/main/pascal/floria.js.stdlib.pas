@@ -124,6 +124,29 @@ begin
     Result := JSMakeBoolean(AArgs[0].ToBoolean());
 end;
 
+function JSNumberIsNaN(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if (Length(AArgs) = 0) or (not AArgs[0].IsNumber()) then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean(IsNaN(AArgs[0].NumVal));
+end;
+
+function JSNumberIsFinite(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if (Length(AArgs) = 0) or (not AArgs[0].IsNumber()) then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean((not IsNaN(AArgs[0].NumVal)) and (not IsInfinite(AArgs[0].NumVal)));
+end;
+
+function JSNumberIsInteger(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if (Length(AArgs) = 0) or (not AArgs[0].IsNumber()) then
+    Exit(JSMakeBoolean(False));
+  if IsNaN(AArgs[0].NumVal) or IsInfinite(AArgs[0].NumVal) then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean(Frac(AArgs[0].NumVal) = 0.0);
+end;
+
 { Math Methods }
 
 function JSMathAbs(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -577,18 +600,20 @@ end;
 
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
-  consoleObj, mathObj, promiseObj: TFloriaJSObject;
-  functionResult: TFloriaJSValue;
+  consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
+  numberObj: TFloriaJSFunction;
 begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
 
   GLogOutput := ALogOutput;
 
-  // 0. Array prototype and the Array global object
+  // 0. Built-in prototypes and global objects
   FloriaJSRegisterArray(AEnv, AHeap);
   FloriaJSRegisterString(AHeap);
-  FloriaJSRegisterObjects(AHeap, @AHeap.ObjectCtor);
-  FloriaJSRegisterJSON(AEnv, AHeap);  // 1. console
+  FloriaJSRegisterObjects(AEnv, AHeap, @AHeap.ObjectCtor);
+  FloriaJSRegisterJSON(AEnv, AHeap);
+
+  // 1. console
   consoleObj := AHeap.NewObject();
   consoleObj.SetProperty('log', JSMakeFunction(AHeap.NewNativeFunction('log', @JSConsoleLog)));
   consoleObj.SetProperty('error', JSMakeFunction(AHeap.NewNativeFunction('error', @JSConsoleError)));
@@ -648,12 +673,7 @@ begin
   AEnv.Define('RangeError', JSMakeFunction(AHeap.NewNativeMethod('RangeError', @AHeap.RangeErrorCtor)));
   AEnv.Define('ReferenceError', JSMakeFunction(AHeap.NewNativeMethod('ReferenceError', @AHeap.ReferenceErrorCtor)));
 
-  // 5. Object
-  { Object is installed by FloriaJSRegisterObjects; define the global name }
-  if AEnv.Get('Object', functionResult) = False then
-    AEnv.Define('Object', JSMakeFunction(AHeap.NewNativeMethod('Object', @AHeap.ObjectCtor)));
-
-  // 6. Global Functions
+  // 5. Global Functions
   AEnv.Define('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));
   AEnv.Define('parseFloat', JSMakeFunction(AHeap.NewNativeFunction('parseFloat', @JSParseFloat)));
   AEnv.Define('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSIsNaN)));
@@ -661,9 +681,51 @@ begin
   AEnv.Define('NaN', JSMakeNumber(NaN));
   AEnv.Define('Infinity', JSMakeNumber(Infinity));
   AEnv.Define('undefined', JSMakeUndefined());
-  AEnv.Define('Number', JSMakeFunction(AHeap.NewNativeFunction('Number', @JSNumberConst)));
+
+  // 6. Number constructor and static methods
+  numberObj := AHeap.NewNativeFunction('Number', @JSNumberConst);
+  numberObj.SetProperty('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSNumberIsNaN)));
+  numberObj.SetProperty('isFinite', JSMakeFunction(AHeap.NewNativeFunction('isFinite', @JSNumberIsFinite)));
+  numberObj.SetProperty('isInteger', JSMakeFunction(AHeap.NewNativeFunction('isInteger', @JSNumberIsInteger)));
+  numberObj.SetProperty('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));
+  numberObj.SetProperty('parseFloat', JSMakeFunction(AHeap.NewNativeFunction('parseFloat', @JSParseFloat)));
+  numberObj.SetProperty('NaN', JSMakeNumber(NaN));
+  numberObj.SetProperty('POSITIVE_INFINITY', JSMakeNumber(Infinity));
+  numberObj.SetProperty('NEGATIVE_INFINITY', JSMakeNumber(-Infinity));
+  numberObj.SetProperty('MAX_VALUE', JSMakeNumber(1.7976931348623157e+308));
+  numberObj.SetProperty('MIN_VALUE', JSMakeNumber(5e-324));
+  numberObj.SetProperty('MAX_SAFE_INTEGER', JSMakeNumber(9007199254740991.0));
+  numberObj.SetProperty('MIN_SAFE_INTEGER', JSMakeNumber(-9007199254740991.0));
+  numberObj.SetProperty('EPSILON', JSMakeNumber(2.220446049250313e-16));
+  AEnv.Define('Number', JSMakeFunction(numberObj));
+
   AEnv.Define('String', JSMakeFunction(AHeap.NewNativeFunction('String', @JSStringConst)));
   AEnv.Define('Boolean', JSMakeFunction(AHeap.NewNativeFunction('Boolean', @JSBooleanConst)));
+
+  // 7. globalThis
+  globalObj := AHeap.NewObject();
+  globalObj.SetProperty('globalThis', JSMakeObject(globalObj));
+  globalObj.SetProperty('NaN', JSMakeNumber(NaN));
+  globalObj.SetProperty('Infinity', JSMakeNumber(Infinity));
+  globalObj.SetProperty('undefined', JSMakeUndefined());
+  globalObj.SetProperty('Math', JSMakeObject(mathObj));
+  globalObj.SetProperty('console', JSMakeObject(consoleObj));
+  globalObj.SetProperty('Array', AEnv.GetDefault('Array', JSMakeUndefined()));
+  globalObj.SetProperty('Object', AEnv.GetDefault('Object', JSMakeUndefined()));
+  globalObj.SetProperty('Number', JSMakeFunction(numberObj));
+  globalObj.SetProperty('String', AEnv.GetDefault('String', JSMakeUndefined()));
+  globalObj.SetProperty('Boolean', AEnv.GetDefault('Boolean', JSMakeUndefined()));
+  globalObj.SetProperty('JSON', AEnv.GetDefault('JSON', JSMakeUndefined()));
+  globalObj.SetProperty('Promise', JSMakeObject(promiseObj));
+  globalObj.SetProperty('Error', AEnv.GetDefault('Error', JSMakeUndefined()));
+  globalObj.SetProperty('TypeError', AEnv.GetDefault('TypeError', JSMakeUndefined()));
+  globalObj.SetProperty('RangeError', AEnv.GetDefault('RangeError', JSMakeUndefined()));
+  globalObj.SetProperty('ReferenceError', AEnv.GetDefault('ReferenceError', JSMakeUndefined()));
+  globalObj.SetProperty('parseInt', AEnv.GetDefault('parseInt', JSMakeUndefined()));
+  globalObj.SetProperty('parseFloat', AEnv.GetDefault('parseFloat', JSMakeUndefined()));
+  globalObj.SetProperty('isNaN', AEnv.GetDefault('isNaN', JSMakeUndefined()));
+  globalObj.SetProperty('isFinite', AEnv.GetDefault('isFinite', JSMakeUndefined()));
+  AEnv.Define('globalThis', JSMakeObject(globalObj));
 end;
 
 end.
