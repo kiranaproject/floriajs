@@ -1812,6 +1812,15 @@ begin
     res := engine.Execute('Math.clz32(1);');
     AssertTrue('Math.clz32 success', res.Success);
     AssertEquals('Math.clz32(1) = 31', 31.0, res.NumberValue, 0.0001);
+
+    { Empty statements are accepted and keep the completion value }
+    res := engine.Execute(';;; 1;');
+    AssertTrue('Empty statement success', res.Success);
+    AssertEquals('Empty statements do not change the result', 1.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('function f() { return 1; }; f();');
+    AssertTrue('Semicolon after function declaration success', res.Success);
+    AssertEquals('Semicolon after function declaration is accepted', 1.0, res.NumberValue, 0.0001);
   finally
     engine.Free();
   end;
@@ -1946,6 +1955,10 @@ begin
     { globalThis self-reference and globals access }
     res := engine.Execute('globalThis.globalThis === globalThis;');
     AssertTrue('globalThis.globalThis === globalThis', res.BooleanValue);
+
+    { String.prototype exposes the shared primitive-string methods }
+    res := engine.Execute('String.prototype.charAt === "".charAt;');
+    AssertTrue('String.prototype shares the string methods', res.BooleanValue);
 
     res := engine.Execute('globalThis.Math.abs(-42);');
     AssertEquals('globalThis.Math.abs(-42) = 42', 42.0, res.NumberValue, 0.0001);
@@ -4811,6 +4824,12 @@ begin
 
     AssertEquals('Array.of must collect its arguments', '1,2,3',
       ctx.Evaluate('Array.of(1, 2, 3).join(",");').StringValue);
+
+    AssertEquals('Arrays must be instances of Array', 'true',
+      ctx.Evaluate('[] instanceof Array;').StringValue);
+
+    AssertEquals('Array.prototype must expose the shared methods', 'true',
+      ctx.Evaluate('typeof Array.prototype.join === "function";').StringValue);
 
     AssertEquals('new Array(n) must create a sparse array of that length', '3',
       ctx.Evaluate('(new Array(3)).length;').StringValue);

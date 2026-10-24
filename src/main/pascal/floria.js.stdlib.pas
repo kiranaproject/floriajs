@@ -601,7 +601,7 @@ end;
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
-  numberObj: TFloriaJSFunction;
+  numberObj, stringObj: TFloriaJSFunction;
 begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
 
@@ -699,7 +699,11 @@ begin
   numberObj.SetProperty('EPSILON', JSMakeNumber(2.220446049250313e-16));
   AEnv.Define('Number', JSMakeFunction(numberObj));
 
-  AEnv.Define('String', JSMakeFunction(AHeap.NewNativeFunction('String', @JSStringConst)));
+  stringObj := AHeap.NewNativeFunction('String', @JSStringConst);
+  { Publish the shared string prototype so String.prototype methods and
+    prototype-chain checks see the same methods primitive strings use. }
+  stringObj.SetProperty('prototype', JSMakeObject(AHeap.GetStringPrototype()));
+  AEnv.Define('String', JSMakeFunction(stringObj));
   AEnv.Define('Boolean', JSMakeFunction(AHeap.NewNativeFunction('Boolean', @JSBooleanConst)));
 
   // 7. globalThis

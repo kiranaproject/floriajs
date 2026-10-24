@@ -1198,6 +1198,11 @@ var
   stmt: TFloriaJSStmtNode;
   startLine, startCol: Integer;
 begin
+  { Empty statement: an empty block has the same effect and keeps the
+    completion value unchanged. }
+  if Match(tkSemicolon) then
+    Exit(TFloriaJSBlockStmt.Create(FPrevious.Line, FPrevious.Column));
+
   if (FCurrent.Kind = tkIdentifier) and (FLexer.PeekToken().Kind = tkColon) then
   begin
     startLine := FCurrent.Line;

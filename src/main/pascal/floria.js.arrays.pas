@@ -819,6 +819,9 @@ begin
   RegisterMethod(AHeap, proto, 'reduceRight', @JSArrayReduceRight);
 
   arrayObj := AHeap.NewNativeMethod('Array', @AHeap.ArrayCtor);
+  { Publish the shared array prototype on the constructor, so instanceof and
+    Array.prototype access go through the same object the arrays use. }
+  arrayObj.SetProperty('prototype', JSMakeObject(proto));
   arrayObj.SetProperty('isArray', JSMakeFunction(AHeap.NewNativeFunction('isArray', @JSArrayIsArray)));
   arrayObj.SetProperty('from', JSMakeFunction(AHeap.NewNativeFunction('from', @JSArrayFrom)));
   arrayObj.SetProperty('of', JSMakeFunction(AHeap.NewNativeFunction('of', @JSArrayOf)));
