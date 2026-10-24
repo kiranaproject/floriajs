@@ -979,6 +979,15 @@ begin
         FBytecode.Emit(opSetPropNamed, nameIdx, AAssign.Line);
       end;
     end;
+  end
+  else if (AAssign.Target is TFloriaJSArrayExpr) or (AAssign.Target is TFloriaJSObjectExpr) then
+  begin
+    if AAssign.Op <> tkAssign then
+      raise Exception.Create('SyntaxError: Invalid left-hand side in assignment');
+
+    CompileExpr(AAssign.Value);
+    FBytecode.Emit(opDup);
+    CompileDestructuring(AAssign.Target, tkAssign);
   end;
 end;
 
@@ -1318,9 +1327,10 @@ var
   ident: TFloriaJSIdentifierExpr;
   assignExpr: TFloriaJSAssignExpr;
   spreadExpr: TFloriaJSSpreadExpr;
+  member: TFloriaJSMemberExpr;
   propValNode, elemNode, valNode: TFloriaJSExprNode;
   propKey: string;
-  nameIdx, i, j, count, skipJump: Integer;
+  nameIdx, i, j, count, skipJump, locIdx, valLoc: Integer;
   extractedList: TStringList;
 begin
   if APattern = nil then Exit;
@@ -1328,12 +1338,48 @@ begin
   if APattern is TFloriaJSIdentifierExpr then
   begin
     ident := TFloriaJSIdentifierExpr(APattern);
-    nameIdx := FBytecode.AddStringConstant(ident.Name);
-    case AKind of
-      tkConst: FBytecode.Emit(opDefineConst, nameIdx, ident.Line);
-      tkLet:   FBytecode.Emit(opDefineLet, nameIdx, ident.Line);
+    if AKind = tkAssign then
+    begin
+      locIdx := FBytecode.FindLocal(ident.Name);
+      if (Length(ident.Name) > 0) and (ident.Name[1] = '$') and (locIdx >= 0) then
+        FBytecode.Emit(opSetLoc, locIdx, ident.Line)
+      else
+      begin
+        nameIdx := FBytecode.AddStringConstant(ident.Name);
+        FBytecode.Emit(opStoreEnv, nameIdx, ident.Line);
+        FBytecode.Emit(opPop);
+      end;
+    end
     else
-      FBytecode.Emit(opDefineEnv, nameIdx, ident.Line);
+    begin
+      nameIdx := FBytecode.AddStringConstant(ident.Name);
+      case AKind of
+        tkConst: FBytecode.Emit(opDefineConst, nameIdx, ident.Line);
+        tkLet:   FBytecode.Emit(opDefineLet, nameIdx, ident.Line);
+      else
+        FBytecode.Emit(opDefineEnv, nameIdx, ident.Line);
+      end;
+    end;
+  end
+  else if APattern is TFloriaJSMemberExpr then
+  begin
+    member := TFloriaJSMemberExpr(APattern);
+    valLoc := FBytecode.AddNewLocal('$destruct_val');
+    FBytecode.Emit(opSetLoc, valLoc);
+    CompileExpr(member.Target);
+    if member.Computed then
+    begin
+      CompileExpr(member.PropertyExpr);
+      FBytecode.Emit(opLoadLoc, valLoc);
+      FBytecode.Emit(opSetProp, 0, member.Line);
+      FBytecode.Emit(opPop);
+    end
+    else
+    begin
+      nameIdx := FBytecode.AddStringConstant(member.PropertyName);
+      FBytecode.Emit(opLoadLoc, valLoc);
+      FBytecode.Emit(opSetPropNamed, nameIdx, member.Line);
+      FBytecode.Emit(opPop);
     end;
   end
   else if APattern is TFloriaJSAssignExpr then
@@ -1366,6 +1412,14 @@ begin
             FBytecode.Emit(opConst, FBytecode.AddStringConstant(extractedList[j]));
           FBytecode.Emit(opObjectRest, extractedList.Count, APattern.Line);
           CompileDestructuring(valNode, AKind);
+        end
+        else if objExpr.GetPropertyKind(i) = fjpkComputed then
+        begin
+          propValNode := objExpr.GetPropertyValue(i);
+          FBytecode.Emit(opDup);
+          CompileExpr(objExpr.GetPropertyKeyExpr(i));
+          FBytecode.Emit(opGetProp, 0, APattern.Line);
+          CompileDestructuring(propValNode, AKind);
         end
         else
         begin

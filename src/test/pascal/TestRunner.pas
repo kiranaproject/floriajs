@@ -304,6 +304,7 @@ type
     procedure TestFunctionPrototypeAndConstructor();
     procedure TestNumericParsingAndFormatting();
     procedure TestCompoundAssignmentToMembers();
+    procedure TestDestructuringAssignment();
   end;
 
 { TFloriaJSTypesTest }
@@ -6108,6 +6109,103 @@ begin
     );
     AssertTrue('Nullish assignment ??= succeeds', res.Success);
     AssertTrue('Nullish assignment ??= semantics correct', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestDestructuringAssignment();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. Array destructuring assignment & expression result (RHS)
+    res := engine.Execute(
+      'var a, b;' +
+      'var rArr = ([a, b] = [1, 2]);' +
+      'a === 1 && b === 2 && rArr[0] === 1 && rArr[1] === 2;'
+    );
+    AssertTrue('Array destructuring assignment succeeds', res.Success);
+    AssertTrue('Array destructuring assignment values and RHS correct', res.BooleanValue);
+
+    // 2. Object destructuring assignment & expression result (RHS)
+    res := engine.Execute(
+      'var x, y;' +
+      'var rObj = ({ x, y } = { x: 10, y: 20 });' +
+      'x === 10 && y === 20 && rObj.x === 10 && rObj.y === 20;'
+    );
+    AssertTrue('Object destructuring assignment succeeds', res.Success);
+    AssertTrue('Object destructuring assignment values and RHS correct', res.BooleanValue);
+
+    // 3. Defaults in destructuring assignment
+    res := engine.Execute(
+      'var d1, d2, o1, o2;' +
+      '[d1 = 10, d2 = 20] = [5];' +
+      '({ o1 = 100, o2 = 200 } = { o1: 50 });' +
+      'd1 === 5 && d2 === 20 && o1 === 50 && o2 === 200;'
+    );
+    AssertTrue('Defaults in destructuring assignment succeed', res.Success);
+    AssertTrue('Defaults in destructuring assignment values correct', res.BooleanValue);
+
+    // 4. Member targets
+    res := engine.Execute(
+      'var objTarget = { a: 0, b: 0 };' +
+      '[objTarget.a, objTarget["b"]] = [7, 8];' +
+      'objTarget.a === 7 && objTarget.b === 8;'
+    );
+    AssertTrue('Member targets in destructuring assignment succeed', res.Success);
+    AssertTrue('Member targets in destructuring assignment values correct', res.BooleanValue);
+
+    // 5. Computed keys in object destructuring assignment
+    res := engine.Execute(
+      'var cVal;' +
+      'var cKey = "myKey";' +
+      '({ [cKey]: cVal } = { myKey: 99 });' +
+      'cVal === 99;'
+    );
+    AssertTrue('Computed keys in destructuring assignment succeed', res.Success);
+    AssertTrue('Computed keys in destructuring assignment value correct', res.BooleanValue);
+
+    // 6. Array holes / skipped elements
+    res := engine.Execute(
+      'var first, third;' +
+      '[first, , third] = [11, 22, 33];' +
+      'first === 11 && third === 33;'
+    );
+    AssertTrue('Array holes in destructuring assignment succeed', res.Success);
+    AssertTrue('Array holes in destructuring assignment values correct', res.BooleanValue);
+
+    // 7. Rest patterns in destructuring assignment
+    res := engine.Execute(
+      'var head, tail, rA, rRest;' +
+      '[head, ...tail] = [1, 2, 3, 4];' +
+      '({ rA, ...rRest } = { rA: 10, rB: 20, rC: 30 });' +
+      'head === 1 && tail.length === 3 && tail[0] === 2 && tail[1] === 3 && tail[2] === 4 && ' +
+      'rA === 10 && rRest.rB === 20 && rRest.rC === 30;'
+    );
+    AssertTrue('Rest patterns in destructuring assignment succeed', res.Success);
+    AssertTrue('Rest patterns in destructuring assignment values correct', res.BooleanValue);
+
+    // 8. Nested destructuring assignment
+    res := engine.Execute(
+      'var n1, n2, n3;' +
+      '[ [n1, n2], { n3 } ] = [ [1, 2], { n3: 3 } ];' +
+      'n1 === 1 && n2 === 2 && n3 === 3;'
+    );
+    AssertTrue('Nested destructuring assignment succeeds', res.Success);
+    AssertTrue('Nested destructuring assignment values correct', res.BooleanValue);
+
+    // 9. Const target rejection
+    res := engine.Execute(
+      'const cVal = 42;' +
+      'var caughtConstName = "";' +
+      'try { [cVal] = [99]; } catch (e) { caughtConstName = e.name; }' +
+      'caughtConstName === "TypeError";'
+    );
+    AssertTrue('Const target rejection in destructuring assignment succeeds', res.Success);
+    AssertTrue('Const target rejection threw TypeError', res.BooleanValue);
   finally
     engine.Free();
   end;

@@ -184,7 +184,7 @@ while refactoring the assignment path.
 
 ---
 
-### [ ] P0-03 — Compile destructuring assignment (or reject it explicitly)
+### [x] P0-03 — Compile destructuring assignment (or reject it explicitly)
 
 **Failure.**
 
