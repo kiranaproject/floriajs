@@ -68,7 +68,7 @@ type
 
     procedure CompileVarStmt(AVar: TFloriaJSVarStmt);
     procedure CompileDestructuring(APattern: TFloriaJSExprNode; AKind: TFloriaJSTokenKind = tkVar);
-    procedure CompileBlockStmt(ABlock: TFloriaJSBlockStmt);
+    procedure CompileBlockStmt(ABlock: TFloriaJSBlockStmt; AHoistFuncs: Boolean = True);
     procedure CompileIfStmt(AIf: TFloriaJSIfStmt);
     procedure CompileWhileStmt(AWhile: TFloriaJSWhileStmt);
     procedure CompileForStmt(AFor: TFloriaJSForStmt);
@@ -230,6 +230,115 @@ begin
   end;
 end;
 
+procedure CollectVarNamesFromStmt(AStmt: TFloriaJSStmtNode; ANames: TStringList);
+var
+  i, j: Integer;
+  block: TFloriaJSBlockStmt;
+  ifStmt: TFloriaJSIfStmt;
+  whileStmt: TFloriaJSWhileStmt;
+  forStmt: TFloriaJSForStmt;
+  forInOf: TFloriaJSForInOfStmt;
+  switchStmt: TFloriaJSSwitchStmt;
+  switchCase: TFloriaJSSwitchCase;
+  tryStmt: TFloriaJSTryStmt;
+  labeledStmt: TFloriaJSLabeledStmt;
+  varStmt: TFloriaJSVarStmt;
+  declPattern: TFloriaJSExprNode;
+  declName: string;
+  patternNames: TStringList;
+begin
+  if AStmt = nil then Exit;
+
+  if AStmt is TFloriaJSVarStmt then
+  begin
+    varStmt := TFloriaJSVarStmt(AStmt);
+    if varStmt.Kind = tkVar then
+    begin
+      patternNames := TStringList.Create();
+      try
+        for i := 0 to varStmt.GetDeclaratorCount() - 1 do
+        begin
+          declPattern := varStmt.GetDeclaratorPattern(i);
+          if declPattern <> nil then
+          begin
+            patternNames.Clear();
+            CollectPatternNames(declPattern, patternNames);
+            for j := 0 to patternNames.Count - 1 do
+              if ANames.IndexOf(patternNames[j]) < 0 then
+                ANames.Add(patternNames[j]);
+          end
+          else
+          begin
+            declName := varStmt.GetDeclaratorName(i);
+            if (declName <> '') and (ANames.IndexOf(declName) < 0) then
+              ANames.Add(declName);
+          end;
+        end;
+      finally
+        patternNames.Free();
+      end;
+    end;
+  end
+  else if AStmt is TFloriaJSBlockStmt then
+  begin
+    block := TFloriaJSBlockStmt(AStmt);
+    for i := 0 to block.GetStatementCount() - 1 do
+      CollectVarNamesFromStmt(block.GetStatement(i), ANames);
+  end
+  else if AStmt is TFloriaJSIfStmt then
+  begin
+    ifStmt := TFloriaJSIfStmt(AStmt);
+    CollectVarNamesFromStmt(ifStmt.Consequent, ANames);
+    if ifStmt.Alternate <> nil then
+      CollectVarNamesFromStmt(ifStmt.Alternate, ANames);
+  end
+  else if AStmt is TFloriaJSWhileStmt then
+  begin
+    whileStmt := TFloriaJSWhileStmt(AStmt);
+    CollectVarNamesFromStmt(whileStmt.Body, ANames);
+  end
+  else if AStmt is TFloriaJSForStmt then
+  begin
+    forStmt := TFloriaJSForStmt(AStmt);
+    if (forStmt.Init <> nil) and (forStmt.Init is TFloriaJSVarStmt) then
+      CollectVarNamesFromStmt(TFloriaJSStmtNode(forStmt.Init), ANames);
+    CollectVarNamesFromStmt(forStmt.Body, ANames);
+  end
+  else if AStmt is TFloriaJSForInOfStmt then
+  begin
+    forInOf := TFloriaJSForInOfStmt(AStmt);
+    if forInOf.VarKind = tkVar then
+      if (forInOf.VarName <> '') and (ANames.IndexOf(forInOf.VarName) < 0) then
+        ANames.Add(forInOf.VarName);
+    CollectVarNamesFromStmt(forInOf.Body, ANames);
+  end
+  else if AStmt is TFloriaJSSwitchStmt then
+  begin
+    switchStmt := TFloriaJSSwitchStmt(AStmt);
+    for i := 0 to switchStmt.GetCaseCount() - 1 do
+    begin
+      switchCase := switchStmt.GetCase(i);
+      for j := 0 to switchCase.GetStatementCount() - 1 do
+        CollectVarNamesFromStmt(switchCase.GetStatement(j), ANames);
+    end;
+  end
+  else if AStmt is TFloriaJSTryStmt then
+  begin
+    tryStmt := TFloriaJSTryStmt(AStmt);
+    CollectVarNamesFromStmt(tryStmt.Block, ANames);
+    if tryStmt.CatchBlock <> nil then
+      CollectVarNamesFromStmt(tryStmt.CatchBlock, ANames);
+    if tryStmt.FinallyBlock <> nil then
+      CollectVarNamesFromStmt(tryStmt.FinallyBlock, ANames);
+  end
+  else if AStmt is TFloriaJSLabeledStmt then
+  begin
+    labeledStmt := TFloriaJSLabeledStmt(AStmt);
+    CollectVarNamesFromStmt(labeledStmt.Body, ANames);
+  end;
+  // NOTE: TFloriaJSFunctionDecl is intentionally NOT traversed into!
+end;
+
 procedure ValidateStatementsDeclarations(ACount: Integer; AGetStmt: TFloriaJSStmtGetter);
 var
   lexicalNames, varNames, declNames: TStringList;
@@ -293,6 +402,9 @@ end;
 function TFloriaJSCompiler.CompileProgram(AProgram: TFloriaJSProgram): TFloriaJSBytecode;
 var
   i, count: Integer;
+  fnNames, varNames: TStringList;
+  fnDecl: TFloriaJSFunctionDecl;
+  vName: string;
 begin
   FLoopDepth := 0;
   FTryDepth := 0;
@@ -311,9 +423,34 @@ begin
 
   count := AProgram.GetStatementCount();
   ValidateStatementsDeclarations(count, @AProgram.GetStatement);
-  for i := 0 to count - 1 do
-    if AProgram.GetStatement(i) is TFloriaJSFunctionDecl then
-      CompileFunctionDecl(TFloriaJSFunctionDecl(AProgram.GetStatement(i)));
+
+  fnNames := TStringList.Create();
+  try
+    for i := 0 to count - 1 do
+      if AProgram.GetStatement(i) is TFloriaJSFunctionDecl then
+      begin
+        fnDecl := TFloriaJSFunctionDecl(AProgram.GetStatement(i));
+        fnNames.Add(fnDecl.Name);
+        CompileFunctionDecl(fnDecl);
+      end;
+
+    varNames := TStringList.Create();
+    try
+      for i := 0 to count - 1 do
+        CollectVarNamesFromStmt(AProgram.GetStatement(i), varNames);
+
+      for i := 0 to varNames.Count - 1 do
+      begin
+        vName := varNames[i];
+        if fnNames.IndexOf(vName) < 0 then
+          FBytecode.Emit(opDeclareVar, FBytecode.AddStringConstant(vName));
+      end;
+    finally
+      varNames.Free();
+    end;
+  finally
+    fnNames.Free();
+  end;
 
   for i := 0 to count - 1 do
     if not (AProgram.GetStatement(i) is TFloriaJSFunctionDecl) then
@@ -346,7 +483,10 @@ var
   compiler: TFloriaJSCompiler;
   subCode: TFloriaJSBytecode;
   i: Integer;
-  pName: string;
+  pName, vName: string;
+  fnNames, varNames: TStringList;
+  fnDecl: TFloriaJSFunctionDecl;
+  bodyBlock: TFloriaJSBlockStmt;
 begin
   compiler := TFloriaJSCompiler.Create();
   try
@@ -367,8 +507,40 @@ begin
     compiler.FIsTopLevel := False;
     compiler.FResultLoc := -1;
     compiler.CompileParametersPrologue(AParams);
+
+    fnNames := TStringList.Create();
+    try
+      if ABody is TFloriaJSBlockStmt then
+      begin
+        bodyBlock := TFloriaJSBlockStmt(ABody);
+        for i := 0 to bodyBlock.GetStatementCount() - 1 do
+          if bodyBlock.GetStatement(i) is TFloriaJSFunctionDecl then
+          begin
+            fnDecl := TFloriaJSFunctionDecl(bodyBlock.GetStatement(i));
+            fnNames.Add(fnDecl.Name);
+            compiler.CompileFunctionDecl(fnDecl);
+          end;
+      end;
+
+      varNames := TStringList.Create();
+      try
+        CollectVarNamesFromStmt(ABody, varNames);
+        for i := 0 to varNames.Count - 1 do
+        begin
+          vName := varNames[i];
+          if (fnNames.IndexOf(vName) < 0) and
+             ((AParams = nil) or (AParams.IndexOf(vName) < 0)) then
+            compiler.FBytecode.Emit(opDeclareVar, compiler.FBytecode.AddStringConstant(vName));
+        end;
+      finally
+        varNames.Free();
+      end;
+    finally
+      fnNames.Free();
+    end;
+
     if ABody is TFloriaJSBlockStmt then
-      compiler.CompileBlockStmt(TFloriaJSBlockStmt(ABody))
+      compiler.CompileBlockStmt(TFloriaJSBlockStmt(ABody), False)
     else if ABody is TFloriaJSExprStmt then
     begin
       compiler.CompileExpr(TFloriaJSExprStmt(ABody).Expression);
@@ -1481,21 +1653,44 @@ begin
     declPattern := AVar.GetDeclaratorPattern(i);
     declInit := AVar.GetDeclaratorInit(i);
 
-    if declInit <> nil then
-      CompileExpr(declInit)
-    else
-      FBytecode.Emit(opUndefined);
-
-    if declPattern <> nil then
-      CompileDestructuring(declPattern, AVar.Kind)
+    if AVar.Kind = tkVar then
+    begin
+      // var bindings were already hoisted at function/program entry.
+      // A declaration without an initializer is a no-op at statement position.
+      if declInit <> nil then
+      begin
+        if declPattern <> nil then
+        begin
+          CompileExpr(declInit);
+          FBytecode.Emit(opDup);
+          CompileDestructuring(declPattern, tkAssign);
+          FBytecode.Emit(opPop);
+        end
+        else
+        begin
+          CompileExpr(declInit);
+          nameIdx := FBytecode.AddStringConstant(declName);
+          FBytecode.Emit(opStoreEnv, nameIdx, AVar.Line);
+          FBytecode.Emit(opPop);
+        end;
+      end;
+    end
     else
     begin
-      nameIdx := FBytecode.AddStringConstant(declName);
-      case AVar.Kind of
-        tkConst: FBytecode.Emit(opDefineConst, nameIdx, AVar.Line);
-        tkLet:   FBytecode.Emit(opDefineLet, nameIdx, AVar.Line);
+      if declInit <> nil then
+        CompileExpr(declInit)
       else
-        FBytecode.Emit(opDefineEnv, nameIdx, AVar.Line);
+        FBytecode.Emit(opUndefined);
+
+      if declPattern <> nil then
+        CompileDestructuring(declPattern, AVar.Kind)
+      else
+      begin
+        nameIdx := FBytecode.AddStringConstant(declName);
+        case AVar.Kind of
+          tkConst: FBytecode.Emit(opDefineConst, nameIdx, AVar.Line);
+          tkLet:   FBytecode.Emit(opDefineLet, nameIdx, AVar.Line);
+        end;
       end;
     end;
   end;
@@ -1517,7 +1712,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSCompiler.CompileBlockStmt(ABlock: TFloriaJSBlockStmt);
+procedure TFloriaJSCompiler.CompileBlockStmt(ABlock: TFloriaJSBlockStmt; AHoistFuncs: Boolean = True);
 var
   i, count: Integer;
   needsScope: Boolean;
@@ -1531,9 +1726,10 @@ begin
     FBytecode.Emit(opPushEnv);
   end;
 
-  for i := 0 to count - 1 do
-    if ABlock.GetStatement(i) is TFloriaJSFunctionDecl then
-      CompileFunctionDecl(TFloriaJSFunctionDecl(ABlock.GetStatement(i)));
+  if AHoistFuncs then
+    for i := 0 to count - 1 do
+      if ABlock.GetStatement(i) is TFloriaJSFunctionDecl then
+        CompileFunctionDecl(TFloriaJSFunctionDecl(ABlock.GetStatement(i)));
 
   for i := 0 to count - 1 do
     if not (ABlock.GetStatement(i) is TFloriaJSFunctionDecl) then
@@ -1679,18 +1875,16 @@ begin
   end;
 
   nameIdx := FBytecode.AddStringConstant(AForInOf.VarName);
-  if AForInOf.VarKind in [tkLet, tkConst, tkVar] then
+  if AForInOf.VarKind in [tkLet, tkConst] then
   begin
     case AForInOf.VarKind of
       tkConst: FBytecode.Emit(opDefineConst, nameIdx, AForInOf.Line);
       tkLet:   FBytecode.Emit(opDefineLet, nameIdx, AForInOf.Line);
-    else
-      FBytecode.Emit(opDefineEnv, nameIdx, AForInOf.Line);
     end;
   end
   else
   begin
-    FBytecode.Emit(opStoreEnv, nameIdx);
+    FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
     FBytecode.Emit(opPop);
   end;
 

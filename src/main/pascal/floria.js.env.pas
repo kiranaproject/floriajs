@@ -48,6 +48,7 @@ type
     destructor Destroy(); override;
 
     procedure Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean = False; AKind: TFloriaJSBindingKind = bkVar);
+    procedure DeclareVar(const AName: string);
     procedure Undefine(const AName: string);
     { Marks the environment as captured by a closure. A captured environment
       must outlive the scope it belongs to, because the closure still refers
@@ -188,6 +189,15 @@ begin
   FBindings[FBindingCount].IsConst := AIsConst;
   FBindings[FBindingCount].Kind := AKind;
   Inc(FBindingCount);
+end;
+
+procedure TFloriaJSEnvironment.DeclareVar(const AName: string);
+var
+  idx: Integer;
+begin
+  idx := FindLocalIndex(AName);
+  if idx >= 0 then Exit;
+  Define(AName, JSMakeUndefined(), False, bkVar);
 end;
 
 procedure TFloriaJSEnvironment.Undefine(const AName: string);

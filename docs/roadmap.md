@@ -227,7 +227,7 @@ is the RHS.
 
 ---
 
-### [ ] P0-04 — Implement `var` hoisting and fix function/`var` collisions
+### [x] P0-04 — Implement `var` hoisting and fix function/`var` collisions
 
 **Failure.**
 

@@ -606,6 +606,15 @@ begin
               FGlobalEnv.Define(varName, val, False, bkLet);
           end;
 
+        opDeclareVar:
+          begin
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            if curFrame^.Env <> nil then
+              curFrame^.Env.DeclareVar(varName)
+            else if FGlobalEnv <> nil then
+              FGlobalEnv.DeclareVar(varName);
+          end;
+
         opPushEnv:
           begin
             curFrame^.Env := TFloriaJSEnvironment.Create(curFrame^.Env, FHeap);

@@ -51,6 +51,7 @@ type
     opDefineEnv,         // Define variable into current environment: Imm = const index (name), pops value
     opDefineConst,       // Define const variable into current environment: Imm = const index (name), pops value
     opDefineLet,         // Define let variable into current environment: Imm = const index (name), pops value
+    opDeclareVar,        // Declare var into current environment if not present: Imm = const index (name)
     opPushEnv,           // Push child environment on current call frame
     opPopEnv,            // Pop child environment from current call frame
 
@@ -238,6 +239,7 @@ begin
     opDefineEnv:        Result := 'DEFINE_ENV';
     opDefineConst:      Result := 'DEFINE_CONST';
     opDefineLet:        Result := 'DEFINE_LET';
+    opDeclareVar:       Result := 'DECLARE_VAR';
     opPushEnv:          Result := 'PUSH_ENV';
     opPopEnv:           Result := 'POP_ENV';
     opNewObject:        Result := 'NEW_OBJECT';
@@ -565,7 +567,7 @@ begin
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opLoadLoc, opStoreLoc, opSetLoc:
       comment := '; ' + GetLocalName(inst.Imm);
-    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt:
+    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt:
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
       comment := Format('-> %04d', [inst.Imm]);

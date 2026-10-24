@@ -305,6 +305,7 @@ type
     procedure TestNumericParsingAndFormatting();
     procedure TestCompoundAssignmentToMembers();
     procedure TestDestructuringAssignment();
+    procedure TestVarHoistingAndFunctionCollisions();
   end;
 
 { TFloriaJSTypesTest }
@@ -6206,6 +6207,57 @@ begin
     );
     AssertTrue('Const target rejection in destructuring assignment succeeds', res.Success);
     AssertTrue('Const target rejection threw TypeError', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestVarHoistingAndFunctionCollisions();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. var hoisting before initializer inside function
+    res := engine.Execute('function f1() { return a; var a = 1; } f1() === undefined;');
+    AssertTrue('var hoisting returns undefined before init', res.Success);
+    AssertTrue('var hoisting returns undefined before init is true', res.BooleanValue);
+
+    // 2. bare var declaration after assignment does not overwrite value
+    res := engine.Execute('function f2() { a = 5; var a; return a; } f2() === 5;');
+    AssertTrue('bare var does not overwrite existing value', res.Success);
+    AssertTrue('bare var does not overwrite existing value is true', res.BooleanValue);
+
+    // 3. function declaration wins over bare var collision
+    res := engine.Execute('function a() { return 1; } var a; a() === 1;');
+    AssertTrue('function declaration wins over bare var', res.Success);
+    AssertTrue('function declaration wins over bare var is true', res.BooleanValue);
+
+    // 4. bare var before function declaration
+    res := engine.Execute('var b; function b() { return 2; } b() === 2;');
+    AssertTrue('bare var before function does not overwrite function', res.Success);
+    AssertTrue('bare var before function does not overwrite function is true', res.BooleanValue);
+
+    // 5. typeof before var declaration evaluates to undefined
+    res := engine.Execute('var rType = (typeof myHVar === "undefined"); var myHVar = 42; rType && myHVar === 42;');
+    AssertTrue('typeof before var declaration evaluates to undefined', res.Success);
+    AssertTrue('typeof before var declaration is true', res.BooleanValue);
+
+    // 6. var hoisting out of nested blocks into enclosing function
+    res := engine.Execute('function fBlock() { if (true) { var insideIf = 100; } return insideIf; } fBlock() === 100;');
+    AssertTrue('var inside if block is accessible in function', res.Success);
+    AssertTrue('var inside if block value is 100', res.BooleanValue);
+
+    // 7. var inside loop accessible outside loop
+    res := engine.Execute('function fLoop() { for (var idx = 0; idx < 3; idx++) {} return idx; } fLoop() === 3;');
+    AssertTrue('var in loop accessible in function', res.Success);
+    AssertTrue('var in loop value is 3', res.BooleanValue);
+
+    // 8. nested function var does not hoist to outer function
+    res := engine.Execute('function fOuter() { function fInner() { var hidden = 99; } return typeof hidden; } fOuter() === "undefined";');
+    AssertTrue('nested function var does not hoist to outer', res.Success);
+    AssertTrue('nested function var is undefined in outer', res.BooleanValue);
   finally
     engine.Free();
   end;
