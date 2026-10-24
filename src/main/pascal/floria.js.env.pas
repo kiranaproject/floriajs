@@ -20,17 +20,22 @@ uses
   Classes, SysUtils, floria.js.types, floria.js.value;
 
 type
+  { Binding Declarator Kind }
+  TFloriaJSBindingKind = (bkVar, bkLet, bkConst);
+
   { Single Scoped Variable Binding }
   TFloriaJSBinding = record
     Name: string;
     Value: TFloriaJSValue;
     IsConst: Boolean;
+    Kind: TFloriaJSBindingKind;
   end;
 
   { Lexical Scope Environment }
   TFloriaJSEnvironment = class
   private
     FParent: TFloriaJSEnvironment;
+    FHeap: TFloriaJSHeap;
     FDelegateObject: TFloriaJSObject;
     FBindings: array of TFloriaJSBinding;
     FBindingCount: Integer;
@@ -39,10 +44,10 @@ type
 
     function FindLocalIndex(const AName: string): Integer;
   public
-    constructor Create(AParent: TFloriaJSEnvironment = nil);
+    constructor Create(AParent: TFloriaJSEnvironment = nil; AHeap: TFloriaJSHeap = nil);
     destructor Destroy(); override;
 
-    procedure Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean = False);
+    procedure Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean = False; AKind: TFloriaJSBindingKind = bkVar);
     procedure Undefine(const AName: string);
     { Marks the environment as captured by a closure. A captured environment
       must outlive the scope it belongs to, because the closure still refers
@@ -65,6 +70,7 @@ type
     function  GetBindingValue(AIndex: Integer): TFloriaJSValue;
 
     property Parent: TFloriaJSEnvironment read FParent;
+    property Heap: TFloriaJSHeap read FHeap write FHeap;
     property DelegateObject: TFloriaJSObject read FDelegateObject write FDelegateObject;
     property Captured: Boolean read FCaptured;
     property Detached: Boolean read FDetached;
@@ -74,10 +80,14 @@ implementation
 
 { TFloriaJSEnvironment }
 
-constructor TFloriaJSEnvironment.Create(AParent: TFloriaJSEnvironment);
+constructor TFloriaJSEnvironment.Create(AParent: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
 begin
   inherited Create();
   FParent := AParent;
+  if AParent <> nil then
+    FHeap := AParent.Heap
+  else
+    FHeap := AHeap;
   FDelegateObject := nil;
   FCaptured := False;
   FDetached := False;
@@ -139,19 +149,28 @@ begin
   Result := -1;
 end;
 
-procedure TFloriaJSEnvironment.Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean);
+procedure TFloriaJSEnvironment.Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean; AKind: TFloriaJSBindingKind);
 var
   idx: Integer;
 begin
   idx := FindLocalIndex(AName);
   if idx >= 0 then
   begin
+    if (FParent <> nil) and ((FBindings[idx].Kind in [bkLet, bkConst]) or (AKind in [bkLet, bkConst])) then
+    begin
+      if FHeap <> nil then
+        raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('SyntaxError', 'Identifier ''' + AName + ''' has already been declared')))
+      else
+        raise Exception.Create('Identifier ''' + AName + ''' has already been declared');
+    end;
+
     { A binding owns the value it stores: the value that is replaced gives up
       its reference and the new value takes a reference over. }
     JSReleaseValue(FBindings[idx].Value);
     FBindings[idx].Value := AValue;
     JSRetainValue(AValue);
     FBindings[idx].IsConst := AIsConst;
+    FBindings[idx].Kind := AKind;
     Exit;
   end;
 
@@ -167,6 +186,7 @@ begin
   FBindings[FBindingCount].Value := AValue;
   JSRetainValue(AValue);
   FBindings[FBindingCount].IsConst := AIsConst;
+  FBindings[FBindingCount].Kind := AKind;
   Inc(FBindingCount);
 end;
 
@@ -189,6 +209,7 @@ begin
   FBindings[FBindingCount].Name := '';
   FBindings[FBindingCount].Value := JSMakeUndefined();
   FBindings[FBindingCount].IsConst := False;
+  FBindings[FBindingCount].Kind := bkVar;
 end;
 
 function TFloriaJSEnvironment.Assign(const AName: string; const AValue: TFloriaJSValue): Boolean;
@@ -198,6 +219,14 @@ begin
   idx := FindLocalIndex(AName);
   if idx >= 0 then
   begin
+    if FBindings[idx].IsConst then
+    begin
+      if FHeap <> nil then
+        raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Assignment to constant variable.')))
+      else
+        raise Exception.Create('Assignment to constant variable.');
+    end;
+
     { A binding owns the value it stores: the value that is replaced gives up
       its reference and the new value takes a reference over. }
     JSReleaseValue(FBindings[idx].Value);
@@ -216,7 +245,7 @@ begin
     Exit(FParent.Assign(AName, AValue));
 
   // If not found in scope chain, define in global scope (standard JS non-strict behavior)
-  Define(AName, AValue, False);
+  Define(AName, AValue, False, bkVar);
   Result := True;
 end;
 

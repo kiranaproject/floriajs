@@ -67,7 +67,7 @@ type
     procedure CompileFunctionExpr(AFunc: TFloriaJSFunctionExpr);
 
     procedure CompileVarStmt(AVar: TFloriaJSVarStmt);
-    procedure CompileDestructuring(APattern: TFloriaJSExprNode);
+    procedure CompileDestructuring(APattern: TFloriaJSExprNode; AKind: TFloriaJSTokenKind = tkVar);
     procedure CompileBlockStmt(ABlock: TFloriaJSBlockStmt);
     procedure CompileIfStmt(AIf: TFloriaJSIfStmt);
     procedure CompileWhileStmt(AWhile: TFloriaJSWhileStmt);
@@ -206,6 +206,90 @@ begin
   end;
 end;
 
+type
+  TFloriaJSStmtGetter = function(AIndex: Integer): TFloriaJSStmtNode of object;
+
+procedure CollectPatternNames(APattern: TFloriaJSExprNode; ANames: TStringList);
+var
+  i: Integer;
+begin
+  if APattern = nil then Exit;
+  if APattern is TFloriaJSIdentifierExpr then
+    ANames.Add(TFloriaJSIdentifierExpr(APattern).Name)
+  else if APattern is TFloriaJSAssignExpr then
+    CollectPatternNames(TFloriaJSAssignExpr(APattern).Target, ANames)
+  else if APattern is TFloriaJSObjectExpr then
+  begin
+    for i := 0 to TFloriaJSObjectExpr(APattern).GetPropertyCount() - 1 do
+      CollectPatternNames(TFloriaJSObjectExpr(APattern).GetPropertyValue(i), ANames);
+  end
+  else if APattern is TFloriaJSArrayExpr then
+  begin
+    for i := 0 to TFloriaJSArrayExpr(APattern).GetElementCount() - 1 do
+      CollectPatternNames(TFloriaJSArrayExpr(APattern).GetElement(i), ANames);
+  end;
+end;
+
+procedure ValidateStatementsDeclarations(ACount: Integer; AGetStmt: TFloriaJSStmtGetter);
+var
+  lexicalNames, varNames, declNames: TStringList;
+  i, j, k: Integer;
+  stmt: TFloriaJSStmtNode;
+  varStmt: TFloriaJSVarStmt;
+  fnDecl: TFloriaJSFunctionDecl;
+  name: string;
+begin
+  lexicalNames := TStringList.Create();
+  varNames := TStringList.Create();
+  declNames := TStringList.Create();
+  try
+    for i := 0 to ACount - 1 do
+    begin
+      stmt := AGetStmt(i);
+      if stmt is TFloriaJSVarStmt then
+      begin
+        varStmt := TFloriaJSVarStmt(stmt);
+        for j := 0 to varStmt.GetDeclaratorCount() - 1 do
+        begin
+          declNames.Clear();
+          if varStmt.GetDeclaratorPattern(j) <> nil then
+            CollectPatternNames(varStmt.GetDeclaratorPattern(j), declNames)
+          else if varStmt.GetDeclaratorName(j) <> '' then
+            declNames.Add(varStmt.GetDeclaratorName(j));
+
+          for k := 0 to declNames.Count - 1 do
+          begin
+            name := declNames[k];
+            if varStmt.Kind in [tkLet, tkConst] then
+            begin
+              if (lexicalNames.IndexOf(name) >= 0) or (varNames.IndexOf(name) >= 0) then
+                raise Exception.Create('SyntaxError: Identifier ''' + name + ''' has already been declared');
+              lexicalNames.Add(name);
+            end
+            else
+            begin
+              if lexicalNames.IndexOf(name) >= 0 then
+                raise Exception.Create('SyntaxError: Identifier ''' + name + ''' has already been declared');
+              varNames.Add(name);
+            end;
+          end;
+        end;
+      end
+      else if stmt is TFloriaJSFunctionDecl then
+      begin
+        fnDecl := TFloriaJSFunctionDecl(stmt);
+        if lexicalNames.IndexOf(fnDecl.Name) >= 0 then
+          raise Exception.Create('SyntaxError: Identifier ''' + fnDecl.Name + ''' has already been declared');
+        varNames.Add(fnDecl.Name);
+      end;
+    end;
+  finally
+    declNames.Free();
+    varNames.Free();
+    lexicalNames.Free();
+  end;
+end;
+
 function TFloriaJSCompiler.CompileProgram(AProgram: TFloriaJSProgram): TFloriaJSBytecode;
 var
   i, count: Integer;
@@ -226,8 +310,14 @@ begin
   end;
 
   count := AProgram.GetStatementCount();
+  ValidateStatementsDeclarations(count, @AProgram.GetStatement);
   for i := 0 to count - 1 do
-    CompileStmt(AProgram.GetStatement(i));
+    if AProgram.GetStatement(i) is TFloriaJSFunctionDecl then
+      CompileFunctionDecl(TFloriaJSFunctionDecl(AProgram.GetStatement(i)));
+
+  for i := 0 to count - 1 do
+    if not (AProgram.GetStatement(i) is TFloriaJSFunctionDecl) then
+      CompileStmt(AProgram.GetStatement(i));
 
   FBytecode.Emit(opLoadLoc, FResultLoc);
   FBytecode.Emit(opReturn);
@@ -456,7 +546,28 @@ begin
       end;
     tkTypeof:
       begin
-        CompileExpr(AUnary.Operand);
+        if AUnary.Operand is TFloriaJSIdentifierExpr then
+        begin
+          ident := TFloriaJSIdentifierExpr(AUnary.Operand);
+          if ident.Name = 'undefined' then
+            FBytecode.Emit(opUndefined, 0, ident.Line)
+          else if ident.Name = 'NaN' then
+            FBytecode.Emit(opConst, FBytecode.AddConstant(JSMakeNumber(NaN)), ident.Line)
+          else if ident.Name = 'Infinity' then
+            FBytecode.Emit(opConst, FBytecode.AddConstant(JSMakeNumber(Infinity)), ident.Line)
+          else if (Length(ident.Name) > 0) and (ident.Name[1] = '$') then
+          begin
+            locIdx := FBytecode.FindLocal(ident.Name);
+            if locIdx >= 0 then
+              FBytecode.Emit(opLoadLoc, locIdx, ident.Line)
+            else
+              FBytecode.Emit(opLoadEnvQuiet, FBytecode.AddStringConstant(ident.Name), ident.Line);
+          end
+          else
+            FBytecode.Emit(opLoadEnvQuiet, FBytecode.AddStringConstant(ident.Name), ident.Line);
+        end
+        else
+          CompileExpr(AUnary.Operand);
         FBytecode.Emit(opTypeOf, 0, AUnary.Line);
       end;
     tkAwait:
@@ -1103,7 +1214,7 @@ begin
   FBytecode.Emit(opClosure, fnIdx, AFunc.Line);
 end;
 
-procedure TFloriaJSCompiler.CompileDestructuring(APattern: TFloriaJSExprNode);
+procedure TFloriaJSCompiler.CompileDestructuring(APattern: TFloriaJSExprNode; AKind: TFloriaJSTokenKind);
 var
   objExpr: TFloriaJSObjectExpr;
   arrExpr: TFloriaJSArrayExpr;
@@ -1121,7 +1232,12 @@ begin
   begin
     ident := TFloriaJSIdentifierExpr(APattern);
     nameIdx := FBytecode.AddStringConstant(ident.Name);
-    FBytecode.Emit(opDefineEnv, nameIdx, ident.Line);
+    case AKind of
+      tkConst: FBytecode.Emit(opDefineConst, nameIdx, ident.Line);
+      tkLet:   FBytecode.Emit(opDefineLet, nameIdx, ident.Line);
+    else
+      FBytecode.Emit(opDefineEnv, nameIdx, ident.Line);
+    end;
   end
   else if APattern is TFloriaJSAssignExpr then
   begin
@@ -1133,7 +1249,7 @@ begin
     FBytecode.Emit(opPop);
     CompileExpr(assignExpr.Value);
     FBytecode.PatchJump(skipJump, FBytecode.CurrentIP());
-    CompileDestructuring(assignExpr.Target);
+    CompileDestructuring(assignExpr.Target, AKind);
   end
   else if APattern is TFloriaJSObjectExpr then
   begin
@@ -1152,7 +1268,7 @@ begin
           for j := 0 to extractedList.Count - 1 do
             FBytecode.Emit(opConst, FBytecode.AddStringConstant(extractedList[j]));
           FBytecode.Emit(opObjectRest, extractedList.Count, APattern.Line);
-          CompileDestructuring(valNode);
+          CompileDestructuring(valNode, AKind);
         end
         else
         begin
@@ -1161,7 +1277,7 @@ begin
           propValNode := objExpr.GetPropertyValue(i);
           FBytecode.Emit(opDup);
           FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant(propKey));
-          CompileDestructuring(propValNode);
+          CompileDestructuring(propValNode, AKind);
         end;
       end;
     finally
@@ -1185,7 +1301,7 @@ begin
         FBytecode.Emit(opSwap);
         FBytecode.Emit(opConst, FBytecode.AddNumberConstant(i));
         FBytecode.Emit(opCall, 1);
-        CompileDestructuring(spreadExpr.Expression);
+        CompileDestructuring(spreadExpr.Expression, AKind);
         Break;
       end
       else
@@ -1193,7 +1309,7 @@ begin
         FBytecode.Emit(opDup);
         FBytecode.Emit(opConst, FBytecode.AddNumberConstant(i));
         FBytecode.Emit(opGetProp);
-        CompileDestructuring(elemNode);
+        CompileDestructuring(elemNode, AKind);
       end;
     end;
     FBytecode.Emit(opPop);
@@ -1220,11 +1336,16 @@ begin
       FBytecode.Emit(opUndefined);
 
     if declPattern <> nil then
-      CompileDestructuring(declPattern)
+      CompileDestructuring(declPattern, AVar.Kind)
     else
     begin
       nameIdx := FBytecode.AddStringConstant(declName);
-      FBytecode.Emit(opDefineEnv, nameIdx, AVar.Line);
+      case AVar.Kind of
+        tkConst: FBytecode.Emit(opDefineConst, nameIdx, AVar.Line);
+        tkLet:   FBytecode.Emit(opDefineLet, nameIdx, AVar.Line);
+      else
+        FBytecode.Emit(opDefineEnv, nameIdx, AVar.Line);
+      end;
     end;
   end;
 end;
@@ -1251,6 +1372,7 @@ var
   needsScope: Boolean;
 begin
   count := ABlock.GetStatementCount();
+  ValidateStatementsDeclarations(count, @ABlock.GetStatement);
   needsScope := HasBlockScopedDecls(ABlock);
   if needsScope then
   begin
@@ -1259,7 +1381,12 @@ begin
   end;
 
   for i := 0 to count - 1 do
-    CompileStmt(ABlock.GetStatement(i));
+    if ABlock.GetStatement(i) is TFloriaJSFunctionDecl then
+      CompileFunctionDecl(TFloriaJSFunctionDecl(ABlock.GetStatement(i)));
+
+  for i := 0 to count - 1 do
+    if not (ABlock.GetStatement(i) is TFloriaJSFunctionDecl) then
+      CompileStmt(ABlock.GetStatement(i));
 
   if needsScope then
   begin
@@ -1402,7 +1529,14 @@ begin
 
   nameIdx := FBytecode.AddStringConstant(AForInOf.VarName);
   if AForInOf.VarKind in [tkLet, tkConst, tkVar] then
-    FBytecode.Emit(opDefineEnv, nameIdx)
+  begin
+    case AForInOf.VarKind of
+      tkConst: FBytecode.Emit(opDefineConst, nameIdx, AForInOf.Line);
+      tkLet:   FBytecode.Emit(opDefineLet, nameIdx, AForInOf.Line);
+    else
+      FBytecode.Emit(opDefineEnv, nameIdx, AForInOf.Line);
+    end;
+  end
   else
   begin
     FBytecode.Emit(opStoreEnv, nameIdx);

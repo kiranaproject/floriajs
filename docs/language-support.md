@@ -84,7 +84,8 @@ Notes:
 - `instanceof` walks the prototype chain through the constructor's
   `prototype`; arrow functions return `false`.
 - `delete` removes object properties and clears array elements. Deleting a
-  plain variable returns `false`. It returns `true` for missing properties.
+  variable returns `true` but does not remove the binding, and it returns
+  `true` for missing properties.
 - Optional chaining short-circuits the immediate access/call. It does not carry
   a chain-wide short-circuit sentinel, so `a?.b.c` or `a?.b()` with `a` null or
   undefined throws `TypeError` instead of returning `undefined`. Use an
@@ -307,35 +308,29 @@ These are the differences most likely to surprise a JavaScript developer:
 
 | Area | Current behaviour |
 | :--- | :--- |
-| `const` | Reassignment is allowed. |
+| TDZ | There is no temporal dead zone before a `let`/`const` declaration. |
 | `var` | Function/top-level scoped; not hoisted. `let`/`const` are block-scoped. |
-| Classic `for` with `let`/`const` | The loop variable remains visible after the loop in the current compiler; `for…in`/`for…of` bindings are per-iteration scoped. |
-| Function declarations | Not hoisted. |
+| Classic `for` with `let`/`const` | The loop variable remains visible after the loop and closures capture the final value; `for…in`/`for…of` bindings are per-iteration scoped. |
 | `void` | Not an operator. `void 0` happens to yield `0` because it is two expressions. |
 | Logical assignment | `&&=` and `\|\|=` are not implemented. |
 | Tagged templates | Not implemented; often silently treated as two expressions. |
 | `class` | Not implemented; some forms fail, some are ignored. |
 | `with` / `debugger` | Parsed as identifiers; `with` usually fails at runtime, `debugger` is a no-op. |
 | `globalThis` | Snapshot, not a live binding to the global scope. |
-| `arguments` in arrows | Arrows get their own `arguments` array. |
 | Strings | Byte-oriented (UTF-8), including `length`, indexing, and `for…of`. |
-| Loose equality | No object-to-primitive coercion. |
-| Number formatting | Integral doubles print without a fractional part; general formatting uses the host locale. |
-| Array `toString` | Inherits `Object.prototype.toString` and yields `[object Array]`. |
-| Array enumeration | `Object.keys/values/entries(arr)` only see named properties; numeric indices and `length` are not included. `arr.hasOwnProperty(0)` is `false`. Use `in` or direct indexing instead. |
+| Loose equality | No object-to-primitive coercion: `[1] == 1` and `[] == false` are `false`, and a custom `toString`/`valueOf` is not consulted by `+` or `==`. |
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
-| `JSON.stringify` | Ignores the replacer and does not invoke getters. |
+| `JSON.stringify` | Ignores the replacer, does not invoke getters, and does not call `toJSON`; `JSON.parse` has no reviver. |
 | Promise construction | `new Promise(executor)` is not supported. |
-| Function objects | Only `prototype` and `toString` are exposed; `call`, `apply`, `bind`, `length`, and `name` are unavailable. |
-| Optional chaining | Short-circuits only the immediate link. `a?.b.c` / `a?.b()` with `a` nullish throws instead of short-circuiting the whole chain. |
+| Optional chaining | Short-circuits only the immediate link. `a?.b.c` / `a?.b()` with `a` nullish throws instead of short-circuiting the whole chain; optional-chain assignment is a runtime `TypeError`, not a syntax error. |
 | `for…in`/`for…of` targets | Must be simple identifiers; destructuring targets are not parsed. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
-| `for…in` on arrays | Enumerates prototype method names, not element indices. Prefer `for…of` or a classic index loop. |
 | `for…of` on non-iterables | Runs zero iterations. |
 | `for…of` on Map/Set | Runs zero iterations; use `keys()`/`values()`/`entries()`, which return arrays. |
-| `Map`/`Set` iteration | `keys`, `values`, and `entries` return arrays, not iterator objects. |
-| Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. |
-| Timers | Require the host to call `FloriaJSProcessTimers`; there is no built-in event loop. |
+| `Map`/`Set` iteration | `keys`, `values`, and `entries` return arrays, not iterator objects; lookup is linear rather than hash-based. |
+| `Symbol` property keys | Symbols are primitives, but assigning `obj[sym]` stores under the string form `Symbol(description)`; they are not real symbol-keyed properties. |
+| Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. |
+| Timers | Require the host to call `FloriaJSProcessTimers`; there is no built-in event loop, and timer state is process-wide. |
 | Execution engine | Pure bytecode interpreter; no JIT/AOT, hidden classes, inline caches, or persistent bytecode cache. |
 
 ## Not implemented

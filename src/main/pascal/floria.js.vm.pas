@@ -119,6 +119,8 @@ begin
   end;
 
   FGlobalEnv := AGlobalEnv;
+  if (FGlobalEnv <> nil) and (FGlobalEnv.Heap = nil) then
+    FGlobalEnv.Heap := FHeap;
   FMaxCallDepth := 512;
 
   FStackCapacity := 256;
@@ -352,6 +354,12 @@ begin
       Exit(FHeap.GetStringPrototype().GetProperty(APropName));
   end;
 
+  if AObj.IsNumber() then
+  begin
+    if FHeap <> nil then
+      Exit(FHeap.GetNumberPrototype().GetProperty(APropName));
+  end;
+
   if AObj.IsSymbol() then
   begin
     if APropName = 'description' then
@@ -539,10 +547,21 @@ begin
         opLoadEnv:
           begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
-            if curFrame^.Env <> nil then
-              Push(curFrame^.Env.GetDefault(varName, JSMakeUndefined()))
-            else if FGlobalEnv <> nil then
-              Push(FGlobalEnv.GetDefault(varName, JSMakeUndefined()))
+            if (curFrame^.Env <> nil) and curFrame^.Env.Get(varName, val) then
+              Push(val)
+            else if (FGlobalEnv <> nil) and FGlobalEnv.Get(varName, val) then
+              Push(val)
+            else
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('ReferenceError', varName + ' is not defined')));
+          end;
+
+        opLoadEnvQuiet:
+          begin
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            if (curFrame^.Env <> nil) and curFrame^.Env.Get(varName, val) then
+              Push(val)
+            else if (FGlobalEnv <> nil) and FGlobalEnv.Get(varName, val) then
+              Push(val)
             else
               Push(JSMakeUndefined());
           end;
@@ -562,14 +581,34 @@ begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Pop();
             if curFrame^.Env <> nil then
-              curFrame^.Env.Define(varName, val, False)
+              curFrame^.Env.Define(varName, val, False, bkVar)
             else if FGlobalEnv <> nil then
-              FGlobalEnv.Define(varName, val, False);
+              FGlobalEnv.Define(varName, val, False, bkVar);
+          end;
+
+        opDefineConst:
+          begin
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            val := Pop();
+            if curFrame^.Env <> nil then
+              curFrame^.Env.Define(varName, val, True, bkConst)
+            else if FGlobalEnv <> nil then
+              FGlobalEnv.Define(varName, val, True, bkConst);
+          end;
+
+        opDefineLet:
+          begin
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            val := Pop();
+            if curFrame^.Env <> nil then
+              curFrame^.Env.Define(varName, val, False, bkLet)
+            else if FGlobalEnv <> nil then
+              FGlobalEnv.Define(varName, val, False, bkLet);
           end;
 
         opPushEnv:
           begin
-            curFrame^.Env := TFloriaJSEnvironment.Create(curFrame^.Env);
+            curFrame^.Env := TFloriaJSEnvironment.Create(curFrame^.Env, FHeap);
             FHeap.TrackEnvironment(curFrame^.Env);
           end;
 
@@ -1021,9 +1060,9 @@ begin
             begin
               subCode := TFloriaJSBytecode(fn.Bytecode);
               if fn.ClosureEnv <> nil then
-                callEnv := TFloriaJSEnvironment.Create(TFloriaJSEnvironment(fn.ClosureEnv))
+                callEnv := TFloriaJSEnvironment.Create(TFloriaJSEnvironment(fn.ClosureEnv), FHeap)
               else
-                callEnv := TFloriaJSEnvironment.Create(curFrame^.Env);
+                callEnv := TFloriaJSEnvironment.Create(curFrame^.Env, FHeap);
               FHeap.TrackEnvironment(callEnv);
 
               for i := 0 to subCode.GetArgumentCount() - 1 do
@@ -1157,9 +1196,9 @@ begin
             begin
               subCode := TFloriaJSBytecode(fn.Bytecode);
               if fn.ClosureEnv <> nil then
-                callEnv := TFloriaJSEnvironment.Create(TFloriaJSEnvironment(fn.ClosureEnv))
+                callEnv := TFloriaJSEnvironment.Create(TFloriaJSEnvironment(fn.ClosureEnv), FHeap)
               else
-                callEnv := TFloriaJSEnvironment.Create(curFrame^.Env);
+                callEnv := TFloriaJSEnvironment.Create(curFrame^.Env, FHeap);
               FHeap.TrackEnvironment(callEnv);
 
               for i := 0 to subCode.GetArgumentCount() - 1 do
@@ -1235,12 +1274,20 @@ begin
           begin
             objVal := Pop();
             arrObj := FHeap.NewArray();
-            if objVal.IsObject() and (objVal.ObjVal <> nil) then
+            if objVal.IsArray() then
+            begin
+              for i := 0 to objVal.AsArray().Length() - 1 do
+                if not objVal.AsArray().GetElement(i).IsUndefined() then
+                  arrObj.Push(JSMakeString(IntToStr(i)));
+              for i := 0 to objVal.AsObject().GetPropertyCount() - 1 do
+                arrObj.Push(JSMakeString(objVal.AsObject().GetPropertyKey(i)));
+            end
+            else if objVal.IsObject() and (objVal.ObjVal <> nil) then
             begin
               keysList := TStringList.Create();
               try
                 currObj := objVal.AsObject();
-                while (currObj <> nil) and (currObj <> FHeap.GetObjectPrototype()) do
+                while (currObj <> nil) and (currObj <> FHeap.GetObjectPrototype()) and (currObj <> FHeap.GetArrayPrototype()) do
                 begin
                   for i := 0 to currObj.GetPropertyCount() - 1 do
                   begin
@@ -1255,11 +1302,6 @@ begin
               finally
                 keysList.Free();
               end;
-            end
-            else if objVal.IsArray() then
-            begin
-              for i := 0 to objVal.AsArray().Length - 1 do
-                arrObj.Push(JSMakeString(IntToStr(i)));
             end;
             Push(JSMakeObject(arrObj));
           end;

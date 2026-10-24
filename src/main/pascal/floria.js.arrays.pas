@@ -278,6 +278,11 @@ begin
   Result := JSMakeString(arr.Join(separator));
 end;
 
+function JSArrayToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := JSArrayJoin([], AThis);
+end;
+
 function JSArrayConcat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   arr, res, other: TFloriaJSArray;
@@ -800,6 +805,7 @@ begin
   RegisterMethod(AHeap, proto, 'shift', @JSArrayShift);
   RegisterMethod(AHeap, proto, 'unshift', @JSArrayUnshift);
   RegisterMethod(AHeap, proto, 'join', @JSArrayJoin);
+  RegisterMethod(AHeap, proto, 'toString', @JSArrayToString);
   RegisterMethod(AHeap, proto, 'concat', @JSArrayConcat);
   RegisterMethod(AHeap, proto, 'reverse', @JSArrayReverse);
   RegisterMethod(AHeap, proto, 'sort', @JSArraySort);

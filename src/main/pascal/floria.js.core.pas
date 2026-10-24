@@ -108,7 +108,7 @@ begin
   FName := AName;
   FOutput := TStringList.Create();
   FHeap := TFloriaJSHeap.Create();
-  FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil)));
+  FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil, FHeap)));
   FVM := TFloriaJSVM.Create(FHeap);
   FVM.GlobalEnv := FGlobalEnv;
   FCompiler := TFloriaJSCompiler.Create();

@@ -25,6 +25,8 @@ type
   TFloriaJSObject = class;
   TFloriaJSArray = class;
   TFloriaJSFunction = class;
+  TFloriaJSPrototypeObject = class;
+  TFloriaJSBoundFunction = class;
   TFloriaJSHeap = class;
   TFloriaJSPromise = class;
 
@@ -148,6 +150,7 @@ type
     function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); override;
     function  HasProperty(const AName: string): Boolean; override;
+    function  HasOwnProperty(const AName: string): Boolean; override;
   end;
 
   { Native Function Callbacks }
@@ -194,6 +197,31 @@ type
     property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
     property Bytecode: TObject read FBytecode write FBytecode;
     property ClosureEnv: Pointer read FClosureEnv;
+  end;
+
+  { Function Prototype Object with Dynamic Constructor Back-Reference }
+  TFloriaJSPrototypeObject = class(TFloriaJSObject)
+  private
+    FOwnerFunction: TFloriaJSFunction;
+  public
+    constructor Create(AProto: TFloriaJSObject; AOwner: TFloriaJSFunction);
+    function GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
+    function HasOwnProperty(const AName: string): Boolean; override;
+
+    property OwnerFunction: TFloriaJSFunction read FOwnerFunction write FOwnerFunction;
+  end;
+
+  { Helper for Function.prototype.bind }
+  TFloriaJSBoundFunction = class
+  private
+    FTarget: TFloriaJSValue;
+    FBoundThis: TFloriaJSValue;
+    FBoundArgs: array of TFloriaJSValue;
+    FHeap: TFloriaJSHeap;
+  public
+    constructor Create(AHeap: TFloriaJSHeap; const ATarget, ABoundThis: TFloriaJSValue; const ABoundArgs: array of TFloriaJSValue);
+    destructor Destroy(); override;
+    function Invoke(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
   end;
 
   { Thrown JavaScript Value (used to propagate promise rejections) }
@@ -270,6 +298,8 @@ type
     FInvoker: TFloriaJSFunctionInvoker;
     FArrayPrototype: TFloriaJSObject;
     FStringPrototype: TFloriaJSObject;
+    FNumberPrototype: TFloriaJSObject;
+    FFunctionPrototype: TFloriaJSObject;
     FObjectPrototype: TFloriaJSObject;
     FErrorPrototype: TFloriaJSObject;
     FTypeErrorPrototype: TFloriaJSObject;
@@ -298,6 +328,8 @@ type
       alive for as long as the heap does even when no value refers to them. }
     function  GetArrayPrototype(): TFloriaJSObject;
     function  GetStringPrototype(): TFloriaJSObject;
+    function  GetNumberPrototype(): TFloriaJSObject;
+    function  GetFunctionPrototype(): TFloriaJSObject;
     function  GetObjectPrototype(): TFloriaJSObject;
     function  GetErrorPrototype(): TFloriaJSObject;
     function  GetTypeErrorPrototype(): TFloriaJSObject;
@@ -639,6 +671,9 @@ function TFloriaJSValue.ToNumber(): Double;
 var
   code: Integer;
   d: Double;
+  trimStr: string;
+  prefix: Char;
+  intVal: Int64;
 begin
   case Kind of
     fjstUndefined:
@@ -651,9 +686,33 @@ begin
       Result := NumVal;
     fjstString:
     begin
-      if Trim(StrVal) = '' then
+      trimStr := Trim(StrVal);
+      if trimStr = '' then
         Exit(0.0);
-      Val(StrVal, d, code);
+      if (trimStr = 'Infinity') or (trimStr = '+Infinity') then
+        Exit(Infinity);
+      if trimStr = '-Infinity' then
+        Exit(-Infinity);
+      if (Length(trimStr) >= 3) and (trimStr[1] = '0') then
+      begin
+        prefix := UpCase(trimStr[2]);
+        if prefix = 'X' then
+        begin
+          Val('$' + Copy(trimStr, 3, Length(trimStr)), intVal, code);
+          if code = 0 then Exit(Double(intVal));
+        end
+        else if prefix = 'B' then
+        begin
+          Val('%' + Copy(trimStr, 3, Length(trimStr)), intVal, code);
+          if code = 0 then Exit(Double(intVal));
+        end
+        else if prefix = 'O' then
+        begin
+          Val('&' + Copy(trimStr, 3, Length(trimStr)), intVal, code);
+          if code = 0 then Exit(Double(intVal));
+        end;
+      end;
+      Val(trimStr, d, code);
       if code = 0 then
         Result := d
       else
@@ -687,8 +746,8 @@ begin
       begin
         if NumVal > 0 then Result := 'Infinity' else Result := '-Infinity';
       end
-      else if Frac(NumVal) = 0.0 then
-        Result := IntToStr(Round(NumVal))
+      else if (Frac(NumVal) = 0.0) and (Abs(NumVal) <= 9007199254740991.0) then
+        Result := IntToStr(Int64(Trunc(NumVal)))
       else
         Result := FloatToStr(NumVal);
     fjstString:
@@ -1298,9 +1357,20 @@ var
 begin
   if AName = 'length' then Exit(True);
   if TryStrToInt(AName, idx) then
-    Exit((idx >= 0) and (idx < FCount));
+    Exit((idx >= 0) and (idx < FCount) and not FElements[idx].IsUndefined());
 
   Result := inherited HasProperty(AName);
+end;
+
+function TFloriaJSArray.HasOwnProperty(const AName: string): Boolean;
+var
+  idx: Integer;
+begin
+  if AName = 'length' then Exit(True);
+  if TryStrToInt(AName, idx) then
+    Exit((idx >= 0) and (idx < FCount) and not FElements[idx].IsUndefined());
+
+  Result := inherited HasOwnProperty(AName);
 end;
 
 { TFloriaJSFunction }
@@ -1345,13 +1415,45 @@ begin
 end;
 
 destructor TFloriaJSFunction.Destroy();
+var
+  idx: Integer;
 begin
+  if (FHeap = nil) or (not FHeap.IsClearing) then
+  begin
+    idx := FindPropertyIndex('prototype');
+    if (idx >= 0) and FProperties[idx].Value.IsObject() and (FProperties[idx].Value.ObjVal is TFloriaJSPrototypeObject) then
+      TFloriaJSPrototypeObject(FProperties[idx].Value.ObjVal).OwnerFunction := nil;
+  end;
+
   if FBytecode <> nil then
   begin
     TFloriaJSBytecode(FBytecode).Release();
     FBytecode := nil;
   end;
   inherited Destroy();
+end;
+
+function JSNumberToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  radix: Integer;
+begin
+  if AThis.IsNumber() then
+  begin
+    if (Length(AArgs) > 0) and (not AArgs[0].IsUndefined()) then
+    begin
+      radix := Trunc(AArgs[0].ToNumber());
+      if (radix < 2) or (radix > 36) then
+        raise EFloriaJSThrow.Create(JSMakeObject(AThis.AsObject().Heap.NewError('RangeError', 'toString() radix must be between 2 and 36')));
+    end;
+    Result := JSMakeString(AThis.ToString());
+  end
+  else
+    Result := JSMakeString(AThis.ToString());
+end;
+
+function JSNumberValueOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := JSMakeNumber(AThis.ToNumber());
 end;
 
 function JSFunctionToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -1401,19 +1503,11 @@ function TFloriaJSFunction.GetPropertyWithReceiver(const AName: string; AReceive
 var
   protoObj: TFloriaJSObject;
 begin
-  { Every function is a potential constructor, so it offers the prototype
-    object that the objects it creates inherit from. It is created on first
-    use. It deliberately does not point back at the function through a
-    constructor property: that reference cycle would keep both objects alive
-    forever under reference counting. Arrow functions do not have a prototype. }
   if (AName = 'prototype') and (not FIsArrow) and (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
   begin
-    protoObj := FHeap.NewObject();
+    protoObj := FHeap.Track(TFloriaJSPrototypeObject.Create(FHeap.GetObjectPrototype(), Self));
     SetProperty('prototype', JSMakeObject(protoObj));
   end;
-
-  if (AName = 'toString') and (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
-    Exit(JSMakeFunction(FHeap.NewNativeFunction('toString', @JSFunctionToString)));
 
   Result := inherited GetPropertyWithReceiver(AName, AReceiver);
 end;
@@ -1421,6 +1515,203 @@ end;
 function TFloriaJSFunction.GetProperty(const AName: string): TFloriaJSValue;
 begin
   Result := GetPropertyWithReceiver(AName, Self);
+end;
+
+{ TFloriaJSPrototypeObject }
+
+constructor TFloriaJSPrototypeObject.Create(AProto: TFloriaJSObject; AOwner: TFloriaJSFunction);
+begin
+  inherited Create(AProto);
+  FOwnerFunction := AOwner;
+end;
+
+function TFloriaJSPrototypeObject.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
+var
+  idx: Integer;
+begin
+  idx := FindPropertyIndex(AName);
+  if idx >= 0 then
+    Exit(inherited GetPropertyWithReceiver(AName, AReceiver));
+
+  if (AName = 'constructor') and (FOwnerFunction <> nil) then
+    Exit(JSMakeFunction(FOwnerFunction));
+
+  Result := inherited GetPropertyWithReceiver(AName, AReceiver);
+end;
+
+function TFloriaJSPrototypeObject.HasOwnProperty(const AName: string): Boolean;
+begin
+  if (AName = 'constructor') and (FOwnerFunction <> nil) then
+    Exit(True);
+  Result := inherited HasOwnProperty(AName);
+end;
+
+{ TFloriaJSBoundFunction }
+
+constructor TFloriaJSBoundFunction.Create(AHeap: TFloriaJSHeap; const ATarget, ABoundThis: TFloriaJSValue; const ABoundArgs: array of TFloriaJSValue);
+var
+  i: Integer;
+begin
+  inherited Create();
+  FHeap := AHeap;
+  FTarget := ATarget;
+  JSRetainValue(FTarget);
+  FBoundThis := ABoundThis;
+  JSRetainValue(FBoundThis);
+  SetLength(FBoundArgs, Length(ABoundArgs));
+  for i := 0 to High(ABoundArgs) do
+  begin
+    FBoundArgs[i] := ABoundArgs[i];
+    JSRetainValue(FBoundArgs[i]);
+  end;
+end;
+
+destructor TFloriaJSBoundFunction.Destroy();
+var
+  i: Integer;
+begin
+  JSReleaseValue(FTarget);
+  JSReleaseValue(FBoundThis);
+  for i := 0 to High(FBoundArgs) do
+    JSReleaseValue(FBoundArgs[i]);
+  SetLength(FBoundArgs, 0);
+  inherited Destroy();
+end;
+
+function TFloriaJSBoundFunction.Invoke(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  combinedArgs: array of TFloriaJSValue;
+  i, bCount, aCount: Integer;
+begin
+  bCount := Length(FBoundArgs);
+  aCount := Length(AArgs);
+  SetLength(combinedArgs, bCount + aCount);
+  for i := 0 to bCount - 1 do
+    combinedArgs[i] := FBoundArgs[i];
+  for i := 0 to aCount - 1 do
+    combinedArgs[bCount + i] := AArgs[i];
+
+  if FHeap <> nil then
+    Result := FHeap.InvokeFunction(FTarget, combinedArgs, FBoundThis)
+  else
+    Result := JSMakeUndefined();
+end;
+
+function JSFunctionCall(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  fn: TFloriaJSFunction;
+  callArgs: array of TFloriaJSValue;
+  thisArg: TFloriaJSValue;
+  i, count: Integer;
+begin
+  if not AThis.IsFunction() then
+    raise EFloriaJSThrow.Create(JSMakeObject(AThis.AsObject().Heap.NewError('TypeError', 'Function.prototype.call called on non-function')));
+
+  fn := AThis.AsFunction();
+  if Length(AArgs) > 0 then
+    thisArg := AArgs[0]
+  else
+    thisArg := JSMakeUndefined();
+
+  if Length(AArgs) > 1 then
+  begin
+    count := Length(AArgs) - 1;
+    SetLength(callArgs, count);
+    for i := 0 to count - 1 do
+      callArgs[i] := AArgs[i + 1];
+  end
+  else
+    SetLength(callArgs, 0);
+
+  if fn.Heap <> nil then
+    Result := fn.Heap.InvokeFunction(AThis, callArgs, thisArg)
+  else
+    Result := JSMakeUndefined();
+end;
+
+function JSFunctionApply(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  fn: TFloriaJSFunction;
+  callArgs: array of TFloriaJSValue;
+  thisArg, argList: TFloriaJSValue;
+  arr: TFloriaJSArray;
+  i, count: Integer;
+begin
+  if not AThis.IsFunction() then
+    raise EFloriaJSThrow.Create(JSMakeObject(AThis.AsObject().Heap.NewError('TypeError', 'Function.prototype.apply called on non-function')));
+
+  fn := AThis.AsFunction();
+  if Length(AArgs) > 0 then
+    thisArg := AArgs[0]
+  else
+    thisArg := JSMakeUndefined();
+
+  SetLength(callArgs, 0);
+  if Length(AArgs) > 1 then
+  begin
+    argList := AArgs[1];
+    if not (argList.IsNull() or argList.IsUndefined()) then
+    begin
+      if not argList.IsObject() then
+        raise EFloriaJSThrow.Create(JSMakeObject(fn.Heap.NewError('TypeError', 'CreateListFromArrayLike called on non-object')));
+
+      if argList.IsArray() then
+      begin
+        arr := argList.AsArray();
+        count := arr.Length();
+        SetLength(callArgs, count);
+        for i := 0 to count - 1 do
+          callArgs[i] := arr.GetElement(i);
+      end
+      else
+      begin
+        count := Trunc(argList.AsObject().GetProperty('length').ToNumber());
+        if count < 0 then count := 0;
+        SetLength(callArgs, count);
+        for i := 0 to count - 1 do
+          callArgs[i] := argList.AsObject().GetProperty(IntToStr(i));
+      end;
+    end;
+  end;
+
+  if fn.Heap <> nil then
+    Result := fn.Heap.InvokeFunction(AThis, callArgs, thisArg)
+  else
+    Result := JSMakeUndefined();
+end;
+
+function JSFunctionBind(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  fn: TFloriaJSFunction;
+  boundThis: TFloriaJSValue;
+  boundArgs: array of TFloriaJSValue;
+  boundHelper: TFloriaJSBoundFunction;
+  boundFn: TFloriaJSFunction;
+  i, count: Integer;
+begin
+  if not AThis.IsFunction() then
+    raise EFloriaJSThrow.Create(JSMakeObject(AThis.AsObject().Heap.NewError('TypeError', 'Function.prototype.bind called on non-function')));
+
+  fn := AThis.AsFunction();
+  if Length(AArgs) > 0 then
+    boundThis := AArgs[0]
+  else
+    boundThis := JSMakeUndefined();
+
+  if Length(AArgs) > 1 then
+  begin
+    count := Length(AArgs) - 1;
+    SetLength(boundArgs, count);
+    for i := 0 to count - 1 do
+      boundArgs[i] := AArgs[i + 1];
+  end
+  else
+    SetLength(boundArgs, 0);
+
+  boundHelper := TFloriaJSBoundFunction.Create(fn.Heap, AThis, boundThis, boundArgs);
+  fn.Heap.OwnHelper(boundHelper);
+  boundFn := fn.Heap.NewNativeMethod(fn.Name, @boundHelper.Invoke);
+  Result := JSMakeFunction(boundFn);
 end;
 
 { EFloriaJSThrow }
@@ -1687,6 +1978,8 @@ begin
   FInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
+  FNumberPrototype := nil;
+  FFunctionPrototype := nil;
   FObjectPrototype := nil;
   FErrorPrototype := nil;
   FTypeErrorPrototype := nil;
@@ -1740,6 +2033,8 @@ begin
   FInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
+  FNumberPrototype := nil;
+  FFunctionPrototype := nil;
   FObjectPrototype := nil;
   FErrorPrototype := nil;
   FTypeErrorPrototype := nil;
@@ -1846,6 +2141,32 @@ begin
     FStringPrototype.Pin();
   end;
   Result := FStringPrototype;
+end;
+
+function TFloriaJSHeap.GetNumberPrototype(): TFloriaJSObject;
+begin
+  if FNumberPrototype = nil then
+  begin
+    FNumberPrototype := NewObject(GetObjectPrototype());
+    FNumberPrototype.Pin();
+    FNumberPrototype.SetProperty('toString', JSMakeFunction(NewNativeFunction('toString', @JSNumberToString)));
+    FNumberPrototype.SetProperty('valueOf', JSMakeFunction(NewNativeFunction('valueOf', @JSNumberValueOf)));
+  end;
+  Result := FNumberPrototype;
+end;
+
+function TFloriaJSHeap.GetFunctionPrototype(): TFloriaJSObject;
+begin
+  if FFunctionPrototype = nil then
+  begin
+    FFunctionPrototype := NewObject(GetObjectPrototype());
+    FFunctionPrototype.Pin();
+    FFunctionPrototype.SetProperty('call', JSMakeFunction(NewNativeFunction('call', @JSFunctionCall)));
+    FFunctionPrototype.SetProperty('apply', JSMakeFunction(NewNativeFunction('apply', @JSFunctionApply)));
+    FFunctionPrototype.SetProperty('bind', JSMakeFunction(NewNativeFunction('bind', @JSFunctionBind)));
+    FFunctionPrototype.SetProperty('toString', JSMakeFunction(NewNativeFunction('toString', @JSFunctionToString)));
+  end;
+  Result := FFunctionPrototype;
 end;
 
 function TFloriaJSHeap.ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -2229,16 +2550,19 @@ end;
 function TFloriaJSHeap.NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
 begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateNative(AName, AProc)));
+  Result.Prototype := GetFunctionPrototype();
 end;
 
 function TFloriaJSHeap.NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
 begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateNativeMethod(AName, AMethod)));
+  Result.Prototype := GetFunctionPrototype();
 end;
 
 function TFloriaJSHeap.NewBytecodeFunction(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean; AIsAsync: Boolean): TFloriaJSFunction;
 begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateBytecode(AName, ABytecode, AClosure, AIsArrow, AIsAsync)));
+  Result.Prototype := GetFunctionPrototype();
 end;
 
 procedure TFloriaJSHeap.ReclaimOrphanedEnvironments();
@@ -2398,6 +2722,7 @@ begin
       freed, so the cached pointers must not outlive them. }
     FArrayPrototype := nil;
     FStringPrototype := nil;
+    FFunctionPrototype := nil;
     FObjectPrototype := nil;
     FErrorPrototype := nil;
     FTypeErrorPrototype := nil;

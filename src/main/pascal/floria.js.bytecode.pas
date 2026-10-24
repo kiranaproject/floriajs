@@ -46,8 +46,11 @@ type
     opStoreGlobal,       // Store into global: Imm = const index (string), leaves value on stack
     opSetGlobal,         // Store into global: Imm = const index (string), pops value
     opLoadEnv,           // Push variable from environment: Imm = const index (name)
+    opLoadEnvQuiet,      // Push variable from environment without ReferenceError: Imm = const index (name)
     opStoreEnv,          // Store variable into environment: Imm = const index (name)
     opDefineEnv,         // Define variable into current environment: Imm = const index (name), pops value
+    opDefineConst,       // Define const variable into current environment: Imm = const index (name), pops value
+    opDefineLet,         // Define let variable into current environment: Imm = const index (name), pops value
     opPushEnv,           // Push child environment on current call frame
     opPopEnv,            // Pop child environment from current call frame
 
@@ -230,8 +233,11 @@ begin
     opStoreGlobal:      Result := 'STORE_GLOBAL';
     opSetGlobal:        Result := 'SET_GLOBAL';
     opLoadEnv:          Result := 'LOAD_ENV';
+    opLoadEnvQuiet:     Result := 'LOAD_ENV_QUIET';
     opStoreEnv:         Result := 'STORE_ENV';
     opDefineEnv:        Result := 'DEFINE_ENV';
+    opDefineConst:      Result := 'DEFINE_CONST';
+    opDefineLet:        Result := 'DEFINE_LET';
     opPushEnv:          Result := 'PUSH_ENV';
     opPopEnv:           Result := 'POP_ENV';
     opNewObject:        Result := 'NEW_OBJECT';

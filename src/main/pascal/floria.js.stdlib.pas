@@ -377,13 +377,15 @@ end;
 
 function JSParseInt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
-  s, part: string;
+  s: string;
   radixVal: Double;
   radix: Integer;
   i: Integer;
   sign: Integer;
   n: Int64;
   c: Char;
+  digit: Integer;
+  hasDigits: Boolean;
 begin
   if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
   s := Trim(AArgs[0].ToString());
@@ -399,118 +401,52 @@ begin
     Inc(i);
   end;
 
-  if i + 1 <= Length(s) then
-  begin
-    if (s[i] = '0') and ((s[i + 1] = 'x') or (s[i + 1] = 'X')) then
-    begin
-      radix := 16;
-      i := i + 2;
-    end
-    else if (s[i] = '0') and ((s[i + 1] = 'o') or (s[i + 1] = 'O')) then
-    begin
-      radix := 8;
-      i := i + 2;
-    end
-    else if (s[i] = '0') and ((s[i + 1] = 'b') or (s[i + 1] = 'B')) then
-    begin
-      radix := 2;
-      i := i + 2;
-    end;
-  end;
-
-  radixVal := 0;
-  if Length(AArgs) >= 2 then
+  radix := 0;
+  if (Length(AArgs) >= 2) and not AArgs[1].IsUndefined() then
   begin
     radixVal := AArgs[1].ToNumber();
-    radix := Trunc(radixVal);
-    if (radix = 0) and ((i + 1 <= Length(s)) and (s[i] = '0') and ((s[i + 1] = 'x') or (s[i + 1] = 'X'))) then
+    if not IsNaN(radixVal) then
+      radix := Trunc(radixVal);
+  end;
+
+  if (radix = 0) or (radix = 16) then
+  begin
+    if (i + 1 <= Length(s)) and (s[i] = '0') and ((s[i + 1] = 'x') or (s[i + 1] = 'X')) then
+    begin
       radix := 16;
+      i := i + 2;
+    end
+    else if radix = 0 then
+      radix := 10;
   end;
 
   if (radix < 2) or (radix > 36) then
     Exit(JSMakeNumber(NaN));
 
-  if radix = 16 then
-  begin
-    part := '';
-    while i <= Length(s) do
-    begin
-      c := UpCase(s[i]);
-      if (c >= '0') and (c <= '9') then
-        part := part + s[i]
-      else if (c >= 'A') and (c <= 'F') then
-        part := part + s[i]
-      else
-        Break;
-      Inc(i);
-    end;
-    if part = '' then Exit(JSMakeNumber(NaN));
-    val('$' + part, n, i);
-    if i = 0 then
-      Result := JSMakeNumber(Double(sign) * Double(n))
-    else
-      Result := JSMakeNumber(NaN);
-    Exit;
-  end;
-
-  if radix = 8 then
-  begin
-    part := '';
-    while i <= Length(s) do
-    begin
-      c := s[i];
-      if (c >= '0') and (c <= '7') then
-        part := part + c
-      else
-        Break;
-      Inc(i);
-    end;
-    if part = '' then Exit(JSMakeNumber(NaN));
-    val('&' + part, n, i);
-    if i = 0 then
-      Result := JSMakeNumber(Double(sign) * Double(n))
-    else
-      Result := JSMakeNumber(NaN);
-    Exit;
-  end;
-
-  if radix = 2 then
-  begin
-    part := '';
-    while i <= Length(s) do
-    begin
-      c := s[i];
-      if (c >= '0') and (c <= '1') then
-        part := part + c
-      else
-        Break;
-      Inc(i);
-    end;
-    if part = '' then Exit(JSMakeNumber(NaN));
-    val('%' + part, n, i);
-    if i = 0 then
-      Result := JSMakeNumber(Double(sign) * Double(n))
-    else
-      Result := JSMakeNumber(NaN);
-    Exit;
-  end;
-
-  part := '';
+  n := 0;
+  hasDigits := False;
   while i <= Length(s) do
   begin
-    c := s[i];
-    if (c >= '0') and (c <= '9') and ((Ord(c) - Ord('0')) < radix) then
-      part := part + c
+    c := UpCase(s[i]);
+    if (c >= '0') and (c <= '9') then
+      digit := Ord(c) - Ord('0')
+    else if (c >= 'A') and (c <= 'Z') then
+      digit := Ord(c) - Ord('A') + 10
     else
       Break;
+
+    if digit >= radix then
+      Break;
+
+    hasDigits := True;
+    n := n * radix + digit;
     Inc(i);
   end;
-  if part = '' then Exit(JSMakeNumber(NaN));
-  val(part, n, i);
-  if i = 0 then
-    Result := JSMakeNumber(Double(sign) * Double(n))
-  else
-    Result := JSMakeNumber(NaN);
+
+  if not hasDigits then
+    Exit(JSMakeNumber(NaN));
+
+  Result := JSMakeNumber(Double(sign) * Double(n));
 end;
 
 function JSParseFloat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -603,7 +539,7 @@ end;
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
-  numberObj, stringObj: TFloriaJSFunction;
+  numberObj, stringObj, funcObj: TFloriaJSFunction;
   errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
 begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
@@ -691,6 +627,12 @@ begin
   syntaxErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetSyntaxErrorPrototype()));
   AEnv.Define('SyntaxError', JSMakeFunction(syntaxErrCtor));
 
+  // 4b. Function
+  funcObj := AHeap.NewNativeFunction('Function', nil);
+  funcObj.SetProperty('prototype', JSMakeObject(AHeap.GetFunctionPrototype()));
+  AHeap.GetFunctionPrototype().SetProperty('constructor', JSMakeFunction(funcObj));
+  AEnv.Define('Function', JSMakeFunction(funcObj));
+
   // 5. Global Functions
   AEnv.Define('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));
   AEnv.Define('parseFloat', JSMakeFunction(AHeap.NewNativeFunction('parseFloat', @JSParseFloat)));
@@ -715,6 +657,7 @@ begin
   numberObj.SetProperty('MAX_SAFE_INTEGER', JSMakeNumber(9007199254740991.0));
   numberObj.SetProperty('MIN_SAFE_INTEGER', JSMakeNumber(-9007199254740991.0));
   numberObj.SetProperty('EPSILON', JSMakeNumber(2.220446049250313e-16));
+  numberObj.SetProperty('prototype', JSMakeObject(AHeap.GetNumberPrototype()));
   AEnv.Define('Number', JSMakeFunction(numberObj));
 
   stringObj := AHeap.NewNativeFunction('String', @JSStringConst);
@@ -742,6 +685,7 @@ begin
   globalObj.SetProperty('console', JSMakeObject(consoleObj));
   globalObj.SetProperty('Array', AEnv.GetDefault('Array', JSMakeUndefined()));
   globalObj.SetProperty('Object', AEnv.GetDefault('Object', JSMakeUndefined()));
+  globalObj.SetProperty('Function', JSMakeFunction(funcObj));
   globalObj.SetProperty('Number', JSMakeFunction(numberObj));
   globalObj.SetProperty('String', AEnv.GetDefault('String', JSMakeUndefined()));
   globalObj.SetProperty('Boolean', AEnv.GetDefault('Boolean', JSMakeUndefined()));

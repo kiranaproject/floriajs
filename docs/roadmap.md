@@ -15,11 +15,11 @@ capabilities, and performance optimizations for declarative FTML UI applications
 - **Core Primitives & Standard Library**: Completed. Comprehensive implementations
   of `Array`, `String`, `Math`, `JSON`, `Map`, `Set`, `Date`, `RegExp`, `Symbol`,
   `URI`, and host timer APIs (`setTimeout`, `setInterval`) are active.
-- **Test Suite**: 157 of 157 automated unit tests pass cleanly with 0 errors and 0 failures.
+- **Test Suite**: 168 of 168 automated unit tests pass cleanly with 0 errors and 0 failures.
 
 ---
 
-## Priority 1 — Semantic Deviations & Core Language Correctness
+## Priority 1 — Semantic Deviations & Core Language Correctness (Completed)
 
 These items address the behavioral differences documented in [`language-support.md`](language-support.md)
 that violate JavaScript developer expectations, silently mask syntax errors, or break
@@ -27,17 +27,17 @@ common idioms.
 
 ### 1.1 Variable Scope & Declaration Integrity
 
-- [ ] **`const` Reassignment Rejection**:
+- [x] **`const` Reassignment Rejection**:
   - Track `IsConst: Boolean` in environment bindings (`TFloriaJSEnvironment`).
   - Attempting to reassign or mutate a `const` variable via assignment (`=`, `+=`, etc.)
     or update operators (`++`, `--`) must throw a catchable `TypeError: Assignment to constant variable`.
   - Reject duplicate `let` / `const` declarations in the same scope.
-- [ ] **`ReferenceError` on Undeclared Identifier Reads**:
+- [x] **`ReferenceError` on Undeclared Identifier Reads**:
   - Reading an unresolvable identifier must throw a catchable `ReferenceError: <name> is not defined`.
   - Exempt the `typeof` unary operator: `typeof undeclaredVar` must continue to yield `'undefined'`.
   - Preserve assignment behavior: assigning to an undeclared identifier in non-strict mode
     creates a property in the global environment.
-- [ ] **Function Declaration Hoisting**:
+- [x] **Function Declaration Hoisting**:
   - Implement a compilation pre-pass in `TFloriaJSCompiler` (`CompileProgram`,
     `CompileFunctionBody`, and block bodies) to discover all `TFloriaJSFunctionDecl` nodes.
   - Instantiate and bind function objects in the target environment before any statements
@@ -45,41 +45,41 @@ common idioms.
 
 ### 1.2 Array & Object Semantic Parity
 
-- [ ] **`Array.prototype.toString`**:
+- [x] **`Array.prototype.toString`**:
   - Provide a dedicated `toString` method on `Array.prototype` that behaves like `join(',')`.
   - Replaces inheritance of `Object.prototype.toString` which incorrectly produces `[object Array]`.
-- [ ] **Array Enumeration in `for…in`**:
+- [x] **Array Enumeration in `for…in`**:
   - Fix `for…in` loops iterating over array objects to enumerate element indices (`'0'`, `'1'`, ...)
     rather than prototype method names (`'push'`, `'pop'`, `'slice'`).
-- [ ] **`Object.keys`, `values`, and `entries` on Arrays**:
+- [x] **`Object.keys`, `values`, and `entries` on Arrays**:
   - Ensure `Object.keys(arr)` includes array element indices (`['0', '1', ...]`).
   - Ensure `Object.values(arr)` yields array values.
   - Ensure `Object.entries(arr)` yields `[['0', val0], ['1', val1], ...]`.
-- [ ] **Array Index Property Reflection**:
+- [x] **Array Index Property Reflection**:
   - Fix `arr.hasOwnProperty(index)` to return `true` for present elements.
   - Ensure `index in arr` returns `false` for array holes.
 
 ### 1.3 Function & Parameter Parity
 
-- [ ] **Function Prototype Invocation Methods**:
+- [x] **Function Prototype Invocation Methods**:
   - Implement `Function.prototype.call(thisArg, ...args)`: invoke function with explicit `this`.
   - Implement `Function.prototype.apply(thisArg, argsArray)`: invoke function with an array of arguments.
   - Implement `Function.prototype.bind(thisArg, ...args)`: return a bound function closure.
   - Expose `Function.prototype` as a shared prototype object.
-- [ ] **Lexical `arguments` in Arrow Functions**:
+- [x] **Lexical `arguments` in Arrow Functions**:
   - Arrow functions must not instantiate their own `arguments` array.
   - Accessing `arguments` inside an arrow function must resolve lexically to the enclosing
     standard function's `arguments` object.
-- [ ] **Constructor Publication on Function Prototypes**:
+- [x] **Constructor Publication on Function Prototypes**:
   - Ensure every user function's `prototype` object exposes a `constructor` property pointing
     back to the function itself (`Foo.prototype.constructor === Foo`).
 
 ### 1.4 Lexical & Numeric Parsing Fixes
 
-- [ ] **Hexadecimal & Octal Number Parsing**:
+- [x] **Hexadecimal & Octal Number Parsing**:
   - Fix `Number("0x10")` to return `16` (currently yields `NaN`).
   - Fix `parseInt("010")` to parse with leading zeros without returning `NaN`.
-- [ ] **Number Formatting for Large Exponents**:
+- [x] **Number Formatting for Large Exponents**:
   - Prevent integer formatting overflow when printing large numbers (e.g. `1e20`).
 
 ---

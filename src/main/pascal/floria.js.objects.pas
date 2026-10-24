@@ -32,6 +32,13 @@ begin
   if AObj = nil then
     Exit(arr);
 
+  if AObj is TFloriaJSArray then
+  begin
+    for i := 0 to TFloriaJSArray(AObj).Length() - 1 do
+      if not TFloriaJSArray(AObj).GetElement(i).IsUndefined() then
+        arr.Push(JSMakeString(IntToStr(i)));
+  end;
+
   for i := 0 to AObj.GetPropertyCount() - 1 do
     arr.Push(JSMakeString(AObj.GetPropertyKey(i)));
 
@@ -47,6 +54,13 @@ begin
   if AObj = nil then
     Exit(arr);
 
+  if AObj is TFloriaJSArray then
+  begin
+    for i := 0 to TFloriaJSArray(AObj).Length() - 1 do
+      if not TFloriaJSArray(AObj).GetElement(i).IsUndefined() then
+        arr.Push(TFloriaJSArray(AObj).GetElement(i));
+  end;
+
   for i := 0 to AObj.GetPropertyCount() - 1 do
     arr.Push(AObj.GetPropertyValue(i));
 
@@ -61,6 +75,20 @@ begin
   arr := AHeap.NewArray();
   if AObj = nil then
     Exit(arr);
+
+  if AObj is TFloriaJSArray then
+  begin
+    for i := 0 to TFloriaJSArray(AObj).Length() - 1 do
+    begin
+      if not TFloriaJSArray(AObj).GetElement(i).IsUndefined() then
+      begin
+        pair := AHeap.NewArray();
+        pair.Push(JSMakeString(IntToStr(i)));
+        pair.Push(TFloriaJSArray(AObj).GetElement(i));
+        arr.Push(JSMakeArray(pair));
+      end;
+    end;
+  end;
 
   for i := 0 to AObj.GetPropertyCount() - 1 do
   begin

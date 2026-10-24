@@ -288,6 +288,22 @@ type
     procedure TestURIAndHostGlobals();
   end;
 
+  { Test 21: Priority 1 — Semantic Deviations & Core Language Correctness }
+  TFloriaJSPriority1Test = class(TTestCase)
+  published
+    procedure TestConstReassignmentRejection();
+    procedure TestDuplicateLetConstRejection();
+    procedure TestUndeclaredIdentifierReferenceError();
+    procedure TestFunctionDeclarationHoisting();
+    procedure TestArrayPrototypeToString();
+    procedure TestForInArrayIndices();
+    procedure TestObjectKeysValuesEntriesOnArrays();
+    procedure TestArrayPropertyReflection();
+    procedure TestFunctionCallApplyBind();
+    procedure TestFunctionPrototypeAndConstructor();
+    procedure TestNumericParsingAndFormatting();
+  end;
+
 { TFloriaJSTypesTest }
 
 destructor TCountedASTNode.Destroy();
@@ -1840,14 +1856,22 @@ begin
     AssertTrue('Labeled break success', res.Success);
     AssertEquals('Labeled break stops outer loop', 1.0, res.NumberValue, 0.0001);
 
-    { Classic for with const }
+    { Classic for with let }
+    res := engine.Execute(
+      'var s = 0;' + LineEnding +
+      'for (let i = 0; i < 2; i++) { s = s + 1; }' + LineEnding +
+      's;'
+    );
+    AssertTrue('For let success', res.Success);
+    AssertEquals('For let runs correctly', 2.0, res.NumberValue, 0.0001);
+
+    { Classic for with const fails on update }
     res := engine.Execute(
       'var s = 0;' + LineEnding +
       'for (const i = 0; i < 2; i++) { s = s + 1; }' + LineEnding +
       's;'
     );
-    AssertTrue('For const success', res.Success);
-    AssertEquals('For const runs correctly', 2.0, res.NumberValue, 0.0001);
+    AssertFalse('For const fails on update', res.Success);
 
     { Math.imul and Math.clz32 }
     res := engine.Execute('Math.imul(2, 4);');
@@ -2126,7 +2150,7 @@ begin
 
     res := engine.Execute('[1, 2].toString();');
     AssertTrue('[1, 2].toString() success', res.Success);
-    AssertEquals('[1, 2].toString()', '[object Array]', res.StringValue);
+    AssertEquals('[1, 2].toString()', '1,2', res.StringValue);
 
     { Function.prototype.toString }
     res := engine.Execute('function f() {} f.toString();');
@@ -5651,6 +5675,328 @@ begin
   end;
 end;
 
+{ TFloriaJSPriority1Test }
+
+procedure TFloriaJSPriority1Test.TestConstReassignmentRejection();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('const a = 10; a = 20;');
+    AssertFalse('const assignment should fail', res.Success);
+    AssertTrue('Error message mentions constant variable', Pos('constant variable', res.ErrorMessage) > 0);
+
+    res := engine.Execute('const x = 5; x++;');
+    AssertFalse('const increment should fail', res.Success);
+    AssertTrue('Error message mentions constant variable', Pos('constant variable', res.ErrorMessage) > 0);
+
+    res := engine.Execute('const { v } = { v: 1 }; v = 2;');
+    AssertFalse('const destructuring assignment should fail', res.Success);
+
+    res := engine.Execute('let sum = 0; for (const x of [1, 2, 3]) { sum = sum + x; } sum === 6;');
+    AssertTrue('for...of with const variable succeeds', res.Success);
+    AssertTrue('for...of with const computes sum', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestDuplicateLetConstRejection();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('let x = 1; let x = 2;');
+    AssertFalse('Duplicate let in same script must fail', res.Success);
+    AssertTrue('Error contains SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('const y = 1; const y = 2;');
+    AssertFalse('Duplicate const in same script must fail', res.Success);
+    AssertTrue('Error contains SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var z = 1; let z = 2;');
+    AssertFalse('var and let collision must fail', res.Success);
+    AssertTrue('Error contains SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('{ let b = 1; let b = 2; }');
+    AssertFalse('Duplicate let in block must fail', res.Success);
+    AssertTrue('Error contains SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('function f() { let a = 1; let a = 2; } f();');
+    AssertFalse('Duplicate let in function must fail', res.Success);
+    AssertTrue('Error contains SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('let val = 1; { let val = 2; if (val !== 2) throw "err"; } val === 1;');
+    AssertTrue('Nested block shadowing is valid', res.Success);
+    AssertTrue('Shadowed variable restores outside block', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestUndeclaredIdentifierReferenceError();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('undeclaredVar123 + 1;');
+    AssertFalse('Undeclared read must fail', res.Success);
+    AssertTrue('Error is ReferenceError', Pos('ReferenceError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('nonExistentFunc();');
+    AssertFalse('Undeclared call must fail', res.Success);
+    AssertTrue('Error is ReferenceError', Pos('ReferenceError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('typeof completelyUndeclaredIdentifier === "undefined";');
+    AssertTrue('typeof undeclared identifier must succeed', res.Success);
+    AssertTrue('typeof undeclared returns true', res.BooleanValue);
+
+    res := engine.Execute('const num = 42; typeof num === "number";');
+    AssertTrue('typeof defined variable succeeds', res.Success);
+    AssertTrue('typeof num returns number', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestFunctionDeclarationHoisting();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('const res = calc(10, 5); function calc(a, b) { return a * b; } res === 50;');
+    AssertTrue('Top level function hoisting succeeds', res.Success);
+    AssertTrue('Hoisted function returns expected value', res.BooleanValue);
+
+    res := engine.Execute(
+      'function outer() {' +
+      '  return inner();' +
+      '  function inner() { return 42; }' +
+      '}' +
+      'outer() === 42;'
+    );
+    AssertTrue('Function hoisting in function body succeeds', res.Success);
+    AssertTrue('Hoisted inner function returns expected value', res.BooleanValue);
+
+    res := engine.Execute(
+      'function isEven(n) { if (n === 0) return true; return isOdd(n - 1); }' +
+      'function isOdd(n) { if (n === 0) return false; return isEven(n - 1); }' +
+      'isEven(10) && !isOdd(10) && isOdd(7);'
+    );
+    AssertTrue('Mutually recursive hoisted functions succeed', res.Success);
+    AssertTrue('Mutual recursion yields true', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestArrayPrototypeToString();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('[1, 2, 3].toString() === "1,2,3";');
+    AssertTrue('[1, 2, 3].toString()', res.Success);
+    AssertTrue('[1, 2, 3].toString() === "1,2,3"', res.BooleanValue);
+
+    res := engine.Execute('[].toString() === "";');
+    AssertTrue('[].toString()', res.Success);
+    AssertTrue('[].toString() === ""', res.BooleanValue);
+
+    res := engine.Execute('["a", "b"].toString() === "a,b";');
+    AssertTrue('["a", "b"].toString()', res.Success);
+    AssertTrue('["a", "b"].toString() === "a,b"', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestForInArrayIndices();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'const arr = ["x", "y", "z"];' +
+      'const keys = [];' +
+      'for (const k in arr) {' +
+      '  keys.push(k);' +
+      '}' +
+      'keys.join(",") === "0,1,2";'
+    );
+    AssertTrue('for...in on array succeeds', res.Success);
+    AssertTrue('for...in iterates numeric indices', res.BooleanValue);
+
+    res := engine.Execute(
+      'const empty = [];' +
+      'let count = 0;' +
+      'for (const k in empty) { count = count + 1; }' +
+      'count === 0;'
+    );
+    AssertTrue('for...in on empty array produces 0 iterations', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestObjectKeysValuesEntriesOnArrays();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('Object.keys([10, 20, 30]).join(",") === "0,1,2";');
+    AssertTrue('Object.keys on array', res.Success);
+    AssertTrue('Object.keys returns ["0", "1", "2"]', res.BooleanValue);
+
+    res := engine.Execute('Object.values([10, 20, 30]).join(",") === "10,20,30";');
+    AssertTrue('Object.values on array', res.Success);
+    AssertTrue('Object.values returns elements', res.BooleanValue);
+
+    res := engine.Execute('const e = Object.entries(["a", "b"]); e.length === 2 && e[0][0] === "0" && e[0][1] === "a";');
+    AssertTrue('Object.entries on array', res.Success);
+    AssertTrue('Object.entries returns key-value pairs', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestArrayPropertyReflection();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'const arr = ["first", "second"];' +
+      '0 in arr && 1 in arr && !(2 in arr) && "length" in arr;'
+    );
+    AssertTrue('in operator on array', res.Success);
+    AssertTrue('in operator checks element existence', res.BooleanValue);
+
+    res := engine.Execute(
+      'const arr = ["first", "second"];' +
+      'arr.hasOwnProperty("0") && arr.hasOwnProperty(1) && !arr.hasOwnProperty("2") && arr.hasOwnProperty("length");'
+    );
+    AssertTrue('hasOwnProperty on array', res.Success);
+    AssertTrue('hasOwnProperty checks elements and length', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestFunctionCallApplyBind();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function greet(prefix, suffix) { return prefix + " " + this.name + suffix; }' +
+      'greet.call({ name: "Alice" }, "Hello", "!") === "Hello Alice!";'
+    );
+    AssertTrue('Function.prototype.call succeeds', res.Success);
+    AssertTrue('Function.prototype.call sets this and passes args', res.BooleanValue);
+
+    res := engine.Execute(
+      'function add(a, b, c) { return this.offset + a + b + c; }' +
+      'add.apply({ offset: 100 }, [10, 20, 30]) === 160;'
+    );
+    AssertTrue('Function.prototype.apply succeeds', res.Success);
+    AssertTrue('Function.prototype.apply unpacks array args', res.BooleanValue);
+
+    res := engine.Execute(
+      'function multiply(a, b) { return this.scale * a * b; }' +
+      'const scaledByTen = multiply.bind({ scale: 10 }, 5);' +
+      'scaledByTen(4) === 200;'
+    );
+    AssertTrue('Function.prototype.bind succeeds', res.Success);
+    AssertTrue('Function.prototype.bind curries arguments and sets this', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestFunctionPrototypeAndConstructor();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function Foo() {}' +
+      'Foo.prototype.constructor === Foo;'
+    );
+    AssertTrue('Foo.prototype.constructor === Foo', res.Success);
+    AssertTrue('Constructor back-reference matches function', res.BooleanValue);
+
+    res := engine.Execute(
+      'function Bar(x) { this.x = x; }' +
+      'const b = new Bar(42);' +
+      'b.constructor === Bar && b instanceof Bar && b.x === 42;'
+    );
+    AssertTrue('new Bar().constructor === Bar', res.Success);
+    AssertTrue('Instance constructor and instanceof match', res.BooleanValue);
+
+    res := engine.Execute(
+      'typeof Function === "function" && ' +
+      'typeof Function.prototype.call === "function" && ' +
+      'typeof Function.prototype.apply === "function" && ' +
+      'typeof Function.prototype.bind === "function";'
+    );
+    AssertTrue('Global Function and methods exist', res.Success);
+    AssertTrue('Function prototype methods exist', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestNumericParsingAndFormatting();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('Number("0x10") === 16 && Number("0b101") === 5 && Number("0o17") === 15;');
+    AssertTrue('Number hex/bin/oct parsing succeeds', res.Success);
+    AssertTrue('Number hex/bin/oct parsing correct', res.BooleanValue);
+
+    res := engine.Execute(
+      'parseInt("010") === 10 && ' +
+      'parseInt("0x10") === 16 && ' +
+      'parseInt("10", 2) === 2 && ' +
+      'parseInt("10", 8) === 8 && ' +
+      'parseInt("10", 16) === 16 && ' +
+      'parseInt("  123px") === 123;'
+    );
+    AssertTrue('parseInt with various radices succeeds', res.Success);
+    AssertTrue('parseInt with various radices correct', res.BooleanValue);
+
+    res := engine.Execute('(1e20).toString().indexOf("1") === 0;');
+    AssertTrue('Large number toString succeeds without overflow', res.Success);
+    AssertTrue('Large number toString starts with 1', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -5677,6 +6023,7 @@ begin
   RegisterTest(TFloriaJSArrayMethodsTest);
   RegisterTest(TFloriaJSVMTest);
   RegisterTest(TFloriaJSPriority3Test);
+  RegisterTest(TFloriaJSPriority1Test);
 
   Application := TTestRunner.Create(nil);
   try
