@@ -53,6 +53,7 @@ type
     procedure ReleaseEnv(AEnv: TFloriaJSEnvironment);
     procedure ReclaimOrphanedEnvironments();
     function AssignToTarget(ATarget: TFloriaJSExprNode; const AVal: TFloriaJSValue; AOp: TFloriaJSTokenKind; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
+    procedure AssignDestructuring(APattern: TFloriaJSExprNode; const AValue: TFloriaJSValue; AEnv: TFloriaJSEnvironment; AKind: TFloriaJSTokenKind);
     procedure RunPromiseJob(const AJob: TFloriaJSPromiseJob);
     function GetMemberValue(const AObj: TFloriaJSValue; const APropName: string): TFloriaJSValue;
     function ConstructObject(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
@@ -382,6 +383,214 @@ begin
   end;
 end;
 
+procedure TFloriaJSEvaluator.AssignDestructuring(APattern: TFloriaJSExprNode; const AValue: TFloriaJSValue; AEnv: TFloriaJSEnvironment; AKind: TFloriaJSTokenKind);
+var
+  varName, propKey, k: string;
+  objExpr: TFloriaJSObjectExpr;
+  arrExpr: TFloriaJSArrayExpr;
+  assignExpr: TFloriaJSAssignExpr;
+  targetNode, valNode, keyExpr, elemNode, restTarget: TFloriaJSExprNode;
+  propVal, elemVal: TFloriaJSValue;
+  restObj: TFloriaJSObject;
+  restArr: TFloriaJSArray;
+  extractedKeys: TStringList;
+  i, j, propCount, elemCount: Integer;
+begin
+  if APattern = nil then
+    Exit;
+
+  // 1. Identifier
+  if APattern is TFloriaJSIdentifierExpr then
+  begin
+    varName := TFloriaJSIdentifierExpr(APattern).Name;
+    if AKind in [tkVar, tkLet, tkConst] then
+      AEnv.Define(varName, AValue, AKind = tkConst)
+    else
+      AEnv.Assign(varName, AValue);
+    Exit;
+  end;
+
+  // 2. Member Expression (in destructuring assignment, e.g. ({ a: obj.p } = ...))
+  if APattern is TFloriaJSMemberExpr then
+  begin
+    AssignToTarget(APattern, AValue, tkAssign, AEnv);
+    Exit;
+  end;
+
+  // 3. Object Destructuring Pattern: { a, b: c = default, ...rest }
+  if APattern is TFloriaJSObjectExpr then
+  begin
+    if AValue.IsNull() or AValue.IsUndefined() then
+      raise Exception.Create('TypeError: Cannot destructure from null or undefined');
+
+    objExpr := TFloriaJSObjectExpr(APattern);
+    propCount := objExpr.GetPropertyCount();
+    extractedKeys := TStringList.Create();
+    try
+      for i := 0 to propCount - 1 do
+      begin
+        case objExpr.GetPropertyKind(i) of
+          fjpkNormal:
+            begin
+              propKey := objExpr.GetPropertyKey(i);
+              extractedKeys.Add(propKey);
+              valNode := objExpr.GetPropertyValue(i);
+
+              if AValue.IsObject() and (AValue.ObjVal <> nil) then
+                propVal := AValue.ObjVal.GetProperty(propKey)
+              else
+                propVal := JSMakeUndefined();
+
+              if valNode is TFloriaJSAssignExpr then
+              begin
+                assignExpr := TFloriaJSAssignExpr(valNode);
+                targetNode := assignExpr.Target;
+                if propVal.IsUndefined() and (assignExpr.Value <> nil) then
+                  propVal := EvaluateExpr(assignExpr.Value, AEnv);
+                AssignDestructuring(targetNode, propVal, AEnv, AKind);
+              end
+              else
+                AssignDestructuring(valNode, propVal, AEnv, AKind);
+            end;
+
+          fjpkComputed:
+            begin
+              keyExpr := objExpr.GetPropertyKeyExpr(i);
+              propKey := EvaluateExpr(keyExpr, AEnv).ToString();
+              extractedKeys.Add(propKey);
+              valNode := objExpr.GetPropertyValue(i);
+
+              if AValue.IsObject() and (AValue.ObjVal <> nil) then
+                propVal := AValue.ObjVal.GetProperty(propKey)
+              else
+                propVal := JSMakeUndefined();
+
+              if valNode is TFloriaJSAssignExpr then
+              begin
+                assignExpr := TFloriaJSAssignExpr(valNode);
+                targetNode := assignExpr.Target;
+                if propVal.IsUndefined() and (assignExpr.Value <> nil) then
+                  propVal := EvaluateExpr(assignExpr.Value, AEnv);
+                AssignDestructuring(targetNode, propVal, AEnv, AKind);
+              end
+              else
+                AssignDestructuring(valNode, propVal, AEnv, AKind);
+            end;
+
+          fjpkSpread:
+            begin
+              valNode := objExpr.GetPropertyValue(i);
+              restObj := FHeap.NewObject();
+              if AValue.IsObject() and (AValue.ObjVal <> nil) then
+              begin
+                for j := 0 to AValue.ObjVal.GetPropertyCount() - 1 do
+                begin
+                  k := AValue.ObjVal.GetPropertyKey(j);
+                  if extractedKeys.IndexOf(k) < 0 then
+                    restObj.SetProperty(k, AValue.ObjVal.GetProperty(k));
+                end;
+              end;
+              AssignDestructuring(valNode, JSMakeObject(restObj), AEnv, AKind);
+            end;
+        end;
+      end;
+    finally
+      extractedKeys.Free();
+    end;
+    Exit;
+  end;
+
+  // 4. Array Destructuring Pattern: [a, , b = default, ...rest]
+  if APattern is TFloriaJSArrayExpr then
+  begin
+    if AValue.IsNull() or AValue.IsUndefined() then
+      raise Exception.Create('TypeError: Cannot destructure from null or undefined');
+
+    arrExpr := TFloriaJSArrayExpr(APattern);
+    elemCount := arrExpr.GetElementCount();
+
+    for i := 0 to elemCount - 1 do
+    begin
+      elemNode := arrExpr.GetElement(i);
+      if elemNode = nil then
+        Continue; // Elision / hole
+
+      if elemNode is TFloriaJSSpreadExpr then
+      begin
+        restTarget := TFloriaJSSpreadExpr(elemNode).Expression;
+        restArr := FHeap.NewArray();
+        if AValue.IsArray() then
+        begin
+          for j := i to AValue.AsArray().Length - 1 do
+            restArr.Push(AValue.AsArray().GetElement(j));
+        end
+        else if AValue.IsString() then
+        begin
+          for j := i to Length(AValue.StrVal) - 1 do
+            restArr.Push(JSMakeString(AValue.StrVal[j + 1]));
+        end
+        else if AValue.IsObject() and (AValue.ObjVal <> nil) then
+        begin
+          j := i;
+          while AValue.ObjVal.HasProperty(IntToStr(j)) do
+          begin
+            restArr.Push(AValue.ObjVal.GetProperty(IntToStr(j)));
+            Inc(j);
+          end;
+        end;
+        AssignDestructuring(restTarget, JSMakeArray(restArr), AEnv, AKind);
+        Break;
+      end;
+
+      // Extract i-th element from AValue
+      if AValue.IsArray() then
+      begin
+        if i < AValue.AsArray().Length then
+          elemVal := AValue.AsArray().GetElement(i)
+        else
+          elemVal := JSMakeUndefined();
+      end
+      else if AValue.IsString() then
+      begin
+        if i < Length(AValue.StrVal) then
+          elemVal := JSMakeString(AValue.StrVal[i + 1])
+        else
+          elemVal := JSMakeUndefined();
+      end
+      else if AValue.IsObject() and (AValue.ObjVal <> nil) then
+        elemVal := AValue.ObjVal.GetProperty(IntToStr(i))
+      else
+        elemVal := JSMakeUndefined();
+
+      if elemNode is TFloriaJSAssignExpr then
+      begin
+        assignExpr := TFloriaJSAssignExpr(elemNode);
+        targetNode := assignExpr.Target;
+        if elemVal.IsUndefined() and (assignExpr.Value <> nil) then
+          elemVal := EvaluateExpr(assignExpr.Value, AEnv);
+        AssignDestructuring(targetNode, elemVal, AEnv, AKind);
+      end
+      else
+        AssignDestructuring(elemNode, elemVal, AEnv, AKind);
+    end;
+    Exit;
+  end;
+
+  // 5. Default Assignment Pattern (e.g. top-level pattern with default)
+  if APattern is TFloriaJSAssignExpr then
+  begin
+    assignExpr := TFloriaJSAssignExpr(APattern);
+    targetNode := assignExpr.Target;
+    valNode := assignExpr.Value;
+    if AValue.IsUndefined() and (valNode <> nil) then
+      elemVal := EvaluateExpr(valNode, AEnv)
+    else
+      elemVal := AValue;
+    AssignDestructuring(targetNode, elemVal, AEnv, AKind);
+    Exit;
+  end;
+end;
+
 function TFloriaJSEvaluator.AssignToTarget(ATarget: TFloriaJSExprNode; const AVal: TFloriaJSValue; AOp: TFloriaJSTokenKind; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
 var
   ident: TFloriaJSIdentifierExpr;
@@ -389,6 +598,16 @@ var
   oldVal, computedVal, objVal: TFloriaJSValue;
   propName: string;
 begin
+  // Destructuring pattern assignment: [a, b] = val or { a, b } = val
+  if (ATarget is TFloriaJSObjectExpr) or (ATarget is TFloriaJSArrayExpr) then
+  begin
+    if AOp = tkAssign then
+    begin
+      AssignDestructuring(ATarget, AVal, AEnv, tkEOF);
+      Exit(AVal);
+    end;
+  end;
+
   // Identifier assignment
   if ATarget is TFloriaJSIdentifierExpr then
   begin
@@ -943,7 +1162,10 @@ begin
       else
         initVal := JSMakeUndefined();
 
-      AEnv.Define(varStmt.GetDeclaratorName(i), initVal, varStmt.Kind = tkConst);
+      if varStmt.GetDeclaratorPattern(i) <> nil then
+        AssignDestructuring(varStmt.GetDeclaratorPattern(i), initVal, AEnv, varStmt.Kind)
+      else
+        AEnv.Define(varStmt.GetDeclaratorName(i), initVal, varStmt.Kind = tkConst);
     end;
     Exit(JSMakeUndefined());
   end;
@@ -1498,8 +1720,11 @@ var
   callEnv: TFloriaJSEnvironment;
   closureMark: Integer;
   promise: TFloriaJSPromise;
-  argsArr: TFloriaJSArray;
-  i, paramCount: Integer;
+  argsArr, restArr: TFloriaJSArray;
+  i, j, paramCount: Integer;
+  pName, restName: string;
+  argVal: TFloriaJSValue;
+  paramObj: TFloriaJSExprNode;
 begin
   if not AFuncVal.IsFunction() then
     Exit(JSMakeUndefined());
@@ -1539,10 +1764,42 @@ begin
     paramCount := fn.ParamNames.Count;
     for i := 0 to paramCount - 1 do
     begin
-      if i <= High(AArgs) then
-        callEnv.Define(fn.ParamNames[i], AArgs[i])
+      pName := fn.ParamNames[i];
+      if (Length(pName) >= 3) and (Copy(pName, 1, 3) = '...') then
+      begin
+        restName := Copy(pName, 4, Length(pName));
+        restArr := FHeap.NewArray();
+        for j := i to High(AArgs) do
+          restArr.Push(AArgs[j]);
+        callEnv.Define(restName, JSMakeArray(restArr));
+        Break;
+      end
+      else if pName = '' then
+      begin
+        paramObj := TFloriaJSExprNode(fn.ParamNames.Objects[i]);
+        if (i <= High(AArgs)) and (not AArgs[i].IsUndefined()) then
+          argVal := AArgs[i]
+        else if (paramObj is TFloriaJSAssignExpr) and (TFloriaJSAssignExpr(paramObj).Value <> nil) then
+          argVal := EvaluateExpr(TFloriaJSAssignExpr(paramObj).Value, callEnv)
+        else
+          argVal := JSMakeUndefined();
+
+        if paramObj is TFloriaJSAssignExpr then
+          AssignDestructuring(TFloriaJSAssignExpr(paramObj).Target, argVal, callEnv, tkLet)
+        else
+          AssignDestructuring(paramObj, argVal, callEnv, tkLet);
+      end
       else
-        callEnv.Define(fn.ParamNames[i], JSMakeUndefined());
+      begin
+        if (i <= High(AArgs)) and (not AArgs[i].IsUndefined()) then
+          argVal := AArgs[i]
+        else if fn.ParamNames.Objects[i] <> nil then
+          argVal := EvaluateExpr(TFloriaJSExprNode(fn.ParamNames.Objects[i]), callEnv)
+        else
+          argVal := JSMakeUndefined();
+
+        callEnv.Define(pName, argVal);
+      end;
     end;
 
     closureMark := FClosureCount;

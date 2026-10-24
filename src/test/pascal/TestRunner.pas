@@ -120,6 +120,7 @@ type
     procedure TestTemplateLiteralInterpolation();
     procedure TestObjectAndArrayLiteralCompletion();
     procedure TestIterationStatements();
+    procedure TestParameterFormsAndDestructuring();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -2356,6 +2357,102 @@ begin
     );
     AssertTrue('for..of closure capture success', res.Success);
     AssertEquals('closures capture separate iteration bindings', 60.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestParameterFormsAndDestructuring();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { 1. Default parameters with earlier parameter reference }
+    res := engine.Execute(
+      'function f(a = 3, b = a * 2) { return a + b; }' + LineEnding +
+      '[f(), f(5), f(2, 3)].join(",");'
+    );
+    AssertTrue('Default parameters success', res.Success);
+    AssertEquals('Default parameter evaluation', '9,15,5', res.StringValue);
+
+    { 2. Default parameter triggered by undefined }
+    res := engine.Execute('function f(a = 10) { return a; } f(undefined);');
+    AssertTrue('Default param with undefined success', res.Success);
+    AssertEquals('Default parameter triggered by undefined', 10.0, res.NumberValue, 0.0001);
+
+    { 3. Rest parameters in function declaration }
+    res := engine.Execute(
+      'function sum(first, ...rest) {' + LineEnding +
+      '  return first + rest.reduce((a, b) => a + b, 0);' + LineEnding +
+      '}' + LineEnding +
+      'sum(10, 1, 2, 3);'
+    );
+    AssertTrue('Rest parameters success', res.Success);
+    AssertEquals('Rest parameter sum', 16.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('function f(...items) { return items.length; } f();');
+    AssertTrue('Empty rest param success', res.Success);
+    AssertEquals('Empty rest param produces empty array', 0.0, res.NumberValue, 0.0001);
+
+    { 4. Object destructuring in variable declaration }
+    res := engine.Execute('var { a, b } = { a: 1, b: 2 }; a + b;');
+    AssertTrue('Object destructuring success', res.Success);
+    AssertEquals('Object destructuring sum', 3.0, res.NumberValue, 0.0001);
+
+    { 5. Object rename and default value }
+    res := engine.Execute('var { a: x = 10, b: y = 20 } = { a: 5 }; x + y;');
+    AssertTrue('Object rename and default success', res.Success);
+    AssertEquals('Object rename and default sum', 25.0, res.NumberValue, 0.0001);
+
+    { 6. Object rest property }
+    res := engine.Execute('var { a, ...rest } = { a: 1, b: 2, c: 3 }; [a, rest.b, rest.c].join(",");');
+    AssertTrue('Object rest success', res.Success);
+    AssertEquals('Object rest extraction', '1,2,3', res.StringValue);
+
+    { 7. Array destructuring in variable declaration }
+    res := engine.Execute('var [a, b, c] = [10, 20, 30]; a + b + c;');
+    AssertTrue('Array destructuring success', res.Success);
+    AssertEquals('Array destructuring sum', 60.0, res.NumberValue, 0.0001);
+
+    { 8. Array destructuring with default and elision / hole }
+    res := engine.Execute('var [a = 1, , c = 3] = [undefined, 99]; a + c;');
+    AssertTrue('Array default and hole success', res.Success);
+    AssertEquals('Array default and hole sum', 4.0, res.NumberValue, 0.0001);
+
+    { 9. Array rest element }
+    res := engine.Execute('var [head, ...tail] = [1, 2, 3]; head + ":" + tail.join(",");');
+    AssertTrue('Array rest element success', res.Success);
+    AssertEquals('Array rest elements', '1:2,3', res.StringValue);
+
+    { 10. Nested destructuring }
+    res := engine.Execute('var { x: [y, { z }] } = { x: [10, { z: 20 }] }; y + z;');
+    AssertTrue('Nested destructuring success', res.Success);
+    AssertEquals('Nested destructuring sum', 30.0, res.NumberValue, 0.0001);
+
+    { 11. Destructuring in function parameters }
+    res := engine.Execute(
+      'function add({ a, b = 0 }) { return a + b; }' + LineEnding +
+      'add({ a: 7, b: 3 }) + add({ a: 5 });'
+    );
+    AssertTrue('Destructuring in function parameter success', res.Success);
+    AssertEquals('Destructuring parameter sum', 15.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('function pair([a, b]) { return a * b; } pair([6, 7]);');
+    AssertTrue('Array destructuring in parameter success', res.Success);
+    AssertEquals('Array destructuring parameter product', 42.0, res.NumberValue, 0.0001);
+
+    { 12. Arrow function parameter forms }
+    res := engine.Execute(
+      'const f1 = ({ a, b }) => a + b;' + LineEnding +
+      'const f2 = ([head, ...tail]) => head + tail.length;' + LineEnding +
+      'const f3 = (a = 5, b = 10) => a * b;' + LineEnding +
+      'const f4 = (...args) => args.join("-");' + LineEnding +
+      '[f1({ a: 10, b: 20 }), f2([100, 2, 3, 4]), f3(), f4("x", "y", "z")].join(";");'
+    );
+    AssertTrue('Arrow function parameter forms success', res.Success);
+    AssertEquals('Arrow function parameter forms values', '30;103;50;x-y-z', res.StringValue);
   finally
     engine.Free();
   end;

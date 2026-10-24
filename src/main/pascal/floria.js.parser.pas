@@ -71,7 +71,8 @@ type
     function  ParseObjectLiteral(): TFloriaJSExprNode;
     function  ParseMethodBody(const AName: string): TFloriaJSFunctionExpr;
     function  ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
-    function  ExtractParameters(AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
+    procedure ParseFormalParameters(AParams: TStringList);
+    function  ExtractParameters(var AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
 
     { Statements & Declarations }
     function  ParseStatement(): TFloriaJSStmtNode;
@@ -376,7 +377,8 @@ begin
           fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column, True);
           if not ExtractParameters(expr, fnExpr.Parameters) then
             ErrorAtCurrent('Invalid arrow function parameter');
-          expr.Free();
+          if expr <> nil then
+            expr.Free();
           if Check(tkLBrace) then
             fnExpr.SetBody(ParseBlockStatement())
           else
@@ -437,7 +439,8 @@ begin
       fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column);
       if not ExtractParameters(expr, fnExpr.Parameters) then
         ErrorAtCurrent('Invalid arrow function parameter');
-      expr.Free();
+      if expr <> nil then
+        expr.Free();
       if Check(tkLBrace) then
         fnExpr.SetBody(ParseBlockStatement())
       else
@@ -459,6 +462,11 @@ var
 begin
   op := FCurrent;
   Advance();
+  if op.Kind = tkEllipsis then
+  begin
+    operand := ParseAssignmentExpression();
+    Exit(TFloriaJSSpreadExpr.Create(operand, op.Line, op.Column));
+  end;
   operand := ParsePrecedence(PREC_UNARY);
   Result := TFloriaJSUnaryExpr.Create(op.Kind, operand, True, op.Line, op.Column);
 end;
@@ -581,23 +589,8 @@ begin
   startLine := FCurrent.Line;
   startCol := FCurrent.Column;
 
-  Consume(tkLParen, 'Expected ''('' after method name');
   fnExpr := TFloriaJSFunctionExpr.Create(AName, False, startLine, startCol);
-
-  if not Check(tkRParen) then
-  begin
-    repeat
-      if Match(tkIdentifier) then
-        fnExpr.AddParameter(FPrevious.Text)
-      else
-      begin
-        ErrorAtCurrent('Expected parameter name');
-        Break;
-      end;
-    until not Match(tkComma);
-  end;
-
-  Consume(tkRParen, 'Expected '')'' after parameters');
+  ParseFormalParameters(fnExpr.Parameters);
   bodyStmt := ParseBlockStatement();
   fnExpr.SetBody(bodyStmt);
   Result := fnExpr;
@@ -731,6 +724,17 @@ begin
     begin
       obj.AddProperty(propKey, TFloriaJSIdentifierExpr.Create(propKey, startLine, startCol));
     end
+    // Destructuring default shorthand: { x = expr }
+    else if Match(tkAssign) then
+    begin
+      propVal := ParseAssignmentExpression();
+      obj.AddProperty(propKey, TFloriaJSAssignExpr.Create(
+        TFloriaJSIdentifierExpr.Create(propKey, startLine, startCol),
+        tkAssign,
+        propVal,
+        startLine, startCol
+      ));
+    end
     // Standard property: key: value
     else
     begin
@@ -763,13 +767,72 @@ begin
     fnName := '';
 
   fnExpr := TFloriaJSFunctionExpr.Create(fnName, False, startLine, startCol, AIsAsync);
-  Consume(tkLParen, 'Expected ''('' after function name/keyword');
+  ParseFormalParameters(fnExpr.Parameters);
+  bodyStmt := ParseBlockStatement();
+  fnExpr.SetBody(bodyStmt);
+  Result := fnExpr;
+end;
 
+procedure TFloriaJSParser.ParseFormalParameters(AParams: TStringList);
+var
+  paramName: string;
+  defaultExpr, pat: TFloriaJSExprNode;
+begin
+  Consume(tkLParen, 'Expected ''('' before parameter list');
   if not Check(tkRParen) then
   begin
     repeat
-      if Match(tkIdentifier) then
-        fnExpr.AddParameter(FPrevious.Text)
+      // 1. Rest parameter: ...name
+      if Match(tkEllipsis) then
+      begin
+        if Match(tkIdentifier) then
+          paramName := '...' + FPrevious.Text
+        else
+        begin
+          ErrorAtCurrent('Expected parameter name after ''...''');
+          paramName := '...args';
+        end;
+        AParams.Add(paramName);
+        Break; // Rest parameter must be last
+      end;
+
+      // 2. Destructuring pattern: [a, b] or { a, b }
+      if Check(tkLBracket) then
+      begin
+        Advance();
+        pat := ParseArrayLiteral();
+        if Match(tkAssign) then
+          defaultExpr := ParseAssignmentExpression()
+        else
+          defaultExpr := nil;
+        if defaultExpr <> nil then
+          AParams.AddObject('', TFloriaJSAssignExpr.Create(pat, tkAssign, defaultExpr, pat.Line, pat.Column))
+        else
+          AParams.AddObject('', pat);
+      end
+      else if Check(tkLBrace) then
+      begin
+        Advance();
+        pat := ParseObjectLiteral();
+        if Match(tkAssign) then
+          defaultExpr := ParseAssignmentExpression()
+        else
+          defaultExpr := nil;
+        if defaultExpr <> nil then
+          AParams.AddObject('', TFloriaJSAssignExpr.Create(pat, tkAssign, defaultExpr, pat.Line, pat.Column))
+        else
+          AParams.AddObject('', pat);
+      end
+      // 3. Normal parameter: identifier [ = default ]
+      else if Match(tkIdentifier) then
+      begin
+        paramName := FPrevious.Text;
+        if Match(tkAssign) then
+          defaultExpr := ParseAssignmentExpression()
+        else
+          defaultExpr := nil;
+        AParams.AddObject(paramName, defaultExpr);
+      end
       else
       begin
         ErrorAtCurrent('Expected parameter name');
@@ -777,14 +840,15 @@ begin
       end;
     until not Match(tkComma);
   end;
-
-  Consume(tkRParen, 'Expected '')'' after parameters');
-  bodyStmt := ParseBlockStatement();
-  fnExpr.SetBody(bodyStmt);
-  Result := fnExpr;
+  Consume(tkRParen, 'Expected '')'' after function parameter list');
 end;
 
-function TFloriaJSParser.ExtractParameters(AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
+function TFloriaJSParser.ExtractParameters(var AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
+var
+  bin: TFloriaJSBinaryExpr;
+  leftNode, rightNode, innerNode, targetNode, valNode: TFloriaJSExprNode;
+  assignNode: TFloriaJSAssignExpr;
+  spreadNode: TFloriaJSSpreadExpr;
 begin
   if AExpr = nil then
     Exit(True);
@@ -797,9 +861,64 @@ begin
 
   if (AExpr is TFloriaJSBinaryExpr) and (TFloriaJSBinaryExpr(AExpr).Op = tkComma) then
   begin
-    Result := ExtractParameters(TFloriaJSBinaryExpr(AExpr).Left, AParams) and
-              ExtractParameters(TFloriaJSBinaryExpr(AExpr).Right, AParams);
+    bin := TFloriaJSBinaryExpr(AExpr);
+    leftNode := bin.ExtractLeft();
+    rightNode := bin.ExtractRight();
+    Result := ExtractParameters(leftNode, AParams) and
+              ExtractParameters(rightNode, AParams);
+    if leftNode <> nil then leftNode.Free();
+    if rightNode <> nil then rightNode.Free();
     Exit;
+  end;
+
+  if AExpr is TFloriaJSSpreadExpr then
+  begin
+    spreadNode := TFloriaJSSpreadExpr(AExpr);
+    innerNode := spreadNode.ExtractExpression();
+    if innerNode is TFloriaJSIdentifierExpr then
+    begin
+      AParams.Add('...' + TFloriaJSIdentifierExpr(innerNode).Name);
+      innerNode.Free();
+      Result := True;
+    end
+    else
+    begin
+      if innerNode <> nil then innerNode.Free();
+      Result := False;
+    end;
+    Exit;
+  end;
+
+  if AExpr is TFloriaJSAssignExpr then
+  begin
+    assignNode := TFloriaJSAssignExpr(AExpr);
+    targetNode := assignNode.ExtractTarget();
+    valNode := assignNode.ExtractValue();
+    if targetNode is TFloriaJSIdentifierExpr then
+    begin
+      AParams.AddObject(TFloriaJSIdentifierExpr(targetNode).Name, valNode);
+      targetNode.Free();
+      Result := True;
+    end
+    else if (targetNode is TFloriaJSObjectExpr) or (targetNode is TFloriaJSArrayExpr) then
+    begin
+      AParams.AddObject('', TFloriaJSAssignExpr.Create(targetNode, tkAssign, valNode, targetNode.Line, targetNode.Column));
+      Result := True;
+    end
+    else
+    begin
+      if targetNode <> nil then targetNode.Free();
+      if valNode <> nil then valNode.Free();
+      Result := False;
+    end;
+    Exit;
+  end;
+
+  if (AExpr is TFloriaJSObjectExpr) or (AExpr is TFloriaJSArrayExpr) then
+  begin
+    AParams.AddObject('', AExpr);
+    AExpr := nil;
+    Exit(True);
   end;
 
   Result := False;
@@ -824,7 +943,7 @@ begin
     Advance();
     left := ParseNewExpression(op);
   end
-  else if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete, tkAwait] then
+  else if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete, tkAwait, tkEllipsis] then
     left := ParseUnaryPrefix()
   else
     left := ParsePrimary();
@@ -1010,6 +1129,7 @@ var
   varStmt: TFloriaJSVarStmt;
   startLine, startCol: Integer;
   declName: string;
+  declPattern: TFloriaJSExprNode;
   declInit: TFloriaJSExprNode;
 begin
   startLine := FPrevious.Line;
@@ -1017,8 +1137,15 @@ begin
   varStmt := TFloriaJSVarStmt.Create(AKind, startLine, startCol);
 
   repeat
+    declPattern := nil;
+    declName := '';
+
     if Match(tkIdentifier) then
       declName := FPrevious.Text
+    else if Match(tkLBracket) then
+      declPattern := ParseArrayLiteral()
+    else if Match(tkLBrace) then
+      declPattern := ParseObjectLiteral()
     else
     begin
       ErrorAtCurrent('Expected variable name');
@@ -1030,7 +1157,10 @@ begin
     else
       declInit := nil;
 
-    varStmt.AddDeclarator(declName, declInit);
+    if declPattern <> nil then
+      varStmt.AddDestructDeclarator(declPattern, declInit)
+    else
+      varStmt.AddDeclarator(declName, declInit);
   until not Match(tkComma);
 
   Match(tkSemicolon); { Optional semicolon }
@@ -1056,22 +1186,7 @@ begin
   end;
 
   fnDecl := TFloriaJSFunctionDecl.Create(fnName, startLine, startCol, AIsAsync);
-  Consume(tkLParen, 'Expected ''('' after function name');
-
-  if not Check(tkRParen) then
-  begin
-    repeat
-      if Match(tkIdentifier) then
-        fnDecl.AddParameter(FPrevious.Text)
-      else
-      begin
-        ErrorAtCurrent('Expected parameter name');
-        Break;
-      end;
-    until not Match(tkComma);
-  end;
-
-  Consume(tkRParen, 'Expected '')'' after function parameter list');
+  ParseFormalParameters(fnDecl.Parameters);
   bodyBlock := ParseBlockStatement();
   fnDecl.SetBody(bodyBlock);
   Result := fnDecl;

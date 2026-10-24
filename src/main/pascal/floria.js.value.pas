@@ -1274,6 +1274,8 @@ begin
 end;
 
 constructor TFloriaJSFunction.CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean; AIsArrow: Boolean);
+var
+  i: Integer;
 begin
   inherited Create(nil);
   FName := AName;
@@ -1282,7 +1284,12 @@ begin
   FNativeMethod := nil;
   FParamNames := TStringList.Create();
   if AParams <> nil then
+  begin
     FParamNames.Assign(AParams);
+    for i := 0 to FParamNames.Count - 1 do
+      if FParamNames.Objects[i] <> nil then
+        TFloriaJSASTNode(FParamNames.Objects[i]).Retain();
+  end;
   FBody := ABody;
   FClosureEnv := AClosure;
   FIsAsync := AIsAsync;
@@ -1291,15 +1298,23 @@ begin
     keeps the body alive for as long as this function exists, even when the
     script that declared it has already been discarded. }
   if (FBody <> nil) and not AOwnsBody then
-    FBody.Retain;
+    FBody.Retain();
 end;
 
 destructor TFloriaJSFunction.Destroy();
+var
+  i: Integer;
 begin
-  FreeAndNil(FParamNames);
+  if FParamNames <> nil then
+  begin
+    for i := 0 to FParamNames.Count - 1 do
+      if FParamNames.Objects[i] <> nil then
+        TFloriaJSASTNode(FParamNames.Objects[i]).Release();
+    FreeAndNil(FParamNames);
+  end;
   if FBody <> nil then
   begin
-    FBody.Release;
+    FBody.Release();
     FBody := nil;
   end;
   inherited Destroy();

@@ -127,6 +127,9 @@ type
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
 
+    function  ExtractLeft(): TFloriaJSExprNode;
+    function  ExtractRight(): TFloriaJSExprNode;
+
     property Left: TFloriaJSExprNode read FLeft;
     property Op: TFloriaJSTokenKind read FOperator;
     property OpKind: TFloriaJSTokenKind read FOperator;
@@ -161,6 +164,9 @@ type
     destructor Destroy(); override;
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    function  ExtractTarget(): TFloriaJSExprNode;
+    function  ExtractValue(): TFloriaJSExprNode;
 
     property Target: TFloriaJSExprNode read FTarget;
     property Op: TFloriaJSTokenKind read FOperator;
@@ -239,6 +245,7 @@ type
     constructor Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
     destructor Destroy(); override;
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+    function  ExtractExpression(): TFloriaJSExprNode;
     property Expression: TFloriaJSExprNode read FExpression;
   end;
 
@@ -288,7 +295,8 @@ type
     constructor Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer; AIsAsync: Boolean = False);
     destructor Destroy(); override;
 
-    procedure AddParameter(const AParamName: string);
+    procedure AddParameter(const AParamName: string; ADefaultExpr: TFloriaJSExprNode = nil);
+    procedure AddDestructParameter(APattern: TFloriaJSExprNode; ADefaultExpr: TFloriaJSExprNode = nil);
     procedure SetBody(ABody: TFloriaJSStmtNode);
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
@@ -317,9 +325,10 @@ type
     property Expression: TFloriaJSExprNode read FExpression;
   end;
 
-  { Variable Declarator: name = init }
+  { Variable Declarator: name = init or pattern = init }
   TFloriaJSVarDeclarator = record
     Name: string;
+    Pattern: TFloriaJSExprNode;
     Initializer: TFloriaJSExprNode;
   end;
 
@@ -334,8 +343,10 @@ type
     destructor Destroy(); override;
 
     procedure AddDeclarator(const AName: string; AInit: TFloriaJSExprNode);
+    procedure AddDestructDeclarator(APattern: TFloriaJSExprNode; AInit: TFloriaJSExprNode);
     function  GetDeclaratorCount(): Integer;
     function  GetDeclaratorName(AIndex: Integer): string;
+    function  GetDeclaratorPattern(AIndex: Integer): TFloriaJSExprNode;
     function  GetDeclaratorInit(AIndex: Integer): TFloriaJSExprNode;
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
@@ -573,7 +584,8 @@ type
     constructor Create(const AName: string; ALine, ACol: Integer; AIsAsync: Boolean = False);
     destructor Destroy(); override;
 
-    procedure AddParameter(const AParamName: string);
+    procedure AddParameter(const AParamName: string; ADefaultExpr: TFloriaJSExprNode = nil);
+    procedure AddDestructParameter(APattern: TFloriaJSExprNode; ADefaultExpr: TFloriaJSExprNode = nil);
     procedure SetBody(ABody: TFloriaJSBlockStmt);
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
@@ -835,6 +847,18 @@ begin
   if AVisitor <> nil then AVisitor.VisitBinary(Self);
 end;
 
+function TFloriaJSBinaryExpr.ExtractLeft(): TFloriaJSExprNode;
+begin
+  Result := FLeft;
+  FLeft := nil;
+end;
+
+function TFloriaJSBinaryExpr.ExtractRight(): TFloriaJSExprNode;
+begin
+  Result := FRight;
+  FRight := nil;
+end;
+
 { TFloriaJSConditionalExpr }
 
 constructor TFloriaJSConditionalExpr.Create(ACond, AConsequent, AAlternate: TFloriaJSExprNode; ALine, ACol: Integer);
@@ -878,6 +902,18 @@ end;
 procedure TFloriaJSAssignExpr.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
   if AVisitor <> nil then AVisitor.VisitAssign(Self);
+end;
+
+function TFloriaJSAssignExpr.ExtractTarget(): TFloriaJSExprNode;
+begin
+  Result := FTarget;
+  FTarget := nil;
+end;
+
+function TFloriaJSAssignExpr.ExtractValue(): TFloriaJSExprNode;
+begin
+  Result := FValue;
+  FValue := nil;
 end;
 
 { TFloriaJSMemberExpr }
@@ -1035,6 +1071,12 @@ begin
     FExpression.Accept(AVisitor);
 end;
 
+function TFloriaJSSpreadExpr.ExtractExpression(): TFloriaJSExprNode;
+begin
+  Result := FExpression;
+  FExpression := nil;
+end;
+
 { TFloriaJSObjectExpr }
 
 constructor TFloriaJSObjectExpr.Create(ALine, ACol: Integer);
@@ -1169,23 +1211,42 @@ begin
 end;
 
 destructor TFloriaJSFunctionExpr.Destroy();
+var
+  i: Integer;
 begin
-  FreeAndNil(FParameters);
+  if FParameters <> nil then
+  begin
+    for i := 0 to FParameters.Count - 1 do
+      if FParameters.Objects[i] <> nil then
+        TFloriaJSASTNode(FParameters.Objects[i]).Release();
+    FreeAndNil(FParameters);
+  end;
   { The body is shared with every closure created from this expression, so it
     is released instead of being freed: a closure keeps a valid body even
     after the script that declared it has been discarded. }
   if FBody <> nil then
   begin
-    FBody.Release;
+    FBody.Release();
     FBody := nil;
   end;
   inherited Destroy();
 end;
 
-procedure TFloriaJSFunctionExpr.AddParameter(const AParamName: string);
+procedure TFloriaJSFunctionExpr.AddParameter(const AParamName: string; ADefaultExpr: TFloriaJSExprNode = nil);
 begin
   if FParameters <> nil then
-    FParameters.Add(AParamName);
+    FParameters.AddObject(AParamName, ADefaultExpr);
+end;
+
+procedure TFloriaJSFunctionExpr.AddDestructParameter(APattern: TFloriaJSExprNode; ADefaultExpr: TFloriaJSExprNode = nil);
+begin
+  if FParameters <> nil then
+  begin
+    if ADefaultExpr <> nil then
+      FParameters.AddObject('', TFloriaJSAssignExpr.Create(APattern, tkAssign, ADefaultExpr, APattern.Line, APattern.Column))
+    else
+      FParameters.AddObject('', APattern);
+  end;
 end;
 
 procedure TFloriaJSFunctionExpr.SetBody(ABody: TFloriaJSStmtNode);
@@ -1237,7 +1298,12 @@ var
   i: Integer;
 begin
   for i := 0 to FCount - 1 do
-    FDeclarators[i].Initializer.Free();
+  begin
+    if FDeclarators[i].Pattern <> nil then
+      FreeAndNil(FDeclarators[i].Pattern);
+    if FDeclarators[i].Initializer <> nil then
+      FreeAndNil(FDeclarators[i].Initializer);
+  end;
   SetLength(FDeclarators, 0);
   inherited Destroy();
 end;
@@ -1247,6 +1313,17 @@ begin
   if FCount >= Length(FDeclarators) then
     SetLength(FDeclarators, (FCount + 1) * 2);
   FDeclarators[FCount].Name := AName;
+  FDeclarators[FCount].Pattern := nil;
+  FDeclarators[FCount].Initializer := AInit;
+  Inc(FCount);
+end;
+
+procedure TFloriaJSVarStmt.AddDestructDeclarator(APattern: TFloriaJSExprNode; AInit: TFloriaJSExprNode);
+begin
+  if FCount >= Length(FDeclarators) then
+    SetLength(FDeclarators, (FCount + 1) * 2);
+  FDeclarators[FCount].Name := '';
+  FDeclarators[FCount].Pattern := APattern;
   FDeclarators[FCount].Initializer := AInit;
   Inc(FCount);
 end;
@@ -1262,6 +1339,14 @@ begin
     Result := FDeclarators[AIndex].Name
   else
     Result := '';
+end;
+
+function TFloriaJSVarStmt.GetDeclaratorPattern(AIndex: Integer): TFloriaJSExprNode;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FDeclarators[AIndex].Pattern
+  else
+    Result := nil;
 end;
 
 function TFloriaJSVarStmt.GetDeclaratorInit(AIndex: Integer): TFloriaJSExprNode;
@@ -1654,23 +1739,42 @@ begin
 end;
 
 destructor TFloriaJSFunctionDecl.Destroy();
+var
+  i: Integer;
 begin
-  FreeAndNil(FParameters);
+  if FParameters <> nil then
+  begin
+    for i := 0 to FParameters.Count - 1 do
+      if FParameters.Objects[i] <> nil then
+        TFloriaJSASTNode(FParameters.Objects[i]).Release();
+    FreeAndNil(FParameters);
+  end;
   { The body is shared with every closure created from this declaration, so it
     is released instead of being freed: a closure keeps a valid body even
     after the script that declared it has been discarded. }
   if FBody <> nil then
   begin
-    FBody.Release;
+    FBody.Release();
     FBody := nil;
   end;
   inherited Destroy();
 end;
 
-procedure TFloriaJSFunctionDecl.AddParameter(const AParamName: string);
+procedure TFloriaJSFunctionDecl.AddParameter(const AParamName: string; ADefaultExpr: TFloriaJSExprNode = nil);
 begin
   if FParameters <> nil then
-    FParameters.Add(AParamName);
+    FParameters.AddObject(AParamName, ADefaultExpr);
+end;
+
+procedure TFloriaJSFunctionDecl.AddDestructParameter(APattern: TFloriaJSExprNode; ADefaultExpr: TFloriaJSExprNode = nil);
+begin
+  if FParameters <> nil then
+  begin
+    if ADefaultExpr <> nil then
+      FParameters.AddObject('', TFloriaJSAssignExpr.Create(APattern, tkAssign, ADefaultExpr, APattern.Line, APattern.Column))
+    else
+      FParameters.AddObject('', APattern);
+  end;
 end;
 
 procedure TFloriaJSFunctionDecl.SetBody(ABody: TFloriaJSBlockStmt);
