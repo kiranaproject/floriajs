@@ -277,7 +277,7 @@ hoist to the outer function).
 
 ---
 
-### [ ] P0-05 — Implement chain-wide optional chaining short-circuit
+### [x] P0-05 — Implement chain-wide optional chaining short-circuit
 
 **Failure.**
 

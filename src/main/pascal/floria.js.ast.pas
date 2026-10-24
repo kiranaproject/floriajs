@@ -706,6 +706,8 @@ type
     procedure VisitFTMLComponent(ANode: TFloriaFTMLComponent);
   end;
 
+function ContainsOptionalChain(ANode: TFloriaJSExprNode): Boolean;
+
 implementation
 
 { TFloriaJSASTNode }
@@ -1993,6 +1995,30 @@ begin
   begin
     AVisitor.VisitFTMLComponent(Self);
   end;
+end;
+
+function ContainsOptionalChain(ANode: TFloriaJSExprNode): Boolean;
+begin
+  if ANode = nil then
+    Exit(False);
+
+  if ANode is TFloriaJSMemberExpr then
+  begin
+    if TFloriaJSMemberExpr(ANode).IsOptional then
+      Exit(True);
+    Exit(ContainsOptionalChain(TFloriaJSMemberExpr(ANode).Target));
+  end;
+
+  if ANode is TFloriaJSCallExpr then
+  begin
+    if TFloriaJSCallExpr(ANode).IsNew then
+      Exit(False);
+    if TFloriaJSCallExpr(ANode).IsOptional then
+      Exit(True);
+    Exit(ContainsOptionalChain(TFloriaJSCallExpr(ANode).Callee));
+  end;
+
+  Result := False;
 end;
 
 end.

@@ -993,6 +993,16 @@ begin
               Pop();
           end;
 
+        opJumpNullish:
+          begin
+            val := Peek();
+            if val.IsNull() or val.IsUndefined() then
+            begin
+              Pop();
+              curFrame^.IP := inst.Imm;
+            end;
+          end;
+
         opJumpIfFalseyPeek:
           begin
             val := Peek();

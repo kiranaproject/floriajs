@@ -109,6 +109,7 @@ type
     opJumpIfFalse,       // Pop cond; if falsy jump to Imm
     opJumpIfTrue,        // Pop cond; if truthy jump to Imm
     opJumpIfNullish,     // Peek cond; if not null/undefined jump to Imm, else pop cond
+    opJumpNullish,       // Peek cond; if null/undefined pop cond and jump to Imm, else keep cond
     opJumpIfFalseyPeek,  // Peek cond; if falsy jump to Imm, else pop cond (for &&)
     opJumpIfTruthyPeek,  // Peek cond; if truthy jump to Imm, else pop cond (for ||)
 
@@ -287,6 +288,7 @@ begin
     opJumpIfFalse:      Result := 'JUMP_IF_FALSE';
     opJumpIfTrue:       Result := 'JUMP_IF_TRUE';
     opJumpIfNullish:    Result := 'JUMP_IF_NULLISH';
+    opJumpNullish:      Result := 'JUMP_NULLISH';
     opJumpIfFalseyPeek: Result := 'JUMP_IF_FALSEY_PEEK';
     opJumpIfTruthyPeek: Result := 'JUMP_IF_TRUTHY_PEEK';
     opCall:             Result := 'CALL';
@@ -569,7 +571,7 @@ begin
       comment := '; ' + GetLocalName(inst.Imm);
     opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt:
       comment := '; ' + GetConstant(inst.Imm).ToString();
-    opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
+    opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
       comment := Format('-> %04d', [inst.Imm]);
     opCall, opCallOpt, opNew:
       comment := Format('argc: %d', [inst.Imm]);

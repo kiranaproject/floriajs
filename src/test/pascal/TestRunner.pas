@@ -306,6 +306,7 @@ type
     procedure TestCompoundAssignmentToMembers();
     procedure TestDestructuringAssignment();
     procedure TestVarHoistingAndFunctionCollisions();
+    procedure TestChainWideOptionalChaining();
   end;
 
 { TFloriaJSTypesTest }
@@ -6258,6 +6259,82 @@ begin
     res := engine.Execute('function fOuter() { function fInner() { var hidden = 99; } return typeof hidden; } fOuter() === "undefined";');
     AssertTrue('nested function var does not hoist to outer', res.Success);
     AssertTrue('nested function var is undefined in outer', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestChainWideOptionalChaining();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. Chain-wide short-circuit on null/undefined base: a?.b.c
+    res := engine.Execute('var a = null; (a?.b.c === undefined) && (a?.b() === undefined);');
+    AssertTrue('a?.b.c and a?.b() evaluate to undefined without TypeError', res.Success);
+    AssertTrue('a?.b.c and a?.b() are undefined', res.BooleanValue);
+
+    // 2. Call argument evaluation skipped when base is nullish
+    res := engine.Execute(
+      'var sideEffectCount = 0;' +
+      'function runSideEffect() { sideEffectCount += 1; return 1; }' +
+      'var a = null;' +
+      'var r = a?.b(runSideEffect());' +
+      'r === undefined && sideEffectCount === 0;'
+    );
+    AssertTrue('Arguments not evaluated when base is nullish', res.Success);
+    AssertTrue('sideEffectCount remains 0', res.BooleanValue);
+
+    // 3. Computed property key evaluation skipped when base is nullish
+    res := engine.Execute(
+      'var keyCallCount = 0;' +
+      'function runKey() { keyCallCount += 1; return "prop"; }' +
+      'var a = undefined;' +
+      'var r = a?.[runKey()].nested;' +
+      'r === undefined && keyCallCount === 0;'
+    );
+    AssertTrue('Computed key not evaluated when base is nullish', res.Success);
+    AssertTrue('keyCallCount remains 0', res.BooleanValue);
+
+    // 4. Direct optional call a?.() on nullish
+    res := engine.Execute('var fn = null; fn?.() === undefined;');
+    AssertTrue('Direct optional call on null returns undefined', res.Success);
+    AssertTrue('Direct optional call on null is undefined', res.BooleanValue);
+
+    // 5. Non-nullish chain behaves normally
+    res := engine.Execute(
+      'var obj = { x: { y: { fn: function(k) { return k * 2; } } } };' +
+      'obj?.x.y.fn(21) === 42 && obj?.x?.y?.fn(10) === 20 && obj?.x["y"].fn(5) === 10;'
+    );
+    AssertTrue('Non-nullish optional chain behaves normally', res.Success);
+    AssertTrue('Non-nullish optional chain result is correct', res.BooleanValue);
+
+    // 6. Optional chain assignment rejection (SyntaxError)
+    res := engine.Execute('var a = { b: 1 }; a?.b = 2;');
+    AssertFalse('Optional chain assignment must be rejected', res.Success);
+    res := engine.Execute('var a = { b: 1 }; a?.[0] = 2;');
+    AssertFalse('Optional chain computed assignment must be rejected', res.Success);
+    res := engine.Execute('var a = { b: 1 }; a?.b++;');
+    AssertFalse('Optional chain postfix ++ must be rejected', res.Success);
+    res := engine.Execute('var a = { b: 1 }; ++a?.b;');
+    AssertFalse('Optional chain prefix ++ must be rejected', res.Success);
+
+    // 7. Method call this-binding in optional chain
+    res := engine.Execute('var o = { x: 10, m: function(y) { return this.x + y; } }; o?.m(5) === 15;');
+    AssertTrue('Method call preserves this in optional chain', res.Success);
+    AssertTrue('Method call preserves this value', res.BooleanValue);
+
+    // 8. Optional method invocation when method is nullish
+    res := engine.Execute('var o = { m: null }; o?.m?.() === undefined;');
+    AssertTrue('Optional method on null method evaluates to undefined', res.Success);
+    AssertTrue('Optional method on null method is undefined', res.BooleanValue);
+
+    // 9. Nested optional calls
+    res := engine.Execute('var o = { x: { y: null } }; o?.x?.y?.() === undefined;');
+    AssertTrue('Nested optional call evaluates to undefined', res.Success);
+    AssertTrue('Nested optional call is undefined', res.BooleanValue);
   finally
     engine.Free();
   end;

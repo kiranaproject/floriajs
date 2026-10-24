@@ -62,6 +62,8 @@ type
     procedure CompileConditionalExpr(ACond: TFloriaJSConditionalExpr);
     procedure CompileMemberExpr(AMember: TFloriaJSMemberExpr);
     procedure CompileCallExpr(ACall: TFloriaJSCallExpr);
+    procedure CompileCallArgsAndInvoke(ACall: TFloriaJSCallExpr);
+    procedure CompileOptionalChain(AExpr: TFloriaJSExprNode);
     procedure CompileObjectExpr(AObj: TFloriaJSObjectExpr);
     procedure CompileArrayExpr(AArr: TFloriaJSArrayExpr);
     procedure CompileFunctionExpr(AFunc: TFloriaJSFunctionExpr);
@@ -91,6 +93,18 @@ type
   end;
 
 implementation
+
+type
+  TChainLinkKind = (clkMemberNamed, clkMemberComputed, clkCall);
+
+  TChainLink = record
+    Kind: TChainLinkKind;
+    IsOptional: Boolean;
+    PropName: string;
+    PropExpr: TFloriaJSExprNode;
+    CallNode: TFloriaJSCallExpr;
+    Line, Column: Integer;
+  end;
 
 { TFloriaJSCompiler }
 
@@ -624,9 +638,19 @@ begin
   else if AExpr is TFloriaJSConditionalExpr then
     CompileConditionalExpr(TFloriaJSConditionalExpr(AExpr))
   else if AExpr is TFloriaJSMemberExpr then
-    CompileMemberExpr(TFloriaJSMemberExpr(AExpr))
+  begin
+    if ContainsOptionalChain(AExpr) then
+      CompileOptionalChain(AExpr)
+    else
+      CompileMemberExpr(TFloriaJSMemberExpr(AExpr));
+  end
   else if AExpr is TFloriaJSCallExpr then
-    CompileCallExpr(TFloriaJSCallExpr(AExpr))
+  begin
+    if ContainsOptionalChain(AExpr) then
+      CompileOptionalChain(AExpr)
+    else
+      CompileCallExpr(TFloriaJSCallExpr(AExpr));
+  end
   else if AExpr is TFloriaJSObjectExpr then
     CompileObjectExpr(TFloriaJSObjectExpr(AExpr))
   else if AExpr is TFloriaJSArrayExpr then
@@ -981,6 +1005,9 @@ var
   member: TFloriaJSMemberExpr;
   locIdx, nameIdx, jumpNullish, jumpDone: Integer;
 begin
+  if ContainsOptionalChain(AAssign.Target) then
+    raise Exception.Create('SyntaxError: Invalid left-hand side in assignment');
+
   if AAssign.Target is TFloriaJSIdentifierExpr then
   begin
     ident := TFloriaJSIdentifierExpr(AAssign.Target);
@@ -1204,9 +1231,8 @@ begin
   end;
 end;
 
-procedure TFloriaJSCompiler.CompileCallExpr(ACall: TFloriaJSCallExpr);
+procedure TFloriaJSCompiler.CompileCallArgsAndInvoke(ACall: TFloriaJSCallExpr);
 var
-  member: TFloriaJSMemberExpr;
   arg: TFloriaJSExprNode;
   i, count: Integer;
   hasSpread: Boolean;
@@ -1219,33 +1245,6 @@ begin
       hasSpread := True;
       Break;
     end;
-
-  if not ACall.IsNew and (ACall.Callee is TFloriaJSMemberExpr) then
-  begin
-    member := TFloriaJSMemberExpr(ACall.Callee);
-    CompileExpr(member.Target); // Stack: [Target]
-    FBytecode.Emit(opDup);      // Stack: [Target, Target]
-
-    if member.Computed then
-    begin
-      CompileExpr(member.PropertyExpr);
-      FBytecode.Emit(opGetProp);
-    end
-    else
-      FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant(member.PropertyName));
-
-    // Stack: [Target, Method] -> Swap to [Method, Target (this)]
-    FBytecode.Emit(opSwap);
-  end
-  else if ACall.IsNew then
-  begin
-    CompileExpr(ACall.Callee);
-  end
-  else
-  begin
-    CompileExpr(ACall.Callee);
-    FBytecode.Emit(opUndefined); // This value
-  end;
 
   if hasSpread then
   begin
@@ -1290,17 +1289,224 @@ begin
   end
   else
   begin
-    // Push arguments
     for i := 0 to count - 1 do
       CompileExpr(ACall.GetArgument(i));
 
     if ACall.IsNew then
       FBytecode.Emit(opNew, count, ACall.Line)
-    else if ACall.IsOptional then
-      FBytecode.Emit(opCallOpt, count, ACall.Line)
     else
       FBytecode.Emit(opCall, count, ACall.Line);
   end;
+end;
+
+procedure TFloriaJSCompiler.CompileCallExpr(ACall: TFloriaJSCallExpr);
+var
+  member: TFloriaJSMemberExpr;
+begin
+  if not ACall.IsNew and (ACall.Callee is TFloriaJSMemberExpr) then
+  begin
+    member := TFloriaJSMemberExpr(ACall.Callee);
+    CompileExpr(member.Target); // Stack: [Target]
+    FBytecode.Emit(opDup);      // Stack: [Target, Target]
+
+    if member.Computed then
+    begin
+      CompileExpr(member.PropertyExpr);
+      FBytecode.Emit(opGetProp, 0, member.Line);
+    end
+    else
+      FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant(member.PropertyName), member.Line);
+
+    // Stack: [Target, Method] -> Swap to [Method, Target (this)]
+    FBytecode.Emit(opSwap);
+  end
+  else if ACall.IsNew then
+  begin
+    CompileExpr(ACall.Callee);
+  end
+  else
+  begin
+    CompileExpr(ACall.Callee);
+    FBytecode.Emit(opUndefined); // This value
+  end;
+
+  CompileCallArgsAndInvoke(ACall);
+end;
+
+procedure TFloriaJSCompiler.CompileOptionalChain(AExpr: TFloriaJSExprNode);
+var
+  curr, baseExpr: TFloriaJSExprNode;
+  rawLinks, links: array of TChainLink;
+  rawCount, i, linkIdx: Integer;
+  exitJumps, exit2PopJumps: array of Integer;
+  exitCount, exit2PopCount: Integer;
+  jumpDone, exitIP, exit2PopIP, propConst: Integer;
+  callNode: TFloriaJSCallExpr;
+begin
+  curr := AExpr;
+  rawCount := 0;
+  SetLength(rawLinks, 16);
+
+  while curr <> nil do
+  begin
+    if curr is TFloriaJSMemberExpr then
+    begin
+      if rawCount = Length(rawLinks) then
+        SetLength(rawLinks, rawCount * 2);
+      rawLinks[rawCount].IsOptional := TFloriaJSMemberExpr(curr).IsOptional;
+      rawLinks[rawCount].Line := curr.Line;
+      rawLinks[rawCount].Column := curr.Column;
+      if TFloriaJSMemberExpr(curr).Computed then
+      begin
+        rawLinks[rawCount].Kind := clkMemberComputed;
+        rawLinks[rawCount].PropExpr := TFloriaJSMemberExpr(curr).PropertyExpr;
+        rawLinks[rawCount].PropName := '';
+        rawLinks[rawCount].CallNode := nil;
+      end
+      else
+      begin
+        rawLinks[rawCount].Kind := clkMemberNamed;
+        rawLinks[rawCount].PropName := TFloriaJSMemberExpr(curr).PropertyName;
+        rawLinks[rawCount].PropExpr := nil;
+        rawLinks[rawCount].CallNode := nil;
+      end;
+      Inc(rawCount);
+      curr := TFloriaJSMemberExpr(curr).Target;
+    end
+    else if (curr is TFloriaJSCallExpr) and (not TFloriaJSCallExpr(curr).IsNew) then
+    begin
+      if rawCount = Length(rawLinks) then
+        SetLength(rawLinks, rawCount * 2);
+      rawLinks[rawCount].Kind := clkCall;
+      rawLinks[rawCount].IsOptional := TFloriaJSCallExpr(curr).IsOptional;
+      rawLinks[rawCount].CallNode := TFloriaJSCallExpr(curr);
+      rawLinks[rawCount].PropExpr := nil;
+      rawLinks[rawCount].PropName := '';
+      rawLinks[rawCount].Line := curr.Line;
+      rawLinks[rawCount].Column := curr.Column;
+      Inc(rawCount);
+      curr := TFloriaJSCallExpr(curr).Callee;
+    end
+    else
+      Break;
+  end;
+
+  if rawCount = 0 then
+  begin
+    if AExpr <> nil then
+      CompileExpr(AExpr)
+    else
+      FBytecode.Emit(opUndefined);
+    Exit;
+  end;
+
+  baseExpr := curr;
+  SetLength(links, rawCount);
+  for i := 0 to rawCount - 1 do
+    links[i] := rawLinks[rawCount - 1 - i];
+
+  exitCount := 0;
+  exit2PopCount := 0;
+  SetLength(exitJumps, rawCount + 4);
+  SetLength(exit2PopJumps, rawCount + 4);
+
+  if baseExpr <> nil then
+    CompileExpr(baseExpr)
+  else
+    FBytecode.Emit(opUndefined);
+
+  linkIdx := 0;
+  while linkIdx < rawCount do
+  begin
+    if (links[linkIdx].Kind in [clkMemberNamed, clkMemberComputed]) and
+       (linkIdx + 1 < rawCount) and (links[linkIdx + 1].Kind = clkCall) then
+    begin
+      callNode := links[linkIdx + 1].CallNode;
+
+      if links[linkIdx].IsOptional then
+      begin
+        exitJumps[exitCount] := FBytecode.Emit(opJumpNullish, 0, links[linkIdx].Line);
+        Inc(exitCount);
+      end;
+
+      FBytecode.Emit(opDup);
+
+      if links[linkIdx].Kind = clkMemberNamed then
+      begin
+        propConst := FBytecode.AddStringConstant(links[linkIdx].PropName);
+        FBytecode.Emit(opGetPropNamed, propConst, links[linkIdx].Line);
+      end
+      else
+      begin
+        CompileExpr(links[linkIdx].PropExpr);
+        FBytecode.Emit(opGetProp, 0, links[linkIdx].Line);
+      end;
+
+      if links[linkIdx + 1].IsOptional then
+      begin
+        exit2PopJumps[exit2PopCount] := FBytecode.Emit(opJumpNullish, 0, links[linkIdx + 1].Line);
+        Inc(exit2PopCount);
+      end;
+
+      FBytecode.Emit(opSwap);
+      CompileCallArgsAndInvoke(callNode);
+
+      Inc(linkIdx, 2);
+    end
+    else if links[linkIdx].Kind in [clkMemberNamed, clkMemberComputed] then
+    begin
+      if links[linkIdx].IsOptional then
+      begin
+        exitJumps[exitCount] := FBytecode.Emit(opJumpNullish, 0, links[linkIdx].Line);
+        Inc(exitCount);
+      end;
+
+      if links[linkIdx].Kind = clkMemberNamed then
+      begin
+        propConst := FBytecode.AddStringConstant(links[linkIdx].PropName);
+        FBytecode.Emit(opGetPropNamed, propConst, links[linkIdx].Line);
+      end
+      else
+      begin
+        CompileExpr(links[linkIdx].PropExpr);
+        FBytecode.Emit(opGetProp, 0, links[linkIdx].Line);
+      end;
+
+      Inc(linkIdx);
+    end
+    else
+    begin
+      callNode := links[linkIdx].CallNode;
+
+      if links[linkIdx].IsOptional then
+      begin
+        exitJumps[exitCount] := FBytecode.Emit(opJumpNullish, 0, links[linkIdx].Line);
+        Inc(exitCount);
+      end;
+
+      FBytecode.Emit(opUndefined);
+      CompileCallArgsAndInvoke(callNode);
+
+      Inc(linkIdx);
+    end;
+  end;
+
+  jumpDone := FBytecode.Emit(opJump, 0);
+
+  if exit2PopCount > 0 then
+  begin
+    exit2PopIP := FBytecode.CurrentIP();
+    for i := 0 to exit2PopCount - 1 do
+      FBytecode.PatchJump(exit2PopJumps[i], exit2PopIP);
+    FBytecode.Emit(opPop);
+  end;
+
+  exitIP := FBytecode.CurrentIP();
+  for i := 0 to exitCount - 1 do
+    FBytecode.PatchJump(exitJumps[i], exitIP);
+  FBytecode.Emit(opUndefined);
+
+  FBytecode.PatchJump(jumpDone, FBytecode.CurrentIP());
 end;
 
 procedure TFloriaJSCompiler.CompileObjectExpr(AObj: TFloriaJSObjectExpr);

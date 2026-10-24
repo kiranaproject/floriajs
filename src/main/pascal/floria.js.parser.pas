@@ -490,6 +490,8 @@ begin
     Exit(TFloriaJSSpreadExpr.Create(operand, op.Line, op.Column));
   end;
   operand := ParsePrecedence(PREC_UNARY);
+  if (op.Kind in [tkPlusPlus, tkMinusMinus]) and ContainsOptionalChain(operand) then
+    ErrorAtCurrent('Invalid left-hand side in prefix operation');
   Result := TFloriaJSUnaryExpr.Create(op.Kind, operand, True, op.Line, op.Column);
 end;
 
@@ -1069,6 +1071,8 @@ begin
       tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
       tkPowerAssign, tkNullishAssign:
       begin
+        if ContainsOptionalChain(left) then
+          ErrorAtCurrent('Invalid left-hand side in assignment');
         right := ParsePrecedence(PREC_ASSIGNMENT);
         left := TFloriaJSAssignExpr.Create(left, op.Kind, right, op.Line, op.Column);
       end;
@@ -1096,6 +1100,8 @@ begin
       { Postfix Increment / Decrement: x++, x-- }
       tkPlusPlus, tkMinusMinus:
       begin
+        if ContainsOptionalChain(left) then
+          ErrorAtCurrent('Invalid left-hand side in postfix operation');
         left := TFloriaJSUnaryExpr.Create(op.Kind, left, False, op.Line, op.Column);
       end;
 
