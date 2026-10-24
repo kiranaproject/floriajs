@@ -13,14 +13,15 @@ them.
 
 | Feature | Status | Notes |
 | :--- | :--- | :--- |
-| `var`, `let`, `const` | Yes | `let`/`const` are block-scoped; `var` binds in the enclosing function/top-level environment. No hoisting. `const` reassignment is **not** rejected. |
+| `var`, `let`, `const` | Yes | `let`/`const` are block-scoped; `var` declarations hoist to the enclosing function/top-level environment. `const` reassignment throws `TypeError`. Cross-scope `var`/`let` conflicts raise `SyntaxError`. |
 | Destructuring declarations | Yes | `var { a, b: c = 1, ...rest } = obj;`, `var [a, , b = 2, ...rest] = arr;` |
+| Destructuring assignments | Yes | Array and object patterns, defaults, rest, and member targets. Reject non-iterables in array destructuring with `TypeError`. |
 | Blocks | Yes | Create a child scope. |
 | `if` / `else` | Yes | |
 | `while`, `do…while` | Yes | `break` / `continue`, including labels. |
 | Classic `for` | Yes | `var`/`let`/`const` initializers, multiple declarators, optional clauses. |
-| `for…of` | Yes | Arrays and strings. `Map`/`Set` are not iterable in `for…of` yet. Target must be a plain identifier. |
-| `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates prototype method names rather than indices; use `for…of` for arrays. Target must be a plain identifier. |
+| `for…of` | Yes | Arrays and strings. Non-iterables throw `TypeError`. `Map`/`Set` iterator protocol scheduled for P2-05. Target must be a plain identifier. |
+| `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates array indices. Target must be a plain identifier. |
 | `switch` / `case` / `default` | Yes | Strict equality, fall-through, `break`. |
 | `try` / `catch` / `finally` | Yes | Catch binding is optional; `finally` always runs. |
 | `throw` | Yes | Throws any value; caught as `EFloriaJSThrow` by the runtime. |
@@ -46,7 +47,7 @@ function f() { return
 
 | Feature | Status | Notes |
 | :--- | :--- | :--- |
-| Function declarations | Yes | **Not hoisted**: a call before the declaration does not see it. |
+| Function declarations | Yes | Hoisted in function bodies, program bodies, and switch bodies. |
 | Function expressions | Yes | Named and anonymous. |
 | Arrow functions | Yes | Expression and block bodies, zero or more parameters, `async` arrows. |
 | Lexical `this` in arrows | Yes | Arrows do not rebind `this` and have no `prototype`. They are rejected by `new`. |
@@ -86,10 +87,7 @@ Notes:
 - `delete` removes object properties and clears array elements. Deleting a
   variable returns `true` but does not remove the binding, and it returns
   `true` for missing properties.
-- Optional chaining short-circuits the immediate access/call. It does not carry
-  a chain-wide short-circuit sentinel, so `a?.b.c` or `a?.b()` with `a` null or
-  undefined throws `TypeError` instead of returning `undefined`. Use an
-  explicitly optional link (`a?.b?.c`) or guard before chaining.
+- Optional chaining short-circuits the full chain across member accesses and calls (`a?.b.c` and `a?.b()` return `undefined` on nullish `a`). Grouping boundaries `(a?.b).c` terminate the optional chain, and invalid forms like `new a?.b()` and optional chain assignments are rejected as syntax errors.
 - `==` handles `null == undefined`, number/string, and boolean conversions.
   Object-to-primitive coercion is not implemented (`[1] == 1` is `false`).
 
@@ -162,9 +160,7 @@ optional map function), `Array.of`. `Array.prototype` is the shared prototype
 used by array values, and `[] instanceof Array` is `true`.
 
 Not implemented: `flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`,
-`values`, `entries`. `arr.toString()` currently resolves to the generic
-`Object.prototype.toString` and yields `[object Array]`; use `String(arr)` or
-`arr.join()`.
+`values`, `entries`. `arr.toString()` returns comma-joined elements like `arr.join()`.
 
 ### String
 
@@ -197,9 +193,8 @@ regex patterns. Not implemented: `localeCompare`, `normalize`,
 - `Function.prototype.toString` returns a stable placeholder:
   `function name() { [native code] }`.
 
-Function objects currently expose only `prototype` and `toString`.
-`call`, `apply`, `bind`, `length`, and `name` are not implemented (accessing
-them yields `undefined`).
+Function objects expose `prototype`, `toString`, `call`, `apply`, and `bind`.
+Constructors have lifetime-safe `prototype.constructor` back-references.
 
 Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
 `freeze`/`seal`, `fromEntries`.
@@ -309,7 +304,7 @@ These are the differences most likely to surprise a JavaScript developer:
 | Area | Current behaviour |
 | :--- | :--- |
 | TDZ | There is no temporal dead zone before a `let`/`const` declaration. |
-| `var` | Function/top-level scoped; not hoisted. `let`/`const` are block-scoped. |
+| `var` | Hoisted to function or script root. `let`/`const` are block-scoped. Cross-scope collisions raise `SyntaxError`. |
 | Classic `for` with `let`/`const` | The loop variable remains visible after the loop and closures capture the final value; `for…in`/`for…of` bindings are per-iteration scoped. |
 | `void` | Not an operator. `void 0` happens to yield `0` because it is two expressions. |
 | Logical assignment | `&&=` and `\|\|=` are not implemented. |
@@ -322,12 +317,12 @@ These are the differences most likely to surprise a JavaScript developer:
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
 | `JSON.stringify` | Ignores the replacer, does not invoke getters, and does not call `toJSON`; `JSON.parse` has no reviver. |
 | Promise construction | `new Promise(executor)` is not supported. |
-| Optional chaining | Short-circuits only the immediate link. `a?.b.c` / `a?.b()` with `a` nullish throws instead of short-circuiting the whole chain; optional-chain assignment is a runtime `TypeError`, not a syntax error. |
+| Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. Invalid forms like `new a?.b()` and assignments are rejected as syntax errors. |
 | `for…in`/`for…of` targets | Must be simple identifiers; destructuring targets are not parsed. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
-| `for…of` on non-iterables | Runs zero iterations. |
+| `for…of` on non-iterables | Throws `TypeError`. |
 | `for…of` on Map/Set | Runs zero iterations; use `keys()`/`values()`/`entries()`, which return arrays. |
-| `Map`/`Set` iteration | `keys`, `values`, and `entries` return arrays, not iterator objects; lookup is linear rather than hash-based. |
+| `Map`/`Set` iteration | `keys`, `values`, and `entries` return arrays, not iterator objects; lookup is linear rather than hash-based. Full iterator protocol scheduled for P2-05. |
 | `Symbol` property keys | Symbols are primitives, but assigning `obj[sym]` stores under the string form `Symbol(description)`; they are not real symbol-keyed properties. |
 | Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. |
 | Timers | Require the host to call `FloriaJSProcessTimers`; there is no built-in event loop, and timer state is process-wide. |
@@ -341,7 +336,6 @@ These are the differences most likely to surprise a JavaScript developer:
 - `import` / `export`.
 - `BigInt`.
 - The `void` operator and logical assignment (`&&=`, `||=`).
-- `Function.prototype`, `call`, `apply`, and `bind`.
 - `Object.is`, `Object.defineProperty`, `Object.freeze`/`seal`.
 - `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`.
 - `String.fromCharCode`/`fromCodePoint`.

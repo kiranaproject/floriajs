@@ -296,9 +296,9 @@ end;
 
 Avoid creating reference cycles between host objects and JavaScript objects:
 the runtime uses reference counting, not a tracing collector, so a cycle that
-spans the host boundary is never reclaimed. Within the runtime, the shared
-`Function.prototype` deliberately has no back-reference to its constructor for
-this reason.
+spans the host boundary is never reclaimed. Within the runtime, prototype
+constructor back-references are tracked via weak owner registrations to ensure
+cycles are prevented and detached prototypes delegate safely to `Object`.
 
 ## Timers and host event loop
 

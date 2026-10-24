@@ -14,8 +14,8 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **168 tests pass** with `pasbuild test`.
-- Gap scan: **108 probes OK / 12 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **175 tests pass** with `pasbuild test`.
+- Gap scan: **109 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 25 units.
@@ -184,7 +184,7 @@ while refactoring the assignment path.
 
 ---
 
-### [x] P0-03 — Compile destructuring assignment (or reject it explicitly)
+### [x] P0-03 — Compile destructuring assignment (with iterable validation)
 
 **Failure.**
 
@@ -193,41 +193,45 @@ var a, b;
 [a, b] = [1, 2];       // a and b are both undefined
 var o = {};
 ({ a } = { a: 3 });    // a is undefined
+[a] = 5;               // ECMAScript: TypeError
+[a] = {0: 7, length: 1}; // ECMAScript: TypeError
 ```
 
-Declaration destructuring works; **assignment** destructuring is silently
-ignored by `CompileAssignExpr`. Rendering it as a no-op is worse than a parse
-error because scripts appear to run.
+Declaration destructuring works; **assignment** destructuring was silently
+ignored by `CompileAssignExpr`, and array destructuring was previously treating
+plain objects like array-likes instead of checking for iterable values.
 
 **Files.**
 
 - `src/main/pascal/floria.js.compiler.pas` (`CompileAssignExpr`,
   `CompileDestructuring`).
-- `src/main/pascal/floria.js.vm.pas` if a new stack pattern is needed.
+- `src/main/pascal/floria.js.bytecode.pas` (`opAssertIterable`).
+- `src/main/pascal/floria.js.vm.pas` (`opAssertIterable` runtime check).
 - `src/main/pascal/floria.js.env.pas` for const assignment errors.
 
-**Implementation.** Compile assignment patterns separately from declaration
-patterns:
+**Implementation.**
 
-1. Evaluate the RHS once and keep it for the expression result.
-2. For identifier targets, emit `STORE_ENV` (which must throw on a const
-   binding).
-3. For member targets, evaluate the reference and store through `SET_PROP`.
-4. Support object/array patterns, defaults, rest, nested patterns, computed
-   keys, and skipped array elements.
-5. Return the RHS value, not the last assignment.
-
-If a complete implementation cannot be done in one slice, reject destructuring
-assignment at parse time with a clear “not supported” syntax error; do not
-leave a silent no-op.
+1. Evaluate RHS once and duplicate on the stack for the expression result.
+2. For array destructuring, emit `opAssertIterable` before unpacking elements.
+   Reject non-array/string values (numbers, booleans, plain objects, Set without
+   iterator support) with `TypeError`. Full iterator protocol (`Symbol.iterator`)
+   for `Map`/`Set` destructuring is scheduled with P2-05.
+3. For identifier targets in assignment destructuring, emit `opStoreEnv` (which
+   throws `TypeError` on const bindings).
+4. For member targets, evaluate target and property, and store through `opSetProp`/
+   `opSetPropNamed`.
+5. Support object/array patterns, defaults, rest, nested patterns, computed keys,
+   and skipped array elements.
+6. The expression result is the original RHS value.
 
 **Tests.** Array/object, nested, defaults, rest, member targets, computed keys,
-array holes, and const-target rejection. Add a test that the expression result
-is the RHS.
+array holes, const-target rejection, non-iterable rejection (`[a]=5`,
+`[a]={0:7, length:1}`, `[a]=new Set([1])`), string unpacking (`[a, b] = "xy"`),
+and single evaluation of RHS.
 
 ---
 
-### [x] P0-04 — Implement `var` hoisting and fix function/`var` collisions
+### [x] P0-04 — Implement `var` hoisting and cross-scope declaration conflicts
 
 **Failure.**
 
@@ -237,31 +241,36 @@ function f() { a = 5; var a; return a; }  // undefined; expected 5
 function a() { return 1; }
 var a;
 a();                                      // TypeError; expected 1
+function f() { let x = 1; { var x = 2; } } // accepted; expected SyntaxError
 ```
 
-Function declarations are hoisted, but `var` declarations are not. A bare
-`var a;` also overwrites a hoisted function with `undefined`.
+Function declarations were hoisted, but `var` declarations were not. A bare
+`var a;` also overwrote a hoisted function with `undefined`. Furthermore,
+`var` declarations inside nested blocks/switches/loops did not conflict with
+enclosing lexical `let`/`const` declarations.
 
 **Files.**
 
-- `src/main/pascal/floria.js.compiler.pas` (`CompileProgram`,
-  `CompileFunctionBody`, `CompileBlockStmt`, `CompileVarStmt`).
-- `src/main/pascal/floria.js.bytecode.pas` if a declaration-only opcode is
-  warranted.
+- `src/main/pascal/floria.js.compiler.pas` (`TFloriaJSDeclarationScope`,
+  `ValidateScopeStmt`, `CompileProgram`, `CompileFunctionBody`, `CompileBlockStmt`,
+  `CompileVarStmt`).
+- `src/main/pascal/floria.js.bytecode.pas` (`opDeclareVar`).
 
 **Implementation.**
 
-- Add a declaration pre-pass for each program and function body that collects
-  all `var` names reachable through blocks, `if`, loops, `switch`, and `try`,
-  but **not** through nested functions.
-- Emit `undefined` bindings for those names at function/program entry.
-- A declaration with no initializer must not reassign an existing binding.
-  A declaration with an initializer assigns at its statement position.
+- Implemented unified declaration-scope analyzer (`TFloriaJSDeclarationScope`)
+  traversing statement trees for functions and programs prior to bytecode emission.
+- Tracks `LexicalNames`, `AllSubtreeVars`, and `ParamNames`/`CatchParam`.
+- Hoisted `var` declarations propagate up the scope tree; any ancestor lexical
+  scope with a matching `let`/`const` triggers `SyntaxError`.
+- Valid shadowing is preserved: `{ let x = 1; } var x = 2;` and
+  `function f(){ var x=1; { let x=2; } return x; }` remain valid.
+- Function parameters collide with lexical declarations in the function body,
+  while `var` of the same name is allowed.
+- Catch parameters collide with lexical declarations in the catch block, while
+  `var` of the same name is allowed.
 - Hoist function declarations before entry declarations, and make a function
   declaration win over a bare `var` of the same name.
-- Keep `let`/`const` block-scoped; do not hoist them.
-- Apply the same logic inside function bodies; top-level `var` still goes to
-  the global environment.
 
 **Acceptance.**
 
@@ -269,15 +278,18 @@ Function declarations are hoisted, but `var` declarations are not. A bare
 function f() { return a; var a = 1; }       // undefined
 function f() { a = 5; var a; return a; }    // 5
 function a() { return 1; } var a; a();      // 1
+function f() { let x = 1; { var x = 2; } }  // SyntaxError
+let x = 1; switch (1) { case 1: var x = 2; } // SyntaxError
+for (let i = 0; i < 1; i++) { var i; }      // SyntaxError
 ```
 
-**Tests.** Both declaration orders, `typeof` before declaration, assignment
-before declaration, nested blocks, loops, and nested functions (must not
-hoist to the outer function).
+**Tests.** Declaration order, assignment before declaration, nested blocks,
+cross-scope var/let conflicts in functions, scripts, switches, and loops, plus
+valid shadowing cases.
 
 ---
 
-### [x] P0-05 — Implement chain-wide optional chaining short-circuit
+### [x] P0-05 — Implement chain-wide optional chaining short-circuit and grouping boundaries
 
 **Failure.**
 
@@ -286,45 +298,53 @@ var a = null;
 a?.b.c;          // TypeError; expected undefined
 a?.b();          // TypeError; expected undefined
 a?.b(sideEffect()); // TypeError; expected no argument evaluation
+(a?.b).c;        // undefined; ECMAScript: TypeError
+new a?.b();      // TypeError; ECMAScript: SyntaxError
 ```
 
-Only the immediate access/call is optional. Optional chaining must short-circuit
-the **rest of the chain**, including calls, computed keys, and arguments.
+Previously, only immediate access was optional, and parenthesized chains
+leaked short-circuiting across grouping boundaries.
 
 **Files.**
 
-- `src/main/pascal/floria.js.compiler.pas` (`CompileMemberExpr`,
-  `CompileCallExpr`, optional-call paths).
-- `src/main/pascal/floria.js.vm.pas` only if a sentinel/chain flag is preferred
-  over compiler jumps.
-- `src/main/pascal/floria.js.parser.pas` to reject optional-chain assignment
-  (`a?.b = 1`) as a syntax error.
+- `src/main/pascal/floria.js.ast.pas` (`TFloriaJSGroupExpr`,
+  `ContainsOptionalChain`).
+- `src/main/pascal/floria.js.parser.pas` (`ParsePrimary`, `ParseNewExpression`,
+  `ExtractParameters`).
+- `src/main/pascal/floria.js.compiler.pas` (`CompileOptionalChain`,
+  `CompileMemberExpr`, `CompileCallExpr`, `CompileAssignExpr`).
 
-**Implementation options.**
+**Implementation.**
 
-- Preferred: compile the chain as guarded jumps. Evaluate the chain base once;
-  if nullish, jump to an end label that pushes `undefined`; otherwise evaluate
-  each link. Optional calls jump over the callee invocation and arguments.
-- Alternative: maintain an “optional short-circuit” sentinel on the VM stack
-  and teach access/call opcodes to propagate it. This is more invasive and
-  must preserve normal `undefined` values.
+- Added `TFloriaJSGroupExpr` AST node for parenthesized expressions `(expr)`.
+- `ContainsOptionalChain` returns `False` for `TFloriaJSGroupExpr`, terminating
+  the optional chain so subsequent access (`(a?.b).c`) evaluates normally on
+  `undefined` and raises `TypeError`.
+- `CompileOptionalChain` emits guarded short-circuit jumps (`opJumpNullish`)
+  over chained member access, calls, and argument expressions.
+- `ParseNewExpression` rejects `ContainsOptionalChain(callee)` as a syntax error.
+- Invalid assignment targets with optional chains (`a?.b = 1`, `(a?.b) = 1`,
+  `a?.b++`) are rejected as `SyntaxError: Invalid left-hand side in assignment`.
 
 **Tests.**
 
-- `a?.b`, `a?.[k]`, `a?.()`, `a?.b()`, `a?.b.c`, `a?.b?.c`, nested chains.
-- Nullish base skips computed-key evaluation.
-- Nullish base skips call arguments (side-effect counter).
-- Non-null base behaves normally.
-- Optional-chain assignment is rejected by the parser.
+- `a?.b`, `a?.[k]`, `a?.()`, `a?.b()`, `a?.b.c`, `a?.b?.c`.
+- Nullish base skips computed-key evaluation and call arguments.
+- Non-null base behaves normally (`(a?.b).c === 10`).
+- Grouping boundaries terminate short-circuiting: `(a?.b).c` and `(a?.b)()` throw
+  `TypeError` on null base.
+- `(a?.b)?.c` starts a new optional chain and returns `undefined`.
+- `new a?.b()` is rejected with a parse error.
+- Optional-chain assignment is rejected as a syntax error.
 
 ---
 
 ### [x] P0-06 — Make constructor back-references lifetime-safe
 
 **Risk.** `TFloriaJSPrototypeObject` stores the owner function in a raw pointer.
-`TFloriaJSFunction.Destroy` only clears the owner of the function’s **current**
-`prototype` property. If the prototype is replaced or deleted first, an old
-prototype held by user code can keep a dangling owner pointer:
+`TFloriaJSFunction.Destroy` only cleared the owner of the function’s **current**
+`prototype` property. If the prototype was replaced or deleted first, an old
+prototype held by user code kept a dangling owner pointer:
 
 ```javascript
 function F() {}
@@ -334,25 +354,23 @@ F = null;
 // p.constructor may now dereference a freed function
 ```
 
-This did not crash in a small probe because the allocator did not reuse the
-freed memory, but it is a real use-after-free risk.
-
 **Files.** `src/main/pascal/floria.js.value.pas`
-(`TFloriaJSFunction.Destroy`, `TFloriaJSPrototypeObject`,
-`SetProperty`/`DeleteProperty` handling for `prototype`).
+(`TFloriaJSFunction`, `TFloriaJSPrototypeObject`, `SetProperty`/`DeleteProperty`),
+`src/main/pascal/floria.js.objects.pas` (`InitObjectBuiltin`).
 
 **Implementation.**
 
-- Track every prototype object created for a function, or invalidate the old
-  prototype’s owner whenever the `prototype` property is replaced or deleted.
-- Clear the owner before the function is freed and when the prototype is
-  detached.
-- Never add a strong `function → prototype → constructor → function` cycle.
-- A detached prototype may keep working as an ordinary object, but
-  `p.constructor` must not return a stale pointer.
+- Track every prototype object created for a function in a weak registration list
+  (`FRegisteredPrototypes`).
+- On function destruction, detachment, or prototype replacement/deletion,
+  clear the back-reference (`FOwnerFunction := nil`) on all registered prototypes.
+- When `FOwnerFunction = nil`, prototype `.constructor` safely delegates to
+  `Object.prototype.constructor === Object`.
+- Cycle safety: `Object.prototype.constructor` back-reference is safely wired
+  and reclaimed on `Clear`.
 
 **Tests.** Replace/delete `prototype`, force `Collect`, read the old
-prototype’s `constructor`, and extend the function-prototype leak test.
+prototype’s `constructor`, and verify prototype reclamation without leaks.
 
 ---
 
@@ -365,32 +383,27 @@ function f(a) { let a = 1; return a; }       // should be SyntaxError
 for (let i = 0, i = 1; i < 2; i++) {}        // should be SyntaxError
 try { throw 1; } catch (e) { let e = 2; }    // should be SyntaxError
 switch (1) { case 1: f(); function f(){} }   // f should be hoisted
+let x = 1; { var x = 2; }                    // should be SyntaxError
 ```
 
-`ValidateStatementsDeclarations` only scans statement lists in program/block
-bodies. It does not visit function parameters, catch parameters, `for`
-initializers, or switch case bodies.
+Unified with P0-04 under `TFloriaJSDeclarationScope`.
 
 **Files.**
 
-- `src/main/pascal/floria.js.compiler.pas` (`ValidateStatementsDeclarations`,
-  `CompileFunctionBody`, `CompileForStmt`, `CompileSwitchStmt`).
-- `src/main/pascal/floria.js.parser.pas` if the parser should report earlier.
+- `src/main/pascal/floria.js.compiler.pas` (`TFloriaJSDeclarationScope`,
+  `ValidateScopeStmt`, `CompileSwitchStmt`).
 
 **Implementation.**
 
-- Extend validation to:
-  - function parameter lists (duplicate parameter/lexical collisions),
-  - catch parameter against lexical declarations in the catch block,
-  - `for` initializer declarations,
-  - the whole switch body as one lexical scope (case clauses share it), while
-    still hoisting function declarations from each clause.
-- Hoist function declarations in switch bodies using the same helper as blocks.
-- Keep `var` and function duplicate rules distinct from `let`/`const`.
+- Pre-pass declaration validator processes functions, parameter lists, catch
+  parameters, `for` headers, and switch bodies.
+- Switch case clauses share a single lexical scope; duplicate lexical declarations
+  and cross-scope `var`/`let` collisions are rejected at compile time.
+- Switch function declarations hoist across all case clauses before execution.
 
-**Tests.** Add the four repros above, plus duplicate `let` across case clauses,
-valid shadowing cases that must continue to work, and a switch-case function
-called before its textual declaration.
+**Tests.** Parameter redeclarations, catch parameter redeclarations, for-loop
+header duplicates, switch duplicate let, switch function hoisting before textual
+declaration, and cross-scope var/let conflicts.
 
 ---
 

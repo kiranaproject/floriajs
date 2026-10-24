@@ -68,15 +68,14 @@ Not implemented yet (see the [roadmap](roadmap.md)):
 - `class`, generators/`yield`, tagged templates, `for await`, and
   `import`/`export`.
 - `BigInt`, the `void` operator, and logical assignment (`&&=`, `||=`).
-- `Function.prototype.call`/`apply`/`bind`, `Function.prototype`, and a few
-  convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
+- Convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
   and `Object.is`.
 - A JIT/AOT compiler, hidden classes/inline caches, and persistent bytecode
   caching. The VM is currently a pure interpreter.
 
-The runtime also keeps some non-standard semantics: `const` reassignment is
-allowed, a `let` declared in a classic `for` header stays visible after the
-loop, and some coercion corners differ from ECMAScript. See
+The runtime also keeps some non-standard semantics: a `let` declared in a
+classic `for` header stays visible after the loop, and some coercion corners
+differ from ECMAScript. See
 [language support](language-support.md#semantic-deviations) for the complete
 list.
 
