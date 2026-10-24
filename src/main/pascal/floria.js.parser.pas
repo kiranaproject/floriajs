@@ -469,7 +469,7 @@ begin
         fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
       Exit(fnExpr);
     end;
-    Exit(expr);
+    Exit(TFloriaJSGroupExpr.Create(expr, tok.Line, tok.Column));
   end;
 
   ErrorAtCurrent('Expected expression');
@@ -551,6 +551,9 @@ begin
     callee := ParsePrimary();
 
   callee := ParseMemberTail(callee);
+
+  if ContainsOptionalChain(callee) then
+    ErrorAtCurrent('Cannot use new with optional chaining');
 
   callExpr := TFloriaJSCallExpr.Create(callee, ANewToken.Line, ANewToken.Column, True);
 
@@ -881,6 +884,14 @@ begin
   begin
     AParams.Add(TFloriaJSIdentifierExpr(AExpr).Name);
     Exit(True);
+  end;
+
+  if AExpr is TFloriaJSGroupExpr then
+  begin
+    innerNode := TFloriaJSGroupExpr(AExpr).ExtractExpression();
+    Result := ExtractParameters(innerNode, AParams);
+    if innerNode <> nil then innerNode.Free();
+    Exit;
   end;
 
   if (AExpr is TFloriaJSBinaryExpr) and (TFloriaJSBinaryExpr(AExpr).Op = tkComma) then

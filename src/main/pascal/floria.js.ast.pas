@@ -249,6 +249,18 @@ type
     property Expression: TFloriaJSExprNode read FExpression;
   end;
 
+  { Grouping Expression: (expr) }
+  TFloriaJSGroupExpr = class(TFloriaJSExprNode)
+  private
+    FExpression: TFloriaJSExprNode;
+  public
+    constructor Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+    function  ExtractExpression(): TFloriaJSExprNode;
+    property Expression: TFloriaJSExprNode read FExpression;
+  end;
+
   { Object Literal Property Kind }
   TFloriaJSPropertyKind = (fjpkNormal, fjpkComputed, fjpkSpread, fjpkGetter, fjpkSetter);
 
@@ -685,6 +697,7 @@ type
     procedure VisitCall(ANode: TFloriaJSCallExpr);
     procedure VisitArray(ANode: TFloriaJSArrayExpr);
     procedure VisitObject(ANode: TFloriaJSObjectExpr);
+    procedure VisitGroup(ANode: TFloriaJSGroupExpr);
     procedure VisitFunctionExpr(ANode: TFloriaJSFunctionExpr);
 
     procedure VisitExprStmt(ANode: TFloriaJSExprStmt);
@@ -1074,6 +1087,33 @@ begin
 end;
 
 function TFloriaJSSpreadExpr.ExtractExpression(): TFloriaJSExprNode;
+begin
+  Result := FExpression;
+  FExpression := nil;
+end;
+
+{ TFloriaJSGroupExpr }
+
+constructor TFloriaJSGroupExpr.Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FExpression := AExpr;
+end;
+
+destructor TFloriaJSGroupExpr.Destroy();
+begin
+  if FExpression <> nil then
+    FreeAndNil(FExpression);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSGroupExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then
+    AVisitor.VisitGroup(Self);
+end;
+
+function TFloriaJSGroupExpr.ExtractExpression(): TFloriaJSExprNode;
 begin
   Result := FExpression;
   FExpression := nil;
@@ -2000,6 +2040,9 @@ end;
 function ContainsOptionalChain(ANode: TFloriaJSExprNode): Boolean;
 begin
   if ANode = nil then
+    Exit(False);
+
+  if ANode is TFloriaJSGroupExpr then
     Exit(False);
 
   if ANode is TFloriaJSMemberExpr then

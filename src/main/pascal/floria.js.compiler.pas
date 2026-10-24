@@ -886,6 +886,8 @@ begin
     CompileFunctionExpr(TFloriaJSFunctionExpr(AExpr))
   else if AExpr is TFloriaJSSpreadExpr then
     CompileExpr(TFloriaJSSpreadExpr(AExpr).Expression)
+  else if AExpr is TFloriaJSGroupExpr then
+    CompileExpr(TFloriaJSGroupExpr(AExpr).Expression)
   else
     FBytecode.Emit(opUndefined);
 end;
@@ -1228,16 +1230,21 @@ end;
 
 procedure TFloriaJSCompiler.CompileAssignExpr(AAssign: TFloriaJSAssignExpr);
 var
+  targetNode: TFloriaJSExprNode;
   ident: TFloriaJSIdentifierExpr;
   member: TFloriaJSMemberExpr;
   locIdx, nameIdx, jumpNullish, jumpDone: Integer;
 begin
-  if ContainsOptionalChain(AAssign.Target) then
+  targetNode := AAssign.Target;
+  while targetNode is TFloriaJSGroupExpr do
+    targetNode := TFloriaJSGroupExpr(targetNode).Expression;
+
+  if ContainsOptionalChain(targetNode) then
     raise Exception.Create('SyntaxError: Invalid left-hand side in assignment');
 
-  if AAssign.Target is TFloriaJSIdentifierExpr then
+  if targetNode is TFloriaJSIdentifierExpr then
   begin
-    ident := TFloriaJSIdentifierExpr(AAssign.Target);
+    ident := TFloriaJSIdentifierExpr(targetNode);
 
     if (Length(ident.Name) > 0) and (ident.Name[1] = '$') then
     begin
@@ -1322,9 +1329,9 @@ begin
       end;
     end;
   end
-  else if AAssign.Target is TFloriaJSMemberExpr then
+  else if targetNode is TFloriaJSMemberExpr then
   begin
-    member := TFloriaJSMemberExpr(AAssign.Target);
+    member := TFloriaJSMemberExpr(targetNode);
     CompileExpr(member.Target);
 
     if member.Computed then
@@ -1406,14 +1413,14 @@ begin
       end;
     end;
   end
-  else if (AAssign.Target is TFloriaJSArrayExpr) or (AAssign.Target is TFloriaJSObjectExpr) then
+  else if (targetNode is TFloriaJSArrayExpr) or (targetNode is TFloriaJSObjectExpr) then
   begin
     if AAssign.Op <> tkAssign then
       raise Exception.Create('SyntaxError: Invalid left-hand side in assignment');
 
     CompileExpr(AAssign.Value);
     FBytecode.Emit(opDup);
-    CompileDestructuring(AAssign.Target, tkAssign);
+    CompileDestructuring(targetNode, tkAssign);
   end;
 end;
 

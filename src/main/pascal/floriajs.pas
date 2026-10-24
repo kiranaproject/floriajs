@@ -59,6 +59,7 @@ type
   TFloriaJSCallExpr        = floria.js.ast.TFloriaJSCallExpr;
   TFloriaJSArrayExpr       = floria.js.ast.TFloriaJSArrayExpr;
   TFloriaJSObjectExpr      = floria.js.ast.TFloriaJSObjectExpr;
+  TFloriaJSGroupExpr       = floria.js.ast.TFloriaJSGroupExpr;
   TFloriaJSFunctionExpr    = floria.js.ast.TFloriaJSFunctionExpr;
 
   { Statements }

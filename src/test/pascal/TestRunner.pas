@@ -6394,6 +6394,43 @@ begin
     res := engine.Execute('var o = { x: { y: null } }; o?.x?.y?.() === undefined;');
     AssertTrue('Nested optional call evaluates to undefined', res.Success);
     AssertTrue('Nested optional call is undefined', res.BooleanValue);
+
+    // 10. Optional chaining grouping boundaries & new rejection (P0-05)
+    // (a?.b).c with a = null throws TypeError
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { var a = null; (a?.b).c; } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('(a?.b).c with null a throws TypeError', res.Success and res.BooleanValue);
+
+    // (a?.b)() with a = null throws TypeError
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { var a = null; (a?.b)(); } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('(a?.b)() with null a throws TypeError', res.Success and res.BooleanValue);
+
+    // (a?.b)?.c with a = null is undefined (new optional chain)
+    res := engine.Execute('var a = null; (a?.b)?.c === undefined;');
+    AssertTrue('(a?.b)?.c with null a evaluates to undefined', res.Success and res.BooleanValue);
+
+    // (a?.())() with a = null throws TypeError
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { var a = null; (a?.())(); } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('(a?.())() with null a throws TypeError', res.Success and res.BooleanValue);
+
+    // new a?.b() is a SyntaxError / parse error
+    res := engine.Execute('var a = { b: function() {} }; new a?.b();');
+    AssertFalse('new a?.b() must be rejected as parse error', res.Success);
+
+    // (a?.b).c with non-null a works normally
+    res := engine.Execute('var a = { b: { c: 10 } }; (a?.b).c === 10;');
+    AssertTrue('(a?.b).c with non-null a works normally', res.Success and res.BooleanValue);
   finally
     engine.Free();
   end;
