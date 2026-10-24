@@ -4,6 +4,20 @@
 
 ---
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/README.md):
+
+- [Getting started](docs/getting-started.md) — build, embed, and call between Pascal and JavaScript.
+- [Language support](docs/language-support.md) — implemented syntax, built-ins, and semantic differences.
+- [Architecture](docs/architecture.md) — lexer, parser, AST, evaluator, values, and memory model.
+- [FTML guide](docs/ftml.md) — declarative component markup, reactive bindings, anchors, and signals.
+- [API reference](docs/README.md#api-reference) — engine, values, pipeline, and FTML APIs.
+- [Development guide](docs/development.md) — tests, gap scan, conventions, and adding features.
+- [Roadmap](docs/roadmap.md) — prioritised missing features.
+
+---
+
 ## Architecture & Unit Hierarchy
 
 `floriajs` follows a clean, dotted-namespace unit structure. You can import individual modules or simply use `uses floriajs;` for single-unit convenience:
@@ -11,10 +25,19 @@
 | Unit | Purpose | Key Classes & Types |
 | :--- | :--- | :--- |
 | **`floria.js.types`** | Fundamental types, result codes, and value tags | `TFloriaJSType`, `TFloriaJSResult`, `FLORIA_JS_OK` |
+| **`floria.js.lexer`** | JavaScript tokenizer | `TFloriaJSLexer`, `TFloriaJSToken` |
+| **`floria.js.ast`** | Expression, statement, and FTML AST nodes | `TFloriaJSExprNode`, `TFloriaJSStmtNode` |
+| **`floria.js.parser`** | Pratt expression parser and statement/FTML parser | `TFloriaJSParser` |
+| **`floria.js.value`** | Values, objects, arrays, functions, errors, promises, heap | `TFloriaJSValue`, `TFloriaJSHeap` |
+| **`floria.js.env`** | Lexical scopes and bindings | `TFloriaJSEnvironment` |
+| **`floria.js.evaluator`** | Tree-walking interpreter | `TFloriaJSEvaluator` |
+| **`floria.js.arrays` / `.strings` / `.objects` / `.json`** | Built-in prototype and static methods | Array/String/Object/JSON support |
+| **`floria.js.stdlib`** | Global library registration | `console`, `Math`, `Promise`, globals |
 | **`floria.js.core`** | Runtime execution engine and context management | `TFloriaJSEngine`, `TFloriaJSContext` |
-| **`floriajs`** | Umbrella unit re-exporting core classes & types | Single-unit inclusion (`uses floriajs;`) |
+| **`floria.ftml.*`** | Declarative UI runtime | `TFloriaFTMLEngine`, `TFloriaFTMLItem` |
+| **`floriajs`** | Umbrella unit re-exporting the public API | Single-unit inclusion (`uses floriajs;`) |
 
----
+See [Architecture](docs/architecture.md) for the execution pipeline and the memory model.
 
 ## Quickstart
 
