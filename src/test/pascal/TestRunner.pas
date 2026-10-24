@@ -306,6 +306,7 @@ type
     procedure TestCompoundAssignmentToMembers();
     procedure TestDestructuringAssignment();
     procedure TestVarHoistingAndFunctionCollisions();
+    procedure TestClassicForLoopBlockScoping();
     procedure TestChainWideOptionalChaining();
     procedure TestConstructorBackReferencesLifetimeSafe();
     procedure TestDeclarationValidationAndSwitchHoisting();
@@ -3594,6 +3595,17 @@ begin
       ctx.Heap.GetEnvironmentCount = baseline);
     AssertEquals('The loop must still produce the correct result', '5000',
       ctx.Evaluate('total;').StringValue);
+
+    { A classic for-loop with a block-scoped binding creates a fresh
+      per-iteration environment; it must release those environments when no
+      closure captures them. }
+    ctx.Evaluate('for (let j = 0; j < 5000; j++) { total = total + 1; }');
+
+    AssertTrue('A classic for-let loop must not accumulate environments (' +
+      IntToStr(baseline) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = baseline);
+    AssertEquals('The for-let loop must still produce the correct result', '10000',
+      ctx.Evaluate('total;').StringValue);
   finally
     ctx.Free();
   end;
@@ -6318,6 +6330,126 @@ begin
     res := engine.Execute('function fOuter() { function fInner() { var hidden = 99; } return typeof hidden; } fOuter() === "undefined";');
     AssertTrue('nested function var does not hoist to outer', res.Success);
     AssertTrue('nested function var is undefined in outer', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestClassicForLoopBlockScoping();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Each iteration captures its own binding.
+    res := engine.Execute(
+      'var f = [];' +
+      'for (let i = 0; i < 3; i++) f.push(() => i);' +
+      'f[0]() === 0 && f[1]() === 1 && f[2]() === 2;'
+    );
+    AssertTrue('Classic for-loop closures capture per-iteration let bindings',
+      res.Success and res.BooleanValue);
+
+    // The loop binding is not visible after the loop.
+    res := engine.Execute(
+      'var n = 0; for (let i = 0; i < 2; i++) n++; typeof i === "undefined";'
+    );
+    AssertTrue('Classic for-loop let binding does not leak',
+      res.Success and res.BooleanValue);
+
+    // Several loop bindings are copied per iteration.
+    res := engine.Execute(
+      'var f = [];' +
+      'for (let i = 0, j = 10; i < 2; i++, j++) f.push(() => i + j);' +
+      'f[0]() === 10 && f[1]() === 12;'
+    );
+    AssertTrue('Multiple classic for-loop let bindings are per-iteration',
+      res.Success and res.BooleanValue);
+
+    // continue still advances the loop and captures the right binding.
+    res := engine.Execute(
+      'var f = [];' +
+      'for (let i = 0; i < 4; i++) {' +
+      '  if (i === 1) continue;' +
+      '  if (i === 3) break;' +
+      '  f.push(() => i);' +
+      '}' +
+      'f.length === 2 && f[0]() === 0 && f[1]() === 2;'
+    );
+    AssertTrue('continue and break preserve per-iteration bindings',
+      res.Success and res.BooleanValue);
+
+    // return from inside the loop still tears down all loop environments.
+    res := engine.Execute(
+      'function g() {' +
+      '  var f = [];' +
+      '  for (let i = 0; i < 3; i++) {' +
+      '    f.push(() => i);' +
+      '    if (i === 1) return f[0]() + f[1]();' +
+      '  }' +
+      '}' +
+      'g() === 1;'
+    );
+    AssertTrue('return preserves captured values and exits the loop',
+      res.Success and res.BooleanValue);
+
+    // Labeled continue from a nested loop keeps the outer iteration binding.
+    res := engine.Execute(
+      'var f = [];' +
+      'outer: for (let i = 0; i < 3; i++) {' +
+      '  for (let j = 0; j < 3; j++) {' +
+      '    if (j === 1) continue outer;' +
+      '    f.push(() => i * 10 + j);' +
+      '  }' +
+      '}' +
+      'f.length === 3 && f[0]() === 0 && f[1]() === 10 && f[2]() === 20;'
+    );
+    AssertTrue('Labeled continue preserves the outer per-iteration binding',
+      res.Success and res.BooleanValue);
+
+    // Labeled break from a nested loop exits through the outer cleanup path.
+    res := engine.Execute(
+      'var f = [];' +
+      'outer: for (let i = 0; i < 3; i++) {' +
+      '  for (let j = 0; j < 3; j++) {' +
+      '    if (i === 1) break outer;' +
+      '    f.push(() => i * 10 + j);' +
+      '  }' +
+      '}' +
+      'f.length === 3 && f[0]() === 0 && f[1]() === 1 && f[2]() === 2;'
+    );
+    AssertTrue('Labeled break preserves captured bindings and cleans up',
+      res.Success and res.BooleanValue);
+
+    // throw unwinds the loop scope and is catchable outside it.
+    res := engine.Execute(
+      'var caught = 0;' +
+      'try {' +
+      '  for (let i = 0; i < 3; i++) {' +
+      '    if (i === 1) throw 7;' +
+      '  }' +
+      '} catch (e) { caught = e; }' +
+      'caught === 7 && typeof i === "undefined";'
+    );
+    AssertTrue('throw unwinds classic for-loop let scope',
+      res.Success and res.BooleanValue);
+
+    // var loop bindings remain function/script scoped, not per-iteration.
+    res := engine.Execute(
+      'var f = [];' +
+      'for (var i = 0; i < 3; i++) f.push(() => i);' +
+      'f[0]() === 3 && f[1]() === 3 && f[2]() === 3 && i === 3;'
+    );
+    AssertTrue('Classic for-loop var bindings keep shared semantics',
+      res.Success and res.BooleanValue);
+
+    // A const loop with no update and an immediate break still works.
+    res := engine.Execute(
+      'var r = 0; for (const i = 5; ; ) { r = i; break; } r === 5;'
+    );
+    AssertTrue('const classic for-loop binding works without update',
+      res.Success and res.BooleanValue);
   finally
     engine.Free();
   end;

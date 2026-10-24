@@ -2240,44 +2240,149 @@ end;
 procedure TFloriaJSCompiler.CompileForStmt(AFor: TFloriaJSForStmt);
 var
   i, loopStart, exitJump, contTarget: Integer;
+  initVar: TFloriaJSVarStmt;
+  hasBlockScopedInit: Boolean;
+  copyNames: TStringList;
+  normalExitIP, afterLoopJump, breakCleanupIP: Integer;
+  nameIdx: Integer;
 begin
-  if AFor.Init <> nil then
-  begin
-    if AFor.Init is TFloriaJSStmtNode then
-      CompileStmt(TFloriaJSStmtNode(AFor.Init))
-    else if AFor.Init is TFloriaJSExprNode then
+  initVar := nil;
+  if (AFor.Init <> nil) and (AFor.Init is TFloriaJSVarStmt) then
+    initVar := TFloriaJSVarStmt(AFor.Init);
+  hasBlockScopedInit := (initVar <> nil) and (initVar.Kind in [tkLet, tkConst]);
+  copyNames := nil;
+  exitJump := -1;
+
+  try
+    { The for-loop lexical scope contains the loop bindings for the initial
+      test/update and is the parent of the per-iteration body environments. }
+    if hasBlockScopedInit then
     begin
-      CompileExpr(TFloriaJSExprNode(AFor.Init));
+      Inc(FEnvDepth);
+      FBytecode.Emit(opPushEnv);
+      CompileVarStmt(initVar);
+
+      if initVar.Kind = tkLet then
+      begin
+        copyNames := TStringList.Create();
+        for i := 0 to initVar.GetDeclaratorCount() - 1 do
+          copyNames.Add(initVar.GetDeclaratorName(i));
+      end;
+    end
+    else if AFor.Init <> nil then
+    begin
+      if AFor.Init is TFloriaJSStmtNode then
+        CompileStmt(TFloriaJSStmtNode(AFor.Init))
+      else if AFor.Init is TFloriaJSExprNode then
+      begin
+        CompileExpr(TFloriaJSExprNode(AFor.Init));
+        FBytecode.Emit(opPop);
+      end;
+    end;
+
+    loopStart := FBytecode.CurrentIP();
+    PushLoopContext(AFor.LabelName);
+
+    if AFor.Test <> nil then
+    begin
+      CompileExpr(AFor.Test);
+      exitJump := FBytecode.Emit(opJumpIfFalse, 0, AFor.Line);
+    end;
+
+    { Each iteration gets a fresh binding for let/const loop variables. The
+      update expression runs after this environment is popped, so closures
+      created by the body keep the value from their own iteration. }
+    if hasBlockScopedInit then
+    begin
+      Inc(FEnvDepth);
+      FBytecode.Emit(opPushEnv);
+
+      for i := 0 to initVar.GetDeclaratorCount() - 1 do
+      begin
+        nameIdx := FBytecode.AddStringConstant(initVar.GetDeclaratorName(i));
+        FBytecode.Emit(opLoadEnv, nameIdx);
+        if initVar.Kind = tkConst then
+          FBytecode.Emit(opDefineConst, nameIdx, initVar.Line)
+        else
+          FBytecode.Emit(opDefineLet, nameIdx, initVar.Line);
+      end;
+
+      { break/continue must not pop this per-iteration environment themselves;
+        the compiler-generated copy/pop and break-cleanup paths do that. }
+      FLoopStack[FLoopDepth - 1].EnvDepth := FEnvDepth;
+    end;
+
+    CompileStmt(AFor.Body);
+
+    { A continue arrives here with the per-iteration environment still active. }
+    contTarget := FBytecode.CurrentIP();
+    FLoopStack[FLoopDepth - 1].ContinueTarget := contTarget;
+    for i := 0 to High(FLoopStack[FLoopDepth - 1].ContinueJumps) do
+      FBytecode.PatchJump(FLoopStack[FLoopDepth - 1].ContinueJumps[i], contTarget);
+    SetLength(FLoopStack[FLoopDepth - 1].ContinueJumps, 0);
+
+    if hasBlockScopedInit then
+    begin
+      if (copyNames <> nil) and (copyNames.Count > 0) then
+      begin
+        { Preserve body modifications (including calls through closures) in the
+          loop binding, then destroy/detach this iteration's environment. }
+        for i := 0 to copyNames.Count - 1 do
+          FBytecode.Emit(opLoadEnv, FBytecode.AddStringConstant(copyNames[i]));
+
+        Dec(FEnvDepth);
+        FBytecode.Emit(opPopEnv);
+
+        for i := copyNames.Count - 1 downto 0 do
+        begin
+          FBytecode.Emit(opStoreEnv, FBytecode.AddStringConstant(copyNames[i]));
+          FBytecode.Emit(opPop);
+        end;
+      end
+      else
+      begin
+        Dec(FEnvDepth);
+        FBytecode.Emit(opPopEnv);
+      end;
+    end;
+
+    if AFor.Update <> nil then
+    begin
+      CompileExpr(AFor.Update);
       FBytecode.Emit(opPop);
     end;
+
+    FBytecode.Emit(opJump, loopStart);
+
+    if hasBlockScopedInit then
+    begin
+      { Test-false exit: only the outer loop environment remains. }
+      normalExitIP := FBytecode.CurrentIP();
+      if exitJump >= 0 then
+        FBytecode.PatchJump(exitJump, normalExitIP);
+      Dec(FEnvDepth);
+      FBytecode.Emit(opPopEnv);
+
+      afterLoopJump := FBytecode.Emit(opJump, 0);
+
+      { Break exit: the body's per-iteration environment is still active, then
+        the outer loop environment. }
+      breakCleanupIP := FBytecode.CurrentIP();
+      FBytecode.Emit(opPopEnv);
+      FBytecode.Emit(opPopEnv);
+
+      FBytecode.PatchJump(afterLoopJump, FBytecode.CurrentIP());
+      PopLoopContext(breakCleanupIP);
+    end
+    else
+    begin
+      if exitJump >= 0 then
+        FBytecode.PatchJump(exitJump, FBytecode.CurrentIP());
+      PopLoopContext(FBytecode.CurrentIP());
+    end;
+  finally
+    copyNames.Free();
   end;
-
-  loopStart := FBytecode.CurrentIP();
-  PushLoopContext(AFor.LabelName);
-
-  if AFor.Test <> nil then
-  begin
-    CompileExpr(AFor.Test);
-    exitJump := FBytecode.Emit(opJumpIfFalse, 0, AFor.Line);
-    AddBreakJump(exitJump, AFor.LabelName);
-  end;
-
-  CompileStmt(AFor.Body);
-
-  contTarget := FBytecode.CurrentIP();
-  FLoopStack[FLoopDepth - 1].ContinueTarget := contTarget;
-  for i := 0 to High(FLoopStack[FLoopDepth - 1].ContinueJumps) do
-    FBytecode.PatchJump(FLoopStack[FLoopDepth - 1].ContinueJumps[i], contTarget);
-  SetLength(FLoopStack[FLoopDepth - 1].ContinueJumps, 0);
-
-  if AFor.Update <> nil then
-  begin
-    CompileExpr(AFor.Update);
-    FBytecode.Emit(opPop);
-  end;
-
-  FBytecode.Emit(opJump, loopStart);
-  PopLoopContext(FBytecode.CurrentIP());
 end;
 
 procedure TFloriaJSCompiler.CompileForInOfStmt(AForInOf: TFloriaJSForInOfStmt);
