@@ -116,6 +116,7 @@ type
     procedure TestArrowFunctions();
     procedure TestStandardGlobalsAndArguments();
     procedure TestObjectUtilities();
+    procedure TestJSONSupport();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -2055,6 +2056,112 @@ begin
     res := engine.Execute('function f() {} f.toString();');
     AssertTrue('f.toString() success', res.Success);
     AssertEquals('f.toString()', 'function f() { [native code] }', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestJSONSupport();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { 1. JSON.stringify primitives }
+    res := engine.Execute('JSON.stringify(42);');
+    AssertTrue('JSON.stringify number success', res.Success);
+    AssertEquals('JSON.stringify(42)', '42', res.StringValue);
+
+    res := engine.Execute('JSON.stringify("hello \"world\"");');
+    AssertTrue('JSON.stringify string success', res.Success);
+    AssertEquals('JSON.stringify string', '"hello \"world\""', res.StringValue);
+
+    res := engine.Execute('JSON.stringify(true);');
+    AssertTrue('JSON.stringify boolean success', res.Success);
+    AssertEquals('JSON.stringify(true)', 'true', res.StringValue);
+
+    res := engine.Execute('JSON.stringify(null);');
+    AssertTrue('JSON.stringify null success', res.Success);
+    AssertEquals('JSON.stringify(null)', 'null', res.StringValue);
+
+    { 2. Top-level undefined produces undefined }
+    res := engine.Execute('typeof JSON.stringify(undefined);');
+    AssertTrue('JSON.stringify(undefined) typeof success', res.Success);
+    AssertEquals('typeof JSON.stringify(undefined)', 'undefined', res.StringValue);
+
+    { 3. JSON.stringify arrays and objects }
+    res := engine.Execute('JSON.stringify([1, "a", true, null]);');
+    AssertTrue('JSON.stringify array success', res.Success);
+    AssertEquals('JSON.stringify array', '[1,"a",true,null]', res.StringValue);
+
+    res := engine.Execute('JSON.stringify({ a: 1, b: "x" });');
+    AssertTrue('JSON.stringify object success', res.Success);
+    AssertEquals('JSON.stringify object', '{"a":1,"b":"x"}', res.StringValue);
+
+    { 4. Omission of undefined / function in object, conversion to null in array }
+    res := engine.Execute('JSON.stringify({ a: 1, u: undefined, f: function() {} });');
+    AssertTrue('JSON.stringify omits undefined/func in obj', res.Success);
+    AssertEquals('omits undefined/func', '{"a":1}', res.StringValue);
+
+    res := engine.Execute('JSON.stringify([1, undefined, function() {}, 4]);');
+    AssertTrue('JSON.stringify nulls undefined/func in arr', res.Success);
+    AssertEquals('nulls undefined/func in arr', '[1,null,null,4]', res.StringValue);
+
+    { 5. Indentation with space }
+    res := engine.Execute('JSON.stringify({ a: 1 }, null, 2);');
+    AssertTrue('JSON.stringify with indent success', res.Success);
+    AssertTrue('contains newline and spaces', (Pos(#10, res.StringValue) > 0) and (Pos('  "a": 1', res.StringValue) > 0));
+
+    { 6. Circular structure throws TypeError }
+    res := engine.Execute(
+      'var circular = { x: 1 };' + LineEnding +
+      'circular.self = circular;' + LineEnding +
+      'var caught = false;' + LineEnding +
+      'try {' + LineEnding +
+      '  JSON.stringify(circular);' + LineEnding +
+      '} catch (e) {' + LineEnding +
+      '  caught = (e.name === "TypeError");' + LineEnding +
+      '}' + LineEnding +
+      'caught;'
+    );
+    AssertTrue('JSON.stringify circular detection success', res.Success);
+    AssertTrue('JSON.stringify throws TypeError on circular reference', res.BooleanValue);
+
+    { 7. JSON.parse primitives, arrays, nested objects }
+    res := engine.Execute('JSON.parse("42");');
+    AssertTrue('JSON.parse number success', res.Success);
+    AssertEquals('parsed number = 42', 42.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('JSON.parse("\"hello\\nworld\"");');
+    AssertTrue('JSON.parse string with escape success', res.Success);
+    AssertEquals('parsed string with newline', 'hello'#10'world', res.StringValue);
+
+    res := engine.Execute('var data = JSON.parse("{\"nums\":[10,20],\"flag\":true,\"nil\":null}"); data.nums[1] + (data.flag ? 1 : 0);');
+    AssertTrue('JSON.parse nested data success', res.Success);
+    AssertEquals('parsed nested data evaluated', 21.0, res.NumberValue, 0.0001);
+
+    { 8. JSON.parse throws SyntaxError on invalid JSON }
+    res := engine.Execute(
+      'var caught = false;' + LineEnding +
+      'try {' + LineEnding +
+      '  JSON.parse("[1, 2, ]");' + LineEnding +
+      '} catch (e) {' + LineEnding +
+      '  caught = (e.name === "SyntaxError");' + LineEnding +
+      '}' + LineEnding +
+      'caught;'
+    );
+    AssertTrue('JSON.parse invalid syntax detection success', res.Success);
+    AssertTrue('JSON.parse throws SyntaxError on trailing comma', res.BooleanValue);
+
+    { 9. Round-trip serialization/parsing }
+    res := engine.Execute(
+      'var original = { title: "FloriaJS", version: 1, active: true };' + LineEnding +
+      'var roundTrip = JSON.parse(JSON.stringify(original));' + LineEnding +
+      'roundTrip.title === original.title && roundTrip.version === original.version && roundTrip.active === original.active;'
+    );
+    AssertTrue('JSON round trip success', res.Success);
+    AssertTrue('JSON round trip equality', res.BooleanValue);
   finally
     engine.Free();
   end;
