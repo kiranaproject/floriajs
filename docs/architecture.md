@@ -171,9 +171,10 @@ function CompileFunctionBody(const AName: string; AParams: TStringList;
   `let`/`const` (or function declarations) emit `PUSH_ENV`/`POP_ENV`; plain
   blocks with only `var`-style bindings do not create an extra scope, so `var`
   binds in the enclosing function/top-level environment. There is no hoisting.
-- **Classic `for` declarations** of `let`/`const` currently use the surrounding
-  scope rather than a dedicated loop scope; `for…in`/`for…of` do create
-  per-iteration environments.
+- **Classic `for` declarations** of `let`/`const` create an outer loop
+  environment plus a fresh per-iteration environment for the body, so closures
+  capture per-iteration values. `for…in`/`for…of` also create per-iteration
+  environments.
 - **Control flow** uses jumps. Loops and conditionals patch forward jumps after
   compiling their bodies. `break`/`continue` jumps are collected per loop
   context and patched to the loop's exit/continue targets, including labels.

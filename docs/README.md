@@ -73,9 +73,8 @@ Not implemented yet (see the [roadmap](roadmap.md)):
 - A JIT/AOT compiler, hidden classes/inline caches, and persistent bytecode
   caching. The VM is currently a pure interpreter.
 
-The runtime also keeps some non-standard semantics: a `let` declared in a
-classic `for` header stays visible after the loop, and some coercion corners
-differ from ECMAScript. See
+The runtime also keeps some non-standard semantics, mostly in coercion,
+numeric formatting, and the still-missing operators. See
 [language support](language-support.md#semantic-deviations) for the complete
 list.
 

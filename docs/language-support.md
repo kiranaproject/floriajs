@@ -305,7 +305,7 @@ These are the differences most likely to surprise a JavaScript developer:
 | :--- | :--- |
 | TDZ | There is no temporal dead zone before a `let`/`const` declaration. |
 | `var` | Hoisted to function or script root. `let`/`const` are block-scoped. Cross-scope collisions raise `SyntaxError`. |
-| Classic `for` with `let`/`const` | The loop variable remains visible after the loop and closures capture the final value; `for…in`/`for…of` bindings are per-iteration scoped. |
+| Classic `for` with `let`/`const` | Loop bindings are block-scoped and invisible after the loop. Each iteration gets a fresh binding, so closures capture per-iteration values; `var` loop bindings remain function/script scoped. |
 | `void` | Not an operator. `void 0` happens to yield `0` because it is two expressions. |
 | Logical assignment | `&&=` and `\|\|=` are not implemented. |
 | Tagged templates | Not implemented; often silently treated as two expressions. |

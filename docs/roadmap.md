@@ -14,7 +14,7 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **175 tests pass** with `pasbuild test`.
+- Test suite: **176 tests pass** with `pasbuild test`.
 - Gap scan: **109 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
@@ -422,7 +422,7 @@ declaration, and cross-scope var/let conflicts.
 These are not memory-safety blockers, but they still cause wrong results in
 ordinary scripts.
 
-### [ ] P1-01 — Classic `for` `let`/`const` scoping and per-iteration closures
+### [x] P1-01 — Classic `for` `let`/`const` scoping and per-iteration closures
 
 **Failure.**
 
@@ -433,23 +433,33 @@ f[0]() + f[1]() + f[2]();   // 9 (3,3,3); expected 3 (0,1,2)
 typeof i;                    // "number"; expected "undefined"
 ```
 
-`CompileForStmt` does not create a loop scope for `let`/`const` and does not
-copy the per-iteration environment. `for…of`/`for…in` already do per-iteration
-environments.
+`CompileForStmt` used the surrounding environment for `let`/`const`
+initializers and did not create per-iteration bindings, so all closures shared
+the final loop value and the binding remained visible after the loop.
+`for…of`/`for…in` already had per-iteration environments.
 
 **Files.** `src/main/pascal/floria.js.compiler.pas` (`CompileForStmt`),
-`src/main/pascal/floria.js.vm.pas` (environment opcodes as needed).
+`src/test/pascal/TestRunner.pas`.
 
 **Implementation.**
 
-- Push a loop environment for `let`/`const` initializers.
-- Pop it on all exits, including `break`, `continue`, `return`, `throw`, and
-  `finally`.
-- Give each iteration its own binding for closure capture.
-- Keep `var` loop variables in the enclosing function/program scope.
+- Push an outer loop environment for `let`/`const` initializers and keep `var`
+  initializers in the enclosing function/program environment.
+- Before each body, push a fresh per-iteration environment and copy the current
+  loop bindings into it, so closures capture that iteration's values.
+- At `continue`, copy body-modified `let` values back to the outer loop
+  environment before running the update expression, then start the next
+  iteration with a new environment.
+- `break` uses a cleanup path that pops the per-iteration and outer loop
+  environments; the normal test-false path pops only the outer environment.
+  `return` and `throw` unwind through the existing environment cleanup.
+- `const` loop bindings are copied per iteration but not written back; an update
+  expression still raises `TypeError` as before.
 
-**Tests.** No leak after loop, closures see 0/1/2, nested labeled
-break/continue, `return` from inside the loop body, and exception paths.
+**Tests.** Closures capture 0/1/2, no binding leaks after the loop, multiple
+loop declarators, labeled/nested `break`/`continue`, `return` from inside the
+loop, exception paths, `const` without an update, shared `var` semantics, and a
+5,000-iteration environment-growth check.
 
 ### [ ] P1-02 — Array holes, explicit `undefined`, and `length` mutation
 

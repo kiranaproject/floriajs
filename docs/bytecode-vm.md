@@ -117,9 +117,10 @@ Coverage:
   function declarations.
 - **Scopes**: block-scoped `let`/`const` emit `PUSH_ENV`/`POP_ENV`; `var`
   declarations bind in the enclosing function/top-level environment. Classic
-  `for` headers with `let`/`const` currently use the surrounding scope;
-  `for…in`/`for…of` create per-iteration environments. Function calls get a
-  call environment; closures capture it.
+  `for` headers with `let`/`const` get an outer loop environment and a fresh
+  per-iteration environment for each body execution; `for…in`/`for…of` also
+  create per-iteration environments. Function calls get a call environment;
+  closures capture it.
 - **Control flow**: loops and conditionals emit jumps patched after the body;
   `break`/`continue` are collected per loop context and patched to the right
   targets.
