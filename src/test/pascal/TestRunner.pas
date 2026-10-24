@@ -1956,6 +1956,20 @@ begin
     res := engine.Execute('var f = async (x) => x + 1; typeof f;');
     AssertTrue('Async arrow typeof success', res.Success);
     AssertEquals('typeof async arrow is function', 'function', res.StringValue);
+
+    { 12. Async functions return a promise and await resolves it }
+    res := engine.Execute('async function f() { return 1; } typeof f();');
+    AssertTrue('Async function result success', res.Success);
+    AssertEquals('Async function returns an object', 'object', res.StringValue);
+
+    res := engine.Execute(
+      'var r = 0;' + LineEnding +
+      'async function f() { return 42; }' + LineEnding +
+      '(async function () { r = await f(); })();' + LineEnding +
+      'r;'
+    );
+    AssertTrue('Async await success', res.Success);
+    AssertEquals('Await resolves the async result', 42.0, res.NumberValue, 0.0001);
   finally
     engine.Free();
   end;

@@ -256,6 +256,7 @@ begin
   try
     subCode := TFloriaJSBytecode.Create(AName);
     subCode.IsArrow := AIsArrow;
+    subCode.IsAsync := AIsAsync;
 
     if AParams <> nil then
       for i := 0 to AParams.Count - 1 do
