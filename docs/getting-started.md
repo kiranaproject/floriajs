@@ -279,6 +279,22 @@ spans the host boundary is never reclaimed. Within the runtime, the shared
 `Function.prototype` deliberately has no back-reference to its constructor for
 this reason.
 
+## Bundled examples
+
+The `examples/` directory contains compilable programs:
+
+| File | Demonstrates |
+| :--- | :--- |
+| `hello_floriajs.pas` | Engine/context setup, native function registration, console capture, recursion. |
+| `parse_ftml_demo.pas` | Parsing an FTML component tree and inspecting properties/signals. |
+| `reactive_ftml_demo.pas` | Loading a document, reactive bindings, anchors, and signal dispatch. |
+
+Build them with:
+
+```bash
+./build.sh examples
+```
+
 ## Next steps
 
 - [Language support](language-support.md) — what JavaScript works today.
