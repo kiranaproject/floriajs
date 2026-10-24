@@ -2357,6 +2357,20 @@ begin
     );
     AssertTrue('for..of closure capture success', res.Success);
     AssertEquals('closures capture separate iteration bindings', 60.0, res.NumberValue, 0.0001);
+
+    { 7. Labeled continue from a nested for..of }
+    res := engine.Execute(
+      'var sum = 0;' + LineEnding +
+      'outer: for (const x of [1, 2, 3]) {' + LineEnding +
+      '  for (const y of [1, 2, 3]) {' + LineEnding +
+      '    if (y === 2) continue outer;' + LineEnding +
+      '    sum += 1;' + LineEnding +
+      '  }' + LineEnding +
+      '}' + LineEnding +
+      'sum;'
+    );
+    AssertTrue('for..of labeled continue success', res.Success);
+    AssertEquals('labeled continue skips the rest of the outer iteration', 3.0, res.NumberValue, 0.0001);
   finally
     engine.Free();
   end;

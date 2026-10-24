@@ -1209,7 +1209,9 @@ begin
     if stmt is TFloriaJSForStmt then
       TFloriaJSForStmt(stmt).LabelName := lbl
     else if stmt is TFloriaJSWhileStmt then
-      TFloriaJSWhileStmt(stmt).LabelName := lbl;
+      TFloriaJSWhileStmt(stmt).LabelName := lbl
+    else if stmt is TFloriaJSForInOfStmt then
+      TFloriaJSForInOfStmt(stmt).LabelName := lbl;
     Exit(TFloriaJSLabeledStmt.Create(lbl, stmt, startLine, startCol));
   end;
 
