@@ -602,6 +602,7 @@ procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHea
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
   numberObj, stringObj: TFloriaJSFunction;
+  errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
 begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
 
@@ -668,10 +669,25 @@ begin
   AEnv.Define('Promise', JSMakeObject(promiseObj));
 
   // 4. Error
-  AEnv.Define('Error', JSMakeFunction(AHeap.NewNativeMethod('Error', @AHeap.ErrorCtor)));
-  AEnv.Define('TypeError', JSMakeFunction(AHeap.NewNativeMethod('TypeError', @AHeap.TypeErrorCtor)));
-  AEnv.Define('RangeError', JSMakeFunction(AHeap.NewNativeMethod('RangeError', @AHeap.RangeErrorCtor)));
-  AEnv.Define('ReferenceError', JSMakeFunction(AHeap.NewNativeMethod('ReferenceError', @AHeap.ReferenceErrorCtor)));
+  errCtor := AHeap.NewNativeMethod('Error', @AHeap.ErrorCtor);
+  errCtor.SetProperty('prototype', JSMakeObject(AHeap.GetErrorPrototype()));
+  AEnv.Define('Error', JSMakeFunction(errCtor));
+
+  typeErrCtor := AHeap.NewNativeMethod('TypeError', @AHeap.TypeErrorCtor);
+  typeErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetTypeErrorPrototype()));
+  AEnv.Define('TypeError', JSMakeFunction(typeErrCtor));
+
+  rangeErrCtor := AHeap.NewNativeMethod('RangeError', @AHeap.RangeErrorCtor);
+  rangeErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetRangeErrorPrototype()));
+  AEnv.Define('RangeError', JSMakeFunction(rangeErrCtor));
+
+  refErrCtor := AHeap.NewNativeMethod('ReferenceError', @AHeap.ReferenceErrorCtor);
+  refErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetReferenceErrorPrototype()));
+  AEnv.Define('ReferenceError', JSMakeFunction(refErrCtor));
+
+  syntaxErrCtor := AHeap.NewNativeMethod('SyntaxError', @AHeap.SyntaxErrorCtor);
+  syntaxErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetSyntaxErrorPrototype()));
+  AEnv.Define('SyntaxError', JSMakeFunction(syntaxErrCtor));
 
   // 5. Global Functions
   AEnv.Define('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));
@@ -721,10 +737,11 @@ begin
   globalObj.SetProperty('Boolean', AEnv.GetDefault('Boolean', JSMakeUndefined()));
   globalObj.SetProperty('JSON', AEnv.GetDefault('JSON', JSMakeUndefined()));
   globalObj.SetProperty('Promise', JSMakeObject(promiseObj));
-  globalObj.SetProperty('Error', AEnv.GetDefault('Error', JSMakeUndefined()));
-  globalObj.SetProperty('TypeError', AEnv.GetDefault('TypeError', JSMakeUndefined()));
-  globalObj.SetProperty('RangeError', AEnv.GetDefault('RangeError', JSMakeUndefined()));
-  globalObj.SetProperty('ReferenceError', AEnv.GetDefault('ReferenceError', JSMakeUndefined()));
+  globalObj.SetProperty('Error', JSMakeFunction(errCtor));
+  globalObj.SetProperty('TypeError', JSMakeFunction(typeErrCtor));
+  globalObj.SetProperty('RangeError', JSMakeFunction(rangeErrCtor));
+  globalObj.SetProperty('ReferenceError', JSMakeFunction(refErrCtor));
+  globalObj.SetProperty('SyntaxError', JSMakeFunction(syntaxErrCtor));
   globalObj.SetProperty('parseInt', AEnv.GetDefault('parseInt', JSMakeUndefined()));
   globalObj.SetProperty('parseFloat', AEnv.GetDefault('parseFloat', JSMakeUndefined()));
   globalObj.SetProperty('isNaN', AEnv.GetDefault('isNaN', JSMakeUndefined()));

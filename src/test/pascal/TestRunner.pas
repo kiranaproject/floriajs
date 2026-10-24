@@ -121,6 +121,7 @@ type
     procedure TestObjectAndArrayLiteralCompletion();
     procedure TestIterationStatements();
     procedure TestParameterFormsAndDestructuring();
+    procedure TestErrorHandlingAndTypeErrors();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -2480,6 +2481,130 @@ begin
     );
     AssertTrue('Arrow function parameter forms success', res.Success);
     AssertEquals('Arrow function parameter forms values', '30;103;50;x-y-z', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestErrorHandlingAndTypeErrors();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { 1. Error constructors and properties }
+    res := engine.Execute(
+      'var e1 = new Error("msg1");' + LineEnding +
+      'var e2 = new TypeError("msg2");' + LineEnding +
+      'var e3 = new RangeError("msg3");' + LineEnding +
+      'var e4 = new ReferenceError("msg4");' + LineEnding +
+      'var e5 = new SyntaxError("msg5");' + LineEnding +
+      '[e1.name + ":" + e1.message, e2.name + ":" + e2.message, e3.name + ":" + e3.message, e4.name + ":" + e4.message, e5.name + ":" + e5.message].join(";");'
+    );
+    AssertTrue('Error constructors success', res.Success);
+    AssertEquals('Error constructors names and messages', 'Error:msg1;TypeError:msg2;RangeError:msg3;ReferenceError:msg4;SyntaxError:msg5', res.StringValue);
+
+    { 2. Error toString() behaviour }
+    res := engine.Execute(
+      'var e1 = new Error("err");' + LineEnding +
+      'var e2 = new TypeError("type_err");' + LineEnding +
+      'var e3 = new Error();' + LineEnding +
+      '[e1.toString(), e2.toString(), e3.toString(), Error.prototype.toString()].join(";");'
+    );
+    AssertTrue('Error toString success', res.Success);
+    AssertEquals('Error toString matches standard formatting', 'Error: err;TypeError: type_err;Error;Error', res.StringValue);
+
+    { 3. Error inheritance and instanceof }
+    res := engine.Execute(
+      'var te = new TypeError("bad");' + LineEnding +
+      'var er = new Error("normal");' + LineEnding +
+      '[te instanceof TypeError, te instanceof Error, te instanceof Object, er instanceof TypeError, er instanceof Error].join(",");'
+    );
+    AssertTrue('Error instanceof success', res.Success);
+    AssertEquals('Error inheritance hierarchy', 'true,true,true,false,true', res.StringValue);
+
+    { 4. Global constructors published on globalThis }
+    res := engine.Execute(
+      '[globalThis.Error === Error, globalThis.TypeError === TypeError, globalThis.RangeError === RangeError, globalThis.ReferenceError === ReferenceError, globalThis.SyntaxError === SyntaxError].join(",");'
+    );
+    AssertTrue('Global error constructors success', res.Success);
+    AssertEquals('Error constructors available on globalThis', 'true,true,true,true,true', res.StringValue);
+
+    { 5. Calling non-function throws TypeError }
+    res := engine.Execute('var o = {}; o.nope();');
+    AssertFalse('Calling missing method throws error', res.Success);
+    AssertTrue('Calling missing method reports TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('(42)();');
+    AssertFalse('Calling number throws error', res.Success);
+    AssertTrue('Calling number reports TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('try { var o = {}; o.nope(); } catch (e) { [e instanceof TypeError, e.name].join(","); }');
+    AssertTrue('Catch calling non-function success', res.Success);
+    AssertEquals('Caught TypeError object for non-function call', 'true,TypeError', res.StringValue);
+
+    { 6. Reading property of null / undefined throws TypeError }
+    res := engine.Execute('null.foo;');
+    AssertFalse('Reading property on null throws error', res.Success);
+    AssertTrue('Reading property on null reports TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('undefined["bar"];');
+    AssertFalse('Reading property on undefined throws error', res.Success);
+    AssertTrue('Reading property on undefined reports TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('try { null.foo; } catch (e) { [e instanceof TypeError, e.name].join(","); }');
+    AssertTrue('Catch null property access success', res.Success);
+    AssertEquals('Caught TypeError for null property access', 'true,TypeError', res.StringValue);
+
+    { 7. Optional chaining suppresses TypeError on null / undefined }
+    res := engine.Execute(
+      'var o = null;' + LineEnding +
+      'var u = undefined;' + LineEnding +
+      '[o?.foo === undefined, u?.["bar"] === undefined, o?.() === undefined, u?.() === undefined].join(",");'
+    );
+    AssertTrue('Optional chaining on null/undefined success', res.Success);
+    AssertEquals('Optional chaining returns undefined without throwing', 'true,true,true,true', res.StringValue);
+
+    { 8. Setting property on null / undefined throws TypeError }
+    res := engine.Execute('null.foo = 1;');
+    AssertFalse('Setting property on null throws error', res.Success);
+    AssertTrue('Setting property on null reports TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('undefined["bar"] = 2;');
+    AssertFalse('Setting property on undefined throws error', res.Success);
+    AssertTrue('Setting property on undefined reports TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('try { null.foo = 10; } catch (e) { [e instanceof TypeError, e.name].join(","); }');
+    AssertTrue('Catch setting property on null success', res.Success);
+    AssertEquals('Caught TypeError for setting property on null', 'true,TypeError', res.StringValue);
+
+    { 9. "in" operator throws TypeError on non-object }
+    res := engine.Execute('"a" in null;');
+    AssertFalse('"in" on null throws error', res.Success);
+    AssertTrue('"in" on null reports TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('try { "a" in 123; } catch (e) { [e instanceof TypeError, e.name].join(","); }');
+    AssertTrue('Catch "in" on number success', res.Success);
+    AssertEquals('Caught TypeError for "in" on non-object', 'true,TypeError', res.StringValue);
+
+    { 10. "instanceof" operator throws TypeError on non-callable RHS }
+    res := engine.Execute('({}) instanceof null;');
+    AssertFalse('"instanceof" with null RHS throws error', res.Success);
+    AssertTrue('"instanceof" with null RHS reports TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('try { ({}) instanceof ({}); } catch (e) { [e instanceof TypeError, e.name].join(","); }');
+    AssertTrue('Catch "instanceof" on non-callable RHS success', res.Success);
+    AssertEquals('Caught TypeError for non-callable instanceof RHS', 'true,TypeError', res.StringValue);
+
+    { 11. Stack overflow throws RangeError }
+    res := engine.Execute('function recurse() { return recurse(); } recurse();');
+    AssertFalse('Deep recursion throws error', res.Success);
+    AssertTrue('Deep recursion reports RangeError', Pos('RangeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('try { function recurse() { return recurse(); } recurse(); } catch (e) { [e instanceof RangeError, e.name].join(","); }');
+    AssertTrue('Catch deep recursion success', res.Success);
+    AssertEquals('Caught RangeError for stack overflow', 'true,RangeError', res.StringValue);
   finally
     engine.Free();
   end;

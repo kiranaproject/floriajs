@@ -150,6 +150,11 @@ function TFloriaJSEvaluator.GetMemberValue(const AObj: TFloriaJSValue; const APr
 var
   i: Integer;
 begin
+  if AObj.IsNull() then
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Cannot read properties of null (reading ''' + APropName + ''')')));
+  if AObj.IsUndefined() then
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Cannot read properties of undefined (reading ''' + APropName + ''')')));
+
   if AObj.IsObject() then
     Exit(AObj.AsObject().GetProperty(APropName));
 
@@ -651,6 +656,11 @@ begin
     else
       propName := EvaluateExpr(member.PropertyExpr, AEnv).ToString();
 
+    if objVal.IsNull() then
+      raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Cannot set properties of null (setting ''' + propName + ''')')));
+    if objVal.IsUndefined() then
+      raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Cannot set properties of undefined (setting ''' + propName + ''')')));
+
     if AOp = tkAssign then
       computedVal := AVal
     else
@@ -900,14 +910,14 @@ begin
       tkIn:
         begin
           if not rVal.IsObject() then
-            Exit(JSMakeBoolean(False));
+            raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Cannot use ''in'' operator to search for ''' + lVal.ToString() + ''' in ' + rVal.ToString())));
           Exit(JSMakeBoolean(rVal.AsObject().HasProperty(lVal.ToString())));
         end;
       tkInstanceof:
         begin
-          if not lVal.IsObject() then
-            Exit(JSMakeBoolean(False));
           if not rVal.IsFunction() then
+            raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Right-hand side of ''instanceof'' is not callable')));
+          if not lVal.IsObject() then
             Exit(JSMakeBoolean(False));
           { Walk prototype chain }
           Exit(JSMakeBoolean(JSInstanceOf(lVal, rVal)));
@@ -1727,16 +1737,16 @@ var
   paramObj: TFloriaJSExprNode;
 begin
   if not AFuncVal.IsFunction() then
-    Exit(JSMakeUndefined());
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', AFuncVal.ToString() + ' is not a function')));
 
   fn := AFuncVal.AsFunction();
   if fn = nil then
-    Exit(JSMakeUndefined());
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a function')));
 
   Inc(FCurrentCallDepth);
   try
     if FCurrentCallDepth > FMaxCallDepth then
-      raise Exception.Create('Maximum call stack size exceeded');
+      raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('RangeError', 'Maximum call stack size exceeded')));
 
     // 1. Native host callback
     if fn.IsNative then

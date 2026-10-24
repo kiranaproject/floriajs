@@ -268,6 +268,11 @@ type
     FArrayPrototype: TFloriaJSObject;
     FStringPrototype: TFloriaJSObject;
     FObjectPrototype: TFloriaJSObject;
+    FErrorPrototype: TFloriaJSObject;
+    FTypeErrorPrototype: TFloriaJSObject;
+    FRangeErrorPrototype: TFloriaJSObject;
+    FReferenceErrorPrototype: TFloriaJSObject;
+    FSyntaxErrorPrototype: TFloriaJSObject;
     FOwnedHelpers: TFPList;
     FClearing: Boolean;
     FId: Integer;
@@ -291,6 +296,11 @@ type
     function  GetArrayPrototype(): TFloriaJSObject;
     function  GetStringPrototype(): TFloriaJSObject;
     function  GetObjectPrototype(): TFloriaJSObject;
+    function  GetErrorPrototype(): TFloriaJSObject;
+    function  GetTypeErrorPrototype(): TFloriaJSObject;
+    function  GetRangeErrorPrototype(): TFloriaJSObject;
+    function  GetReferenceErrorPrototype(): TFloriaJSObject;
+    function  GetSyntaxErrorPrototype(): TFloriaJSObject;
     function  ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     { Built-in units use helpers that need the heap (for example to create the
@@ -316,6 +326,7 @@ type
     function  TypeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  RangeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  ReferenceErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  SyntaxErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     { Reclaims the objects that no container refers to any more. It is only
@@ -667,7 +678,12 @@ begin
         Result := 'function() { [native code] }';
     fjstObject:
       if ObjVal is TFloriaJSError then
-        Result := TFloriaJSError(ObjVal).Name + ': ' + TFloriaJSError(ObjVal).Message
+      begin
+        if TFloriaJSError(ObjVal).Message <> '' then
+          Result := TFloriaJSError(ObjVal).Name + ': ' + TFloriaJSError(ObjVal).Message
+        else
+          Result := TFloriaJSError(ObjVal).Name;
+      end
       else
         Result := '[object Object]';
   else
@@ -1333,6 +1349,36 @@ begin
     Result := JSMakeString('[object Object]');
 end;
 
+function JSErrorToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  nameVal, msgVal: TFloriaJSValue;
+  nameStr, msgStr: string;
+begin
+  if not AThis.IsObject() then
+    nameStr := 'Error'
+  else
+  begin
+    nameVal := AThis.AsObject().GetProperty('name');
+    if nameVal.IsUndefined() then
+      nameStr := 'Error'
+    else
+      nameStr := nameVal.ToString();
+
+    msgVal := AThis.AsObject().GetProperty('message');
+    if msgVal.IsUndefined() then
+      msgStr := ''
+    else
+      msgStr := msgVal.ToString();
+  end;
+
+  if nameStr = '' then
+    Result := JSMakeString(msgStr)
+  else if msgStr = '' then
+    Result := JSMakeString(nameStr)
+  else
+    Result := JSMakeString(nameStr + ': ' + msgStr);
+end;
+
 function TFloriaJSFunction.GetProperty(const AName: string): TFloriaJSValue;
 var
   protoObj: TFloriaJSObject;
@@ -1613,6 +1659,12 @@ begin
   FInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
+  FObjectPrototype := nil;
+  FErrorPrototype := nil;
+  FTypeErrorPrototype := nil;
+  FRangeErrorPrototype := nil;
+  FReferenceErrorPrototype := nil;
+  FSyntaxErrorPrototype := nil;
   FOwnedHelpers := TFPList.Create();
   FClearing := False;
   Inc(GNextHeapId);
@@ -1661,6 +1713,11 @@ begin
   FArrayPrototype := nil;
   FStringPrototype := nil;
   FObjectPrototype := nil;
+  FErrorPrototype := nil;
+  FTypeErrorPrototype := nil;
+  FRangeErrorPrototype := nil;
+  FReferenceErrorPrototype := nil;
+  FSyntaxErrorPrototype := nil;
   FreeAndNil(FEnvironments);
   FreeAndNil(FObjects);
   FreeAndNil(FOwnedHelpers);
@@ -1808,9 +1865,78 @@ begin
     Result := JSMakeUndefined();
 end;
 
+function TFloriaJSHeap.GetErrorPrototype(): TFloriaJSObject;
+begin
+  if FErrorPrototype = nil then
+  begin
+    FErrorPrototype := NewObject(GetObjectPrototype());
+    FErrorPrototype.Pin();
+    FErrorPrototype.SetProperty('name', JSMakeString('Error'));
+    FErrorPrototype.SetProperty('message', JSMakeString(''));
+    FErrorPrototype.SetProperty('toString', JSMakeFunction(NewNativeFunction('toString', @JSErrorToString)));
+  end;
+  Result := FErrorPrototype;
+end;
+
+function TFloriaJSHeap.GetTypeErrorPrototype(): TFloriaJSObject;
+begin
+  if FTypeErrorPrototype = nil then
+  begin
+    FTypeErrorPrototype := NewObject(GetErrorPrototype());
+    FTypeErrorPrototype.Pin();
+    FTypeErrorPrototype.SetProperty('name', JSMakeString('TypeError'));
+    FTypeErrorPrototype.SetProperty('message', JSMakeString(''));
+  end;
+  Result := FTypeErrorPrototype;
+end;
+
+function TFloriaJSHeap.GetRangeErrorPrototype(): TFloriaJSObject;
+begin
+  if FRangeErrorPrototype = nil then
+  begin
+    FRangeErrorPrototype := NewObject(GetErrorPrototype());
+    FRangeErrorPrototype.Pin();
+    FRangeErrorPrototype.SetProperty('name', JSMakeString('RangeError'));
+    FRangeErrorPrototype.SetProperty('message', JSMakeString(''));
+  end;
+  Result := FRangeErrorPrototype;
+end;
+
+function TFloriaJSHeap.GetReferenceErrorPrototype(): TFloriaJSObject;
+begin
+  if FReferenceErrorPrototype = nil then
+  begin
+    FReferenceErrorPrototype := NewObject(GetErrorPrototype());
+    FReferenceErrorPrototype.Pin();
+    FReferenceErrorPrototype.SetProperty('name', JSMakeString('ReferenceError'));
+    FReferenceErrorPrototype.SetProperty('message', JSMakeString(''));
+  end;
+  Result := FReferenceErrorPrototype;
+end;
+
+function TFloriaJSHeap.GetSyntaxErrorPrototype(): TFloriaJSObject;
+begin
+  if FSyntaxErrorPrototype = nil then
+  begin
+    FSyntaxErrorPrototype := NewObject(GetErrorPrototype());
+    FSyntaxErrorPrototype.Pin();
+    FSyntaxErrorPrototype.SetProperty('name', JSMakeString('SyntaxError'));
+    FSyntaxErrorPrototype.SetProperty('message', JSMakeString(''));
+  end;
+  Result := FSyntaxErrorPrototype;
+end;
+
 function TFloriaJSHeap.NewError(const AName, AMessage: string): TFloriaJSError;
 begin
   Result := TFloriaJSError(Track(TFloriaJSError.Create(AName, AMessage)));
+  case AName of
+    'TypeError':      Result.Prototype := GetTypeErrorPrototype();
+    'RangeError':     Result.Prototype := GetRangeErrorPrototype();
+    'ReferenceError': Result.Prototype := GetReferenceErrorPrototype();
+    'SyntaxError':    Result.Prototype := GetSyntaxErrorPrototype();
+  else
+    Result.Prototype := GetErrorPrototype();
+  end;
 end;
 
 function TFloriaJSHeap.ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -1856,6 +1982,17 @@ begin
   else
     msg := '';
   Result := JSMakeObject(NewError('ReferenceError', msg));
+end;
+
+function TFloriaJSHeap.SyntaxErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  msg: string;
+begin
+  if Length(AArgs) > 0 then
+    msg := AArgs[0].ToString()
+  else
+    msg := '';
+  Result := JSMakeObject(NewError('SyntaxError', msg));
 end;
 
 function TFloriaJSHeap.ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -2158,6 +2295,11 @@ begin
     FArrayPrototype := nil;
     FStringPrototype := nil;
     FObjectPrototype := nil;
+    FErrorPrototype := nil;
+    FTypeErrorPrototype := nil;
+    FRangeErrorPrototype := nil;
+    FReferenceErrorPrototype := nil;
+    FSyntaxErrorPrototype := nil;
     if FOwnedHelpers <> nil then
     begin
       for i := FOwnedHelpers.Count - 1 downto 0 do

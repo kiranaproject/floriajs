@@ -47,6 +47,7 @@ Recently implemented and now passing in the scan:
 - Function parameter forms & Destructuring: default parameters `f(a = 3)`, rest parameters `f(...args)`, destructuring declarations `var { a } = obj`, `var [a, b] = arr`, destructuring parameters in regular and arrow functions
 - Math extensions: `Math.log2`, `Math.log10`, `Math.sign`, `Math.trunc`, `Math.hypot`, `Math.cbrt`, `Math.imul`, `Math.clz32`
 - Numeric separators (`1_000_000`), exponent literals (`1e3`), hex string parsing
+- Error handling & runtime type errors: `Error`, `TypeError`, `RangeError`, `ReferenceError`, and `SyntaxError` with prototype chain inheritance, standard `toString()`, and runtime `TypeError` / `RangeError` throwing for invalid calls, stack overflow, and `null`/`undefined` property operations
 
 ## Two kinds of gaps
 
@@ -191,10 +192,12 @@ These items mostly affect semantics rather than enabling new syntax.
 
 ### 12. Error handling polish
 
-- [x] `TypeError`, `RangeError`, `ReferenceError` constructor objects
-- [ ] Throwing a `TypeError` from the runtime where JavaScript requires it
+Status: supported and verified. Builtin constructors `Error`, `TypeError`, `RangeError`, `ReferenceError`, and `SyntaxError` with prototype inheritance, JavaScript standard `toString()` formatting, and runtime `TypeError` / `RangeError` throwing for invalid operations.
+
+- [x] `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError` constructor objects
+- [x] Throwing a `TypeError` from the runtime where JavaScript requires it
       (see the cross-cutting item below)
-- [ ] Error `name`, `message`, and `toString()` behaviour matching JavaScript
+- [x] Error `name`, `message`, and `toString()` behaviour matching JavaScript
 
 ### 13. Math extensions
 
@@ -254,10 +257,10 @@ without an error. This is why dozens of missing standard-library methods looked
 like passing probes. Changing these to throw `TypeError` is closer to JavaScript
 and makes future gaps immediately visible.
 
-- [ ] Calling a non-function throws `TypeError`
-- [ ] Property access on `null` / `undefined` throws `TypeError`
-- [ ] Setting a property on `null` / `undefined` throws `TypeError`
-- [ ] Audit existing tests, examples, and FTML engine code for scripts that
+- [x] Calling a non-function throws `TypeError`
+- [x] Property access on `null` / `undefined` throws `TypeError`
+- [x] Setting a property on `null` / `undefined` throws `TypeError`
+- [x] Audit existing tests, examples, and FTML engine code for scripts that
       relied on the silent behaviour
 
 This is a small code change with a large diagnostic payoff, but it should be
