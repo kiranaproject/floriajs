@@ -117,6 +117,7 @@ type
     procedure TestStandardGlobalsAndArguments();
     procedure TestObjectUtilities();
     procedure TestJSONSupport();
+    procedure TestTemplateLiteralInterpolation();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -2162,6 +2163,52 @@ begin
     );
     AssertTrue('JSON round trip success', res.Success);
     AssertTrue('JSON round trip equality', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestTemplateLiteralInterpolation();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { 1. Plain template string without interpolation }
+    res := engine.Execute('`hello world`;');
+    AssertTrue('Plain template success', res.Success);
+    AssertEquals('Plain template value', 'hello world', res.StringValue);
+
+    { 2. Single embedded expression }
+    res := engine.Execute('var n = 41; `v=${n + 1}`;');
+    AssertTrue('Single interp success', res.Success);
+    AssertEquals('v=${n + 1}', 'v=42', res.StringValue);
+
+    { 3. Multiple embedded expressions }
+    res := engine.Execute('var a = 2, b = 3; `${a} + ${b} = ${a + b}`;');
+    AssertTrue('Multi interp success', res.Success);
+    AssertEquals('Multi interp value', '2 + 3 = 5', res.StringValue);
+
+    { 4. Leading / trailing interpolations }
+    res := engine.Execute('var x = 100; `${x}`;');
+    AssertTrue('Standalone interp success', res.Success);
+    AssertEquals('Standalone interp value', '100', res.StringValue);
+
+    { 5. Embedded expression with object literal }
+    res := engine.Execute('`val: ${ { x: 99 }.x }`;');
+    AssertTrue('Interp with object literal success', res.Success);
+    AssertEquals('Interp with object literal', 'val: 99', res.StringValue);
+
+    { 6. Nested template literals }
+    res := engine.Execute('`outer ${ `inner ${ 10 * 2 }` }`;');
+    AssertTrue('Nested template success', res.Success);
+    AssertEquals('Nested template value', 'outer inner 20', res.StringValue);
+
+    { 7. Method and array call inside template }
+    res := engine.Execute('`count: ${[1, 2, 3].length}`;');
+    AssertTrue('Template with property call success', res.Success);
+    AssertEquals('Template property value', 'count: 3', res.StringValue);
   finally
     engine.Free();
   end;

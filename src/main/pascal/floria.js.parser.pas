@@ -274,7 +274,7 @@ end;
 function TFloriaJSParser.ParsePrimary(): TFloriaJSExprNode;
 var
   tok: TFloriaJSToken;
-  expr: TFloriaJSExprNode;
+  expr, cur: TFloriaJSExprNode;
   fnExpr: TFloriaJSFunctionExpr;
   callExpr: TFloriaJSCallExpr;
   paramName: string;
@@ -287,6 +287,30 @@ begin
 
   if Match(tkString) or Match(tkTemplateString) then
     Exit(TFloriaJSLiteralExpr.CreateString(tok.Text, tok.Line, tok.Column));
+
+  if Match(tkTemplateHead) then
+  begin
+    cur := TFloriaJSLiteralExpr.CreateString(FPrevious.Text, FPrevious.Line, FPrevious.Column);
+    expr := ParseExpression();
+    cur := TFloriaJSBinaryExpr.Create(cur, tkPlus, expr, FPrevious.Line, FPrevious.Column);
+
+    while Match(tkTemplateMiddle) do
+    begin
+      cur := TFloriaJSBinaryExpr.Create(cur, tkPlus,
+        TFloriaJSLiteralExpr.CreateString(FPrevious.Text, FPrevious.Line, FPrevious.Column),
+        FPrevious.Line, FPrevious.Column);
+      expr := ParseExpression();
+      cur := TFloriaJSBinaryExpr.Create(cur, tkPlus, expr, FPrevious.Line, FPrevious.Column);
+    end;
+
+    Consume(tkTemplateTail, 'Expected template literal tail');
+    if FPrevious.Text <> '' then
+      cur := TFloriaJSBinaryExpr.Create(cur, tkPlus,
+        TFloriaJSLiteralExpr.CreateString(FPrevious.Text, FPrevious.Line, FPrevious.Column),
+        FPrevious.Line, FPrevious.Column);
+
+    Exit(cur);
+  end;
 
   if Match(tkTrue) then
     Exit(TFloriaJSLiteralExpr.CreateBoolean(True, tok.Line, tok.Column));
@@ -454,7 +478,7 @@ begin
     begin
       if Match(tkIdentifier) then
         memberPropName := FPrevious.Text
-      else if FCurrent.Kind in [tkCatch, tkFinally, tkFunction, tkAsync, tkAwait, tkNew, tkDelete, tkTypeof, tkInstanceof, tkIn, tkThis, tkConst, tkLet, tkVar, tkIf, tkElse, tkFor, tkWhile, tkDo, tkBreak, tkContinue, tkSwitch, tkCase, tkDefault, tkTry, tkThrow, tkReturn, tkTrue, tkFalse, tkNull, tkUndefined] then
+      else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
       begin
         memberPropName := FCurrent.Text;
         Advance();
@@ -680,22 +704,49 @@ begin
         left := callExpr;
       end;
 
-      { Member Access: obj.prop }
-      tkDot:
+      { Member Access: obj.prop, obj?.prop, obj?.[expr], obj?.() }
+      tkDot, tkQuestionDot:
       begin
-        if Match(tkIdentifier) then
-          memberPropName := FPrevious.Text
-        else if FCurrent.Kind in [tkCatch, tkFinally, tkFunction, tkAsync, tkAwait, tkNew, tkDelete, tkTypeof, tkInstanceof, tkIn, tkThis, tkConst, tkLet, tkVar, tkIf, tkElse, tkFor, tkWhile, tkDo, tkBreak, tkContinue, tkSwitch, tkCase, tkDefault, tkTry, tkThrow, tkReturn, tkTrue, tkFalse, tkNull, tkUndefined] then
+        if (op.Kind = tkQuestionDot) and (FCurrent.Kind = tkLParen) then
         begin
-          memberPropName := FCurrent.Text;
-          Advance();
+          Advance(); { Consume '(' }
+          callExpr := TFloriaJSCallExpr.Create(left, op.Line, op.Column, False, True);
+          if not Check(tkRParen) then
+          begin
+            repeat
+              if Check(tkRParen) then
+                Break;
+              callExpr.AddArgument(ParseAssignmentExpression());
+            until not Match(tkComma);
+          end;
+          Consume(tkRParen, 'Expected '')'' after optional call arguments');
+          left := callExpr;
+        end
+        else if FCurrent.Kind = tkLBracket then
+        begin
+          Advance(); { Consume '[' }
+          computedProp := ParseExpression();
+          Consume(tkRBracket, 'Expected '']'' after computed property accessor');
+          left := TFloriaJSMemberExpr.CreateComputed(left, computedProp,
+            op.Line, op.Column, op.Kind = tkQuestionDot);
         end
         else
         begin
-          ErrorAtCurrent('Expected property name after ''.''');
-          memberPropName := '';
+          if Match(tkIdentifier) then
+            memberPropName := FPrevious.Text
+          else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+          begin
+            memberPropName := FCurrent.Text;
+            Advance();
+          end
+          else
+          begin
+            ErrorAtCurrent('Expected property name after ''.''');
+            memberPropName := '';
+          end;
+          left := TFloriaJSMemberExpr.CreateNamed(left, memberPropName,
+            op.Line, op.Column, op.Kind = tkQuestionDot);
         end;
-        left := TFloriaJSMemberExpr.CreateNamed(left, memberPropName, op.Line, op.Column);
       end;
 
       { Computed Member: obj[expr] }
@@ -715,8 +766,9 @@ begin
         left := TFloriaJSConditionalExpr.Create(left, consequent, alternate, op.Line, op.Column);
       end;
 
-      { Assignment Operators: =, +=, -=, etc. }
-      tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign:
+      { Assignment Operators: =, +=, -=, *=, /=, %=, **=, ??= }
+      tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
+      tkPowerAssign, tkNullishAssign:
       begin
         right := ParsePrecedence(PREC_ASSIGNMENT);
         left := TFloriaJSAssignExpr.Create(left, op.Kind, right, op.Line, op.Column);

@@ -32,6 +32,9 @@ type
     tkNumber,
     tkString,
     tkTemplateString,
+    tkTemplateHead,
+    tkTemplateMiddle,
+    tkTemplateTail,
 
     { Keywords }
     tkLet,
@@ -60,6 +63,7 @@ type
     tkTypeof,
     tkDelete,
     tkIn,
+    tkOf,
     tkInstanceof,
     tkTrue,
     tkFalse,
@@ -77,6 +81,7 @@ type
     tkColon,          // :
     tkComma,          // ,
     tkDot,            // .
+    tkEllipsis,       // ...
     tkQuestion,       // ?
     tkQuestionDot,    // ?.
 
@@ -148,6 +153,7 @@ type
     FColumn: Integer;
     FPeekedToken: TFloriaJSToken;
     FHasPeeked: Boolean;
+    FBraceStack: array of Boolean;
 
     function  PeekChar(): Char;
     function  PeekNextChar(): Char;
@@ -157,7 +163,7 @@ type
     function  ScanIdentifierOrKeyword(): TFloriaJSToken;
     function  ScanNumber(): TFloriaJSToken;
     function  ScanString(AQuote: Char): TFloriaJSToken;
-    function  ScanTemplateString(): TFloriaJSToken;
+    function  ScanTemplateString(AFromExpression: Boolean = False): TFloriaJSToken;
     function  ScanComment(): TFloriaJSToken;
     function  MakeToken(AKind: TFloriaJSTokenKind; const AText: string; AStartLine, AStartCol, AStartPos: Integer): TFloriaJSToken;
     function  MakeError(const AMessage: string; AStartLine, AStartCol, AStartPos: Integer): TFloriaJSToken;
@@ -206,6 +212,7 @@ begin
     'typeof':     Result := tkTypeof;
     'delete':     Result := tkDelete;
     'in':         Result := tkIn;
+    'of':         Result := tkOf;
     'instanceof': Result := tkInstanceof;
     'true':       Result := tkTrue;
     'false':      Result := tkFalse;
@@ -259,6 +266,7 @@ begin
   FLine := 1;
   FColumn := 1;
   FHasPeeked := False;
+  SetLength(FBraceStack, 0);
 end;
 
 function TFloriaJSLexer.IsAtEnd(): Boolean;
@@ -542,17 +550,19 @@ begin
   Result := MakeError('Unterminated string literal', startLine, startCol, startPos);
 end;
 
-function TFloriaJSLexer.ScanTemplateString(): TFloriaJSToken;
+function TFloriaJSLexer.ScanTemplateString(AFromExpression: Boolean = False): TFloriaJSToken;
 var
   startPos, startCol, startLine: Integer;
   sb: string;
-  c: Char;
+  c, esc: Char;
 begin
   startPos := FPos;
   startLine := FLine;
   startCol := FColumn;
 
-  AdvanceChar(); { Consume opening backtick ` }
+  if not AFromExpression then
+    AdvanceChar(); // Consume opening backtick
+
   sb := '';
 
   while not IsAtEnd() do
@@ -560,13 +570,41 @@ begin
     c := AdvanceChar();
     if c = '`' then
     begin
-      Result := MakeToken(tkTemplateString, sb, startLine, startCol, startPos);
+      if AFromExpression then
+        Result := MakeToken(tkTemplateTail, sb, startLine, startCol, startPos)
+      else
+        Result := MakeToken(tkTemplateString, sb, startLine, startCol, startPos);
       Exit;
     end
-    else if (c = '\') and (PeekChar() = '`') then
+    else if (c = '$') and (PeekChar() = '{') then
     begin
-      AdvanceChar();
-      sb := sb + '`';
+      AdvanceChar(); // Consume '{'
+      SetLength(FBraceStack, Length(FBraceStack) + 1);
+      FBraceStack[High(FBraceStack)] := True;
+
+      if AFromExpression then
+        Result := MakeToken(tkTemplateMiddle, sb, startLine, startCol, startPos)
+      else
+        Result := MakeToken(tkTemplateHead, sb, startLine, startCol, startPos);
+      Exit;
+    end
+    else if c = '\' then
+    begin
+      if IsAtEnd() then Break;
+      esc := AdvanceChar();
+      case esc of
+        '`': sb := sb + '`';
+        '$': sb := sb + '$';
+        '\': sb := sb + '\';
+        'n': sb := sb + #10;
+        'r': sb := sb + #13;
+        't': sb := sb + #9;
+        'b': sb := sb + #8;
+        'f': sb := sb + #12;
+        '0': sb := sb + #0;
+      else
+        sb := sb + esc;
+      end;
     end
     else
       sb := sb + c;
@@ -668,8 +706,31 @@ begin
     case c of
       '(': Exit(MakeToken(tkLParen, '(', startLine, startCol, startPos));
       ')': Exit(MakeToken(tkRParen, ')', startLine, startCol, startPos));
-      '{': Exit(MakeToken(tkLBrace, '{', startLine, startCol, startPos));
-      '}': Exit(MakeToken(tkRBrace, '}', startLine, startCol, startPos));
+      '{':
+      begin
+        if Length(FBraceStack) > 0 then
+        begin
+          SetLength(FBraceStack, Length(FBraceStack) + 1);
+          FBraceStack[High(FBraceStack)] := False;
+        end;
+        Exit(MakeToken(tkLBrace, '{', startLine, startCol, startPos));
+      end;
+
+      '}':
+      begin
+        if Length(FBraceStack) > 0 then
+        begin
+          if FBraceStack[High(FBraceStack)] = True then
+          begin
+            SetLength(FBraceStack, Length(FBraceStack) - 1);
+            Exit(ScanTemplateString(True));
+          end
+          else
+            SetLength(FBraceStack, Length(FBraceStack) - 1);
+        end;
+        Exit(MakeToken(tkRBrace, '}', startLine, startCol, startPos));
+      end;
+
       '[': Exit(MakeToken(tkLBracket, '[', startLine, startCol, startPos));
       ']': Exit(MakeToken(tkRBracket, ']', startLine, startCol, startPos));
       ';': Exit(MakeToken(tkSemicolon, ';', startLine, startCol, startPos));
@@ -677,7 +738,16 @@ begin
       ':': Exit(MakeToken(tkColon, ':', startLine, startCol, startPos));
       '~': Exit(MakeToken(tkBitNot, '~', startLine, startCol, startPos));
 
-      '.': Exit(MakeToken(tkDot, '.', startLine, startCol, startPos));
+      '.':
+      begin
+        if (PeekChar() = '.') and (PeekNextChar() = '.') then
+        begin
+          AdvanceChar();
+          AdvanceChar();
+          Exit(MakeToken(tkEllipsis, '...', startLine, startCol, startPos));
+        end;
+        Exit(MakeToken(tkDot, '.', startLine, startCol, startPos));
+      end;
 
       '?':
       begin
@@ -851,6 +921,9 @@ begin
     tkNumber:         Result := 'Number';
     tkString:         Result := 'String';
     tkTemplateString: Result := 'TemplateString';
+    tkTemplateHead:   Result := 'TemplateHead';
+    tkTemplateMiddle: Result := 'TemplateMiddle';
+    tkTemplateTail:   Result := 'TemplateTail';
     tkLet:            Result := 'let';
     tkConst:          Result := 'const';
     tkVar:            Result := 'var';
@@ -877,6 +950,7 @@ begin
     tkTypeof:         Result := 'typeof';
     tkDelete:         Result := 'delete';
     tkIn:             Result := 'in';
+    tkOf:             Result := 'of';
     tkInstanceof:     Result := 'instanceof';
     tkTrue:           Result := 'true';
     tkFalse:          Result := 'false';
@@ -892,6 +966,7 @@ begin
     tkColon:          Result := ':';
     tkComma:          Result := ',';
     tkDot:            Result := '.';
+    tkEllipsis:       Result := '...';
     tkQuestion:       Result := '?';
     tkQuestionDot:    Result := '?.';
     tkAssign:         Result := '=';
