@@ -430,6 +430,29 @@ type
     property LabelName: string read FLabel write FLabel;
   end;
 
+  { For-In and For-Of Loop: for (var x in obj) or for (const x of arr) }
+  TFloriaJSForInOfStmt = class(TFloriaJSStmtNode)
+  private
+    FVarKind: TFloriaJSTokenKind;
+    FVarName: string;
+    FIsOf: Boolean;
+    FIterable: TFloriaJSExprNode;
+    FBody: TFloriaJSStmtNode;
+    FLabel: string;
+  public
+    constructor Create(AVarKind: TFloriaJSTokenKind; const AVarName: string; AIsOf: Boolean; AIterable: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property VarKind: TFloriaJSTokenKind read FVarKind;
+    property VarName: string read FVarName;
+    property IsOf: Boolean read FIsOf;
+    property Iterable: TFloriaJSExprNode read FIterable;
+    property Body: TFloriaJSStmtNode read FBody;
+    property LabelName: string read FLabel write FLabel;
+  end;
+
   { Switch Case Clause: case <expr>: stmts... or default: stmts... }
   TFloriaJSSwitchCase = class
   private
@@ -659,6 +682,7 @@ type
     procedure VisitReturnStmt(ANode: TFloriaJSReturnStmt);
     procedure VisitWhileStmt(ANode: TFloriaJSWhileStmt);
     procedure VisitForStmt(ANode: TFloriaJSForStmt);
+    procedure VisitForInOfStmt(ANode: TFloriaJSForInOfStmt);
     procedure VisitSwitchStmt(ANode: TFloriaJSSwitchStmt);
     procedure VisitTryStmt(ANode: TFloriaJSTryStmt);
     procedure VisitThrowStmt(ANode: TFloriaJSThrowStmt);
@@ -1388,6 +1412,30 @@ end;
 procedure TFloriaJSForStmt.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
   if AVisitor <> nil then AVisitor.VisitForStmt(Self);
+end;
+
+{ TFloriaJSForInOfStmt }
+
+constructor TFloriaJSForInOfStmt.Create(AVarKind: TFloriaJSTokenKind; const AVarName: string; AIsOf: Boolean; AIterable: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FVarKind := AVarKind;
+  FVarName := AVarName;
+  FIsOf := AIsOf;
+  FIterable := AIterable;
+  FBody := ABody;
+end;
+
+destructor TFloriaJSForInOfStmt.Destroy();
+begin
+  FreeAndNil(FIterable);
+  FreeAndNil(FBody);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSForInOfStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitForInOfStmt(Self);
 end;
 
 { TFloriaJSSwitchCase }

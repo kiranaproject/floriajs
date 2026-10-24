@@ -81,7 +81,7 @@ type
     function  ParseIfStatement(): TFloriaJSIfStmt;
     function  ParseWhileStatement(): TFloriaJSWhileStmt;
     function  ParseDoWhileStatement(): TFloriaJSWhileStmt;
-    function  ParseForStatement(): TFloriaJSForStmt;
+    function  ParseForStatement(): TFloriaJSStmtNode;
     function  ParseSwitchStatement(): TFloriaJSSwitchStmt;
     function  ParseTryStatement(): TFloriaJSTryStmt;
     function  ParseThrowStatement(): TFloriaJSThrowStmt;
@@ -1182,33 +1182,88 @@ begin
   Result := TFloriaJSWhileStmt.Create(cond, body, True, startLine, startCol);
 end;
 
-function TFloriaJSParser.ParseForStatement(): TFloriaJSForStmt;
+function TFloriaJSParser.ParseForStatement(): TFloriaJSStmtNode;
 var
   init: TFloriaJSASTNode;
-  test, update: TFloriaJSExprNode;
+  test, update, iterable: TFloriaJSExprNode;
   body: TFloriaJSStmtNode;
   startLine, startCol: Integer;
+  varKind: TFloriaJSTokenKind;
+  varName, declName: string;
+  isOf: Boolean;
+  varStmt: TFloriaJSVarStmt;
+  declInit: TFloriaJSExprNode;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
 
   Consume(tkLParen, 'Expected ''('' after ''for''');
 
-  { Initializer }
-  if Match(tkSemicolon) then
-    init := nil
-  else if Match(tkLet) then
-    init := ParseVarDeclaration(tkLet)
-  else if Match(tkConst) then
-    init := ParseVarDeclaration(tkConst)
-  else if Match(tkVar) then
-    init := ParseVarDeclaration(tkVar)
-  else
+  // 1. Check for 'var', 'let', 'const'
+  if (FCurrent.Kind in [tkVar, tkLet, tkConst]) and (FLexer.PeekToken().Kind = tkIdentifier) then
   begin
-    init := ParseExpressionStatement();
-  end;
+    varKind := FCurrent.Kind;
+    Advance(); // consume var / let / const
+    Advance(); // consume identifier
+    varName := FPrevious.Text;
 
-  { Condition }
+    if (FCurrent.Kind = tkIn) or (FCurrent.Kind = tkOf) then
+    begin
+      isOf := (FCurrent.Kind = tkOf);
+      Advance(); // consume 'in' or 'of'
+      iterable := ParseExpression();
+      Consume(tkRParen, 'Expected '')'' after for loop iterable');
+      body := ParseStatement();
+      Exit(TFloriaJSForInOfStmt.Create(varKind, varName, isOf, iterable, body, startLine, startCol));
+    end;
+
+    // Classic for loop variable declaration
+    varStmt := TFloriaJSVarStmt.Create(varKind, startLine, startCol);
+    if Match(tkAssign) then
+      declInit := ParseAssignmentExpression()
+    else
+      declInit := nil;
+    varStmt.AddDeclarator(varName, declInit);
+
+    while Match(tkComma) do
+    begin
+      if Match(tkIdentifier) then
+        declName := FPrevious.Text
+      else
+      begin
+        ErrorAtCurrent('Expected variable name');
+        Break;
+      end;
+      if Match(tkAssign) then
+        declInit := ParseAssignmentExpression()
+      else
+        declInit := nil;
+      varStmt.AddDeclarator(declName, declInit);
+    end;
+
+    Consume(tkSemicolon, 'Expected '';'' after for loop initializer');
+    init := varStmt;
+  end
+  // 2. Check for existing identifier: for (x in y) or for (x of y)
+  else if (FCurrent.Kind = tkIdentifier) and (FLexer.PeekToken().Kind in [tkIn, tkOf]) then
+  begin
+    Advance(); // consume identifier
+    varName := FPrevious.Text;
+    isOf := (FCurrent.Kind = tkOf);
+    Advance(); // consume 'in' or 'of'
+    iterable := ParseExpression();
+    Consume(tkRParen, 'Expected '')'' after for loop iterable');
+    body := ParseStatement();
+    Exit(TFloriaJSForInOfStmt.Create(tkEOF, varName, isOf, iterable, body, startLine, startCol));
+  end
+  // 3. Classic for loop with empty init
+  else if Match(tkSemicolon) then
+    init := nil
+  // 4. Classic for loop with expression statement init
+  else
+    init := ParseExpressionStatement();
+
+  // Classic for loop condition
   if Match(tkSemicolon) then
     test := nil
   else
@@ -1217,7 +1272,7 @@ begin
     Consume(tkSemicolon, 'Expected '';'' after for loop condition');
   end;
 
-  { Update }
+  // Classic for loop update
   if Match(tkRParen) then
     update := nil
   else

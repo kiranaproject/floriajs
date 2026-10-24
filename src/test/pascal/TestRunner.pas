@@ -119,6 +119,7 @@ type
     procedure TestJSONSupport();
     procedure TestTemplateLiteralInterpolation();
     procedure TestObjectAndArrayLiteralCompletion();
+    procedure TestIterationStatements();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -2272,6 +2273,89 @@ begin
     res := engine.Execute('function sum(a, b, c) { return a + b + c; } sum(...[10, 20, 30]);');
     AssertTrue('Spread call arguments success', res.Success);
     AssertEquals('Spread call sum', 60.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestIterationStatements();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { 1. for..of over array }
+    res := engine.Execute(
+      'var sum = 0;' + LineEnding +
+      'for (const x of [10, 20, 30]) {' + LineEnding +
+      '  sum += x;' + LineEnding +
+      '}' + LineEnding +
+      'sum;'
+    );
+    AssertTrue('for..of array success', res.Success);
+    AssertEquals('for..of array sum = 60', 60.0, res.NumberValue, 0.0001);
+
+    { 2. for..of over string }
+    res := engine.Execute(
+      'var rev = "";' + LineEnding +
+      'for (var ch of "abc") {' + LineEnding +
+      '  rev = ch + rev;' + LineEnding +
+      '}' + LineEnding +
+      'rev;'
+    );
+    AssertTrue('for..of string success', res.Success);
+    AssertEquals('for..of string reversed', 'cba', res.StringValue);
+
+    { 3. for..in over object own keys }
+    res := engine.Execute(
+      'var obj = { a: 1, b: 2 };' + LineEnding +
+      'var keys = [];' + LineEnding +
+      'for (const k in obj) {' + LineEnding +
+      '  keys.push(k);' + LineEnding +
+      '}' + LineEnding +
+      'keys.sort().join(",");'
+    );
+    AssertTrue('for..in object success', res.Success);
+    AssertEquals('for..in keys = a,b', 'a,b', res.StringValue);
+
+    { 4. for..in traverses prototype chain }
+    res := engine.Execute(
+      'var proto = { inherited: 99 };' + LineEnding +
+      'var child = Object.create(proto);' + LineEnding +
+      'child.own = 1;' + LineEnding +
+      'var keys = [];' + LineEnding +
+      'for (var k in child) {' + LineEnding +
+      '  keys.push(k);' + LineEnding +
+      '}' + LineEnding +
+      'keys.sort().join(",");'
+    );
+    AssertTrue('for..in prototype chain success', res.Success);
+    AssertEquals('for..in includes inherited keys', 'inherited,own', res.StringValue);
+
+    { 5. break and continue in for..of }
+    res := engine.Execute(
+      'var sum = 0;' + LineEnding +
+      'for (const x of [1, 2, 3, 4, 5]) {' + LineEnding +
+      '  if (x === 2) continue;' + LineEnding +
+      '  if (x === 4) break;' + LineEnding +
+      '  sum += x;' + LineEnding +
+      '}' + LineEnding +
+      'sum;'
+    );
+    AssertTrue('for..of break/continue success', res.Success);
+    AssertEquals('for..of filtered sum = 4 (1 + 3)', 4.0, res.NumberValue, 0.0001);
+
+    { 6. Per-iteration environment captured by closures in for..of }
+    res := engine.Execute(
+      'var funcs = [];' + LineEnding +
+      'for (const x of [10, 20, 30]) {' + LineEnding +
+      '  funcs.push(() => x);' + LineEnding +
+      '}' + LineEnding +
+      'funcs[0]() + funcs[1]() + funcs[2]();'
+    );
+    AssertTrue('for..of closure capture success', res.Success);
+    AssertEquals('closures capture separate iteration bindings', 60.0, res.NumberValue, 0.0001);
   finally
     engine.Free();
   end;

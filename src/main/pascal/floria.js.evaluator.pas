@@ -900,6 +900,7 @@ var
   ifStmt: TFloriaJSIfStmt;
   whileStmt: TFloriaJSWhileStmt;
   forStmt: TFloriaJSForStmt;
+  forInOfStmt: TFloriaJSForInOfStmt;
   switchStmt: TFloriaJSSwitchStmt;
   caseClause: TFloriaJSSwitchCase;
   tryStmt: TFloriaJSTryStmt;
@@ -909,13 +910,16 @@ var
   fnDecl: TFloriaJSFunctionDecl;
   fnObj: TFloriaJSFunction;
   blockEnv, loopEnv, switchEnv: TFloriaJSEnvironment;
-  initVal, retVal, discVal: TFloriaJSValue;
+  initVal, retVal, discVal, iterableVal, loopItemVal: TFloriaJSValue;
   pendingValue: TFloriaJSValue;
-  pendingLabel: string;
+  pendingLabel, iterStr, propKeyStr: string;
   pending: TFloriaJSTryPending;
   initNode: TFloriaJSASTNode;
   closureMark: Integer;
   startIdx, i, j, count: Integer;
+  iterArr: TFloriaJSArray;
+  currObj: TFloriaJSObject;
+  keysList: TStringList;
 begin
   if AStmt = nil then
     Exit(JSMakeUndefined());
@@ -1083,6 +1087,175 @@ begin
         ReleaseEnv(loopEnv)
       else
         OrphanEnv(loopEnv);
+    end;
+    Exit;
+  end;
+
+  // 6b. For-In / For-Of Statement
+  if AStmt is TFloriaJSForInOfStmt then
+  begin
+    forInOfStmt := TFloriaJSForInOfStmt(AStmt);
+    iterableVal := EvaluateExpr(forInOfStmt.Iterable, AEnv);
+    Result := JSMakeUndefined();
+
+    if forInOfStmt.IsOf then
+    begin
+      // for..of
+      if iterableVal.IsArray() then
+      begin
+        iterArr := iterableVal.AsArray();
+        for i := 0 to iterArr.Length - 1 do
+        begin
+          loopItemVal := iterArr.GetElement(i);
+          loopEnv := NewEnv(AEnv);
+          closureMark := FClosureCount;
+          try
+            if forInOfStmt.VarKind in [tkLet, tkConst] then
+              loopEnv.Define(forInOfStmt.VarName, loopItemVal)
+            else if forInOfStmt.VarKind = tkVar then
+            begin
+              AEnv.Define(forInOfStmt.VarName, loopItemVal);
+              loopEnv.Define(forInOfStmt.VarName, loopItemVal);
+            end
+            else
+              AEnv.Assign(forInOfStmt.VarName, loopItemVal);
+
+            try
+              Result := ExecuteStmt(forInOfStmt.Body, loopEnv);
+            except
+              on E: EFloriaJSBreak do
+              begin
+                if (E.LabelName = '') or (E.LabelName = forInOfStmt.LabelName) then
+                  Break
+                else
+                  raise;
+              end;
+              on E: EFloriaJSContinue do
+              begin
+                if (E.LabelName <> '') and (E.LabelName <> forInOfStmt.LabelName) then
+                  raise;
+              end;
+            end;
+          finally
+            if FClosureCount = closureMark then
+              ReleaseEnv(loopEnv)
+            else
+              OrphanEnv(loopEnv);
+          end;
+        end;
+      end
+      else if iterableVal.IsString() then
+      begin
+        iterStr := iterableVal.StrVal;
+        for i := 1 to Length(iterStr) do
+        begin
+          loopItemVal := JSMakeString(iterStr[i]);
+          loopEnv := NewEnv(AEnv);
+          closureMark := FClosureCount;
+          try
+            if forInOfStmt.VarKind in [tkLet, tkConst] then
+              loopEnv.Define(forInOfStmt.VarName, loopItemVal)
+            else if forInOfStmt.VarKind = tkVar then
+            begin
+              AEnv.Define(forInOfStmt.VarName, loopItemVal);
+              loopEnv.Define(forInOfStmt.VarName, loopItemVal);
+            end
+            else
+              AEnv.Assign(forInOfStmt.VarName, loopItemVal);
+
+            try
+              Result := ExecuteStmt(forInOfStmt.Body, loopEnv);
+            except
+              on E: EFloriaJSBreak do
+              begin
+                if (E.LabelName = '') or (E.LabelName = forInOfStmt.LabelName) then
+                  Break
+                else
+                  raise;
+              end;
+              on E: EFloriaJSContinue do
+              begin
+                if (E.LabelName <> '') and (E.LabelName <> forInOfStmt.LabelName) then
+                  raise;
+              end;
+            end;
+          finally
+            if FClosureCount = closureMark then
+              ReleaseEnv(loopEnv)
+            else
+              OrphanEnv(loopEnv);
+          end;
+        end;
+      end;
+    end
+    else
+    begin
+      // for..in
+      keysList := TStringList.Create();
+      try
+        if iterableVal.IsObject() then
+        begin
+          currObj := iterableVal.AsObject();
+          while (currObj <> nil) and (currObj <> FHeap.GetObjectPrototype()) do
+          begin
+            for i := 0 to currObj.GetPropertyCount() - 1 do
+            begin
+              propKeyStr := currObj.GetPropertyKey(i);
+              if keysList.IndexOf(propKeyStr) < 0 then
+                keysList.Add(propKeyStr);
+            end;
+            currObj := currObj.Prototype;
+          end;
+        end
+        else if iterableVal.IsArray() then
+        begin
+          iterArr := iterableVal.AsArray();
+          for i := 0 to iterArr.Length - 1 do
+            keysList.Add(IntToStr(i));
+        end;
+
+        for i := 0 to keysList.Count - 1 do
+        begin
+          loopItemVal := JSMakeString(keysList[i]);
+          loopEnv := NewEnv(AEnv);
+          closureMark := FClosureCount;
+          try
+            if forInOfStmt.VarKind in [tkLet, tkConst] then
+              loopEnv.Define(forInOfStmt.VarName, loopItemVal)
+            else if forInOfStmt.VarKind = tkVar then
+            begin
+              AEnv.Define(forInOfStmt.VarName, loopItemVal);
+              loopEnv.Define(forInOfStmt.VarName, loopItemVal);
+            end
+            else
+              AEnv.Assign(forInOfStmt.VarName, loopItemVal);
+
+            try
+              Result := ExecuteStmt(forInOfStmt.Body, loopEnv);
+            except
+              on E: EFloriaJSBreak do
+              begin
+                if (E.LabelName = '') or (E.LabelName = forInOfStmt.LabelName) then
+                  Break
+                else
+                  raise;
+              end;
+              on E: EFloriaJSContinue do
+              begin
+                if (E.LabelName <> '') and (E.LabelName <> forInOfStmt.LabelName) then
+                  raise;
+              end;
+            end;
+          finally
+            if FClosureCount = closureMark then
+              ReleaseEnv(loopEnv)
+            else
+              OrphanEnv(loopEnv);
+          end;
+        end;
+      finally
+        keysList.Free();
+      end;
     end;
     Exit;
   end;
