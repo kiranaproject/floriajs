@@ -114,6 +114,8 @@ type
     procedure TestConsoleCapture();
     procedure TestCommaOperatorAndLabeledBreak();
     procedure TestArrowFunctions();
+    procedure TestStandardGlobalsAndArguments();
+    procedure TestObjectUtilities();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -1889,6 +1891,170 @@ begin
     res := engine.Execute('var f = async (x) => x + 1; typeof f;');
     AssertTrue('Async arrow typeof success', res.Success);
     AssertEquals('typeof async arrow is function', 'function', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestStandardGlobalsAndArguments();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { Number static methods }
+    res := engine.Execute('Number.isNaN(NaN);');
+    AssertTrue('Number.isNaN(NaN)', res.BooleanValue);
+
+    res := engine.Execute('Number.isNaN("NaN");');
+    AssertFalse('Number.isNaN("NaN") is false', res.BooleanValue);
+
+    res := engine.Execute('Number.isNaN(42);');
+    AssertFalse('Number.isNaN(42) is false', res.BooleanValue);
+
+    res := engine.Execute('Number.isFinite(42);');
+    AssertTrue('Number.isFinite(42)', res.BooleanValue);
+
+    res := engine.Execute('Number.isFinite(Infinity);');
+    AssertFalse('Number.isFinite(Infinity) is false', res.BooleanValue);
+
+    res := engine.Execute('Number.isFinite("42");');
+    AssertFalse('Number.isFinite("42") is false', res.BooleanValue);
+
+    res := engine.Execute('Number.isInteger(42);');
+    AssertTrue('Number.isInteger(42)', res.BooleanValue);
+
+    res := engine.Execute('Number.isInteger(42.5);');
+    AssertFalse('Number.isInteger(42.5) is false', res.BooleanValue);
+
+    res := engine.Execute('Number.parseInt("101", 2);');
+    AssertEquals('Number.parseInt binary', 5.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('Number.parseFloat("3.14px");');
+    AssertEquals('Number.parseFloat prefix', 3.14, res.NumberValue, 0.0001);
+
+    { Number constants }
+    res := engine.Execute('Number.MAX_SAFE_INTEGER === 9007199254740991;');
+    AssertTrue('Number.MAX_SAFE_INTEGER', res.BooleanValue);
+
+    { globalThis self-reference and globals access }
+    res := engine.Execute('globalThis.globalThis === globalThis;');
+    AssertTrue('globalThis.globalThis === globalThis', res.BooleanValue);
+
+    res := engine.Execute('globalThis.Math.abs(-42);');
+    AssertEquals('globalThis.Math.abs(-42) = 42', 42.0, res.NumberValue, 0.0001);
+
+    { arguments object inside normal function }
+    res := engine.Execute(
+      'function countArgs() {' + LineEnding +
+      '  return arguments.length;' + LineEnding +
+      '}' + LineEnding +
+      'countArgs(10, 20, 30);'
+    );
+    AssertTrue('arguments.length success', res.Success);
+    AssertEquals('arguments.length = 3', 3.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute(
+      'function firstArg() {' + LineEnding +
+      '  return arguments[0] + arguments[1];' + LineEnding +
+      '}' + LineEnding +
+      'firstArg("hello ", "world");'
+    );
+    AssertTrue('arguments indexing success', res.Success);
+    AssertEquals('arguments indexed sum', 'hello world', res.StringValue);
+
+    { Arrow function captures outer arguments }
+    res := engine.Execute(
+      'function outer() {' + LineEnding +
+      '  var arrow = () => arguments[0];' + LineEnding +
+      '  return arrow();' + LineEnding +
+      '}' + LineEnding +
+      'outer(99);'
+    );
+    AssertTrue('arrow uses outer arguments', res.Success);
+    AssertEquals('arrow arguments[0] = 99', 99.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestObjectUtilities();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { Object.keys }
+    res := engine.Execute('var obj = { a: 1, b: 2 }; Object.keys(obj).join(",");');
+    AssertTrue('Object.keys success', res.Success);
+    AssertEquals('Object.keys = a,b', 'a,b', res.StringValue);
+
+    { Object.values }
+    res := engine.Execute('var obj = { a: 10, b: 20 }; Object.values(obj).join(",");');
+    AssertTrue('Object.values success', res.Success);
+    AssertEquals('Object.values = 10,20', '10,20', res.StringValue);
+
+    { Object.entries }
+    res := engine.Execute('var obj = { a: 1 }; Object.entries(obj)[0].join(":");');
+    AssertTrue('Object.entries success', res.Success);
+    AssertEquals('Object.entries = a:1', 'a:1', res.StringValue);
+
+    { Object.assign }
+    res := engine.Execute('var target = { a: 1 }; Object.assign(target, { b: 2 }, { c: 3 }); target.a + target.b + target.c;');
+    AssertTrue('Object.assign success', res.Success);
+    AssertEquals('Object.assign combined sum', 6.0, res.NumberValue, 0.0001);
+
+    { Object.create with prototype inheritance }
+    res := engine.Execute(
+      'var proto = { greet: "hi" };' + LineEnding +
+      'var child = Object.create(proto);' + LineEnding +
+      'child.greet;'
+    );
+    AssertTrue('Object.create prototype inheritance success', res.Success);
+    AssertEquals('child.greet = hi', 'hi', res.StringValue);
+
+    { Object.create(null) has no prototype }
+    res := engine.Execute(
+      'var bare = Object.create(null);' + LineEnding +
+      'Object.getPrototypeOf(bare) === null;'
+    );
+    AssertTrue('Object.create(null) success', res.Success);
+    AssertTrue('bare prototype is null', res.BooleanValue);
+
+    { Object.getPrototypeOf }
+    res := engine.Execute(
+      'var proto = { x: 1 };' + LineEnding +
+      'var child = Object.create(proto);' + LineEnding +
+      'Object.getPrototypeOf(child) === proto;'
+    );
+    AssertTrue('Object.getPrototypeOf match success', res.Success);
+    AssertTrue('getPrototypeOf matches proto', res.BooleanValue);
+
+    { hasOwnProperty }
+    res := engine.Execute(
+      'var proto = { inherited: true };' + LineEnding +
+      'var obj = Object.create(proto);' + LineEnding +
+      'obj.own = true;' + LineEnding +
+      'obj.hasOwnProperty("own") && !obj.hasOwnProperty("inherited") && !obj.hasOwnProperty("toString");'
+    );
+    AssertTrue('hasOwnProperty test success', res.Success);
+    AssertTrue('hasOwnProperty checks own only', res.BooleanValue);
+
+    { Object.prototype.toString }
+    res := engine.Execute('({}).toString();');
+    AssertTrue('({}).toString() success', res.Success);
+    AssertEquals('({}).toString()', '[object Object]', res.StringValue);
+
+    res := engine.Execute('[1, 2].toString();');
+    AssertTrue('[1, 2].toString() success', res.Success);
+    AssertEquals('[1, 2].toString()', '[object Array]', res.StringValue);
+
+    { Function.prototype.toString }
+    res := engine.Execute('function f() {} f.toString();');
+    AssertTrue('f.toString() success', res.Success);
+    AssertEquals('f.toString()', 'function f() { [native code] }', res.StringValue);
   finally
     engine.Free();
   end;
