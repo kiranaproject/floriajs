@@ -20,13 +20,13 @@ them.
 | `while`, `do…while` | Yes | `break` / `continue`, including labels. |
 | Classic `for` | Yes | `var`/`let`/`const` initializers, multiple declarators, optional clauses. |
 | `for…of` | Yes | Arrays and strings. Target must be a plain identifier. |
-| `for…in` | Yes | Own and inherited enumerable keys, skipping `Object.prototype`. Target must be a plain identifier. |
+| `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates prototype method names rather than indices; use `for…of` for arrays. Target must be a plain identifier. |
 | `switch` / `case` / `default` | Yes | Strict equality, fall-through, `break`. |
 | `try` / `catch` / `finally` | Yes | Catch binding is optional; `finally` always runs. |
 | `throw` | Yes | Throws any value; caught as `EFloriaJSThrow` by the runtime. |
 | `break` / `continue` with labels | Yes | Labels work on `for`, `for…in`, `for…of`, `while`, and labeled statements. |
 | `return` | Yes | Not allowed outside a function (raises). |
-| Empty statement (`;`) | No | A leading `;` is a parse error. |
+| Empty statement (`;`) | Yes | Treated as an empty block. |
 | `with` | No | Parsed as an identifier/expression; no binding semantics. |
 | `debugger` | No | Parsed as an identifier; no effect. |
 | `class` | No | Some forms are silently ignored, others fail to parse. |
@@ -151,7 +151,8 @@ Prototype methods:
 `reduceRight`.
 
 Statics: `Array.isArray`, `Array.from` (arrays, strings, array-like objects,
-optional map function), `Array.of`.
+optional map function), `Array.of`. `Array.prototype` is the shared prototype
+used by array values, and `[] instanceof Array` is `true`.
 
 Not implemented: `flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`,
 `values`, `entries`. `arr.toString()` currently resolves to the generic
@@ -171,19 +172,27 @@ support regex patterns or `$&`-style replacement templates. Not implemented:
 `match`, `search`, `localeCompare`, `normalize`, `String.fromCharCode`,
 `String.fromCodePoint`.
 
+`String.prototype` is the shared prototype used by primitive strings, so
+`String.prototype.charAt === "".charAt` is true.
+
 ### Object
 
 - `Object.keys/values/entries` enumerate **own** properties in insertion order.
   Accessors are listed by key, but `values`/`entries` read the stored slot
   without invoking the getter.
-- `Object.assign` copies own enumerable properties from object sources (arrays
-  and functions are objects and therefore copyable).
+- `Object.assign` copies own enumerable properties from object sources. Arrays
+  and functions have no stored own properties in this runtime, so assigning
+  from them copies nothing.
 - `Object.create(proto)` creates an object with the given prototype;
   `Object.create(null)` creates a null-prototype object.
 - `Object.getPrototypeOf` returns the prototype or `null`.
 - `hasOwnProperty` is available through `Object.prototype` on normal objects.
 - `Function.prototype.toString` returns a stable placeholder:
   `function name() { [native code] }`.
+
+Function objects currently expose only `prototype` and `toString`.
+`call`, `apply`, `bind`, `length`, and `name` are not implemented (accessing
+them yields `undefined`).
 
 Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
 `freeze`/`seal`, `fromEntries`.
@@ -229,7 +238,6 @@ These are the differences most likely to surprise a JavaScript developer:
 | `const` | Reassignment is allowed. |
 | `var` | Block-scoped; not hoisted. |
 | Function declarations | Not hoisted. |
-| Empty statements | `;` alone is a parse error. |
 | `void` | Not an operator. `void 0` happens to yield `0` because it is two expressions. |
 | Logical assignment | `&&=` and `\|\|=` are not implemented. |
 | Tagged templates | Not implemented; often silently treated as two expressions. |
@@ -246,11 +254,13 @@ These are the differences most likely to surprise a JavaScript developer:
 | Number formatting | Integral doubles print without a fractional part; general formatting uses the host locale. |
 | Array `toString` | Inherits `Object.prototype.toString` and yields `[object Array]`. |
 | Array enumeration | `Object.keys/values/entries(arr)` only see named properties; numeric indices and `length` are not included. `arr.hasOwnProperty(0)` is `false`. Use `in` or direct indexing instead. |
+| Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
 | `JSON.stringify` | Ignores the replacer and does not invoke getters. |
 | Promise construction | `new Promise(executor)` is not supported. |
 | Optional chaining | Short-circuits the immediate operation, not argument evaluation of `a?.f(args)`. |
 | `for…in`/`for…of` targets | Must be simple identifiers; destructuring targets are not parsed. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
+| `for…in` on arrays | Enumerates prototype method names, not element indices. Prefer `for…of` or a classic index loop. |
 | `for…of` on non-iterables | Runs zero iterations. |
 
 ## Verifying behaviour

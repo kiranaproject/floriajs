@@ -220,7 +220,8 @@ TFloriaAnchorEdge = (
 );
 ```
 
-Anchor lines are heap-tracked JavaScript objects. Reading `item.left`,
+Anchor lines are JavaScript object values owned by the item; each item frees
+its own anchor-line objects in its destructor. Reading `item.left`,
 `item.right`, and similar properties returns one. Assigning it to an
 `anchors.*` property registers the source item as an anchor target.
 
