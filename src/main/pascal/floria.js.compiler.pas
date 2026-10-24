@@ -210,6 +210,9 @@ function TFloriaJSCompiler.CompileProgram(AProgram: TFloriaJSProgram): TFloriaJS
 var
   i, count: Integer;
 begin
+  FLoopDepth := 0;
+  FTryDepth := 0;
+  FEnvDepth := 0;
   FIsTopLevel := True;
   FBytecode := TFloriaJSBytecode.Create('main');
   Result := FBytecode;
@@ -232,6 +235,9 @@ end;
 
 function TFloriaJSCompiler.CompileExpression(AExpr: TFloriaJSExprNode): TFloriaJSBytecode;
 begin
+  FLoopDepth := 0;
+  FTryDepth := 0;
+  FEnvDepth := 0;
   FIsTopLevel := False;
   FResultLoc := -1;
   FBytecode := TFloriaJSBytecode.Create('expr');

@@ -18,7 +18,7 @@ unit floria.js.value;
 interface
 
 uses
-  Classes, SysUtils, Math, floria.js.types, floria.js.ast;
+  Classes, SysUtils, Math, floria.js.types;
 
 type
   { Forward Declarations }
@@ -173,8 +173,6 @@ type
     FIsNative: Boolean;
     FNativeProc: TFloriaJSNativeProc;
     FNativeMethod: TFloriaJSNativeMethod;
-    FParamNames: TStringList;
-    FBody: TFloriaJSStmtNode;
     FBytecode: TObject;
     FClosureEnv: Pointer; // Lexical environment TFloriaJSEnvironment
     FIsAsync: Boolean;
@@ -182,7 +180,6 @@ type
   public
     constructor CreateNative(const AName: string; AProc: TFloriaJSNativeProc);
     constructor CreateNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
-    constructor CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False; AIsArrow: Boolean = False);
     constructor CreateBytecode(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean = False; AIsAsync: Boolean = False);
     destructor Destroy(); override;
 
@@ -195,8 +192,6 @@ type
     property IsArrow: Boolean read FIsArrow write FIsArrow;
     property NativeProc: TFloriaJSNativeProc read FNativeProc;
     property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
-    property ParamNames: TStringList read FParamNames;
-    property Body: TFloriaJSStmtNode read FBody;
     property Bytecode: TObject read FBytecode write FBytecode;
     property ClosureEnv: Pointer read FClosureEnv;
   end;
@@ -297,7 +292,6 @@ type
     function  NewPromise(): TFloriaJSPromise;
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
     function  NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
-    function  NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean = False; AIsAsync: Boolean = False; AIsArrow: Boolean = False): TFloriaJSFunction;
     function  NewBytecodeFunction(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean = False; AIsAsync: Boolean = False): TFloriaJSFunction;
 
     { The shared prototypes are created on first use and pinned, so they stay
@@ -1318,8 +1312,6 @@ begin
   FIsNative := True;
   FNativeProc := AProc;
   FNativeMethod := nil;
-  FParamNames := TStringList.Create();
-  FBody := nil;
   FClosureEnv := nil;
   FIsAsync := False;
   FIsArrow := False;
@@ -1332,39 +1324,9 @@ begin
   FIsNative := True;
   FNativeProc := nil;
   FNativeMethod := AMethod;
-  FParamNames := TStringList.Create();
-  FBody := nil;
   FClosureEnv := nil;
   FIsAsync := False;
   FIsArrow := False;
-end;
-
-constructor TFloriaJSFunction.CreateUser(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean; AIsArrow: Boolean);
-var
-  i: Integer;
-begin
-  inherited Create(nil);
-  FName := AName;
-  FIsNative := False;
-  FNativeProc := nil;
-  FNativeMethod := nil;
-  FParamNames := TStringList.Create();
-  if AParams <> nil then
-  begin
-    FParamNames.Assign(AParams);
-    for i := 0 to FParamNames.Count - 1 do
-      if FParamNames.Objects[i] <> nil then
-        TFloriaJSASTNode(FParamNames.Objects[i]).Retain();
-  end;
-  FBody := ABody;
-  FClosureEnv := AClosure;
-  FIsAsync := AIsAsync;
-  FIsArrow := AIsArrow;
-  { The body points into the AST that declared it. Holding a reference on it
-    keeps the body alive for as long as this function exists, even when the
-    script that declared it has already been discarded. }
-  if (FBody <> nil) and not AOwnsBody then
-    FBody.Retain();
 end;
 
 constructor TFloriaJSFunction.CreateBytecode(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean; AIsAsync: Boolean);
@@ -1374,8 +1336,6 @@ begin
   FIsNative := False;
   FNativeProc := nil;
   FNativeMethod := nil;
-  FParamNames := TStringList.Create();
-  FBody := nil;
   FBytecode := ABytecode;
   if FBytecode <> nil then
     TFloriaJSBytecode(FBytecode).Retain();
@@ -1385,21 +1345,7 @@ begin
 end;
 
 destructor TFloriaJSFunction.Destroy();
-var
-  i: Integer;
 begin
-  if FParamNames <> nil then
-  begin
-    for i := 0 to FParamNames.Count - 1 do
-      if FParamNames.Objects[i] <> nil then
-        TFloriaJSASTNode(FParamNames.Objects[i]).Release();
-    FreeAndNil(FParamNames);
-  end;
-  if FBody <> nil then
-  begin
-    FBody.Release();
-    FBody := nil;
-  end;
   if FBytecode <> nil then
   begin
     TFloriaJSBytecode(FBytecode).Release();
@@ -2288,11 +2234,6 @@ end;
 function TFloriaJSHeap.NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
 begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateNativeMethod(AName, AMethod)));
-end;
-
-function TFloriaJSHeap.NewUserFunction(const AName: string; AParams: TStrings; ABody: TFloriaJSStmtNode; AClosure: Pointer; AOwnsBody: Boolean; AIsAsync: Boolean; AIsArrow: Boolean): TFloriaJSFunction;
-begin
-  Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateUser(AName, AParams, ABody, AClosure, AOwnsBody, AIsAsync, AIsArrow)));
 end;
 
 function TFloriaJSHeap.NewBytecodeFunction(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean; AIsAsync: Boolean): TFloriaJSFunction;

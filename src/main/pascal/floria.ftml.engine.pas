@@ -258,13 +258,12 @@ begin
       begin
         fnCode := FContext.Compiler.CompileFunctionBody(fnDecl.Name, fnDecl.Parameters, fnDecl.Body);
         fnObj := FContext.Heap.NewBytecodeFunction(fnDecl.Name, fnCode, Pointer(itemEnv));
-      end
-      else
-        fnObj := FContext.Heap.NewUserFunction(fnDecl.Name, fnDecl.Parameters, fnDecl.Body, Pointer(itemEnv));
-      if FDocumentObjects <> nil then
-        FDocumentObjects.Add(fnObj);
-      itemEnv.Define(fnDecl.Name, JSMakeObject(fnObj));
-      item.SetProperty(fnDecl.Name, JSMakeObject(fnObj));
+        fnCode.Release();
+        if FDocumentObjects <> nil then
+          FDocumentObjects.Add(fnObj);
+        itemEnv.Define(fnDecl.Name, JSMakeObject(fnObj));
+        item.SetProperty(fnDecl.Name, JSMakeObject(fnObj));
+      end;
     end;
   end;
 

@@ -22,9 +22,6 @@ uses
   floria.js.bytecode, floria.js.vm, floria.js.compiler;
 
 type
-  { Execution Backend Engine }
-  TFloriaJSExecutionBackend = (fjbInterpreter, fjbBytecodeVM);
-
   { Forward Declarations }
   TFloriaJSEngine = class;
   TFloriaJSContext = class;
@@ -38,7 +35,6 @@ type
     FGlobalEnv: TFloriaJSEnvironment;
     FVM: TFloriaJSVM;
     FCompiler: TFloriaJSCompiler;
-    FBackend: TFloriaJSExecutionBackend;
     FOutput: TStringList;
 
     procedure InitContext();
@@ -58,7 +54,6 @@ type
 
     function  Evaluate(const AScript: string): TFloriaJSResult; virtual;
     function  EvaluateValue(const AScript: string): TFloriaJSValue; virtual;
-    function  EvaluateBytecode(const AScript: string): TFloriaJSResult; virtual;
     function  Call(const AFuncName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue; virtual;
 
     { Gives a value that was handed out back to the runtime. The object the
@@ -74,7 +69,6 @@ type
     property GlobalEnv: TFloriaJSEnvironment read FGlobalEnv;
     property VM: TFloriaJSVM read FVM;
     property Compiler: TFloriaJSCompiler read FCompiler;
-    property Backend: TFloriaJSExecutionBackend read FBackend write FBackend;
     property Output: TStringList read FOutput;
   end;
 
@@ -85,9 +79,6 @@ type
     FContexts: TFPList;
     FDefaultContext: TFloriaJSContext;
     FMemoryLimit: NativeUInt;
-    FBackend: TFloriaJSExecutionBackend;
-    function  GetBackend(): TFloriaJSExecutionBackend;
-    procedure SetBackend(ABackend: TFloriaJSExecutionBackend);
   public
     constructor Create();
     destructor Destroy(); override;
@@ -98,14 +89,12 @@ type
 
     function  Execute(const AScript: string): TFloriaJSResult; virtual;
     function  ExecuteValue(const AScript: string): TFloriaJSValue; virtual;
-    function  ExecuteBytecode(const AScript: string): TFloriaJSResult; virtual;
     procedure ReleaseValue(const AValue: TFloriaJSValue); virtual;
     procedure RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
 
     property Initialized: Boolean read FInitialized;
     property DefaultContext: TFloriaJSContext read FDefaultContext;
     property MemoryLimit: NativeUInt read FMemoryLimit write FMemoryLimit;
-    property Backend: TFloriaJSExecutionBackend read GetBackend write SetBackend;
   end;
 
 implementation
@@ -117,9 +106,6 @@ begin
   inherited Create();
   FEngine := AEngine;
   FName := AName;
-  FBackend := fjbBytecodeVM;
-  if AEngine <> nil then
-    FBackend := AEngine.Backend;
   FOutput := TStringList.Create();
   FHeap := TFloriaJSHeap.Create();
   FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil)));
@@ -216,19 +202,6 @@ begin
   end;
 end;
 
-function TFloriaJSContext.EvaluateBytecode(const AScript: string): TFloriaJSResult;
-var
-  savedBackend: TFloriaJSExecutionBackend;
-begin
-  savedBackend := FBackend;
-  FBackend := fjbBytecodeVM;
-  try
-    Result := Evaluate(AScript);
-  finally
-    FBackend := savedBackend;
-  end;
-end;
-
 function TFloriaJSContext.EvaluateValue(const AScript: string): TFloriaJSValue;
 begin
   Result := EvaluateScript(AScript);
@@ -317,25 +290,9 @@ constructor TFloriaJSEngine.Create();
 begin
   inherited Create();
   FInitialized := False;
-  FBackend := fjbBytecodeVM;
   FMemoryLimit := 64 * 1024 * 1024; { Default 64MB memory limit }
   FContexts := TFPList.Create();
   Initialize();
-end;
-
-function TFloriaJSEngine.GetBackend(): TFloriaJSExecutionBackend;
-begin
-  Result := FBackend;
-end;
-
-procedure TFloriaJSEngine.SetBackend(ABackend: TFloriaJSExecutionBackend);
-var
-  i: Integer;
-begin
-  FBackend := ABackend;
-  if FContexts <> nil then
-    for i := 0 to FContexts.Count - 1 do
-      TFloriaJSContext(FContexts[i]).Backend := ABackend;
 end;
 
 destructor TFloriaJSEngine.Destroy();
@@ -388,14 +345,6 @@ function TFloriaJSEngine.Execute(const AScript: string): TFloriaJSResult;
 begin
   if FDefaultContext <> nil then
     Result := FDefaultContext.Evaluate(AScript)
-  else
-    Result := FloriaJSMakeErrorResult('No active execution context');
-end;
-
-function TFloriaJSEngine.ExecuteBytecode(const AScript: string): TFloriaJSResult;
-begin
-  if FDefaultContext <> nil then
-    Result := FDefaultContext.EvaluateBytecode(AScript)
   else
     Result := FloriaJSMakeErrorResult('No active execution context');
 end;

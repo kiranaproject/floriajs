@@ -102,9 +102,6 @@ type
 
 implementation
 
-uses
-  floria.js.compiler;
-
 { TFloriaJSVM }
 
 constructor TFloriaJSVM.Create(AHeap: TFloriaJSHeap; AGlobalEnv: TFloriaJSEnvironment);
@@ -271,6 +268,7 @@ begin
     FFrames[FFP].Env := nil;
     FFrames[FFP].InitialEnv := nil;
     FFrames[FFP].ConstructedObj := nil;
+    FFrames[FFP].ThisVal := JSMakeUndefined();
     Dec(FFP);
   end;
 end;
@@ -427,7 +425,6 @@ var
   keysList: TStringList;
   promise: TFloriaJSPromise;
   targetIP: Integer;
-  comp: TFloriaJSCompiler;
 begin
   while FFP > AInitialFP do
   begin
@@ -436,7 +433,8 @@ begin
     begin
       // Implicit return undefined at end of bytecode
       retVal := JSMakeUndefined();
-      FSP := curFrame^.BaseBP;
+      while FSP > curFrame^.BaseBP do
+        Pop();
       if curFrame^.IsConstructor then
         Push(JSMakeObject(curFrame^.ConstructedObj))
       else
@@ -1009,16 +1007,6 @@ begin
             if fn = nil then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a function')));
 
-            if (fn.Bytecode = nil) and (not fn.IsNative) and (fn.Body <> nil) then
-            begin
-              comp := TFloriaJSCompiler.Create();
-              try
-                fn.Bytecode := comp.CompileFunctionBody(fn.Name, fn.ParamNames, fn.Body, fn.IsAsync, fn.IsArrow);
-              finally
-                comp.Free();
-              end;
-            end;
-
             if fn.IsNative then
             begin
               if Assigned(fn.NativeMethod) then
@@ -1143,16 +1131,6 @@ begin
             if (fn = nil) or fn.IsArrow then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
 
-            if (fn.Bytecode = nil) and (not fn.IsNative) and (fn.Body <> nil) then
-            begin
-              comp := TFloriaJSCompiler.Create();
-              try
-                fn.Bytecode := comp.CompileFunctionBody(fn.Name, fn.ParamNames, fn.Body, fn.IsAsync, fn.IsArrow);
-              finally
-                comp.Free();
-              end;
-            end;
-
             propVal := fn.GetProperty('prototype');
             if propVal.IsObject() then
               protoObj := propVal.AsObject()
@@ -1217,7 +1195,8 @@ begin
         opReturn:
           begin
             retVal := Pop();
-            FSP := curFrame^.BaseBP;
+            while FSP > curFrame^.BaseBP do
+              Pop();
             if curFrame^.IsConstructor then
             begin
               if retVal.IsObject() then
@@ -1338,7 +1317,6 @@ var
   promise: TFloriaJSPromise;
   resVal: TFloriaJSValue;
   argc, i, initialFP, initialBaseBP: Integer;
-  comp: TFloriaJSCompiler;
 begin
   if not AFuncVal.IsFunction() then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', AFuncVal.ToString() + ' is not a function')));
@@ -1346,16 +1324,6 @@ begin
   fn := AFuncVal.AsFunction();
   if fn = nil then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a function')));
-
-  if (fn.Bytecode = nil) and (not fn.IsNative) and (fn.Body <> nil) then
-  begin
-    comp := TFloriaJSCompiler.Create();
-    try
-      fn.Bytecode := comp.CompileFunctionBody(fn.Name, fn.ParamNames, fn.Body, fn.IsAsync, fn.IsArrow);
-    finally
-      comp.Free();
-    end;
-  end;
 
   if fn.IsNative then
   begin

@@ -101,8 +101,8 @@ type
     procedure TestBinaryAndUnaryOps();
   end;
 
-  { Test 7: Runtime AST Evaluator & Host Interop }
-  TFloriaJSEvaluatorTest = class(TTestCase)
+  { Test 7: VM Runtime Execution & Host Interop }
+  TFloriaJSRuntimeTest = class(TTestCase)
   published
     procedure TestArithmeticAndLogicalEval();
     procedure TestVariableScopeAndShadowing();
@@ -409,15 +409,9 @@ var
 begin
   engine := TFloriaJSEngine.Create();
   try
-    // Test direct ExecuteBytecode
-    res := engine.ExecuteBytecode('var a = 20, b = 22; a + b;');
-    AssertTrue('ExecuteBytecode success', res.Success);
-    AssertEquals('ExecuteBytecode result', 42.0, res.NumberValue, 0.0001);
-
-    // Switch engine backend to VM
-    engine.Backend := fjbBytecodeVM;
-    AssertEquals('Engine backend is VM', Ord(fjbBytecodeVM), Ord(engine.Backend));
-    AssertEquals('Default context backend is VM', Ord(fjbBytecodeVM), Ord(engine.DefaultContext.Backend));
+    res := engine.Execute('var a = 20, b = 22; a + b;');
+    AssertTrue('Execute arithmetic success', res.Success);
+    AssertEquals('Execute arithmetic result', 42.0, res.NumberValue, 0.0001);
 
     res := engine.Execute('function fib(n) { if (n <= 1) return n; return fib(n - 1) + fib(n - 2); } fib(8);');
     AssertTrue('VM backend recursive fib success', res.Success);
@@ -1583,9 +1577,9 @@ begin
   AssertEquals('ShiftLeft 1 << 3 = 8', 8.0, JSShiftLeft(JSMakeNumber(1), JSMakeNumber(3)).ToNumber(), 0.0001);
 end;
 
-{ TFloriaJSEvaluatorTest }
+{ TFloriaJSRuntimeTest }
 
-procedure TFloriaJSEvaluatorTest.TestArithmeticAndLogicalEval();
+procedure TFloriaJSRuntimeTest.TestArithmeticAndLogicalEval();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1612,7 +1606,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestVariableScopeAndShadowing();
+procedure TFloriaJSRuntimeTest.TestVariableScopeAndShadowing();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1633,7 +1627,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestConditionalsAndLoops();
+procedure TFloriaJSRuntimeTest.TestConditionalsAndLoops();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1654,7 +1648,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestWhileWithBreakAndContinue();
+procedure TFloriaJSRuntimeTest.TestWhileWithBreakAndContinue();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1676,7 +1670,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestUserFunctionAndRecursion();
+procedure TFloriaJSRuntimeTest.TestUserFunctionAndRecursion();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1697,7 +1691,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestClosures();
+procedure TFloriaJSRuntimeTest.TestClosures();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1722,7 +1716,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestObjectAndArrayManipulation();
+procedure TFloriaJSRuntimeTest.TestObjectAndArrayManipulation();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1747,7 +1741,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestMathBuiltin();
+procedure TFloriaJSRuntimeTest.TestMathBuiltin();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1778,7 +1772,7 @@ begin
     Result := JSMakeNumber(0.0);
 end;
 
-procedure TFloriaJSEvaluatorTest.TestPascalHostCallback();
+procedure TFloriaJSRuntimeTest.TestPascalHostCallback();
 var
   ctx: TFloriaJSContext;
   engine: TFloriaJSEngine;
@@ -1797,7 +1791,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestConsoleCapture();
+procedure TFloriaJSRuntimeTest.TestConsoleCapture();
 var
   engine: TFloriaJSEngine;
   ctx: TFloriaJSContext;
@@ -1815,7 +1809,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestCommaOperatorAndLabeledBreak();
+procedure TFloriaJSRuntimeTest.TestCommaOperatorAndLabeledBreak();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1877,7 +1871,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestArrowFunctions();
+procedure TFloriaJSRuntimeTest.TestArrowFunctions();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -1975,7 +1969,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestStandardGlobalsAndArguments();
+procedure TFloriaJSRuntimeTest.TestStandardGlobalsAndArguments();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -2062,7 +2056,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestObjectUtilities();
+procedure TFloriaJSRuntimeTest.TestObjectUtilities();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -2143,7 +2137,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestJSONSupport();
+procedure TFloriaJSRuntimeTest.TestJSONSupport();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -2249,7 +2243,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestTemplateLiteralInterpolation();
+procedure TFloriaJSRuntimeTest.TestTemplateLiteralInterpolation();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -2295,7 +2289,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestObjectAndArrayLiteralCompletion();
+procedure TFloriaJSRuntimeTest.TestObjectAndArrayLiteralCompletion();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -2357,7 +2351,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestIterationStatements();
+procedure TFloriaJSRuntimeTest.TestIterationStatements();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -2454,7 +2448,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestParameterFormsAndDestructuring();
+procedure TFloriaJSRuntimeTest.TestParameterFormsAndDestructuring();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -2550,7 +2544,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSEvaluatorTest.TestErrorHandlingAndTypeErrors();
+procedure TFloriaJSRuntimeTest.TestErrorHandlingAndTypeErrors();
 var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
@@ -3691,11 +3685,14 @@ var
   retStmt: TFloriaJSReturnStmt;
   fn: TFloriaJSFunction;
   vm: TFloriaJSVM;
+  compiler: TFloriaJSCompiler;
+  code: TFloriaJSBytecode;
   env: TFloriaJSEnvironment;
   args: array of TFloriaJSValue;
   val: TFloriaJSValue;
 begin
   vm := TFloriaJSVM.Create(nil);
+  compiler := TFloriaJSCompiler.Create();
   try
     env := TFloriaJSEnvironment.Create(nil);
     try
@@ -3706,10 +3703,12 @@ begin
       block.AddStatement(retStmt);
       decl.SetBody(block);
 
-      fn := TFloriaJSFunction.CreateUser('f', nil, decl.Body, Pointer(env), False);
+      code := compiler.CompileFunctionBody('f', nil, decl.Body);
+      fn := TFloriaJSFunction.CreateBytecode('f', code, Pointer(env), False, False);
+      code.Release();
 
       { The declaration is discarded, exactly as it is when the script that
-        created it ends: the body must stay alive for the closure. }
+        created it ends: the bytecode must stay alive for the closure. }
       decl.Free();
 
       val := vm.CallFunction(JSMakeFunction(fn), args, JSMakeUndefined());
@@ -3720,6 +3719,7 @@ begin
       fn.Free();
     end;
   finally
+    compiler.Free();
     vm.Free();
   end;
 end;
@@ -5310,7 +5310,7 @@ var
         try
           Result := vm.Execute(code, env);
         finally
-          code.Free();
+          code.Release();
         end;
       finally
         prog.Free();
@@ -5663,7 +5663,7 @@ begin
   RegisterTest(TFloriaJSASTTest);
   RegisterTest(TFloriaJSParserTest);
   RegisterTest(TFloriaJSValueTest);
-  RegisterTest(TFloriaJSEvaluatorTest);
+  RegisterTest(TFloriaJSRuntimeTest);
   RegisterTest(TFloriaFTMLTypesTest);
   RegisterTest(TFloriaFTMLBindingTest);
   RegisterTest(TFloriaFTMLEngineTest);
