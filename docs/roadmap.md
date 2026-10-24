@@ -324,6 +324,98 @@ Acceptance:
 - No silent operator gaps remain in the scan.
 - Runtime type errors throw catchable `TypeError` objects.
 
+### Slice D — "Bytecode VM Core"
+
+NaN-boxed 64-bit value representation, bytecode compiler, and flat stack-based
+interpreter loop replacing the AST tree-walking evaluator.
+
+Acceptance:
+
+- All existing test cases pass against the bytecode VM.
+- Zero heap-growth / memory leak verification green.
+- Substantial execution benchmark speedup over tree-walking evaluator.
+
+### Slice E — "QML V4-Class Reactive Bindings & JIT"
+
+Compiled FTML property binding snippets, specialized reactive tracking opcodes,
+inline property caching, and optional AOT/JIT compilation for hot layout functions.
+
+Acceptance:
+
+- Thousands of reactive bindings evaluate smoothly at 60+ FPS layout cycles.
+- Direct native Pascal item memory access with zero FFI overhead.
+
+---
+
+## Priority 4 — Virtual Machine Architecture (QML V4-Class Engine)
+
+To achieve parity with QML's custom V4 engine, the runtime will evolve from an
+AST tree-walking interpreter to a tailored, pure-Pascal bytecode virtual machine.
+
+### Motivation & Strategic Advantages
+
+1. **Parity with QML V4**: QML abandoned full web engines (V8) because UI
+   applications do not need multi-megabyte browser runtimes; they need **instant
+   startup, low memory per component, and high-frequency micro-evaluations** of
+   declarative property bindings (e.g. `width: parent.width * 0.5`).
+2. **Zero C ABI Overhead**: A native Pascal VM interacts directly with FTML Pascal
+   visual items without FFI marshaling, dual garbage-collection boundaries, or
+   `cdecl` wrapping.
+3. **Baked-In Reactive Tracking**: Specialized opcodes (`OP_GET_PROPERTY_SUBSCRIBE`)
+   record binding dependencies in a single CPU instruction during execution.
+4. **Single-Binary Zero-Dependency Distribution**: Compiles purely with Free Pascal
+   and Pasbuild across Linux (native X11/XCB desktop integration), Windows, macOS,
+   and embedded platforms.
+
+---
+
+### Migration Phases
+
+#### Phase 1: 64-Bit NaN-Boxed Value Representation
+Refactor `floria.js.value.pas` to replace the heavy union record with a 64-bit
+NaN-boxed `TFloriaJSValue` (`QWord`).
+- Doubles, 32-bit integers, booleans, `null`, `undefined`, and heap object
+  pointers fit into a single 64-bit CPU register (`RAX`/`RDI`).
+- Eliminates memory copying and reduces value stack footprint to 8 bytes per value.
+- Introduce shape-based hidden classes (`TFloriaJSShape`) for fast property
+  offset indexing.
+
+#### Phase 2: Bytecode Compiler (`floria.js.compiler.pas`)
+Add an AST visitor pass that transforms the existing `TFloriaJSASTNode` trees into
+flat bytecode chunks (`TFloriaJSBytecodeChunk`):
+- Compact 32-bit or variable-length instructions (`OP_CONST`, `OP_LOAD_LOC`,
+  `OP_STORE_LOC`, `OP_ADD`, `OP_CALL`, `OP_JUMP_IF_FALSE`, etc.).
+- Local variable resolution at compile time into fixed stack offsets
+  (`frame.locals[i]`), obsoleting runtime string-keyed environment lookups.
+- Separate declarative FTML parsing into `floria.ftml.parser.pas` to decouple
+  FTML syntax from the JS core compiler.
+
+#### Phase 3: Stack-Based Bytecode Interpreter (`floria.js.vm.pas`)
+Implement a tight, register-friendly opcode interpreter loop in Pascal:
+- Flat operand and call-frame array stacks.
+- Replaces the recursive, stack-hungry tree walker in `floria.js.evaluator.pas`.
+- Immediate 10x–30x execution throughput increase for loops, function calls,
+  and expressions.
+- Maintain full compatibility with the existing test suite.
+
+#### Phase 4: FTML Reactive Fast-Path & Inline Caching
+Tailor the VM execution specifically for declarative UI property bindings:
+- Decouple `TFloriaFTMLItem` from direct `TFloriaJSObject` inheritance; use native
+  Pascal handles with inline caches.
+- Compile each binding into a lightweight bytecode snippet (4–8 opcodes).
+- Specialized opcodes (`OP_GET_PROP_SUBSCRIBE`) track property dependencies
+  directly in the binding manager during execution without proxy overhead.
+- Direct field offset lookups (Inline Caching) bypass dictionary lookups for item
+  geometry (`x`, `y`, `width`, `height`).
+
+#### Phase 5: Hot-Function JIT / Ahead-of-Time (AOT) Compilation
+Provide native machine-code compilation for performance-critical execution paths:
+- Ahead-of-Time (AOT) binding compiler translating pure arithmetic/layout
+  bindings directly to native Pascal functions.
+- Lightweight baseline JIT generating native machine code (x86_64, AArch64)
+  for hot animation loops and frequently executed functions on platforms with
+  writable/executable memory.
+
 ---
 
 ## Deliberately deferred
