@@ -38,7 +38,7 @@ The test binary is `target/TestRunner`; PasBuild invokes it with
 
 ```bash
 ./target/TestRunner --list
-./target/TestRunner --suite=TFloriaJSEvaluatorTest
+./target/TestRunner --suite=TFloriaJSVMTest
 ```
 
 If the FPU raises `Invalid floating point operation` on numeric edge cases,
@@ -56,13 +56,18 @@ Current suites cover:
 
 - types, engine/context lifecycle, lexer, AST, parser;
 - values and object/array primitives;
-- evaluator: arithmetic, scopes, loops, functions, closures, recursion,
-  host callbacks, console capture, operators, arrows, globals, Object, JSON,
-  template interpolation, literal completion, iteration statements, and
-  parameter/destructuring forms;
-- FTML: item types, bindings, engine loading, anchors/layout, lifecycle;
+- language behaviour (the `TFloriaJSEvaluatorTest` name is historical):
+  arithmetic, scopes, loops, functions, closures, recursion, host callbacks,
+  console capture, operators, arrows, globals, Object, JSON, template
+  interpolation, literal completion, iteration statements,
+  parameter/destructuring forms, and async/await;
+- bytecode VM: chunks, local variables, jumps, calls, objects, try/catch, and
+  compile-and-run;
+- Priority 3: Map, Set, Date, Symbol, RegExp, URI, and host globals;
+- FTML: item types, compiled bindings, engine loading, anchors/layout,
+  lifecycle;
 - lifetime/reclamation: loop and recursion heap stability, closures, shared
-  AST reference counting;
+  AST/bytecode reference counting;
 - switch/try-catch, construction (`new`/`this`/prototypes), array methods.
 
 When adding a test:
@@ -121,6 +126,8 @@ and [GEMINI.md](../GEMINI.md). In short:
    - Strings: `floria.js.strings.pas`
    - Object/global utilities: `floria.js.objects.pas`
    - JSON: `floria.js.json.pas`
+   - Map/Set: `floria.js.collections.pas`
+   - Date/Symbol/RegExp/URI/timers: their matching `floria.js.*` unit
    - Everything else: `floria.js.stdlib.pas`
 2. **Follow the callback signature.**
 
@@ -135,7 +142,7 @@ and [GEMINI.md](../GEMINI.md). In short:
 3. **Use the runtime helpers** (`JSAdd`, `JSEqual`, `ToNumber`, `ToString`, …)
    instead of ad-hoc coercion.
 4. **Call back into JavaScript** with `AHeap.InvokeFunction` when a method takes
-   a predicate/callback (`map`, `sort`, `forEach`, …). Never call the evaluator
+   a predicate/callback (`map`, `sort`, `forEach`, …). Never call the VM
    directly from a stdlib unit.
 5. **Register it** in the relevant `FloriaJSRegister*` procedure. For prototype
    methods, install on `AHeap.GetArrayPrototype()` or
@@ -160,16 +167,33 @@ Typical flow:
 3. **Parser** (`floria.js.parser.pas`): add the precedence to
    `GetInfixPrecedence`, handle the token in the Pratt loop or in a statement
    parser, and preserve right/left associativity.
-4. **Evaluator** (`floria.js.evaluator.pas`): implement the runtime semantics,
-   including short-circuiting and reference-count-safe value handling.
-5. **Tests and probes**: cover both the happy path and error/edge cases.
-6. **Docs**: update [language support](language-support.md), the
+4. **Compiler** (`floria.js.compiler.pas`): add the AST node case and emit
+   bytecode. Decide whether it can be expressed with existing opcodes or needs
+   a new one.
+5. **VM** (`floria.js.vm.pas`): implement any new opcode in the `RunLoop` case.
+6. **Tests and probes**: cover both the happy path and error/edge cases.
+7. **Docs**: update [language support](language-support.md), the
    [roadmap](roadmap.md), and any API page.
 
 Watch for parser regressions: an operator that is added to the precedence table
 but not handled in the Pratt `case` is silently consumed, producing a
 plausible but wrong result. Always add a probe that checks the actual value,
 not merely successful parsing.
+
+## Adding a VM opcode
+
+1. Add the opcode to `TFloriaJSOpcode` and `FloriaJSOpcodeToString` in
+   `floria.js.bytecode.pas`.
+2. Emit it from the compiler and, if it jumps, use `PatchJump`.
+3. Implement it in the `RunLoop` `case` in `floria.js.vm.pas`, keeping stack
+   effects consistent.
+4. Add a `TFloriaJSVMTest` case that compiles source and checks the result,
+   plus a JavaScript-level test.
+5. Update [Bytecode VM](bytecode-vm.md#instruction-set) and the disassembly
+   expectations.
+
+Bytecode chunks are reference-counted. If a new owner keeps a chunk (function,
+binding, signal cache), call `Retain` and release it when done.
 
 ## Memory and lifetime checklist
 
@@ -182,6 +206,8 @@ dangling pointers are the main risks.
   replacements, or call `JSReleaseValue` when detaching a raw value.
 - **Do not free AST nodes manually** if they can be shared. Function bodies use
   `Retain`/`Release`.
+- **Bytecode chunks are reference-counted.** Functions, bindings, and signal
+  caches retain their chunks; producers release their own reference.
 - **Pin host-facing object values.** `EvaluateValue`/`Call` pin; the host
   unpins with `ReleaseValue`.
 - **Avoid cycles.** The collector does not trace cycles. Do not add

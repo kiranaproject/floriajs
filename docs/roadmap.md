@@ -19,7 +19,10 @@ The probes are deliberately small: each one exercises a single language feature
 or standard-library entry point and prints either `OK -> <value>` or
 `ERR -> <message>`.
 
-## Baseline at the time of writing
+## Historical baseline (before the Priority 1–3 work)
+
+These numbers describe the state when this roadmap was first written; they are
+kept for context, not as a current status.
 
 - 120 probes total.
 - 27 probes report an error: 25 are parse/lex gaps, one is the expected uncaught
@@ -389,7 +392,13 @@ NaN-boxed `TFloriaJSValue` (`QWord`).
 - Introduce shape-based hidden classes (`TFloriaJSShape`) for fast property
   offset indexing.
 
-#### Phase 2: Bytecode Compiler (`floria.js.compiler.pas`)
+#### Phase 2: Bytecode Compiler (`floria.js.compiler.pas`) — [~] Partially completed
+Status: the compiler and `TFloriaJSBytecode` chunk container are implemented
+and drive the VM. The compiler uses direct `is` dispatch rather than a visitor.
+Local slots are used for parameters and compiler temporaries; user variables
+still resolve through string-keyed environments. FTML parsing remains in
+`floria.js.parser` rather than a separate `floria.ftml.parser.pas`.
+
 Add an AST visitor pass that transforms the existing `TFloriaJSASTNode` trees into
 flat bytecode chunks (`TFloriaJSBytecodeChunk`):
 - Compact 32-bit or variable-length instructions (`OP_CONST`, `OP_LOAD_LOC`,
@@ -403,8 +412,9 @@ flat bytecode chunks (`TFloriaJSBytecodeChunk`):
 Implement a tight, register-friendly opcode interpreter loop in Pascal:
 - Flat operand and call-frame array stacks.
 - Replaces the recursive, stack-hungry tree walker in `floria.js.evaluator.pas`.
-- Immediate 10x–30x execution throughput increase for loops, function calls,
-  and expressions.
+- Measured 3.0x–4.3x execution throughput improvement over the retired
+  tree-walking evaluator in micro-benchmarks; further gains require the
+  fast-path/JIT phases below.
 - Pure reference-counted bytecode chunk container (`Retain`/`Release`) allowing
   functions and closures to outlive their declaring scripts.
 - Full parity with language constructs: closures, default/rest parameters, object/array

@@ -1,6 +1,6 @@
 # floriajs — Floria JavaScript Runtime & Interop Engine
 
-**floriajs** provides a modern, Object Pascal JavaScript engine and execution runtime designed for the **Floria Toolkit** ecosystem.
+**floriajs** provides a modern, Object Pascal JavaScript engine and execution runtime designed for the **Floria Toolkit** ecosystem. JavaScript is compiled to bytecode and executed on a stack-based virtual machine.
 
 ---
 
@@ -10,7 +10,8 @@ Full documentation lives in [`docs/`](docs/README.md):
 
 - [Getting started](docs/getting-started.md) — build, embed, and call between Pascal and JavaScript.
 - [Language support](docs/language-support.md) — implemented syntax, built-ins, and semantic differences.
-- [Architecture](docs/architecture.md) — lexer, parser, AST, evaluator, values, and memory model.
+- [Architecture](docs/architecture.md) — lexer, parser, compiler, bytecode VM, values, and memory model.
+- [Bytecode VM](docs/bytecode-vm.md) — opcodes, compiler output, stack machine, and extension points.
 - [FTML guide](docs/ftml.md) — declarative component markup, reactive bindings, anchors, and signals.
 - [API reference](docs/README.md#api-reference) — engine, values, pipeline, and FTML APIs.
 - [Development guide](docs/development.md) — tests, gap scan, conventions, and adding features.
@@ -28,10 +29,13 @@ Full documentation lives in [`docs/`](docs/README.md):
 | **`floria.js.lexer`** | JavaScript tokenizer | `TFloriaJSLexer`, `TFloriaJSToken` |
 | **`floria.js.ast`** | Expression, statement, and FTML AST nodes | `TFloriaJSExprNode`, `TFloriaJSStmtNode` |
 | **`floria.js.parser`** | Pratt expression parser and statement/FTML parser | `TFloriaJSParser` |
+| **`floria.js.bytecode`** | Opcodes, instructions, constants, bytecode chunks | `TFloriaJSBytecode`, `TFloriaJSOpcode` |
+| **`floria.js.compiler`** | AST-to-bytecode compiler | `TFloriaJSCompiler` |
+| **`floria.js.vm`** | Stack-based bytecode interpreter | `TFloriaJSVM` |
 | **`floria.js.value`** | Values, objects, arrays, functions, errors, promises, heap | `TFloriaJSValue`, `TFloriaJSHeap` |
 | **`floria.js.env`** | Lexical scopes and bindings | `TFloriaJSEnvironment` |
-| **`floria.js.evaluator`** | Tree-walking interpreter | `TFloriaJSEvaluator` |
 | **`floria.js.arrays` / `.strings` / `.objects` / `.json`** | Built-in prototype and static methods | Array/String/Object/JSON support |
+| **`floria.js.collections` / `.date` / `.symbol` / `.regexp` / `.uri` / `.timers`** | Advanced standard-library types and host globals | Map/Set, Date, Symbol, RegExp, URI, timers |
 | **`floria.js.stdlib`** | Global library registration | `console`, `Math`, `Promise`, globals |
 | **`floria.js.core`** | Runtime execution engine and context management | `TFloriaJSEngine`, `TFloriaJSContext` |
 | **`floria.ftml.*`** | Declarative UI runtime | `TFloriaFTMLEngine`, `TFloriaFTMLItem` |

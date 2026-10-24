@@ -91,16 +91,17 @@ Hello, Floria!
 ```
 
 `TFloriaJSEngine.Create()` creates a *default context* automatically. A context
-owns its own heap, global environment, evaluator, and console output buffer.
-`Engine.Free()` destroys every context the engine created.
+owns its own heap, global environment, bytecode compiler, VM, and console output
+buffer. `Engine.Free()` destroys every context the engine created.
 
-## The two evaluation entry points
+## The evaluation entry points
 
-`TFloriaJSContext` exposes two ways to run a script:
+`TFloriaJSContext` exposes several ways to run a script:
 
 ```pascal
 function Evaluate(const AScript: string): TFloriaJSResult; virtual;
 function EvaluateValue(const AScript: string): TFloriaJSValue; virtual;
+function EvaluateBytecode(const AScript: string): TFloriaJSResult; virtual;
 ```
 
 - **`Evaluate`** never raises for script errors. It returns a
@@ -110,9 +111,29 @@ function EvaluateValue(const AScript: string): TFloriaJSValue; virtual;
   propagate. Use it when you need the actual value, an object, an array, or a
   function. Values it returns are pinned; give them back with
   `ReleaseValue` when you are done (see [Memory and lifetime](#memory-and-lifetime)).
+- **`EvaluateBytecode`** is the explicit bytecode-VM entry point. It currently
+  behaves like `Evaluate`; the tree-walking backend has been removed.
 
 The convenience methods on `TFloriaJSEngine` (`Execute`, `ExecuteValue`,
-`ReleaseValue`, `RegisterFunction`) forward to the default context.
+`ExecuteBytecode`, `ReleaseValue`, `RegisterFunction`) forward to the default
+context.
+
+### Execution model
+
+`Evaluate` and `EvaluateValue` run the full pipeline: lex → parse → compile to
+bytecode → execute on `TFloriaJSVM`. The context exposes `VM` and `Compiler`
+for hosts that want to compile once and execute repeatedly:
+
+```pascal
+Code := Ctx.Compiler.CompileProgram(Prog);
+try
+  Value := Ctx.VM.Execute(Code, Ctx.GlobalEnv);
+finally
+  Code.Release();
+end;
+```
+
+See [Bytecode VM](bytecode-vm.md) for the instruction set and execution model.
 
 ## Calling Pascal from JavaScript
 
@@ -151,8 +172,8 @@ Ctx.RegisterMethod('multiply', @Host.Multiply);  // Host is a live THost instanc
 
 > **Pascal-side callbacks must not raise.** Return a JavaScript error value, or
 > signal failure through your own host API, instead of letting an exception
-> escape into the interpreter. Native callbacks also receive `AThis`; for a
-> free function called from JavaScript it is `undefined`.
+> escape into the runtime. Native callbacks also receive `AThis`; for a free
+> function called from JavaScript it is `undefined`.
 
 ## Calling JavaScript from Pascal
 
@@ -279,6 +300,20 @@ spans the host boundary is never reclaimed. Within the runtime, the shared
 `Function.prototype` deliberately has no back-reference to its constructor for
 this reason.
 
+## Timers and host event loop
+
+`setTimeout`, `setInterval`, and their clear functions are installed as
+globals, but floriajs does not run a wall-clock event loop. The host must pump
+the timer queue, for example from the UI loop:
+
+```pascal
+uses floria.js.timers;
+
+FloriaJSProcessTimers(Ctx.Heap);
+```
+
+Timer state is process-wide in the current implementation.
+
 ## Bundled examples
 
 The `examples/` directory contains compilable programs:
@@ -298,6 +333,7 @@ Build them with:
 ## Next steps
 
 - [Language support](language-support.md) — what JavaScript works today.
+- [Architecture](architecture.md) and [Bytecode VM](bytecode-vm.md) — execution model and instruction set.
 - [Engine and context API](api/engine.md) — complete API reference.
 - [Values and heap API](api/values.md) — native values and coercion.
 - [FTML guide](ftml.md) — declarative UI with reactive bindings.

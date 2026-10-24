@@ -31,10 +31,12 @@ Construct values with the `JSMake*` factories.
 | `IsObject()` | kind is object, array, function, or error (all heap objects) |
 | `IsArray()` | kind is `fjstArray` |
 | `IsFunction()` | kind is `fjstFunction` |
+| `IsSymbol()` | kind is `fjstSymbol` |
 | `IsPromise()` | object is a `TFloriaJSPromise` |
 | `IsTruthy()` | alias for `ToBoolean()` |
 
 Object-valued kinds (`array`, `function`, `error`) satisfy `IsObject()`.
+`Symbol` is a primitive kind and does not satisfy `IsObject()`.
 
 ### Accessors
 
@@ -66,6 +68,7 @@ undefined behaviour at the Pascal level.
 | boolean | the value |
 | number | `False` for `0`, `NaN`, and `-0`; otherwise `True` |
 | string | `False` for `''`; otherwise `True` |
+| symbol | `True` |
 | object/array/function | `True` when the object pointer is non-nil |
 
 `ToNumber()`:
@@ -79,6 +82,7 @@ undefined behaviour at the Pascal level.
 | string | trimmed empty string → `0`; Pascal numeric parse → the number; otherwise `NaN` |
 | array with exactly one element | number conversion of that element |
 | array with zero or several elements | `NaN` |
+| symbol | `NaN` |
 | object/function | `NaN` |
 
 `ToString()`:
@@ -90,6 +94,7 @@ undefined behaviour at the Pascal level.
 | boolean | `true` / `false` |
 | number | `NaN`, `Infinity`, `-Infinity`, or the shortest available decimal form; integral values print without a fractional part |
 | string | the string itself |
+| symbol | `Symbol(description)` (or `Symbol()`) |
 | array | elements joined with `,` |
 | function | `function name() { [native code] }` (placeholder, including user functions) |
 | error | `Name: message` |
@@ -110,6 +115,8 @@ function JSMakeObject(AObj: TFloriaJSObject): TFloriaJSValue;
 function JSMakeArray(AArr: TFloriaJSArray): TFloriaJSValue;
 function JSMakeFunction(AFunc: TFloriaJSFunction): TFloriaJSValue;
 function JSMakePromise(APromise: TFloriaJSPromise): TFloriaJSValue;
+function JSMakeSymbol(const ADescription: string = '';
+  AId: Integer = 0): TFloriaJSValue;
 ```
 
 Factory-created object values do **not** retain or pin the object. Ownership is
@@ -130,6 +137,8 @@ procedure Pin();
 procedure Unpin();
 
 function  GetProperty(const AName: string): TFloriaJSValue; virtual;
+function  GetPropertyWithReceiver(const AName: string;
+  AReceiver: TFloriaJSObject): TFloriaJSValue; virtual;
 procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); virtual;
 function  HasProperty(const AName: string): Boolean; virtual;
 function  DeleteProperty(const AName: string): Boolean; virtual;
@@ -153,6 +162,10 @@ property HeapOwned: Boolean read FHeapOwned write FHeapOwned;
 - `GetProperty` walks the prototype chain; `GetOwnProperty` does not. If a
   property has a getter, reading it invokes the getter with `this` set to the
   object.
+- `GetPropertyWithReceiver` is the VM-facing lookup used for prototype
+  traversal. It forwards the original receiver through the chain so getters
+  and methods execute with the correct `this`, including FTML item properties
+  and promise methods. Most host code can use `GetProperty`.
 - `SetProperty` invokes a setter when one is defined; otherwise it updates an
   existing property or appends a new one. It retains the new value and releases
   the old one.
@@ -210,9 +223,14 @@ constructor CreateUser(const AName: string; AParams: TStrings;
   ABody: TFloriaJSStmtNode; AClosure: Pointer;
   AOwnsBody: Boolean = False; AIsAsync: Boolean = False;
   AIsArrow: Boolean = False);
+constructor CreateBytecode(const AName: string; ABytecode: TObject;
+  AClosure: Pointer; AIsArrow: Boolean = False;
+  AIsAsync: Boolean = False);
 destructor Destroy(); override;
 
 function GetProperty(const AName: string): TFloriaJSValue; override;
+function GetPropertyWithReceiver(const AName: string;
+  AReceiver: TFloriaJSObject): TFloriaJSValue; override;
 
 property Name: string read FName write FName;
 property IsNative: Boolean read FIsNative;
@@ -222,6 +240,7 @@ property NativeProc: TFloriaJSNativeProc read FNativeProc;
 property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
 property ParamNames: TStringList read FParamNames;
 property Body: TFloriaJSStmtNode read FBody;
+property Bytecode: TObject read FBytecode write FBytecode;
 property ClosureEnv: Pointer read FClosureEnv;
 ```
 
@@ -236,9 +255,15 @@ TFloriaJSNativeMethod = function(const AArgs: array of TFloriaJSValue;
 
 - `CreateNative` is for free functions; `RegisterFunction` uses it.
 - `CreateNativeMethod` binds an object method; `RegisterMethod` uses it.
-- `CreateUser` is used by the evaluator. It retains the AST body unless
-  `AOwnsBody` says the caller has already transferred a reference to it. The
-  function always releases the body in its destructor.
+- `CreateUser` stores an AST body. The VM compiles the body lazily on first
+  call if no bytecode is attached. It retains the AST body unless `AOwnsBody`
+  says the caller has already transferred a reference; the destructor always
+  releases it.
+- `CreateBytecode` takes a compiled `TFloriaJSBytecode` chunk (stored as
+  `TObject` to keep the value unit independent of the bytecode unit) and
+  retains it. This is what `OP_CLOSURE` uses for nested functions.
+- `Bytecode` exposes the compiled chunk, or `nil` for native/AST-backed
+  functions that have not been compiled yet.
 - `prototype` is created lazily on first access for non-arrow functions. It
   deliberately has no `constructor` back-reference to avoid a reference cycle.
 - Arrow functions have no `prototype` and are rejected by `new`.
@@ -255,10 +280,13 @@ property Message: string read FMessage;
 ```
 
 `TFloriaJSError` is a heap object with `name`/`message` semantics. `ToString`
-returns `Name: Message`. `Error`, `TypeError`, `RangeError`, and
-`ReferenceError` constructors create instances with the matching name. Error
-objects currently use a null prototype, so `instanceof` and
-`hasOwnProperty` are not available on them.
+returns `Name: Message`. `Error`, `TypeError`, `RangeError`,
+`ReferenceError`, and `SyntaxError` constructors create instances with the
+matching name and prototype chain; `URIError` comes from the URI support.
+`err instanceof TypeError`, `hasOwnProperty`, and `toString()` therefore work.
+`TFloriaJSHeap.NewError` selects the corresponding prototype for `TypeError`,
+`RangeError`, `ReferenceError`, and `SyntaxError`; other names use the base
+`Error` prototype.
 
 ## `TFloriaJSPromise`
 
@@ -296,10 +324,18 @@ function  NewUserFunction(const AName: string; AParams: TStrings;
   ABody: TFloriaJSStmtNode; AClosure: Pointer;
   AOwnsBody: Boolean = False; AIsAsync: Boolean = False;
   AIsArrow: Boolean = False): TFloriaJSFunction;
+function  NewBytecodeFunction(const AName: string; ABytecode: TObject;
+  AClosure: Pointer; AIsArrow: Boolean = False;
+  AIsAsync: Boolean = False): TFloriaJSFunction;
 
 function  GetArrayPrototype(): TFloriaJSObject;
 function  GetStringPrototype(): TFloriaJSObject;
 function  GetObjectPrototype(): TFloriaJSObject;
+function  GetErrorPrototype(): TFloriaJSObject;
+function  GetTypeErrorPrototype(): TFloriaJSObject;
+function  GetRangeErrorPrototype(): TFloriaJSObject;
+function  GetReferenceErrorPrototype(): TFloriaJSObject;
+function  GetSyntaxErrorPrototype(): TFloriaJSObject;
 
 procedure OwnHelper(AHelper: TObject);
 procedure SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
@@ -312,6 +348,7 @@ function  DequeuePromiseJob(out AJob: TFloriaJSPromiseJob): Boolean;
 function  HasPromiseJobs(): Boolean;
 procedure RunPendingJobs();
 
+procedure ReclaimOrphanedEnvironments();
 procedure Collect();
 procedure Clear();
 function  GetObjectCount(): Integer;
@@ -332,28 +369,37 @@ property Id: Integer read FId;
 - `NewArray` returns an array whose prototype is the shared array prototype.
 - `NewNativeFunction` / `NewNativeMethod` create callable objects. They do not
   add the function to any environment by themselves.
-- `NewUserFunction` is primarily for the evaluator and the FTML engine. It
-  expects an AST body that outlives the function.
+- `NewUserFunction` stores an AST-backed function; the VM compiles its body
+  lazily on first call. The AST body must outlive the function; the function
+  retains it unless ownership is transferred.
+- `NewBytecodeFunction` creates a function from an already compiled
+  `TFloriaJSBytecode`; the heap retains the chunk through the function.
 
 ### Prototypes
 
-The three `Get*Prototype` methods lazily create and pin a shared prototype.
-They are stable for the lifetime of the heap and are reset by `Clear`.
+The `Get*Prototype` methods lazily create and pin a shared prototype.
+They are stable for the lifetime of the heap and are reset by `Clear`. Error
+prototypes form the standard inheritance chain (`TypeError` → `Error` →
+`Object`), which is what makes `instanceof` and inherited `toString` work.
 
 ### Helpers and callbacks
 
 - `OwnHelper` registers a Pascal object (for example the string-method helper)
   that the heap frees on `Clear`.
-- `SetFunctionInvoker` is wired by the evaluator so heap-side native methods can
+- `SetFunctionInvoker` is wired by the VM so heap-side native methods can
   call back into JavaScript. `InvokeFunction` is the wrapper built-ins use.
 - `SetJobRunner` / `RunPendingJobs` implement the promise microtask queue.
-  `ExecuteProgram` drains it automatically.
+  `TFloriaJSContext.Evaluate` drains it after executing a script.
 
 ### Collection and clearing
 
-- `Collect` repeatedly sweeps tracked objects with `RefCount <= 0` that are
-  `HeapOwned` and not pinned. Every freed object releases the references it
-  held, which may make more objects collectible in the same call.
+- `ReclaimOrphanedEnvironments` frees detached environments that no live
+  closure can reach. It is called by `Collect`, which the context invokes
+  before executing a script.
+- `Collect` first reclaims orphaned environments, then repeatedly sweeps
+  tracked objects with `RefCount <= 0` that are `HeapOwned` and not pinned.
+  Every freed object releases the references it held, which may make more
+  objects collectible in the same call.
 - `Clear` frees **all** tracked environments and **all** tracked objects,
   regardless of `HeapOwned`/pinning, then resets cached prototypes and frees
   owned helpers. Hosts must not call it while they still hold objects created
@@ -375,7 +421,7 @@ count directly.
 ## Operator helpers
 
 `floria.js.value` exposes the coercion-aware binary and unary operations used
-by the evaluator:
+by the VM:
 
 ```pascal
 function JSAdd(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
@@ -395,7 +441,7 @@ function JSUnaryNot(...); function JSUnaryBitNot(...);
 function JSTypeOf(...): string;
 ```
 
-Use these in native methods to match the interpreter's coercion instead of
+Use these in native methods to match the VM's coercion behaviour instead of
 coercing manually.
 
 ## Lifetime rules for host code
@@ -414,6 +460,7 @@ coercing manually.
 ## Implementation note on user functions
 
 `NewUserFunction` ultimately calls `TFloriaJSFunction.CreateUser`, which
-retains the AST body. The AST declaration that owns the body releases its own
-reference when it is freed. This is what lets a closure outlive the script
-that declared it without dangling pointers.
+retains the AST body. On first call, the VM compiles the body into a bytecode
+chunk and stores it on the function; subsequent calls reuse the chunk. The AST
+declaration that owns the body releases its own reference when it is freed, so
+a closure can outlive the script that declared it without dangling pointers.

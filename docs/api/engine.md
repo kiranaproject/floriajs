@@ -62,12 +62,14 @@ procedure DestroyContext(AContext: TFloriaJSContext);
 
 function  Execute(const AScript: string): TFloriaJSResult; virtual;
 function  ExecuteValue(const AScript: string): TFloriaJSValue; virtual;
+function  ExecuteBytecode(const AScript: string): TFloriaJSResult; virtual;
 procedure ReleaseValue(const AValue: TFloriaJSValue); virtual;
 procedure RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
 
 property Initialized: Boolean read FInitialized;
 property DefaultContext: TFloriaJSContext read FDefaultContext;
 property MemoryLimit: NativeUInt read FMemoryLimit write FMemoryLimit;
+property Backend: TFloriaJSExecutionBackend read GetBackend write SetBackend;
 ```
 
 ### Construction and contexts
@@ -109,6 +111,11 @@ These forward to `DefaultContext`:
 - Otherwise they behave exactly like `TFloriaJSContext.Evaluate` and
   `EvaluateValue` (see below).
 - `ReleaseValue` forwards to the default context's `ReleaseValue`.
+- `ExecuteBytecode` is the explicit VM entry point; it currently produces the
+  same result as `Execute` because `Evaluate` always uses the bytecode VM.
+- `Backend` selects between `fjbInterpreter` and `fjbBytecodeVM`. The
+  tree-walking interpreter has been removed; both values currently execute
+  bytecode. `fjbInterpreter` is retained for source compatibility.
 
 ### `RegisterFunction`
 
@@ -149,6 +156,7 @@ procedure RegisterMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
 
 function  Evaluate(const AScript: string): TFloriaJSResult; virtual;
 function  EvaluateValue(const AScript: string): TFloriaJSValue; virtual;
+function  EvaluateBytecode(const AScript: string): TFloriaJSResult; virtual;
 function  Call(const AFuncName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue; virtual;
 procedure ReleaseValue(const AValue: TFloriaJSValue); virtual;
 procedure Reset(); virtual;
@@ -157,7 +165,9 @@ property Engine: TFloriaJSEngine read FEngine;
 property Name: string read FName write FName;
 property Heap: TFloriaJSHeap read FHeap;
 property GlobalEnv: TFloriaJSEnvironment read FGlobalEnv;
-property Evaluator: TFloriaJSEvaluator read FEvaluator;
+property VM: TFloriaJSVM read FVM;
+property Compiler: TFloriaJSCompiler read FCompiler;
+property Backend: TFloriaJSExecutionBackend read FBackend write FBackend;
 property Output: TStringList read FOutput;
 ```
 
@@ -165,13 +175,14 @@ A context owns:
 
 - a `TFloriaJSHeap`,
 - a global `TFloriaJSEnvironment` tracked by that heap,
-- a `TFloriaJSEvaluator` bound to the heap,
+- a `TFloriaJSCompiler`,
+- a `TFloriaJSVM` bound to the heap and global environment,
 - a `TStringList` console buffer (`Output`),
 - the standard library installation.
 
 The constructor accepts `AEngine = nil`; this is useful for standalone use or
 when another object manages the context (the FTML engine does this when it
-creates its own context).
+creates its own context). It defaults to the bytecode backend.
 
 ### Variables and globals
 
@@ -200,7 +211,9 @@ function Evaluate(const AScript: string): TFloriaJSResult;
 
 - Empty or whitespace-only input returns a successful result with an empty
   string.
-- It parses and executes the script in the global environment.
+- It parses the script, compiles it to a `TFloriaJSBytecode` chunk, and
+  executes that chunk on `VM` in the global environment. The chunk is released
+  after execution; there is no automatic bytecode cache.
 - Any parser error or runtime exception is caught and reported through
   `Success = False` and `ErrorMessage`.
 - On success the record receives `ResultType` (the value kind),
@@ -212,6 +225,39 @@ function Evaluate(const AScript: string): TFloriaJSResult;
 Res := Ctx.Evaluate('1 + 2;');
 if Res.Success then
   WriteLn(Res.StringValue);    // 3
+```
+
+### `EvaluateBytecode`
+
+```pascal
+function EvaluateBytecode(const AScript: string): TFloriaJSResult;
+```
+
+Explicitly selects `fjbBytecodeVM` for the duration of the call and delegates
+to `Evaluate`. Since the tree-walking evaluator has been removed, this is
+currently equivalent to `Evaluate`; it exists for hosts that want a clear
+backend intent and for compatibility with code written during the migration.
+
+To avoid re-parsing and re-compiling, compile directly with `Ctx.Compiler`
+and run the chunk with `Ctx.VM.Execute`:
+
+```pascal
+Parser := TFloriaJSParser.Create('1 + 2;');
+try
+  Prog := Parser.ParseProgram();
+  try
+    Code := Ctx.Compiler.CompileProgram(Prog);
+    try
+      Value := Ctx.VM.Execute(Code, Ctx.GlobalEnv);
+    finally
+      Code.Release();
+    end;
+  finally
+    Prog.Free();
+  end;
+finally
+  Parser.Free();
+end;
 ```
 
 ### `EvaluateValue`
@@ -277,9 +323,10 @@ the binding's lifetime, pin it yourself with `Value.ObjVal.Pin` and later
 procedure Reset();
 ```
 
-Clears the heap (objects and tracked environments), clears `Output`, recreates
-the global environment, and reinstalls the standard library. Pinned values
-from before the reset become invalid. Release them before calling `Reset`.
+Clears the heap (objects and tracked environments), resets the VM stacks,
+clears `Output`, recreates the global environment, and reinstalls the standard
+library. Pinned values from before the reset become invalid. Release them
+before calling `Reset`.
 
 ### `Output`
 
@@ -300,6 +347,20 @@ The sink is process-wide and is rebound by each standard-library installation;
 with several contexts, the most recently created/registered context receives
 console output.
 
+### Timers
+
+`setTimeout`, `clearTimeout`, `setInterval`, and `clearInterval` are installed
+by the standard library, but the runtime does not run a wall-clock event loop.
+The host must call:
+
+```pascal
+procedure FloriaJSProcessTimers(AHeap: TFloriaJSHeap);
+```
+
+periodically (for example from the UI event loop). Timer state is currently
+process-wide, so use one timer queue per process or add host-side isolation if
+you embed several independent contexts.
+
 ## Error objects and exceptions
 
 The runtime defines `EFloriaJSThrow`, an exception carrying a `TFloriaJSValue`.
@@ -314,9 +375,16 @@ new Error("plain");
 new TypeError("wrong type");
 new RangeError("out of range");
 new ReferenceError("missing name");
+new SyntaxError("bad syntax");
 ```
 
-Their `ToString` form is `Name: message`.
+`URIError` is additionally provided by the URI support. Error instances use
+proper prototype chains, so `err instanceof TypeError`, `hasOwnProperty`, and
+`toString()` work. Their `ToString` form is `Name: message`.
+
+The VM also throws catchable `TypeError`/`RangeError` objects for invalid
+property access on `null`/`undefined`, setting a property on `null`/
+`undefined`, calling a non-function, and exceeding the call-depth limit.
 
 ## Threading
 

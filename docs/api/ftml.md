@@ -17,7 +17,8 @@ markup syntax and reactive semantics.
 constructor Create(AContext: TFloriaJSContext = nil);
 destructor Destroy(); override;
 
-function  GetEvaluator(): TFloriaJSEvaluator;
+function  GetVM(): TFloriaJSVM;
+function  GetCompiler(): TFloriaJSCompiler;
 
 procedure RegisterComponentType(const ATypeName: string; AClass: TFloriaFTMLItemClass);
 function  CreateItem(const ATypeName: string): TFloriaFTMLItem;
@@ -37,9 +38,13 @@ property LastError: string read FLastError;
 ```
 
 - `Create(nil)` creates and owns a private `TFloriaJSContext`. Pass a context
-  to share globals and native functions with the rest of the host.
+  to share globals, bytecode compiler, VM, and native functions with the rest
+  of the host.
 - The engine registers these component types: `Item`, `Rectangle`, `Text`,
   `Button`, `TextInput`, `Column`, `Row`, `FlexBox`, `Grid`.
+- Bindings and signal handlers use the context's `VM` and `Compiler`; the
+  engine does not create a separate execution engine. `GetVM` and
+  `GetCompiler` return those context objects (or `nil`).
 - `RegisterComponentType` maps a markup type name to a `TFloriaFTMLItem`
   subclass. Names are matched case-insensitively. Register types before
   loading; if the same name is registered twice, the first mapping wins.
@@ -53,17 +58,19 @@ property LastError: string read FLastError;
   is missing; otherwise it loads the text and calls `LoadString`.
 - `FindItemById` checks the ID registry first, then walks the live tree.
   Returns `nil` when the ID is unknown.
-- `Evaluate` parses and executes a script in the document root environment
-  (`Root`'s parent), or the context global environment when no document is
-  loaded. Object results are pinned; call `ReleaseValue` when finished.
+- `Evaluate` parses, compiles to bytecode, and executes a script in the
+  document root environment (`Root`'s parent), or the context global
+  environment when no document is loaded. Object results are pinned; call
+  `ReleaseValue` when finished.
 - `HasErrors` is true when `LastError` is non-empty.
 - `Root` is the current document root, or `nil`.
 
 ### Ownership
 
 - If the engine created the context, it frees it in its destructor.
-- The engine owns the live document: items, environments, AST, bindings, and
-  functions. `LoadString` and destruction release them.
+- The engine owns the live document: items, environments, AST, bindings,
+  compiled binding/signal bytecode, and functions. `LoadString` and destruction
+  release them.
 - A runtime closure that captures document state can keep the previous
   document alive across a reload. The engine tracks those escaped documents and
   releases them when it is destroyed.
@@ -97,6 +104,8 @@ the argument.
 
 ```pascal
 function  GetProperty(const AName: string): TFloriaJSValue; override;
+function  GetPropertyWithReceiver(const AName: string;
+  AReceiver: TFloriaJSObject): TFloriaJSValue; override;
 procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); override;
 procedure SetPropertyFromBinding(const AName: string; const AValue: TFloriaJSValue);
 function  HasProperty(const AName: string): Boolean; override;
@@ -122,6 +131,10 @@ function  GetPropertyAsBoolean(const AName: string; ADefault: Boolean = False): 
   `horizontalCenter`, `verticalCenter`, `baseline`). It also translates the
   `Layout.*` aliases before falling back to stored properties and the base
   object.
+- `GetPropertyWithReceiver` is the VM-facing variant. It forwards the original
+  receiver through prototype lookups and records reactive reads while a
+  binding is active, so `parent.width`, IDs, and implicit item properties all
+  become dependencies.
 
 ### Bindings
 
@@ -147,7 +160,8 @@ function  EmitSignal(const ASignalName: string): TFloriaJSValue;
 `EmitSignal` normalises `clicked` ↔ `onClicked`, finds the handler, and
 executes it in a child environment of the item scope. Arguments are bound as
 `arg0…argN`; the first is also bound as `mouse`. Unknown signals return
-`undefined`.
+`undefined`. On first dispatch, the handler statement is compiled to bytecode
+through the engine compiler and cached in the item's signal entry.
 
 ### Common visual accessors
 
@@ -204,7 +218,7 @@ property BindingManager: IFloriaFTMLBindingManager read FBindingManager write FB
 
 `Engine` is the owning `TFloriaFTMLEngine`, stored as `TObject` to avoid a unit
 cycle. It is queried through `IFloriaFTMLEngineContext` when a signal handler
-needs the evaluator.
+needs the VM and compiler.
 
 ## Anchor lines
 
@@ -294,22 +308,26 @@ function  Evaluate(): TFloriaJSValue;
 property TargetItem: TFloriaFTMLItem read FTargetItem;
 property TargetProperty: string read FTargetProperty;
 property Expression: TFloriaJSExprNode read FExpression;
+property Bytecode: TFloriaJSBytecode read FBytecode;
 property Env: TFloriaJSEnvironment read FEnv;
 property IsEvaluating: Boolean read FIsEvaluating;
 property Enabled: Boolean read FEnabled write FEnabled;
 property DependencyCount: Integer read FDepCount;
 ```
 
-A binding owns no AST; the document AST outlives it. `Evaluate` clears previous
-dependencies, evaluates the expression in its environment, records reads
-through the manager's active-binding stack, and writes the result with
-`SetPropertyFromBinding`. Recursive evaluation of the same binding returns the
-current target property value instead of looping.
+The constructor compiles `AExpr` into a `TFloriaJSBytecode` chunk immediately
+and retains it. `Evaluate` clears previous dependencies, runs the chunk on the
+manager's VM with the binding environment, records reads through the manager's
+active-binding stack, and writes the result with `SetPropertyFromBinding`.
+Recursive evaluation of the same binding returns the current target property
+value instead of looping. The binding owns a reference to the chunk and releases
+it in its destructor; the AST expression itself is owned by the document.
 
 ## `TFloriaFTMLBindingManager`
 
 ```pascal
-constructor Create(AEvaluator: TFloriaJSEvaluator);
+constructor Create(AVM: TFloriaJSVM = nil;
+  ACompiler: TFloriaJSCompiler = nil);
 destructor Destroy(); override;
 
 procedure RecordPropertyRead(AItem: TObject; const APropName: string);
@@ -326,7 +344,8 @@ function  CreateBinding(ATargetItem: TFloriaFTMLItem;
   AEnv: TFloriaJSEnvironment): TFloriaFTMLBinding;
 procedure RemoveBinding(ABinding: TFloriaFTMLBinding);
 
-property Evaluator: TFloriaJSEvaluator read FEvaluator write FEvaluator;
+property VM: TFloriaJSVM read FVM write FVM;
+property Compiler: TFloriaJSCompiler read FCompiler write FCompiler;
 property BindingCount: Integer read GetBindingCount;
 property MaxCascadeDepth: Integer read FMaxCascadeDepth write FMaxCascadeDepth;
 ```
@@ -341,7 +360,8 @@ property MaxCascadeDepth: Integer read FMaxCascadeDepth write FMaxCascadeDepth;
   the binding is detached.
 - `CreateBinding` registers the binding with the manager. `RemoveBinding`
   unregisters and frees it.
-- The manager does not own the evaluator; the engine owns both.
+- The manager does not own the VM or compiler; the context owns both. When
+  constructed by `TFloriaFTMLEngine`, they are the context's VM/compiler.
 
 ## Interfaces
 
@@ -354,7 +374,8 @@ IFloriaFTMLBindingManager = interface
 end;
 
 IFloriaFTMLEngineContext = interface
-  function GetEvaluator(): TFloriaJSEvaluator;
+  function GetVM(): TFloriaJSVM;
+  function GetCompiler(): TFloriaJSCompiler;
 end;
 ```
 
@@ -372,5 +393,12 @@ implementation that wants signal execution must ensure `Engine` implements
   values after the runtime has been torn down.
 - Bindings must be destroyed before their AST expression and target item.
   `TFloriaFTMLEngine` enforces this order during reload and destruction.
+- Bindings own a reference to their compiled bytecode chunk and release it on
+  destruction. Signal entries own their lazily compiled chunk for the lifetime
+  of the item/document.
 - The document AST is freed on reload unless a runtime closure escaped; escaped
-  ASTs are released with the engine.
+  ASTs are released with the engine. Compiled binding chunks are independent of
+  the AST and are freed with their bindings.
+- Document items, environments, and functions are allocated by the context
+  heap; the engine owns their lifetime through the document registry and
+  escaped-document lists.

@@ -123,8 +123,11 @@ Rectangle {
 
 ## Reactive bindings
 
-A property whose expression is a **literal** is evaluated once during load.
-Any other expression becomes a reactive binding:
+A property whose expression is a **literal** is compiled and evaluated once
+during load. Any other expression becomes a reactive binding. Each binding
+expression is compiled to a `TFloriaJSBytecode` chunk once, when the binding is
+created, and that chunk is re-used on every dependency update; this is what
+keeps reactive evaluation on the bytecode VM instead of re-walking the AST.
 
 ```text
 Rectangle {
@@ -217,6 +220,10 @@ Button.EmitSignal('clicked', [JSMakeNumber(42)]);
 Signal names are normalised both ways: `clicked` and `onClicked` refer to the
 same handler. Handler arguments are exposed as `arg0`, `arg1`, …; the first
 argument is also bound as `mouse` for pointer-style signals.
+
+A handler body is compiled to bytecode lazily on first dispatch and the chunk
+is cached on the signal entry, so repeated clicks or property-change events do
+not re-parse or re-walk the handler AST.
 
 ### Automatic signals
 
@@ -386,14 +393,15 @@ Engine.Evaluate('someId.width = 900;');   // runs in the document scope
 ```
 
 - `LoadString` first releases the previous document, then parses, instantiates,
-  wires bindings, resolves layout/anchors, and triggers completion signals.
+  compiles binding expressions, resolves layout/anchors, and triggers
+  completion signals.
 - On failure it returns `nil`, leaves `LastError` set, and leaves the engine in
   a consistent empty state.
 - `LoadFile` reads a file (using `TStringList`) and forwards to `LoadString`.
 - `FindItemById` searches the ID registry, then the tree.
-- `Evaluate` parses and executes a script in the document root environment. It
-  does not perform `LoadString`-style error checking; use `HasErrors` after
-  loading and keep scripts trusted.
+- `Evaluate` parses, compiles, and executes a script in the document root
+  environment. It does not perform `LoadString`-style error checking; use
+  `HasErrors` after loading and keep scripts trusted.
 - Object values returned by `Evaluate` are pinned; hand them back with
   `Engine.ReleaseValue` when done.
 - If a runtime closure captures a document environment, the document's AST and

@@ -13,13 +13,13 @@ them.
 
 | Feature | Status | Notes |
 | :--- | :--- | :--- |
-| `var`, `let`, `const` | Yes | All are block-scoped. `var` is not function-scoped and there is no hoisting. `const` reassignment is **not** rejected. |
+| `var`, `let`, `const` | Yes | `let`/`const` are block-scoped; `var` binds in the enclosing function/top-level environment. No hoisting. `const` reassignment is **not** rejected. |
 | Destructuring declarations | Yes | `var { a, b: c = 1, ...rest } = obj;`, `var [a, , b = 2, ...rest] = arr;` |
 | Blocks | Yes | Create a child scope. |
 | `if` / `else` | Yes | |
 | `while`, `do…while` | Yes | `break` / `continue`, including labels. |
 | Classic `for` | Yes | `var`/`let`/`const` initializers, multiple declarators, optional clauses. |
-| `for…of` | Yes | Arrays and strings. Target must be a plain identifier. |
+| `for…of` | Yes | Arrays and strings. `Map`/`Set` are not iterable in `for…of` yet. Target must be a plain identifier. |
 | `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates prototype method names rather than indices; use `for…of` for arrays. Target must be a plain identifier. |
 | `switch` / `case` / `default` | Yes | Strict equality, fall-through, `break`. |
 | `try` / `catch` / `finally` | Yes | Catch binding is optional; `finally` always runs. |
@@ -27,7 +27,7 @@ them.
 | `break` / `continue` with labels | Yes | Labels work on `for`, `for…in`, `for…of`, `while`, and labeled statements. |
 | `return` | Yes | Not allowed outside a function (raises). |
 | Empty statement (`;`) | Yes | Treated as an empty block. |
-| `with` | No | Parsed as an identifier/expression; no binding semantics. |
+| `with` | No | Parsed as an identifier; normally fails at runtime with `TypeError` because the name is undefined. |
 | `debugger` | No | Parsed as an identifier; no effect. |
 | `class` | No | Some forms are silently ignored, others fail to parse. |
 | Generators (`function*`, `yield`) | No | Parse error. |
@@ -85,10 +85,10 @@ Notes:
   `prototype`; arrow functions return `false`.
 - `delete` removes object properties and clears array elements. Deleting a
   plain variable returns `false`. It returns `true` for missing properties.
-- Optional chaining short-circuits the immediate access/call. Because property
-  access on `undefined` returns `undefined`, chained accesses usually behave as
-  expected. Argument expressions of `a?.f(x)` are still evaluated when `a` is
-  null/undefined.
+- Optional chaining short-circuits the immediate access/call. It does not carry
+  a chain-wide short-circuit sentinel, so `a?.b.c` or `a?.b()` with `a` null or
+  undefined throws `TypeError` instead of returning `undefined`. Use an
+  explicitly optional link (`a?.b?.c`) or guard before chaining.
 - `==` handles `null == undefined`, number/string, and boolean conversions.
   Object-to-primitive coercion is not implemented (`[1] == 1` is `false`).
 
@@ -107,7 +107,7 @@ Notes:
 | Spread in calls | Yes | `f(...args)` |
 | Destructuring assignment | Yes | `[a, b] = arr;`, `({ a } = obj);` |
 | Comments | Yes | `//` and `/* … */`; **not nested** |
-| Regex literals | No | `/` is always division; regex literals fail to parse |
+| Regex literals | Yes | `/pattern/flags`, with `g`, `i`, and `m` |
 
 String `length`, indexing, and `for…of` operate on **UTF-8 bytes**, not UTF-16
 code units. Non-ASCII characters count as multiple units.
@@ -127,11 +127,17 @@ code units. Non-ASCII characters count as multiple units.
 | `JSON` | `stringify` and `parse` (see below). |
 | `Math` | See below. |
 | `Promise` | Object with `resolve`, `reject`, `all`, `race`. It is not a constructor: `new Promise(...)` is not supported. |
-| `Error`, `TypeError`, `RangeError`, `ReferenceError` | Constructors returning error objects with `name` and `message`. |
+| `Error`, `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError` | Constructors returning error objects with standard prototype chains, `name`, `message`, and `toString()`. |
 | `console` | `log`, `warn`, `error`. Output is captured per context. |
 | `globalThis` | A snapshot object containing references to the globals above. It is **not** a live global proxy: `var x = 1; globalThis.x` is `undefined`. |
 | `arguments` | Available inside user functions; an `Array`. |
-| `Date`, `Map`, `Set`, `Symbol`, `RegExp`, `Intl`, `eval`, timers, URI helpers | Not defined; accessing them yields `undefined`. |
+| `Map`, `Set` | Collections (see below). |
+| `Date` | Date/time object (see below). |
+| `Symbol` | Primitive symbols, registry, and well-known symbols. |
+| `RegExp` | Regular-expression constructor and regex literals. |
+| `URIError`, `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI` | URI helpers. |
+| `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | Host timers. They require the host to pump `FloriaJSProcessTimers`. |
+| `Intl`, `eval`, `alert`, `BigInt` | Not defined; accessing them yields `undefined`. |
 
 ### Math
 
@@ -164,13 +170,13 @@ Not implemented: `flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`,
 `charAt`, `charCodeAt`, `indexOf`, `lastIndexOf`, `includes`, `startsWith`,
 `endsWith`, `slice`, `substring`, `substr`, `toUpperCase`, `toLowerCase`,
 `trim`, `trimStart`, `trimEnd`, `split`, `replace`, `replaceAll`, `concat`,
-`repeat`, `padStart`, `padEnd`, `toString`, `valueOf`.
+`repeat`, `padStart`, `padEnd`, `match`, `search`, `toString`, `valueOf`.
 
-`replace`/`replaceAll` support **string patterns** and optional function
-replacers (called with `match`, `index`, and the whole string). They do not
-support regex patterns or `$&`-style replacement templates. Not implemented:
-`match`, `search`, `localeCompare`, `normalize`, `String.fromCharCode`,
-`String.fromCodePoint`.
+`replace`/`replaceAll` accept string or regex patterns and optional function
+replacers (called with `match`, `index`, and the whole string). `$&`-style
+replacement templates are not supported. `match`/`search`/`split` work with
+regex patterns. Not implemented: `localeCompare`, `normalize`,
+`String.fromCharCode`, `String.fromCodePoint`.
 
 `String.prototype` is the shared prototype used by primitive strings, so
 `String.prototype.charAt === "".charAt` is true.
@@ -211,18 +217,84 @@ Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
 - Getters are not invoked by `JSON.stringify`; it serialises stored property
   values.
 
+### Map and Set
+
+- `new Map()` / `new Map([[key, value], …])`, `new Set()` /
+  `new Set([value, …])`.
+- `Map`: `set`, `get`, `has`, `delete`, `clear`, `keys`, `values`, `entries`,
+  `forEach`, and the `size` getter.
+- `Set`: `add`, `has`, `delete`, `clear`, `keys`, `values`, `entries`,
+  `forEach`, and the `size` getter.
+- Keys use SameValueZero: `NaN` equals `NaN`, and `+0`/`-0` are the same key.
+- `keys`, `values`, and `entries` return **arrays**, not iterator objects.
+  `for…of` over a `Map`/`Set` currently runs zero iterations; iterate the
+  arrays instead.
+
+### Date
+
+- `new Date()`, `new Date(ms)`, `new Date("ISO-8601")`, and
+  `new Date(year, month, day[, h, m, s, ms])`.
+- `Date.now()`, `Date.parse(string)`, `Date.UTC(...)`.
+- `getTime`, `valueOf`, `toISOString`, `toUTCString`, `toDateString`,
+  `toTimeString`, `toString`, `getTimezoneOffset`, and the UTC/local
+  component getters (`getFullYear`, `getMonth`, `getDate`, `getDay`,
+  `getHours`, `getMinutes`, `getSeconds`, `getMilliseconds`, and their
+  `getUTC*` forms).
+- `setTime(ms)` is supported. The other component setters
+  (`setFullYear`, `setMonth`, …) are not implemented.
+
+### Symbol
+
+- `Symbol(description)` creates a primitive symbol; `typeof` is `symbol`.
+- `Symbol.for(key)` / `Symbol.keyFor(symbol)` use the global registry.
+- Well-known symbols: `Symbol.iterator`, `Symbol.toStringTag`,
+  `Symbol.hasInstance`, `Symbol.isConcatSpreadable`, `Symbol.toPrimitive`.
+- `new Symbol(...)` is rejected (as in JavaScript), and symbols coerce to
+  strings as `Symbol(description)`.
+
+### RegExp
+
+- Regex literals: `/pattern/flags` with `g`, `i`, and `m` flags.
+- `new RegExp(pattern[, flags])`, `test(string)`, `exec(string)`, and
+  `toString()`.
+- `exec` returns an array with the whole match, capture groups, `index`, and
+  `input`; global expressions track an internal position for repeated
+  `exec` calls, but a JavaScript-visible `lastIndex` property is not exposed.
+- `String.prototype.match`, `search`, `replace`, and `split` accept regex
+  objects.
+- The implementation is backed by Pascal's `RegExpr` engine, so very advanced
+  ECMAScript regex features (lookbehind, named groups, Unicode property
+  escapes) should not be assumed.
+
+### URI helpers
+
+`encodeURIComponent`, `decodeURIComponent`, `encodeURI`, and `decodeURI` are
+available, along with `URIError`. Invalid percent-encoding raises a catchable
+`URIError`.
+
+### Timers
+
+`setTimeout`, `clearTimeout`, `setInterval`, and `clearInterval` register
+callbacks in a process-wide queue. The runtime has no wall-clock event loop:
+the host must call `FloriaJSProcessTimers(Heap)` periodically. Without that
+pump, delayed and repeating callbacks do not execute.
+
 ### Errors and promises
 
-- `new Error(msg)`, `new TypeError(msg)`, `new RangeError(msg)`, and
-  `new ReferenceError(msg)` create error objects with `name`, `message`, and
-  `ToString()` = `Name: message`.
-- Error objects currently have a null prototype: `err instanceof Error` is
-  `false` and `err.hasOwnProperty(...)` is unavailable.
+- `new Error(msg)`, `new TypeError(msg)`, `new RangeError(msg)`,
+  `new ReferenceError(msg)`, `new SyntaxError(msg)`, and `URIError(...)`
+  create error objects with `name`, `message`, and `ToString()` =
+  `Name: message`.
+- Error objects have proper prototype chains: `err instanceof TypeError`,
+  `err.hasOwnProperty(...)`, and inherited `toString()` work.
+- The VM throws catchable `TypeError`/`RangeError` objects for property access
+  or assignment on `null`/`undefined`, calling a non-function, and exceeding
+  the call-depth limit.
 - `throw` can throw any value. `catch (e)` receives it.
 - `async` functions return promises; `.then`, `.catch`, and `.finally` are
   available on promises. `Promise.resolve/reject/all/race` are supported, but
   there is no promise constructor or host event loop. Microtasks are drained
-  before `ExecuteProgram` returns.
+  after a script runs.
 
 ## FTML expressions
 
@@ -236,17 +308,14 @@ These are the differences most likely to surprise a JavaScript developer:
 | Area | Current behaviour |
 | :--- | :--- |
 | `const` | Reassignment is allowed. |
-| `var` | Block-scoped; not hoisted. |
+| `var` | Function/top-level scoped; not hoisted. `let`/`const` are block-scoped. |
+| Classic `for` with `let`/`const` | The loop variable remains visible after the loop in the current compiler; `for…in`/`for…of` bindings are per-iteration scoped. |
 | Function declarations | Not hoisted. |
 | `void` | Not an operator. `void 0` happens to yield `0` because it is two expressions. |
 | Logical assignment | `&&=` and `\|\|=` are not implemented. |
 | Tagged templates | Not implemented; often silently treated as two expressions. |
-| Regex | No regex literals or `RegExp`. |
 | `class` | Not implemented; some forms fail, some are ignored. |
-| Property access on `null`/`undefined` | Returns `undefined` instead of throwing `TypeError`. |
-| Calling a non-function | Returns `undefined` instead of throwing `TypeError`. (The exception is `new`, which throws.) |
-| Assigning to a property of `null`/`undefined` | Silently does nothing. |
-| `instanceof` for errors | `err instanceof Error` is `false`. |
+| `with` / `debugger` | Parsed as identifiers; `with` usually fails at runtime, `debugger` is a no-op. |
 | `globalThis` | Snapshot, not a live binding to the global scope. |
 | `arguments` in arrows | Arrows get their own `arguments` array. |
 | Strings | Byte-oriented (UTF-8), including `length`, indexing, and `for…of`. |
@@ -257,11 +326,32 @@ These are the differences most likely to surprise a JavaScript developer:
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
 | `JSON.stringify` | Ignores the replacer and does not invoke getters. |
 | Promise construction | `new Promise(executor)` is not supported. |
-| Optional chaining | Short-circuits the immediate operation, not argument evaluation of `a?.f(args)`. |
+| Function objects | Only `prototype` and `toString` are exposed; `call`, `apply`, `bind`, `length`, and `name` are unavailable. |
+| Optional chaining | Short-circuits only the immediate link. `a?.b.c` / `a?.b()` with `a` nullish throws instead of short-circuiting the whole chain. |
 | `for…in`/`for…of` targets | Must be simple identifiers; destructuring targets are not parsed. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
 | `for…in` on arrays | Enumerates prototype method names, not element indices. Prefer `for…of` or a classic index loop. |
 | `for…of` on non-iterables | Runs zero iterations. |
+| `for…of` on Map/Set | Runs zero iterations; use `keys()`/`values()`/`entries()`, which return arrays. |
+| `Map`/`Set` iteration | `keys`, `values`, and `entries` return arrays, not iterator objects. |
+| Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. |
+| Timers | Require the host to call `FloriaJSProcessTimers`; there is no built-in event loop. |
+| Execution engine | Pure bytecode interpreter; no JIT/AOT, hidden classes, inline caches, or persistent bytecode cache. |
+
+## Not implemented
+
+- `class`, `super`, `extends`.
+- Generators (`function*`, `yield`), `for await`, and async iteration.
+- Tagged templates.
+- `import` / `export`.
+- `BigInt`.
+- The `void` operator and logical assignment (`&&=`, `||=`).
+- `Function.prototype`, `call`, `apply`, and `bind`.
+- `Object.is`, `Object.defineProperty`, `Object.freeze`/`seal`.
+- `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`.
+- `String.fromCharCode`/`fromCodePoint`.
+- `Intl`, `eval`, `alert`.
+- A promise constructor (`new Promise(executor)`).
 
 ## Verifying behaviour
 

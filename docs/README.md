@@ -14,7 +14,8 @@ the quick-start example live in the top-level [README](../README.md).
 | :--- | :--- |
 | [Getting started](getting-started.md) | Build the library, run a script, call Pascal from JavaScript, and embed the runtime in an application. |
 | [Language support](language-support.md) | See which JavaScript syntax and standard-library APIs are implemented, and which ones are not. |
-| [Architecture](architecture.md) | Understand the lexer → parser → AST → evaluator pipeline, the value model, and the memory model. |
+| [Architecture](architecture.md) | Understand the lexer → parser → compiler → bytecode VM pipeline, the value model, and the memory model. |
+| [Bytecode VM](bytecode-vm.md) | Understand the opcode set, compiler output, stack machine, call frames, and how to extend it. |
 | [FTML guide](ftml.md) | Write declarative component markup with reactive property bindings, anchors, and signals. |
 | [Development guide](development.md) | Contribute code, run the test suite and gap scan, and add new built-ins safely. |
 | [Roadmap](roadmap.md) | See the prioritised list of missing features and current delivery slices. |
@@ -25,7 +26,7 @@ the quick-start example live in the top-level [README](../README.md).
 | :--- | :--- |
 | [Engine and context](api/engine.md) | `TFloriaJSEngine`, `TFloriaJSContext`, results, contexts, console capture, lifetime. |
 | [Values and heap](api/values.md) | `TFloriaJSValue`, objects, arrays, functions, errors, promises, the heap, and coercion helpers. |
-| [Language pipeline](api/language-pipeline.md) | Lexer, parser, AST, evaluator, and the standard-library registration entry points. |
+| [Language pipeline](api/language-pipeline.md) | Lexer, parser, AST, bytecode compiler, VM, and standard-library registration. |
 | [FTML API](api/ftml.md) | `TFloriaFTMLEngine`, item classes, bindings, signals, and host integration. |
 
 ## Status at a glance
@@ -35,6 +36,9 @@ JavaScript rather than full ECMAScript conformance.
 
 Implemented and covered by the test suite:
 
+- **Execution engine**: AST → bytecode compiler, stack-based VM, local slots,
+  jump-based control flow, exception handler stack, closures, async functions,
+  and a disassembler.
 - Core statements: declarations (including destructuring), blocks, `if`,
   classic `for`, `for…in`, `for…of`, `while`, `do…while`, `switch`,
   `try`/`catch`/`finally`, `throw`, labeled `break`/`continue`.
@@ -47,36 +51,42 @@ Implemented and covered by the test suite:
   `??=`.
 - Literals: numbers (hex, octal, binary, exponent, numeric separators),
   strings with escapes, template interpolation, array/object spread, array
-  holes, shorthand and computed properties, object methods, and
-  getters/setters.
+  holes, shorthand and computed properties, object methods, getters/setters,
+  and regular expression literals.
 - Standard library: `console`, `Math`, `Number`, `String`, `Boolean`,
-  `parseInt`/`parseFloat`, `isNaN`/`isFinite`, `Error`/`TypeError`/
-  `RangeError`/`ReferenceError`, `Object` utilities, Array and String
-  prototypes, `Promise`, `globalThis`, and RFC 8259-style `JSON`.
-- FTML: component instantiation, IDs, property bindings, dependency tracking,
-  anchors, signals, and document lifecycle management.
+  `parseInt`/`parseFloat`, `isNaN`/`isFinite`, the standard error constructors
+  (including `SyntaxError` and `URIError`), `Object` utilities, Array and
+  String prototypes, `Promise`, `globalThis`, RFC 8259-style `JSON`, `Map`,
+  `Set`, `Date`, `Symbol`, `RegExp`, URI helpers, and host timers.
+- Strict runtime checks: reading/writing properties of `null`/`undefined` and
+  calling a non-function throw catchable `TypeError` objects.
+- FTML: component instantiation, IDs, compiled reactive property bindings,
+  dependency tracking, anchors, signals, and document lifecycle management.
 
 Not implemented yet (see the [roadmap](roadmap.md)):
 
-- `Map`, `Set`, `Date`, `Symbol`, `RegExp`, generators/`yield`, real `class`
-  syntax, tagged templates, and `for await`.
-- The `void` operator and logical assignment (`&&=`, `||=`).
-- Runtime `TypeError`s for calling a non-function or accessing a property of
-  `null`/`undefined` (these currently return `undefined`).
-- URI helpers, timers, and other host-provided globals.
+- `class`, generators/`yield`, tagged templates, `for await`, and
+  `import`/`export`.
+- `BigInt`, the `void` operator, and logical assignment (`&&=`, `||=`).
+- `Function.prototype.call`/`apply`/`bind`, `Function.prototype`, and a few
+  convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
+  and `Object.is`.
+- A JIT/AOT compiler, hidden classes/inline caches, and persistent bytecode
+  caching. The VM is currently a pure interpreter.
 
 The runtime also keeps some non-standard semantics: `const` reassignment is
-allowed, `var` is block-scoped, and some coercion corners differ from
-ECMAScript. See [language support](language-support.md#semantic-deviations)
-for the complete list.
+allowed, a `let` declared in a classic `for` header stays visible after the
+loop, and some coercion corners differ from ECMAScript. See
+[language support](language-support.md#semantic-deviations) for the complete
+list.
 
 ## Documentation conventions
 
 - Code blocks are Free Pascal unless they show JavaScript.
 - API signatures are quoted exactly as declared in the source.
 - “Current behaviour” describes the implementation on `main`; “not
-  implemented” means the parser rejects the syntax or the runtime returns
-  `undefined`.
+  implemented” means the syntax is rejected, ignored, or lacks the expected
+  runtime behaviour.
 - All paths are relative to the repository root.
 
 ## Keeping the docs accurate
