@@ -946,8 +946,15 @@ procedure TFloriaJSCompiler.CompileUnaryExpr(AUnary: TFloriaJSUnaryExpr);
 var
   member: TFloriaJSMemberExpr;
   ident: TFloriaJSIdentifierExpr;
+  targetNode: TFloriaJSExprNode;
   locIdx, nameIdx, tmpLoc: Integer;
 begin
+  { Parentheses are transparent for references: (a)++ and delete (a.b)
+    must target the same binding/property as a++ and delete a.b. }
+  targetNode := AUnary.Operand;
+  while targetNode is TFloriaJSGroupExpr do
+    targetNode := TFloriaJSGroupExpr(targetNode).Expression;
+
   case AUnary.Op of
     tkMinus:
       begin
@@ -1002,9 +1009,9 @@ begin
       end;
     tkDelete:
       begin
-        if AUnary.Operand is TFloriaJSMemberExpr then
+        if targetNode is TFloriaJSMemberExpr then
         begin
-          member := TFloriaJSMemberExpr(AUnary.Operand);
+          member := TFloriaJSMemberExpr(targetNode);
           CompileExpr(member.Target);
           if member.Computed then
             CompileExpr(member.PropertyExpr)
@@ -1014,16 +1021,26 @@ begin
         end
         else
         begin
-          CompileExpr(AUnary.Operand);
+          CompileExpr(targetNode);
           FBytecode.Emit(opPop);
           FBytecode.Emit(opTrue, 0, AUnary.Line);
         end;
       end;
     tkPlusPlus, tkMinusMinus:
       begin
-        if AUnary.Operand is TFloriaJSIdentifierExpr then
+        { The parser rejects this earlier; keep a compiler guard for ASTs built
+          programmatically. }
+        if ContainsOptionalChain(targetNode) then
         begin
-          ident := TFloriaJSIdentifierExpr(AUnary.Operand);
+          if AUnary.IsPrefix then
+            raise Exception.Create('SyntaxError: Invalid left-hand side in prefix operation')
+          else
+            raise Exception.Create('SyntaxError: Invalid left-hand side in postfix operation');
+        end;
+
+        if targetNode is TFloriaJSIdentifierExpr then
+        begin
+          ident := TFloriaJSIdentifierExpr(targetNode);
           if (Length(ident.Name) > 0) and (ident.Name[1] = '$') then
           begin
             locIdx := FBytecode.FindLocal(ident.Name);
@@ -1089,9 +1106,9 @@ begin
             end;
           end;
         end
-        else if AUnary.Operand is TFloriaJSMemberExpr then
+        else if targetNode is TFloriaJSMemberExpr then
         begin
-          member := TFloriaJSMemberExpr(AUnary.Operand);
+          member := TFloriaJSMemberExpr(targetNode);
           CompileExpr(member.Target); // Stack: [Target]
           if not member.Computed then
           begin

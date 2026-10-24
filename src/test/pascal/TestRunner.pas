@@ -6426,7 +6426,68 @@ begin
 
     // new a?.b() is a SyntaxError / parse error
     res := engine.Execute('var a = { b: function() {} }; new a?.b();');
-    AssertFalse('new a?.b() must be rejected as parse error', res.Success);
+    AssertFalse('new a?.b() must be rejected', res.Success);
+    AssertTrue('new a?.b() must fail in the parser',
+      Pos('Cannot use new with optional chaining', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var a = { b: function() {} }; new a?.b;');
+    AssertFalse('new a?.b must be rejected', res.Success);
+    AssertTrue('new a?.b must fail in the parser',
+      Pos('Cannot use new with optional chaining', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var a = { b: function() {} }; new a?.[0]();');
+    AssertFalse('new a?.[0]() must be rejected', res.Success);
+    AssertTrue('new a?.[0]() must fail in the parser',
+      Pos('Cannot use new with optional chaining', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var a = function() {}; new a?.();');
+    AssertFalse('new a?.() must be rejected', res.Success);
+    AssertTrue('new a?.() must fail in the parser',
+      Pos('Cannot use new with optional chaining', res.ErrorMessage) > 0);
+
+    // Parentheses around an optional chain do not make it a valid update target.
+    res := engine.Execute('var a = { b: 1 }; (a?.b)++;');
+    AssertFalse('Grouped optional-chain postfix ++ must be rejected', res.Success);
+    AssertTrue('Grouped optional-chain postfix ++ must fail in the parser',
+      Pos('Invalid left-hand side in postfix operation', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var a = { b: 1 }; ++(a?.b);');
+    AssertFalse('Grouped optional-chain prefix ++ must be rejected', res.Success);
+    AssertTrue('Grouped optional-chain prefix ++ must fail in the parser',
+      Pos('Invalid left-hand side in prefix operation', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var a = { b: 1 }; ((a?.b))++;');
+    AssertFalse('Nested grouped optional-chain postfix ++ must be rejected', res.Success);
+    AssertTrue('Nested grouped optional-chain postfix ++ must fail in the parser',
+      Pos('Invalid left-hand side in postfix operation', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var a = { b: 1 }; (a?.b) += 1;');
+    AssertFalse('Grouped optional-chain compound assignment must be rejected', res.Success);
+    AssertTrue('Grouped optional-chain compound assignment must fail in the parser',
+      Pos('Invalid left-hand side in assignment', res.ErrorMessage) > 0);
+
+    // Parentheses must remain transparent for valid unary targets.
+    res := engine.Execute('var a = 1; (a)++; a === 2;');
+    AssertTrue('Grouped identifier postfix update works', res.Success and res.BooleanValue);
+
+    res := engine.Execute('var a = { b: 1 }; (a.b)++; a.b === 2;');
+    AssertTrue('Grouped member postfix update works', res.Success and res.BooleanValue);
+
+    res := engine.Execute('var a = { b: 1 }; ++(a["b"]); a.b === 2;');
+    AssertTrue('Grouped computed prefix update works', res.Success and res.BooleanValue);
+
+    res := engine.Execute('var a = { b: 1 }; delete (a.b); !("b" in a);');
+    AssertTrue('Grouped delete removes a property', res.Success and res.BooleanValue);
+
+    res := engine.Execute('var a = { b: 1 }; delete (a?.b); !("b" in a);');
+    AssertTrue('Grouped optional-chain delete removes a property', res.Success and res.BooleanValue);
+
+    // Parentheses around an optional chain are valid as a new callee.
+    res := engine.Execute(
+      'var a = { b: function() { this.x = 7; } };' +
+      'var o = new (a?.b)(); o.x === 7;'
+    );
+    AssertTrue('new (a?.b)() is valid', res.Success and res.BooleanValue);
 
     // (a?.b).c with non-null a works normally
     res := engine.Execute('var a = { b: { c: 10 } }; (a?.b).c === 10;');
