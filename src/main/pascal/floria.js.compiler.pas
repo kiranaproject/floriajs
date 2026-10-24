@@ -807,7 +807,7 @@ procedure TFloriaJSCompiler.CompileAssignExpr(AAssign: TFloriaJSAssignExpr);
 var
   ident: TFloriaJSIdentifierExpr;
   member: TFloriaJSMemberExpr;
-  locIdx, nameIdx: Integer;
+  locIdx, nameIdx, jumpNullish, jumpDone: Integer;
 begin
   if AAssign.Target is TFloriaJSIdentifierExpr then
   begin
@@ -817,8 +817,22 @@ begin
     begin
       locIdx := FBytecode.FindLocal(ident.Name);
 
-      // If compound assignment (e.g. +=), load original value first
-      if AAssign.Op <> tkAssign then
+      if AAssign.Op = tkNullishAssign then
+      begin
+        if locIdx >= 0 then
+          FBytecode.Emit(opLoadLoc, locIdx)
+        else
+          FBytecode.Emit(opLoadEnv, FBytecode.AddStringConstant(ident.Name));
+
+        jumpNullish := FBytecode.Emit(opJumpIfNullish, 0, AAssign.Line);
+        CompileExpr(AAssign.Value);
+        if locIdx >= 0 then
+          FBytecode.Emit(opStoreLoc, locIdx, AAssign.Line)
+        else
+          FBytecode.Emit(opStoreEnv, FBytecode.AddStringConstant(ident.Name), AAssign.Line);
+        FBytecode.PatchJump(jumpNullish, FBytecode.CurrentIP());
+      end
+      else if AAssign.Op <> tkAssign then
       begin
         if locIdx >= 0 then
           FBytecode.Emit(opLoadLoc, locIdx)
@@ -834,20 +848,34 @@ begin
           tkModuloAssign:   FBytecode.Emit(opMod);
           tkPowerAssign:    FBytecode.Emit(opPower);
         end;
+
+        if locIdx >= 0 then
+          FBytecode.Emit(opStoreLoc, locIdx, AAssign.Line)
+        else
+          FBytecode.Emit(opStoreEnv, FBytecode.AddStringConstant(ident.Name), AAssign.Line);
       end
       else
+      begin
         CompileExpr(AAssign.Value);
-
-      if locIdx >= 0 then
-        FBytecode.Emit(opStoreLoc, locIdx, AAssign.Line)
-      else
-        FBytecode.Emit(opStoreEnv, FBytecode.AddStringConstant(ident.Name), AAssign.Line);
+        if locIdx >= 0 then
+          FBytecode.Emit(opStoreLoc, locIdx, AAssign.Line)
+        else
+          FBytecode.Emit(opStoreEnv, FBytecode.AddStringConstant(ident.Name), AAssign.Line);
+      end;
     end
     else
     begin
       nameIdx := FBytecode.AddStringConstant(ident.Name);
 
-      if AAssign.Op <> tkAssign then
+      if AAssign.Op = tkNullishAssign then
+      begin
+        FBytecode.Emit(opLoadEnv, nameIdx);
+        jumpNullish := FBytecode.Emit(opJumpIfNullish, 0, AAssign.Line);
+        CompileExpr(AAssign.Value);
+        FBytecode.Emit(opStoreEnv, nameIdx, AAssign.Line);
+        FBytecode.PatchJump(jumpNullish, FBytecode.CurrentIP());
+      end
+      else if AAssign.Op <> tkAssign then
       begin
         FBytecode.Emit(opLoadEnv, nameIdx);
         CompileExpr(AAssign.Value);
@@ -859,11 +887,13 @@ begin
           tkModuloAssign:   FBytecode.Emit(opMod);
           tkPowerAssign:    FBytecode.Emit(opPower);
         end;
+        FBytecode.Emit(opStoreEnv, nameIdx, AAssign.Line);
       end
       else
+      begin
         CompileExpr(AAssign.Value);
-
-      FBytecode.Emit(opStoreEnv, nameIdx, AAssign.Line);
+        FBytecode.Emit(opStoreEnv, nameIdx, AAssign.Line);
+      end;
     end;
   end
   else if AAssign.Target is TFloriaJSMemberExpr then
@@ -874,13 +904,80 @@ begin
     if member.Computed then
     begin
       CompileExpr(member.PropertyExpr);
-      CompileExpr(AAssign.Value);
-      FBytecode.Emit(opSetProp, 0, AAssign.Line);
+
+      if AAssign.Op = tkNullishAssign then
+      begin
+        FBytecode.Emit(opDup2);
+        FBytecode.Emit(opGetProp, 0, AAssign.Line);
+        jumpNullish := FBytecode.Emit(opJumpIfNullish, 0, AAssign.Line);
+        CompileExpr(AAssign.Value);
+        FBytecode.Emit(opSetProp, 0, AAssign.Line);
+        jumpDone := FBytecode.Emit(opJump, 0, AAssign.Line);
+        FBytecode.PatchJump(jumpNullish, FBytecode.CurrentIP());
+        FBytecode.Emit(opSwap);
+        FBytecode.Emit(opPop);
+        FBytecode.Emit(opSwap);
+        FBytecode.Emit(opPop);
+        FBytecode.PatchJump(jumpDone, FBytecode.CurrentIP());
+      end
+      else if AAssign.Op <> tkAssign then
+      begin
+        FBytecode.Emit(opDup2);
+        FBytecode.Emit(opGetProp, 0, AAssign.Line);
+        CompileExpr(AAssign.Value);
+        case AAssign.Op of
+          tkPlusAssign:     FBytecode.Emit(opAdd);
+          tkMinusAssign:    FBytecode.Emit(opSub);
+          tkMultiplyAssign: FBytecode.Emit(opMul);
+          tkDivideAssign:   FBytecode.Emit(opDiv);
+          tkModuloAssign:   FBytecode.Emit(opMod);
+          tkPowerAssign:    FBytecode.Emit(opPower);
+        end;
+        FBytecode.Emit(opSetProp, 0, AAssign.Line);
+      end
+      else
+      begin
+        CompileExpr(AAssign.Value);
+        FBytecode.Emit(opSetProp, 0, AAssign.Line);
+      end;
     end
     else
     begin
-      CompileExpr(AAssign.Value);
-      FBytecode.Emit(opSetPropNamed, FBytecode.AddStringConstant(member.PropertyName), AAssign.Line);
+      nameIdx := FBytecode.AddStringConstant(member.PropertyName);
+
+      if AAssign.Op = tkNullishAssign then
+      begin
+        FBytecode.Emit(opDup);
+        FBytecode.Emit(opGetPropNamed, nameIdx, AAssign.Line);
+        jumpNullish := FBytecode.Emit(opJumpIfNullish, 0, AAssign.Line);
+        CompileExpr(AAssign.Value);
+        FBytecode.Emit(opSetPropNamed, nameIdx, AAssign.Line);
+        jumpDone := FBytecode.Emit(opJump, 0, AAssign.Line);
+        FBytecode.PatchJump(jumpNullish, FBytecode.CurrentIP());
+        FBytecode.Emit(opSwap);
+        FBytecode.Emit(opPop);
+        FBytecode.PatchJump(jumpDone, FBytecode.CurrentIP());
+      end
+      else if AAssign.Op <> tkAssign then
+      begin
+        FBytecode.Emit(opDup);
+        FBytecode.Emit(opGetPropNamed, nameIdx, AAssign.Line);
+        CompileExpr(AAssign.Value);
+        case AAssign.Op of
+          tkPlusAssign:     FBytecode.Emit(opAdd);
+          tkMinusAssign:    FBytecode.Emit(opSub);
+          tkMultiplyAssign: FBytecode.Emit(opMul);
+          tkDivideAssign:   FBytecode.Emit(opDiv);
+          tkModuloAssign:   FBytecode.Emit(opMod);
+          tkPowerAssign:    FBytecode.Emit(opPower);
+        end;
+        FBytecode.Emit(opSetPropNamed, nameIdx, AAssign.Line);
+      end
+      else
+      begin
+        CompileExpr(AAssign.Value);
+        FBytecode.Emit(opSetPropNamed, nameIdx, AAssign.Line);
+      end;
     end;
   end;
 end;

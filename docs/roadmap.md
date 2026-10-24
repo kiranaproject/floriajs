@@ -144,7 +144,7 @@ a stable baseline.
 
 ---
 
-### [ ] P0-02 — Compile compound assignments to member expressions
+### [x] P0-02 — Compile compound assignments to member expressions
 
 **Failure.**
 

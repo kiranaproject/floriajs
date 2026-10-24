@@ -303,6 +303,7 @@ type
     procedure TestFunctionCallApplyBind();
     procedure TestFunctionPrototypeAndConstructor();
     procedure TestNumericParsingAndFormatting();
+    procedure TestCompoundAssignmentToMembers();
   end;
 
 { TFloriaJSTypesTest }
@@ -6036,6 +6037,77 @@ begin
     res := engine.Execute('(1e20).toString().indexOf("1") === 0;');
     AssertTrue('Large number toString succeeds without overflow', res.Success);
     AssertTrue('Large number toString starts with 1', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestCompoundAssignmentToMembers();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Named member compound assignment
+    res := engine.Execute(
+      'var o = { x: 1, y: 2 };' +
+      'o.x += 2;' +
+      'var r1 = (o.x *= 3);' +
+      'o.x -= 4;' +
+      'o.x /= 2.5;' +
+      'o.x %= 1.5;' +
+      'o.y **= 3;' +
+      'o.x === 0.5 && r1 === 9 && o.y === 8;'
+    );
+    AssertTrue('Named member compound assignment succeeds', res.Success);
+    AssertTrue('Named member compound assignment values correct', res.BooleanValue);
+
+    // Computed member and array compound assignment
+    res := engine.Execute(
+      'var a = [10, 20];' +
+      'a[0] += 5;' +
+      'var rArr = (a[0] *= 2);' +
+      'a[1] -= 5;' +
+      'var obj = { k: 10 };' +
+      'obj["k"] += 5;' +
+      'obj["k"] **= 2;' +
+      'a[0] === 30 && rArr === 30 && a[1] === 15 && obj.k === 225;'
+    );
+    AssertTrue('Computed member and array compound assignment succeeds', res.Success);
+    AssertTrue('Computed member and array compound assignment values correct', res.BooleanValue);
+
+    // Single evaluation of target and computed property key
+    res := engine.Execute(
+      'var targetCalls = 0;' +
+      'var propCalls = 0;' +
+      'var host = { val: 10 };' +
+      'function getHost() { targetCalls += 1; return host; }' +
+      'function getProp() { propCalls += 1; return "val"; }' +
+      'getHost()[getProp()] += 5;' +
+      'targetCalls === 1 && propCalls === 1 && host.val === 15;'
+    );
+    AssertTrue('Side effects in member target and property evaluated once', res.Success);
+    AssertTrue('Target and prop calls exactly 1 each', res.BooleanValue);
+
+    // Nullish assignment ??= for named, computed, and identifier
+    res := engine.Execute(
+      'var nObj = { a: null, b: 42, c: undefined };' +
+      'var rN1 = (nObj.a ??= 100);' +
+      'var rhsCalls = 0;' +
+      'var rN2 = (nObj.b ??= (rhsCalls += 1, 999));' +
+      'nObj["c"] ??= "default";' +
+      'var idNull = null;' +
+      'idNull ??= "assigned";' +
+      'var idVal = "keep";' +
+      'idVal ??= "replaced";' +
+      'rN1 === 100 && nObj.a === 100 && ' +
+      'rN2 === 42 && nObj.b === 42 && rhsCalls === 0 && ' +
+      'nObj.c === "default" && ' +
+      'idNull === "assigned" && idVal === "keep";'
+    );
+    AssertTrue('Nullish assignment ??= succeeds', res.Success);
+    AssertTrue('Nullish assignment ??= semantics correct', res.BooleanValue);
   finally
     engine.Free();
   end;
