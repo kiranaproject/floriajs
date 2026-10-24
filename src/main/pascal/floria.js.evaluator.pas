@@ -170,6 +170,17 @@ begin
       Exit(FHeap.GetStringPrototype().GetProperty(APropName));
   end;
 
+  if AObj.IsSymbol() then
+  begin
+    if APropName = 'description' then
+    begin
+      if AObj.StrVal = '' then
+        Exit(JSMakeUndefined())
+      else
+        Exit(JSMakeString(AObj.StrVal));
+    end;
+  end;
+
   Exit(JSMakeUndefined());
 end;
 

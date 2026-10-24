@@ -31,6 +31,7 @@ type
     tkIdentifier,
     tkNumber,
     tkString,
+    tkRegExp,
     tkTemplateString,
     tkTemplateHead,
     tkTemplateMiddle,
@@ -153,6 +154,7 @@ type
     FColumn: Integer;
     FPeekedToken: TFloriaJSToken;
     FHasPeeked: Boolean;
+    FLastTokenKind: TFloriaJSTokenKind;
     FBraceStack: array of Boolean;
 
     function  PeekChar(): Char;
@@ -160,6 +162,8 @@ type
     function  AdvanceChar(): Char;
     function  MatchChar(AExpected: Char): Boolean;
     procedure SkipWhitespace();
+    function  IsRegexAllowed(): Boolean;
+    function  ScanRegExp(AStartLine, AStartCol, AStartPos: Integer): TFloriaJSToken;
     function  ScanIdentifierOrKeyword(): TFloriaJSToken;
     function  ScanNumber(): TFloriaJSToken;
     function  ScanString(AQuote: Char): TFloriaJSToken;
@@ -266,6 +270,7 @@ begin
   FLine := 1;
   FColumn := 1;
   FHasPeeked := False;
+  FLastTokenKind := tkEOF;
   SetLength(FBraceStack, 0);
 end;
 
@@ -342,6 +347,8 @@ begin
   Result.Column := AStartCol;
   Result.StartPos := AStartPos;
   Result.EndPos := FPos - 1;
+  if AKind <> tkComment then
+    FLastTokenKind := AKind;
 end;
 
 function TFloriaJSLexer.MakeError(const AMessage: string; AStartLine, AStartCol, AStartPos: Integer): TFloriaJSToken;
@@ -654,6 +661,60 @@ begin
     Result := MakeError('Invalid comment scanner state', startLine, startCol, startPos);
 end;
 
+function TFloriaJSLexer.IsRegexAllowed(): Boolean;
+begin
+  case FLastTokenKind of
+    tkIdentifier, tkNumber, tkString, tkTemplateTail,
+    tkRParen, tkRBracket, tkRBrace,
+    tkPlusPlus, tkMinusMinus:
+      Result := False;
+  else
+    Result := True;
+  end;
+end;
+
+function TFloriaJSLexer.ScanRegExp(AStartLine, AStartCol, AStartPos: Integer): TFloriaJSToken;
+var
+  pat, flags: string;
+  inClass: Boolean;
+  ch: Char;
+begin
+  pat := '';
+  flags := '';
+  inClass := False;
+  while not IsAtEnd() do
+  begin
+    ch := AdvanceChar();
+    if ch = '\' then
+    begin
+      pat := pat + '\';
+      if not IsAtEnd() then
+        pat := pat + AdvanceChar();
+    end
+    else if ch = '[' then
+    begin
+      inClass := True;
+      pat := pat + '[';
+    end
+    else if ch = ']' then
+    begin
+      inClass := False;
+      pat := pat + ']';
+    end
+    else if (ch = '/') and not inClass then
+      Break
+    else if (ch = #10) or (ch = #13) then
+      Exit(MakeError('Unterminated regular expression literal', AStartLine, AStartCol, AStartPos))
+    else
+      pat := pat + ch;
+  end;
+
+  while not IsAtEnd() and (PeekChar() in ['a'..'z', 'A'..'Z']) do
+    flags := flags + AdvanceChar();
+
+  Result := MakeToken(tkRegExp, pat + #0 + flags, AStartLine, AStartCol, AStartPos);
+end;
+
 function TFloriaJSLexer.NextToken(): TFloriaJSToken;
 var
   startLine, startCol, startPos: Integer;
@@ -811,6 +872,8 @@ begin
       begin
         if MatchChar('=') then
           Exit(MakeToken(tkDivideAssign, '/=', startLine, startCol, startPos))
+        else if IsRegexAllowed() then
+          Exit(ScanRegExp(startLine, startCol, startPos))
         else
           Exit(MakeToken(tkDivide, '/', startLine, startCol, startPos));
       end;
@@ -920,6 +983,7 @@ begin
     tkIdentifier:     Result := 'Identifier';
     tkNumber:         Result := 'Number';
     tkString:         Result := 'String';
+    tkRegExp:         Result := 'RegExp';
     tkTemplateString: Result := 'TemplateString';
     tkTemplateHead:   Result := 'TemplateHead';
     tkTemplateMiddle: Result := 'TemplateMiddle';

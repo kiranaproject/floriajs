@@ -18,7 +18,7 @@ unit floria.js.strings;
 interface
 
 uses
-  Classes, SysUtils, Math, StrUtils, floria.js.types, floria.js.value;
+  Classes, SysUtils, Math, StrUtils, floria.js.types, floria.js.value, floria.js.regexp;
 
 procedure FloriaJSRegisterString(AHeap: TFloriaJSHeap);
 
@@ -54,6 +54,8 @@ type
     function Split(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function Replace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function ReplaceAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function Match(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function Search(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function Concat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function RepeatString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function PadStart(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -342,6 +344,8 @@ var
   s, separator: string;
   res: TFloriaJSArray;
   limit, i, startPos, p: Integer;
+  re: TFloriaJSRegExp;
+  pieces: TStringList;
 begin
   s := ThisString(AThis);
   res := FHeap.NewArray();
@@ -356,6 +360,23 @@ begin
   if (Length(AArgs) = 0) or AArgs[0].IsUndefined() then
   begin
     res.Push(JSMakeString(s));
+    Exit(JSMakeArray(res));
+  end;
+
+  if AArgs[0].IsObject() and (AArgs[0].ObjVal is TFloriaJSRegExp) then
+  begin
+    re := TFloriaJSRegExp(AArgs[0].ObjVal);
+    pieces := TStringList.Create();
+    try
+      re.RegEngine.Split(s, pieces);
+      for i := 0 to pieces.Count - 1 do
+      begin
+        if (limit >= 0) and (res.Length() >= limit) then Break;
+        res.Push(JSMakeString(pieces[i]));
+      end;
+    finally
+      pieces.Free();
+    end;
     Exit(JSMakeArray(res));
   end;
 
@@ -404,42 +425,79 @@ end;
 
 function TFloriaJSStringHelper.Replace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
-  s, search, outText: string;
+  s, searchStr, outText, m: string;
   replacement: TFloriaJSValue;
-  p, startPos: Integer;
+  p, mPos, mLen, lastPos: Integer;
+  re: TFloriaJSRegExp;
 begin
   s := ThisString(AThis);
-  search := StringArg(AArgs, 0, 'undefined');
 
   replacement := JSMakeUndefined();
   if Length(AArgs) > 1 then replacement := AArgs[1];
 
-  if search = '' then
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() and (AArgs[0].ObjVal is TFloriaJSRegExp) then
+  begin
+    re := TFloriaJSRegExp(AArgs[0].ObjVal);
+    try
+      if not re.RegEngine.Exec(s) then
+        Exit(JSMakeString(s));
+
+      if not re.Global then
+      begin
+        mPos := re.RegEngine.MatchPos[0];
+        mLen := re.RegEngine.MatchLen[0];
+        m := re.RegEngine.Match[0];
+        outText := Copy(s, 1, mPos - 1) +
+          ReplacementText(s, m, mPos - 1, replacement) +
+          Copy(s, mPos + mLen, Length(s) - mPos - mLen + 1);
+        Exit(JSMakeString(outText));
+      end;
+
+      outText := '';
+      lastPos := 1;
+      repeat
+        mPos := re.RegEngine.MatchPos[0];
+        mLen := re.RegEngine.MatchLen[0];
+        m := re.RegEngine.Match[0];
+        outText := outText + Copy(s, lastPos, mPos - lastPos) +
+          ReplacementText(s, m, mPos - 1, replacement);
+        lastPos := mPos + mLen;
+      until not re.RegEngine.ExecNext();
+      outText := outText + Copy(s, lastPos, Length(s) - lastPos + 1);
+      Exit(JSMakeString(outText));
+    except
+      Exit(JSMakeString(s));
+    end;
+  end;
+
+  searchStr := StringArg(AArgs, 0, 'undefined');
+
+  if searchStr = '' then
     Exit(JSMakeString(ReplacementText(s, '', 0, replacement) + s));
 
-  p := PosEx(search, s, 1);
+  p := PosEx(searchStr, s, 1);
   if p = 0 then
     Exit(JSMakeString(s));
 
   outText := Copy(s, 1, p - 1) +
-    ReplacementText(s, search, p - 1, replacement) +
-    Copy(s, p + Length(search), Length(s) - p - Length(search) + 1);
+    ReplacementText(s, searchStr, p - 1, replacement) +
+    Copy(s, p + Length(searchStr), Length(s) - p - Length(searchStr) + 1);
   Result := JSMakeString(outText);
 end;
 
 function TFloriaJSStringHelper.ReplaceAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
-  s, search, outText: string;
+  s, searchStr, outText: string;
   replacement: TFloriaJSValue;
   p, startPos, i: Integer;
 begin
   s := ThisString(AThis);
-  search := StringArg(AArgs, 0, 'undefined');
+  searchStr := StringArg(AArgs, 0, 'undefined');
 
   replacement := JSMakeUndefined();
   if Length(AArgs) > 1 then replacement := AArgs[1];
 
-  if search = '' then
+  if searchStr = '' then
   begin
     outText := ReplacementText(s, '', 0, replacement);
     for i := 1 to Length(s) do
@@ -451,15 +509,86 @@ begin
   startPos := 1;
   while True do
   begin
-    p := PosEx(search, s, startPos);
+    p := PosEx(searchStr, s, startPos);
     if p = 0 then Break;
     outText := outText + Copy(s, startPos, p - startPos) +
-      ReplacementText(s, search, p - 1, replacement);
-    startPos := p + Length(search);
+      ReplacementText(s, searchStr, p - 1, replacement);
+    startPos := p + Length(searchStr);
   end;
   outText := outText + Copy(s, startPos, Length(s) - startPos + 1);
 
   Result := JSMakeString(outText);
+end;
+
+function TFloriaJSStringHelper.Match(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  s, pat: string;
+  re: TFloriaJSRegExp;
+  resArr: TFloriaJSArray;
+  v: TFloriaJSValue;
+  prevIndex: Integer;
+begin
+  s := ThisString(AThis);
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() and (AArgs[0].ObjVal is TFloriaJSRegExp) then
+    re := TFloriaJSRegExp(AArgs[0].ObjVal)
+  else
+  begin
+    if Length(AArgs) > 0 then
+      pat := AArgs[0].ToString()
+    else
+      pat := '';
+    re := FloriaJSNewRegExp(pat, '', FHeap);
+  end;
+
+  if not re.Global then
+    Exit(re.Exec(s, FHeap));
+
+  // Global regex: collect all match[0]
+  resArr := FHeap.NewArray();
+  re.LastIndex := 0;
+  while True do
+  begin
+    prevIndex := re.LastIndex;
+    v := re.Exec(s, FHeap);
+    if v.IsNull() then Break;
+    resArr.Push(v.ObjVal.GetProperty('0'));
+    if re.LastIndex <= prevIndex then
+      re.LastIndex := prevIndex + 1;
+    if re.LastIndex > Length(s) then Break;
+  end;
+  re.LastIndex := 0;
+
+  if resArr.Length() = 0 then
+    Result := JSMakeNull()
+  else
+    Result := JSMakeArray(resArr);
+end;
+
+function TFloriaJSStringHelper.Search(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  s, pat: string;
+  re: TFloriaJSRegExp;
+begin
+  s := ThisString(AThis);
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() and (AArgs[0].ObjVal is TFloriaJSRegExp) then
+    re := TFloriaJSRegExp(AArgs[0].ObjVal)
+  else
+  begin
+    if Length(AArgs) > 0 then
+      pat := AArgs[0].ToString()
+    else
+      pat := '';
+    re := FloriaJSNewRegExp(pat, '', FHeap);
+  end;
+
+  try
+    if re.RegEngine.Exec(s) then
+      Result := JSMakeNumber(re.RegEngine.MatchPos[0] - 1)
+    else
+      Result := JSMakeNumber(-1);
+  except
+    Result := JSMakeNumber(-1);
+  end;
 end;
 
 function TFloriaJSStringHelper.Concat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -563,6 +692,8 @@ begin
   RegisterMethod(AHeap, proto, 'split', @helper.Split);
   RegisterMethod(AHeap, proto, 'replace', @helper.Replace);
   RegisterMethod(AHeap, proto, 'replaceAll', @helper.ReplaceAll);
+  RegisterMethod(AHeap, proto, 'match', @helper.Match);
+  RegisterMethod(AHeap, proto, 'search', @helper.Search);
   RegisterMethod(AHeap, proto, 'concat', @helper.Concat);
   RegisterMethod(AHeap, proto, 'repeat', @helper.RepeatString);
   RegisterMethod(AHeap, proto, 'padStart', @helper.PadStart);

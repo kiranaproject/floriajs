@@ -48,6 +48,7 @@ type
     function IsArray(): Boolean;
     function IsFunction(): Boolean;
     function IsPromise(): Boolean;
+    function IsSymbol(): Boolean;
     function IsTruthy(): Boolean;
 
     function ToBoolean(): Boolean;
@@ -101,6 +102,7 @@ type
     procedure Unpin();
 
     function  GetProperty(const AName: string): TFloriaJSValue; virtual;
+    function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; virtual;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); virtual;
     procedure DefineGetter(const AName: string; const AGetter: TFloriaJSValue);
     procedure DefineSetter(const AName: string; const ASetter: TFloriaJSValue);
@@ -357,6 +359,7 @@ function JSMakeObject(AObj: TFloriaJSObject): TFloriaJSValue;
 function JSMakeArray(AArr: TFloriaJSArray): TFloriaJSValue;
 function JSMakeFunction(AFunc: TFloriaJSFunction): TFloriaJSValue;
 function JSMakePromise(APromise: TFloriaJSPromise): TFloriaJSValue;
+function JSMakeSymbol(const ADescription: string = ''; AId: Integer = 0): TFloriaJSValue;
 
 { Reference Counting Helpers. A container that stores a value owns a reference
   to the object it points at, so it retains the value when it takes it over
@@ -542,6 +545,15 @@ begin
   Result.ObjVal := APromise;
 end;
 
+function JSMakeSymbol(const ADescription: string = ''; AId: Integer = 0): TFloriaJSValue;
+begin
+  Result.Kind := fjstSymbol;
+  Result.NumVal := AId;
+  Result.BoolVal := True;
+  Result.StrVal := ADescription;
+  Result.ObjVal := nil;
+end;
+
 { TFloriaJSValue Methods }
 
 function TFloriaJSValue.IsUndefined(): Boolean;
@@ -589,6 +601,11 @@ begin
   Result := IsObject() and (ObjVal is TFloriaJSPromise);
 end;
 
+function TFloriaJSValue.IsSymbol(): Boolean;
+begin
+  Result := (Kind = fjstSymbol);
+end;
+
 function TFloriaJSValue.IsTruthy(): Boolean;
 begin
   Result := ToBoolean();
@@ -605,6 +622,8 @@ begin
       Result := (NumVal <> 0.0) and not IsNaN(NumVal);
     fjstString:
       Result := (StrVal <> '');
+    fjstSymbol:
+      Result := True;
     fjstObject, fjstArray, fjstFunction:
       Result := (ObjVal <> nil);
   else
@@ -670,6 +689,11 @@ begin
         Result := FloatToStr(NumVal);
     fjstString:
       Result := StrVal;
+    fjstSymbol:
+      if StrVal <> '' then
+        Result := 'Symbol(' + StrVal + ')'
+      else
+        Result := 'Symbol()';
     fjstArray:
       if ObjVal <> nil then
         Result := TFloriaJSArray(ObjVal).Join(',')
@@ -818,23 +842,30 @@ begin
   Result := -1;
 end;
 
-function TFloriaJSObject.GetProperty(const AName: string): TFloriaJSValue;
+function TFloriaJSObject.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 var
   idx: Integer;
+  rec: TFloriaJSObject;
 begin
+  if AReceiver <> nil then rec := AReceiver else rec := Self;
   idx := FindPropertyIndex(AName);
   if idx >= 0 then
   begin
     if FProperties[idx].HasGetter and (FHeap <> nil) then
-      Exit(FHeap.InvokeFunction(FProperties[idx].Getter, [], JSMakeObject(Self)))
+      Exit(FHeap.InvokeFunction(FProperties[idx].Getter, [], JSMakeObject(rec)))
     else
       Exit(FProperties[idx].Value);
   end;
 
   if FPrototype <> nil then
-    Exit(FPrototype.GetProperty(AName));
+    Exit(FPrototype.GetPropertyWithReceiver(AName, rec));
 
   Result := JSMakeUndefined();
+end;
+
+function TFloriaJSObject.GetProperty(const AName: string): TFloriaJSValue;
+begin
+  Result := GetPropertyWithReceiver(AName, Self);
 end;
 
 procedure TFloriaJSObject.SetProperty(const AName: string; const AValue: TFloriaJSValue);
@@ -2462,6 +2493,8 @@ begin
         Result := (ALeft.NumVal = ARight.NumVal);
     fjstString:
       Result := (ALeft.StrVal = ARight.StrVal);
+    fjstSymbol:
+      Result := (ALeft.NumVal = ARight.NumVal) and (ALeft.NumVal <> 0.0);
     fjstObject, fjstArray, fjstFunction:
       Result := (ALeft.ObjVal = ARight.ObjVal);
   else
@@ -2598,6 +2631,8 @@ begin
       Result := 'number';
     fjstString:
       Result := 'string';
+    fjstSymbol:
+      Result := 'symbol';
     fjstFunction:
       Result := 'function';
     fjstObject, fjstArray:

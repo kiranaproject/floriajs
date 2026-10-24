@@ -279,11 +279,33 @@ var
   expr, cur: TFloriaJSExprNode;
   fnExpr: TFloriaJSFunctionExpr;
   callExpr: TFloriaJSCallExpr;
-  paramName: string;
+  paramName, pat, flags: string;
+  nullPos: Integer;
 begin
   tok := FCurrent;
 
   { Literals }
+  if Match(tkRegExp) then
+  begin
+    nullPos := Pos(#0, tok.Text);
+    if nullPos > 0 then
+    begin
+      pat := Copy(tok.Text, 1, nullPos - 1);
+      flags := Copy(tok.Text, nullPos + 1, Length(tok.Text) - nullPos);
+    end
+    else
+    begin
+      pat := tok.Text;
+      flags := '';
+    end;
+    callExpr := TFloriaJSCallExpr.Create(
+      TFloriaJSIdentifierExpr.Create('RegExp', tok.Line, tok.Column),
+      tok.Line, tok.Column, True);
+    callExpr.AddArgument(TFloriaJSLiteralExpr.CreateString(pat, tok.Line, tok.Column));
+    callExpr.AddArgument(TFloriaJSLiteralExpr.CreateString(flags, tok.Line, tok.Column));
+    Exit(callExpr);
+  end;
+
   if Match(tkNumber) then
     Exit(TFloriaJSLiteralExpr.CreateNumber(tok.NumberValue, tok.Line, tok.Column));
 

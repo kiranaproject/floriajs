@@ -277,6 +277,17 @@ type
     procedure TestCompileAndRunScript();
   end;
 
+  { Test 20: Priority 3 — Advanced Collections, Date, Symbol, RegExp & Host Globals }
+  TFloriaJSPriority3Test = class(TTestCase)
+  published
+    procedure TestMapCollection();
+    procedure TestSetCollection();
+    procedure TestDateObject();
+    procedure TestSymbolPrimitive();
+    procedure TestRegExpAndStringMethods();
+    procedure TestURIAndHostGlobals();
+  end;
+
 { TFloriaJSTypesTest }
 
 destructor TCountedASTNode.Destroy();
@@ -5363,6 +5374,269 @@ begin
   end;
 end;
 
+{ TFloriaJSPriority3Test }
+
+procedure TFloriaJSPriority3Test.TestMapCollection();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'const m = new Map();' +
+      'm.set("k1", 100);' +
+      'm.set("k2", 200);' +
+      'm.size === 2 && m.get("k1") === 100 && m.has("k2") && !m.has("k3");'
+    );
+    AssertTrue('Map set, get, has, size success', res.Success);
+    AssertTrue('Map operations evaluate to true', res.BooleanValue);
+
+    res := engine.Execute(
+      'const m = new Map();' +
+      'm.set("a", 1); m.delete("a");' +
+      'm.size === 0 && !m.has("a");'
+    );
+    AssertTrue('Map delete and size decrease', res.BooleanValue);
+
+    // SameValueZero: NaN key & Object key
+    res := engine.Execute(
+      'const m = new Map();' +
+      'm.set(NaN, "not a number");' +
+      'const objKey = { id: 42 };' +
+      'm.set(objKey, "object val");' +
+      'm.get(NaN) === "not a number" && m.get(objKey) === "object val";'
+    );
+    AssertTrue('Map NaN and Object keys match', res.BooleanValue);
+
+    // Iteration & forEach
+    res := engine.Execute(
+      'const m = new Map();' +
+      'm.set("x", 10); m.set("y", 20);' +
+      'let sum = 0;' +
+      'm.forEach((val, key) => { sum = sum + val; });' +
+      'sum === 30 && m.keys().length === 2 && m.values().length === 2;'
+    );
+    AssertTrue('Map forEach and keys/values iteration', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority3Test.TestSetCollection();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'const s = new Set();' +
+      's.add(10); s.add(20); s.add(10);' +
+      's.size === 2 && s.has(10) && s.has(20) && !s.has(30);'
+    );
+    AssertTrue('Set deduplication, has, size success', res.Success);
+    AssertTrue('Set operations evaluate to true', res.BooleanValue);
+
+    res := engine.Execute(
+      'const s = new Set();' +
+      's.add("hello");' +
+      'const deleted = s.delete("hello");' +
+      'deleted && s.size === 0 && !s.has("hello");'
+    );
+    AssertTrue('Set delete works', res.BooleanValue);
+
+    // forEach
+    res := engine.Execute(
+      'const s = new Set();' +
+      's.add(1); s.add(2); s.add(3);' +
+      'let total = 0;' +
+      's.forEach((v) => { total = total + v; });' +
+      'total === 6 && s.values().length === 3;'
+    );
+    AssertTrue('Set forEach iteration', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority3Test.TestDateObject();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Epoch 0 is 1970-01-01T00:00:00.000Z
+    res := engine.Execute(
+      'const d = new Date(0);' +
+      'd.getTime() === 0 && d.getUTCFullYear() === 1970 && d.getUTCMonth() === 0 && d.getUTCDate() === 1;'
+    );
+    AssertTrue('Date epoch 0 UTC accessors', res.Success);
+    AssertTrue('Date epoch 0 is 1970-01-01', res.BooleanValue);
+
+    // ISO string
+    res := engine.Execute(
+      'const d = new Date(0);' +
+      'd.toISOString() === "1970-01-01T00:00:00.000Z";'
+    );
+    AssertTrue('Date toISOString output', res.BooleanValue);
+
+    // Date.now() & Date.UTC
+    res := engine.Execute(
+      'Date.now() > 0 && Date.UTC(1970, 0, 1) === 0;'
+    );
+    AssertTrue('Date.now and Date.UTC', res.BooleanValue);
+
+    // Date.parse
+    res := engine.Execute(
+      'Date.parse("1970-01-01T00:00:00.000Z") === 0;'
+    );
+    AssertTrue('Date.parse ISO string', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority3Test.TestSymbolPrimitive();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'const s1 = Symbol("myDesc");' +
+      'typeof s1 === "symbol" && s1.description === "myDesc";'
+    );
+    AssertTrue('Symbol creation and description', res.Success);
+    AssertTrue('Symbol typeof and description match', res.BooleanValue);
+
+    // Unique symbols
+    res := engine.Execute(
+      'const a = Symbol("x"); const b = Symbol("x");' +
+      'a !== b;'
+    );
+    AssertTrue('Symbols with same description are not equal', res.BooleanValue);
+
+    // Symbol.for and Symbol.keyFor
+    res := engine.Execute(
+      'const s = Symbol.for("shared");' +
+      'Symbol.for("shared") === s && Symbol.keyFor(s) === "shared";'
+    );
+    AssertTrue('Symbol.for and Symbol.keyFor', res.BooleanValue);
+
+    // Well-known symbols
+    res := engine.Execute(
+      'typeof Symbol.iterator === "symbol" && typeof Symbol.toStringTag === "symbol";'
+    );
+    AssertTrue('Well-known symbols exist', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority3Test.TestRegExpAndStringMethods();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Constructor and test()
+    res := engine.Execute(
+      'const re = new RegExp("abc", "i");' +
+      're.test("ABC") && !re.test("xyz") && re.source === "abc" && re.ignoreCase;'
+    );
+    AssertTrue('RegExp constructor and test()', res.Success);
+    AssertTrue('RegExp test() matching', res.BooleanValue);
+
+    // Regex literal syntax /pattern/flags
+    res := engine.Execute(
+      'const lit = /hello/i;' +
+      'lit.test("HELLO World");'
+    );
+    AssertTrue('RegExp literal syntax works', res.BooleanValue);
+
+    // exec()
+    res := engine.Execute(
+      'const re = /([a-z]+)-(\d+)/;' +
+      'const m = re.exec("item-123");' +
+      'm !== null && m[0] === "item-123" && m[1] === "item" && m[2] === "123" && m.index === 0;'
+    );
+    AssertTrue('RegExp exec() matches with captures', res.BooleanValue);
+
+    // String.prototype.match
+    res := engine.Execute(
+      'const matches = "a1b2c3".match(/\d/g);' +
+      'matches.length === 3 && matches[0] === "1" && matches[1] === "2" && matches[2] === "3";'
+    );
+    AssertTrue('String.prototype.match with global regex', res.BooleanValue);
+
+    // String.prototype.search
+    res := engine.Execute(
+      '"hello world".search(/world/) === 6 && "hello world".search(/xyz/) === -1;'
+    );
+    AssertTrue('String.prototype.search regex', res.BooleanValue);
+
+    // String.prototype.replace with regex
+    res := engine.Execute(
+      '"foo bar foo".replace(/foo/g, "baz") === "baz bar baz";'
+    );
+    AssertTrue('String.prototype.replace with global regex', res.BooleanValue);
+
+    // String.prototype.split with regex
+    res := engine.Execute(
+      'const parts = "apple,banana;cherry".split(/[,;]/);' +
+      'parts.length === 3 && parts[0] === "apple" && parts[1] === "banana" && parts[2] === "cherry";'
+    );
+    AssertTrue('String.prototype.split with regex separator', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority3Test.TestURIAndHostGlobals();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // encodeURIComponent / decodeURIComponent
+    res := engine.Execute(
+      'const enc = encodeURIComponent("hello world&foo=bar/baz");' +
+      'enc === "hello%20world%26foo%3Dbar%2Fbaz" && decodeURIComponent(enc) === "hello world&foo=bar/baz";'
+    );
+    AssertTrue('encodeURIComponent and decodeURIComponent roundtrip', res.Success);
+    AssertTrue('URI component encode/decode matches', res.BooleanValue);
+
+    // encodeURI / decodeURI
+    res := engine.Execute(
+      'const uri = encodeURI("https://example.com/search?q=hello world");' +
+      'uri === "https://example.com/search?q=hello%20world" && decodeURI(uri) === "https://example.com/search?q=hello world";'
+    );
+    AssertTrue('encodeURI and decodeURI roundtrip', res.BooleanValue);
+
+    // setTimeout and clearTimeout
+    res := engine.Execute(
+      'typeof setTimeout === "function" && typeof clearTimeout === "function" && ' +
+      'typeof setInterval === "function" && typeof clearInterval === "function";'
+    );
+    AssertTrue('Host timer functions exist on global scope', res.BooleanValue);
+
+    res := engine.Execute(
+      'let called = false;' +
+      'const id = setTimeout(() => { called = true; }, 0);' +
+      'clearTimeout(id);' +
+      'id > 0;'
+    );
+    AssertTrue('setTimeout returns id and clearTimeout cancels', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -5388,6 +5662,7 @@ begin
   RegisterTest(TFloriaJSConstructionTest);
   RegisterTest(TFloriaJSArrayMethodsTest);
   RegisterTest(TFloriaJSVMTest);
+  RegisterTest(TFloriaJSPriority3Test);
 
   Application := TTestRunner.Create(nil);
   try

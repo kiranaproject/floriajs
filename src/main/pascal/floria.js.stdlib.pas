@@ -18,7 +18,9 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
-  floria.js.arrays, floria.js.strings, floria.js.objects, floria.js.json;
+  floria.js.arrays, floria.js.strings, floria.js.objects, floria.js.json,
+  floria.js.symbol, floria.js.date, floria.js.uri, floria.js.collections,
+  floria.js.timers, floria.js.regexp;
 
 type
   { Output Logging Callback }
@@ -722,7 +724,15 @@ begin
   AEnv.Define('String', JSMakeFunction(stringObj));
   AEnv.Define('Boolean', JSMakeFunction(AHeap.NewNativeFunction('Boolean', @JSBooleanConst)));
 
-  // 7. globalThis
+  // 7. Advanced Globals & Collections (Priority 3)
+  FloriaJSRegisterSymbol(AEnv, AHeap);
+  FloriaJSRegisterDate(AEnv, AHeap);
+  FloriaJSRegisterURI(AEnv, AHeap);
+  FloriaJSRegisterCollections(AEnv, AHeap);
+  FloriaJSRegisterTimers(AEnv, AHeap);
+  FloriaJSRegisterRegExp(AEnv, AHeap);
+
+  // 8. globalThis
   globalObj := AHeap.NewObject();
   globalObj.SetProperty('globalThis', JSMakeObject(globalObj));
   globalObj.SetProperty('NaN', JSMakeNumber(NaN));
@@ -742,6 +752,20 @@ begin
   globalObj.SetProperty('RangeError', JSMakeFunction(rangeErrCtor));
   globalObj.SetProperty('ReferenceError', JSMakeFunction(refErrCtor));
   globalObj.SetProperty('SyntaxError', JSMakeFunction(syntaxErrCtor));
+  globalObj.SetProperty('URIError', AEnv.GetDefault('URIError', JSMakeUndefined()));
+  globalObj.SetProperty('Symbol', AEnv.GetDefault('Symbol', JSMakeUndefined()));
+  globalObj.SetProperty('Date', AEnv.GetDefault('Date', JSMakeUndefined()));
+  globalObj.SetProperty('Map', AEnv.GetDefault('Map', JSMakeUndefined()));
+  globalObj.SetProperty('Set', AEnv.GetDefault('Set', JSMakeUndefined()));
+  globalObj.SetProperty('RegExp', AEnv.GetDefault('RegExp', JSMakeUndefined()));
+  globalObj.SetProperty('encodeURIComponent', AEnv.GetDefault('encodeURIComponent', JSMakeUndefined()));
+  globalObj.SetProperty('decodeURIComponent', AEnv.GetDefault('decodeURIComponent', JSMakeUndefined()));
+  globalObj.SetProperty('encodeURI', AEnv.GetDefault('encodeURI', JSMakeUndefined()));
+  globalObj.SetProperty('decodeURI', AEnv.GetDefault('decodeURI', JSMakeUndefined()));
+  globalObj.SetProperty('setTimeout', AEnv.GetDefault('setTimeout', JSMakeUndefined()));
+  globalObj.SetProperty('clearTimeout', AEnv.GetDefault('clearTimeout', JSMakeUndefined()));
+  globalObj.SetProperty('setInterval', AEnv.GetDefault('setInterval', JSMakeUndefined()));
+  globalObj.SetProperty('clearInterval', AEnv.GetDefault('clearInterval', JSMakeUndefined()));
   globalObj.SetProperty('parseInt', AEnv.GetDefault('parseInt', JSMakeUndefined()));
   globalObj.SetProperty('parseFloat', AEnv.GetDefault('parseFloat', JSMakeUndefined()));
   globalObj.SetProperty('isNaN', AEnv.GetDefault('isNaN', JSMakeUndefined()));

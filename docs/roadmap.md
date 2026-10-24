@@ -48,6 +48,7 @@ Recently implemented and now passing in the scan:
 - Math extensions: `Math.log2`, `Math.log10`, `Math.sign`, `Math.trunc`, `Math.hypot`, `Math.cbrt`, `Math.imul`, `Math.clz32`
 - Numeric separators (`1_000_000`), exponent literals (`1e3`), hex string parsing
 - Error handling & runtime type errors: `Error`, `TypeError`, `RangeError`, `ReferenceError`, and `SyntaxError` with prototype chain inheritance, standard `toString()`, and runtime `TypeError` / `RangeError` throwing for invalid calls, stack overflow, and `null`/`undefined` property operations
+- Priority 3 Advanced & Host Features: `Map`, `Set` collections with SameValueZero key comparison, `Date` constructor, epoch MS, UTC/local accessors and ISO-8601 formatting, `Symbol` primitive, registry (`Symbol.for`, `Symbol.keyFor`), and well-known symbols, `RegExp` engine with `/pattern/flags` regex literals, `test()`, `exec()`, and string pattern matching (`match`, `search`, `replace`, `split`), URI utilities (`encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI`), and host timers (`setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`).
 
 ## Two kinds of gaps
 
@@ -219,18 +220,22 @@ are not on the critical path for ordinary UI scripts.
 
 ### 15. Collections and data types
 
-- [ ] `Map`
-- [ ] `Set`
-- [ ] `Date` (at least `now()` and basic construction/formatting)
-- [ ] `Symbol` (at least well-known symbols used by the host API)
+Status: supported and verified. Implemented `Map` and `Set` collections (`floria.js.collections.pas`) with SameValueZero semantics, `Date` object (`floria.js.date.pas`) with UTC/local accessors, ISO formatting, and epoch calculations, and `Symbol` primitive (`floria.js.symbol.pas`) with global registry (`Symbol.for`, `Symbol.keyFor`) and well-known symbols.
+
+- [x] `Map`
+- [x] `Set`
+- [x] `Date` (at least `now()` and basic construction/formatting)
+- [x] `Symbol` (at least well-known symbols used by the host API)
 - [ ] `BigInt` (only if host interop needs it)
 
 ### 16. Regular expressions
 
-- [ ] Regex literals: `/ab+c/i`
-- [ ] `RegExp` constructor
-- [ ] `test`, `exec`
-- [ ] Regex-aware `String.replace` / `split` / `match`
+Status: supported and verified. Native Pascal `RegExpr` engine wrapper (`floria.js.regexp.pas`) providing `RegExp` constructor, `/pattern/flags` regex literal parsing in lexer and parser, `test()`, `exec()`, and integration into `String.prototype.match`, `search`, `replace`, and `split`.
+
+- [x] Regex literals: `/ab+c/i`
+- [x] `RegExp` constructor
+- [x] `test`, `exec`
+- [x] Regex-aware `String.replace` / `split` / `match` (and `search`)
 
 ### 17. Syntax depth
 
@@ -242,9 +247,11 @@ are not on the critical path for ordinary UI scripts.
 
 ### 18. Host-provided globals
 
-- [ ] `setTimeout` / `clearTimeout` (bridge to the existing promise job queue)
-- [ ] `encodeURIComponent` / `decodeURIComponent`, `encodeURI` / `decodeURI`
-- [ ] Any UI-specific globals belong in the host adapter, not the core language
+Status: supported and verified. Implemented standard URI utilities (`floria.js.uri.pas`) for component and full URI encoding/decoding, and timer host globals (`floria.js.timers.pas`) with `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, and promise job integration.
+
+- [x] `setTimeout` / `clearTimeout` (bridge to the existing promise job queue)
+- [x] `encodeURIComponent` / `decodeURIComponent`, `encodeURI` / `decodeURI`
+- [x] Any UI-specific globals belong in the host adapter, not the core language
 
 ---
 
