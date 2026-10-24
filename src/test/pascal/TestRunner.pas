@@ -48,6 +48,7 @@ type
     procedure TestScriptExecution();
     procedure TestContextDestruction();
     procedure TestBytecodeVMBackendExecution();
+    procedure TestContextResetLifecycle();
   end;
 
   { Test 3: Lexer & Tokenizer Suite }
@@ -432,6 +433,49 @@ begin
     res := engine.Execute('function fib(n) { if (n <= 1) return n; return fib(n - 1) + fib(n - 2); } fib(8);');
     AssertTrue('VM backend recursive fib success', res.Success);
     AssertEquals('VM backend fib(8) == 21', 21.0, res.NumberValue, 0.0001);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEngineTest.TestContextResetLifecycle();
+var
+  engine: TFloriaJSEngine;
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+  i, initialObjCount: Integer;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    ctx := engine.DefaultContext;
+
+    // 1. Before reset
+    res := ctx.Evaluate('(1.5).toString() === "1.5";');
+    AssertTrue('Pre-reset (1.5).toString() succeeds', res.Success);
+    AssertTrue('Pre-reset (1.5).toString() is true', res.BooleanValue);
+
+    initialObjCount := ctx.Heap.GetObjectCount();
+
+    // 2. Perform Reset
+    ctx.Reset();
+
+    // 3. After reset: number prototype methods must still work (P0-01)
+    res := ctx.Evaluate('(1.5).toString() === "1.5";');
+    AssertTrue('Post-reset (1.5).toString() succeeds', res.Success);
+    AssertTrue('Post-reset (1.5).toString() is true', res.BooleanValue);
+
+    // 4. After reset: catchable const assignment must not fail at host level (P0-01)
+    res := ctx.Evaluate('let caughtName = ""; try { const c = 1; c = 2; } catch (e) { caughtName = e.name; } caughtName === "TypeError";');
+    AssertTrue('Post-reset catchable const error succeeds', res.Success);
+    AssertTrue('Post-reset catchable const error caught TypeError', res.BooleanValue);
+
+    // 5. Repeated Reset stability
+    for i := 1 to 10 do
+    begin
+      ctx.Evaluate('const tmp = { a: 1 }; (2.5).toString();');
+      ctx.Reset();
+    end;
+    AssertTrue('Repeated reset keeps stable heap object baseline', ctx.Heap.GetObjectCount() <= initialObjCount + 5);
   finally
     engine.Free();
   end;

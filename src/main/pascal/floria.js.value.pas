@@ -2722,6 +2722,7 @@ begin
       freed, so the cached pointers must not outlive them. }
     FArrayPrototype := nil;
     FStringPrototype := nil;
+    FNumberPrototype := nil;
     FFunctionPrototype := nil;
     FObjectPrototype := nil;
     FErrorPrototype := nil;

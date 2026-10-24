@@ -95,7 +95,7 @@ are listed in P0/P2 tasks (`void`, tagged templates, `class`, etc.).
 These are blockers. They either produce wrong results silently or can lead to
 invalid memory access.
 
-### [ ] P0-01 — Fix `Reset` invalidation and environment lifetime
+### [x] P0-01 — Fix `Reset` invalidation and environment lifetime
 
 **Failure.** After `TFloriaJSContext.Reset`:
 

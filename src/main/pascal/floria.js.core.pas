@@ -278,7 +278,7 @@ end;
 procedure TFloriaJSContext.Reset();
 begin
   FHeap.Clear();
-  FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil)));
+  FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil, FHeap)));
   FVM.ResetStack();
   FOutput.Clear();
   InitContext();
