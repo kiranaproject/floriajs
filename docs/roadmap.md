@@ -34,11 +34,17 @@ Recently implemented and now passing in the scan:
 - `new` and `this` (including constructor prototypes and methods)
 - `async` / `await`, promises, `do...while`, exponentiation
 - Closures, block scoping for `let`, recursion and environment reclamation
-- Array prototype and static methods (`push`, `pop`, `shift`, `unshift`, `join`, `concat`, `reverse`, `sort`, `slice`, `splice`, `indexOf`, `lastIndexOf`, `includes`, `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `find`, `Array.isArray`, `Array.from`)
+- Array prototype and static methods (`push`, `pop`, `shift`, `unshift`, `join`, `concat`, `reverse`, `sort`, `slice`, `splice`, `indexOf`, `lastIndexOf`, `includes`, `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `find`, `Array.isArray`, `Array.from`, `Array.of`)
 - String prototype methods (`charAt`, `indexOf`, `slice`, `toUpperCase`, `trim`, `split`, `replace`, `concat`, `repeat`, etc.)
 - Arrow functions (`x => expr`, `(x, y) => expr`, `(x) => { statements }`, `() => ...` with lexical `this`)
 - Operators: comma operator `(a, b)`, `in`, `instanceof`, optional chaining `?.`, `??=`, `**=`, labeled `break`/`continue`
-- Standard globals: `NaN`, `Infinity`, `Number()`, `String()`, `Boolean()`, `parseInt` (radix support), `parseFloat` (partial numeric prefix)
+- Standard globals: `NaN`, `Infinity`, `Number()`, `String()`, `Boolean()`, `Number.isNaN`, `Number.isFinite`, `Number.isInteger`, `Number.parseInt`, `Number.parseFloat`, `globalThis`, `arguments` inside function calls
+- Object utilities: `Object.keys`, `Object.values`, `Object.entries`, `Object.assign`, `Object.create`, `hasOwnProperty`, `Object.prototype.toString`, `Function.prototype.toString`
+- Real JSON serialization & parsing: `JSON.stringify` (with indentation and circular reference detection) and `JSON.parse`
+- Template literal interpolation: `${...}` with recursive expression evaluation
+- Object and array literal completion: shorthand `{ x }`, computed keys `{ [k]: v }`, spread `{ ...o }`, array spread `[...a]`, array holes `[1, , 3]`, object methods `{ f() {} }`, getters and setters `{ get x() {}, set x(v) {} }`
+- Iteration statements: `for...of` (arrays, strings), `for...in` (prototype chain keys), per-iteration closure environment isolation
+- Function parameter forms & Destructuring: default parameters `f(a = 3)`, rest parameters `f(...args)`, destructuring declarations `var { a } = obj`, `var [a, b] = arr`, destructuring parameters in regular and arrow functions
 - Math extensions: `Math.log2`, `Math.log10`, `Math.sign`, `Math.trunc`, `Math.hypot`, `Math.cbrt`, `Math.imul`, `Math.clz32`
 - Numeric separators (`1_000_000`), exponent literals (`1e3`), hex string parsing
 
@@ -88,34 +94,34 @@ Status: supported and verified. Full suite of String prototype methods implement
 
 ### 3. Standard globals
 
-Status: partially complete. Constants and type conversion functions are in place; static methods on `Number`, `globalThis`, and `arguments` binding remain.
+Status: supported and verified. Global constants, type conversion constructors, static methods on `Number`, `globalThis`, and `arguments` parameter object are fully implemented and verified with tests and gap-scan probes.
 
 - [x] `NaN`, `Infinity`
 - [x] `Number()`, `String()`, `Boolean()` constructors and conversions
-- [ ] `Number.isNaN`, `Number.isFinite`, `Number.parseInt`, `Number.parseFloat`
-- [ ] `globalThis`
-- [ ] `arguments` inside function calls
+- [x] `Number.isNaN`, `Number.isFinite`, `Number.isInteger`, `Number.parseInt`, `Number.parseFloat`
+- [x] `globalThis`
+- [x] `arguments` inside function calls
 - [x] Fix `parseInt` to honour the radix argument
 - [x] Fix `parseFloat` (handles partial numeric prefix like `"3.5x"`)
 
 ### 4. Object utilities
 
-Status: partially complete. Helpers exist in `src/main/pascal/floria.js.objects.pas`, but global `Object` wiring in the environment and `hasOwnProperty` on regular objects need connection.
+Status: supported and verified. Full suite of `Object` utilities, `hasOwnProperty`, `toString` helpers, and prototype-chain traversal implemented and wired to the global environment and object prototype.
 
-- [ ] `Object.keys`, `Object.values`, `Object.entries`
-- [ ] `Object.assign`, `Object.create`
-- [ ] `hasOwnProperty` on objects
-- [ ] `Function.prototype.toString` (at least a stable placeholder)
-- [ ] Keep the existing prototype-chain lookup working for objects made with
+- [x] `Object.keys`, `Object.values`, `Object.entries`
+- [x] `Object.assign`, `Object.create`
+- [x] `hasOwnProperty` on objects
+- [x] `Function.prototype.toString` (and `Object.prototype.toString`)
+- [x] Keep the existing prototype-chain lookup working for objects made with
       `Object.create`
 
 ### 5. JSON
 
-Status: stub only. `JSON.stringify` and `JSON.parse` in `src/main/pascal/floria.js.json.pas` currently return string representations without structured serialization or parsing.
+Status: supported and verified. Fully compliant RFC 8259 parser and serializer implemented in `src/main/pascal/floria.js.json.pas` supporting primitives, nested objects/arrays, indentation spacing, and circular reference detection.
 
-- [ ] `JSON.stringify` for primitives, arrays, objects, nested values
-- [ ] `JSON.parse`
-- [ ] Round-trip tests, including `undefined`/function properties being omitted
+- [x] `JSON.stringify` for primitives, arrays, objects, nested values
+- [x] `JSON.parse`
+- [x] Round-trip tests, including `undefined`/function properties being omitted
 
 ### 6. Arrow functions
 
@@ -129,43 +135,43 @@ Status: supported and verified. Parser handles concise bodies and block bodies, 
 
 ### 7. Template literal interpolation
 
-Status: silently wrong. `` `v=${n + 1}` `` evaluates to the literal string.
+Status: supported and verified. Interpolation `${...}` expressions inside template strings are recursively lexed and evaluated with results concatenated into the template literal.
 
-- [ ] Parse `${...}` sections inside template strings
-- [ ] Evaluate the embedded expressions and concatenate the results
-- [ ] Keep plain template strings working
+- [x] Parse `${...}` sections inside template strings
+- [x] Evaluate the embedded expressions and concatenate the results
+- [x] Keep plain template strings working
 - [ ] Tagged templates are a Priority 3 item and stay out of this step
 
 ### 8. Object and array literal completion
 
-Status: hard gaps in parser for shorthand, computed keys, spread, and object methods.
+Status: supported and verified. Support for shorthand properties, computed keys, object and array spread, array holes with correct length, object method definitions, and getters/setters.
 
-- [ ] Object shorthand: `{ x }`
-- [ ] Computed keys: `{ [k]: value }`
-- [ ] Object spread: `{ ...source }`
-- [ ] Array spread: `[0, ...items]`
-- [ ] Array holes: `[1, , 3]` with the expected `length`
-- [ ] Object methods: `{ f() { ... } }`
-- [ ] Getters/setters (`get x()` / `set x(v)`) — can follow after methods
+- [x] Object shorthand: `{ x }`
+- [x] Computed keys: `{ [k]: value }`
+- [x] Object spread: `{ ...source }`
+- [x] Array spread: `[0, ...items]`
+- [x] Array holes: `[1, , 3]` with the expected `length`
+- [x] Object methods: `{ f() { ... } }`
+- [x] Getters/setters (`get x()` / `set x(v)`)
 
 ### 9. Iteration statements
 
-Status: classic `for` loop `const` and labeled `break`/`continue` completed; `for...of` and `for...in` remain hard parser gaps.
+Status: supported and verified. `for...of` over arrays and strings, `for...in` over own and inherited enumerable keys (skipping non-enumerable `Object.prototype`), `break`/`continue` handling, and isolated per-iteration closure environments.
 
-- [ ] `for...of` over arrays and strings
-- [ ] `for...in` over enumerable keys
-- [ ] `for (const x of ...)` and `for (let x of ...)`
+- [x] `for...of` over arrays and strings
+- [x] `for...in` over enumerable keys
+- [x] `for (const x of ...)` and `for (let x of ...)`
 - [x] `for (const i = 0; ...; ...)` in classic `for` loops
 - [x] `break`/`continue` inside loops (including multi-level labeled loops)
 
 ### 10. Function parameter forms
 
-Status: hard gaps in parser.
+Status: supported and verified. Default parameters, rest parameters, array and object destructuring declarations, and parameter destructuring in both standard functions and arrow functions.
 
-- [ ] Default parameters: `function f(a = 3)`
-- [ ] Rest parameters: `function f(...args)`
-- [ ] Destructuring parameters: `function f({ a })` / `([a, b])`
-- [ ] Destructuring declarations: `var { a } = obj;` / `var [a, b] = arr;`
+- [x] Default parameters: `function f(a = 3)`
+- [x] Rest parameters: `function f(...args)`
+- [x] Destructuring parameters: `function f({ a })` / `([a, b])`
+- [x] Destructuring declarations: `var { a } = obj;` / `var [a, b] = arr;`
 
 ---
 
