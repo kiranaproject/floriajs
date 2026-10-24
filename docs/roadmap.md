@@ -310,9 +310,10 @@ leaked short-circuiting across grouping boundaries.
 - `src/main/pascal/floria.js.ast.pas` (`TFloriaJSGroupExpr`,
   `ContainsOptionalChain`).
 - `src/main/pascal/floria.js.parser.pas` (`ParsePrimary`, `ParseNewExpression`,
-  `ExtractParameters`).
+  `ParseMemberTail`, `ExtractParameters`, `IsOptionalChainTarget`).
 - `src/main/pascal/floria.js.compiler.pas` (`CompileOptionalChain`,
-  `CompileMemberExpr`, `CompileCallExpr`, `CompileAssignExpr`).
+  `CompileMemberExpr`, `CompileCallExpr`, `CompileAssignExpr`,
+  `CompileUnaryExpr`).
 
 **Implementation.**
 
@@ -322,9 +323,15 @@ leaked short-circuiting across grouping boundaries.
   `undefined` and raises `TypeError`.
 - `CompileOptionalChain` emits guarded short-circuit jumps (`opJumpNullish`)
   over chained member access, calls, and argument expressions.
-- `ParseNewExpression` rejects `ContainsOptionalChain(callee)` as a syntax error.
-- Invalid assignment targets with optional chains (`a?.b = 1`, `(a?.b) = 1`,
-  `a?.b++`) are rejected as `SyntaxError: Invalid left-hand side in assignment`.
+- `ParseNewExpression` rejects `?.` while parsing the callee, so
+  `new a?.b()` fails in the parser instead of constructing `a` first.
+- Invalid assignment and update targets with optional chains (`a?.b = 1`,
+  `(a?.b) = 1`, `a?.b++`, `(a?.b)++`, `++(a?.b)`) are rejected as syntax
+  errors. Grouping is unwrapped only for this target check; it still terminates
+  optional-chain short-circuiting during evaluation.
+- Valid parenthesized references stay transparent: `(a)++`, `(a.b)++`, and
+  `delete (a.b)` target the same binding/property as their unparenthesized
+  forms.
 
 **Tests.**
 
@@ -334,8 +341,11 @@ leaked short-circuiting across grouping boundaries.
 - Grouping boundaries terminate short-circuiting: `(a?.b).c` and `(a?.b)()` throw
   `TypeError` on null base.
 - `(a?.b)?.c` starts a new optional chain and returns `undefined`.
-- `new a?.b()` is rejected with a parse error.
-- Optional-chain assignment is rejected as a syntax error.
+- `new a?.b()`, `new a?.b`, `new a?.[0]()`, and `new a?.()` are rejected with a
+  parser error; `new (a?.b)()` remains valid.
+- Optional-chain assignment and update expressions are rejected, including
+  grouped forms; the assertions check the parser error text.
+- Valid grouped updates and deletes still mutate their targets.
 
 ---
 

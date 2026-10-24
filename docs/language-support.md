@@ -87,7 +87,7 @@ Notes:
 - `delete` removes object properties and clears array elements. Deleting a
   variable returns `true` but does not remove the binding, and it returns
   `true` for missing properties.
-- Optional chaining short-circuits the full chain across member accesses and calls (`a?.b.c` and `a?.b()` return `undefined` on nullish `a`). Grouping boundaries `(a?.b).c` terminate the optional chain, and invalid forms like `new a?.b()` and optional chain assignments are rejected as syntax errors.
+- Optional chaining short-circuits the full chain across member accesses and calls (`a?.b.c` and `a?.b()` return `undefined` on nullish `a`). Grouping boundaries `(a?.b).c` terminate the optional chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets such as `(a?.b)++`, are rejected as syntax errors.
 - `==` handles `null == undefined`, number/string, and boolean conversions.
   Object-to-primitive coercion is not implemented (`[1] == 1` is `false`).
 
@@ -317,7 +317,7 @@ These are the differences most likely to surprise a JavaScript developer:
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
 | `JSON.stringify` | Ignores the replacer, does not invoke getters, and does not call `toJSON`; `JSON.parse` has no reviver. |
 | Promise construction | `new Promise(executor)` is not supported. |
-| Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. Invalid forms like `new a?.b()` and assignments are rejected as syntax errors. |
+| Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |
 | `for…in`/`for…of` targets | Must be simple identifiers; destructuring targets are not parsed. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
 | `for…of` on non-iterables | Throws `TypeError`. |
