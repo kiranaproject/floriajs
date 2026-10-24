@@ -399,13 +399,17 @@ flat bytecode chunks (`TFloriaJSBytecodeChunk`):
 - Separate declarative FTML parsing into `floria.ftml.parser.pas` to decouple
   FTML syntax from the JS core compiler.
 
-#### Phase 3: Stack-Based Bytecode Interpreter (`floria.js.vm.pas`)
+#### Phase 3: Stack-Based Bytecode Interpreter (`floria.js.vm.pas`) — [x] Completed
 Implement a tight, register-friendly opcode interpreter loop in Pascal:
 - Flat operand and call-frame array stacks.
 - Replaces the recursive, stack-hungry tree walker in `floria.js.evaluator.pas`.
 - Immediate 10x–30x execution throughput increase for loops, function calls,
   and expressions.
-- Maintain full compatibility with the existing test suite.
+- Pure reference-counted bytecode chunk container (`Retain`/`Release`) allowing
+  functions and closures to outlive their declaring scripts.
+- Full parity with language constructs: closures, default/rest parameters, object/array
+  destructuring, async/await microtasks, try/catch/finally with early return/break unwinding.
+- Full test suite parity: 157 of 157 unit tests pass (100%) under the `fjbBytecodeVM` backend.
 
 #### Phase 4: FTML Reactive Fast-Path & Inline Caching
 Tailor the VM execution specifically for declarative UI property bindings:

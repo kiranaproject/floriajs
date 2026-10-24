@@ -26,6 +26,7 @@ type
     // Stack Manipulation
     opPop,               // Pop top value
     opDup,               // Duplicate top value
+    opDup2,              // Duplicate top two values
     opSwap,              // Swap top two values
 
     // Primitives & Constants
@@ -47,6 +48,8 @@ type
     opLoadEnv,           // Push variable from environment: Imm = const index (name)
     opStoreEnv,          // Store variable into environment: Imm = const index (name)
     opDefineEnv,         // Define variable into current environment: Imm = const index (name), pops value
+    opPushEnv,           // Push child environment on current call frame
+    opPopEnv,            // Pop child environment from current call frame
 
     // Objects & Arrays
     opNewObject,         // Push new empty object
@@ -57,6 +60,9 @@ type
     opSetPropNamed,      // Pop val, pop obj -> obj[name] = val: Imm = const index, push val
     opGetPropOptional,   // Pop prop, pop obj -> if null/undefined push undefined else obj[prop]
     opGetPropNamedOpt,   // Pop obj -> if null/undefined push undefined else obj[name]: Imm = const index
+    opDefineGetter,      // Pop getter, peek obj -> define getter: Imm = const index (or -1 if key on stack)
+    opDefineSetter,      // Pop setter, peek obj -> define setter: Imm = const index (or -1 if key on stack)
+    opObjectRest,        // Pop N keys, pop obj -> push rest object: Imm = key count
     opDeleteProp,        // Pop prop, pop obj -> push delete obj[prop]
     opIn,                // Pop obj, pop prop -> push prop in obj
     opInstanceOf,        // Pop ctor, pop obj -> push obj instanceof ctor
@@ -92,19 +98,22 @@ type
     opNot,               // !a
     opTypeOf,            // typeof a
     opVoid,              // void a -> push undefined
+    opAwait,             // await a -> resolve/await promise
 
     // Jumps & Control Flow
     opJump,              // Jump to absolute IP: Imm = target IP
     opJumpIfFalse,       // Pop cond; if falsy jump to Imm
     opJumpIfTrue,        // Pop cond; if truthy jump to Imm
-    opJumpIfNullish,     // Peek cond; if null/undefined jump to Imm, else pop cond
+    opJumpIfNullish,     // Peek cond; if not null/undefined jump to Imm, else pop cond
     opJumpIfFalseyPeek,  // Peek cond; if falsy jump to Imm, else pop cond (for &&)
     opJumpIfTruthyPeek,  // Peek cond; if truthy jump to Imm, else pop cond (for ||)
 
     // Function Calls & Construction
     opCall,              // Call: Imm = arg count, stack: [callee, this, arg0..argN-1]
     opCallOpt,           // Optional call: Imm = arg count
+    opCallSpread,        // Call with spread args array: stack: [callee, this, argsArray]
     opNew,               // Construct: Imm = arg count, stack: [ctor, arg0..argN-1]
+    opNewSpread,         // Construct with spread args array: stack: [ctor, argsArray]
     opReturn,            // Return top value from function
     opClosure,           // Instantiate function: Imm = function bytecode chunk index
 
@@ -143,12 +152,16 @@ type
     FSubFunctions: TFPList;
     FIsArrow: Boolean;
     FIsAsync: Boolean;
+    FRefCount: Integer;
 
     procedure EnsureCodeCapacity();
     procedure EnsureConstCapacity();
   public
     constructor Create(const AName: string = '');
     destructor Destroy(); override;
+
+    procedure Retain();
+    procedure Release();
 
     { Instruction Emission }
     function  Emit(AOp: TFloriaJSOpcode; AImm: Int32 = 0; ALine: Int32 = 0): Integer;
@@ -164,6 +177,7 @@ type
 
     { Local Variables & Parameters }
     function  AddLocal(const AName: string): Integer;
+    function  AddNewLocal(const APrefix: string = ''): Integer;
     function  FindLocal(const AName: string): Integer;
     function  GetLocalCount(): Integer;
     function  GetLocalName(AIndex: Integer): string;
@@ -200,6 +214,7 @@ begin
     opNop:              Result := 'NOP';
     opPop:              Result := 'POP';
     opDup:              Result := 'DUP';
+    opDup2:             Result := 'DUP2';
     opSwap:             Result := 'SWAP';
     opConst:            Result := 'CONST';
     opUndefined:        Result := 'UNDEFINED';
@@ -217,6 +232,8 @@ begin
     opLoadEnv:          Result := 'LOAD_ENV';
     opStoreEnv:         Result := 'STORE_ENV';
     opDefineEnv:        Result := 'DEFINE_ENV';
+    opPushEnv:          Result := 'PUSH_ENV';
+    opPopEnv:           Result := 'POP_ENV';
     opNewObject:        Result := 'NEW_OBJECT';
     opNewArray:         Result := 'NEW_ARRAY';
     opGetProp:          Result := 'GET_PROP';
@@ -225,6 +242,9 @@ begin
     opSetPropNamed:     Result := 'SET_PROP_NAMED';
     opGetPropOptional:  Result := 'GET_PROP_OPT';
     opGetPropNamedOpt:  Result := 'GET_PROP_NAMED_OPT';
+    opDefineGetter:     Result := 'DEFINE_GETTER';
+    opDefineSetter:     Result := 'DEFINE_SETTER';
+    opObjectRest:       Result := 'OBJECT_REST';
     opDeleteProp:       Result := 'DELETE_PROP';
     opIn:               Result := 'IN';
     opInstanceOf:       Result := 'INSTANCEOF';
@@ -254,6 +274,7 @@ begin
     opNot:              Result := 'NOT';
     opTypeOf:           Result := 'TYPEOF';
     opVoid:             Result := 'VOID';
+    opAwait:            Result := 'AWAIT';
     opJump:             Result := 'JUMP';
     opJumpIfFalse:      Result := 'JUMP_IF_FALSE';
     opJumpIfTrue:       Result := 'JUMP_IF_TRUE';
@@ -262,7 +283,9 @@ begin
     opJumpIfTruthyPeek: Result := 'JUMP_IF_TRUTHY_PEEK';
     opCall:             Result := 'CALL';
     opCallOpt:          Result := 'CALL_OPT';
+    opCallSpread:       Result := 'CALL_SPREAD';
     opNew:              Result := 'NEW';
+    opNewSpread:        Result := 'NEW_SPREAD';
     opReturn:           Result := 'RETURN';
     opClosure:          Result := 'CLOSURE';
     opThrow:            Result := 'THROW';
@@ -282,6 +305,7 @@ constructor TFloriaJSBytecode.Create(const AName: string);
 begin
   inherited Create();
   FName := AName;
+  FRefCount := 1;
   FCodeCount := 0;
   FCodeCapacity := 32;
   SetLength(FCode, FCodeCapacity);
@@ -309,11 +333,23 @@ begin
   if FSubFunctions <> nil then
   begin
     for i := 0 to FSubFunctions.Count - 1 do
-      TObject(FSubFunctions[i]).Free();
+      TFloriaJSBytecode(FSubFunctions[i]).Release();
     FreeAndNil(FSubFunctions);
   end;
 
   inherited Destroy();
+end;
+
+procedure TFloriaJSBytecode.Retain();
+begin
+  Inc(FRefCount);
+end;
+
+procedure TFloriaJSBytecode.Release();
+begin
+  Dec(FRefCount);
+  if FRefCount <= 0 then
+    Free();
 end;
 
 procedure TFloriaJSBytecode.EnsureCodeCapacity();
@@ -401,6 +437,14 @@ begin
   if Result >= 0 then Exit;
 
   Result := FLocalNames.Add(AName);
+end;
+
+function TFloriaJSBytecode.AddNewLocal(const APrefix: string): Integer;
+begin
+  if APrefix <> '' then
+    Result := FLocalNames.Add(APrefix + '_' + IntToStr(FLocalNames.Count))
+  else
+    Result := FLocalNames.Add('$tmp_' + IntToStr(FLocalNames.Count));
 end;
 
 function TFloriaJSBytecode.FindLocal(const AName: string): Integer;

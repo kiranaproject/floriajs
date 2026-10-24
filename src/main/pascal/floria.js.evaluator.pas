@@ -299,74 +299,9 @@ begin
 end;
 
 procedure TFloriaJSEvaluator.ReclaimOrphanedEnvironments();
-var
-  i, j: Integer;
-  env: TFloriaJSEnvironment;
-  obj: TFloriaJSObject;
-  fn: TFloriaJSFunction;
-  kept: TFPList;
-  hasOrphans, keep: Boolean;
-
-  procedure MarkKept(AEnv: TFloriaJSEnvironment);
-  var
-    cur: TFloriaJSEnvironment;
-  begin
-    cur := AEnv;
-    while cur <> nil do
-    begin
-      if kept.IndexOf(cur) >= 0 then Exit;
-      kept.Add(cur);
-      cur := cur.Parent;
-    end;
-  end;
-
 begin
-  if FHeap = nil then Exit;
-
-  hasOrphans := False;
-  for i := 0 to FHeap.GetEnvironmentCount() - 1 do
-    if TFloriaJSEnvironment(FHeap.GetEnvironment(i)).Detached then
-    begin
-      hasOrphans := True;
-      Break;
-    end;
-  if not hasOrphans then Exit;
-
-  kept := TFPList.Create();
-  try
-    for i := 0 to FHeap.GetEnvironmentCount() - 1 do
-    begin
-      env := TFloriaJSEnvironment(FHeap.GetEnvironment(i));
-      if (env = nil) or (not env.Detached) then Continue;
-
-      keep := False;
-      for j := 0 to FHeap.GetObjectCount() - 1 do
-      begin
-        obj := FHeap.GetObject(j);
-        if not (obj is TFloriaJSFunction) then Continue;
-        fn := TFloriaJSFunction(obj);
-        if fn.ClosureEnv <> Pointer(env) then Continue;
-        if fn.Pinned or (fn.RefCount > env.CountReferences(fn)) then
-        begin
-          keep := True;
-          Break;
-        end;
-      end;
-
-      if keep then
-        MarkKept(env);
-    end;
-
-    for i := FHeap.GetEnvironmentCount() - 1 downto 0 do
-    begin
-      env := TFloriaJSEnvironment(FHeap.GetEnvironment(i));
-      if (env = nil) or (not env.Detached) or (kept.IndexOf(env) >= 0) then Continue;
-      FHeap.Untrack(env);
-      env.Free();
-    end;
-  finally
-    kept.Free();
-  end;
+  if FHeap <> nil then
+    FHeap.ReclaimOrphanedEnvironments();
 end;
 
 function TFloriaJSEvaluator.GetClosureCount(): Integer;

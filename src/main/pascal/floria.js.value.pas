@@ -145,6 +145,7 @@ type
     function  Length(): Integer;
 
     function  GetProperty(const AName: string): TFloriaJSValue; override;
+    function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); override;
     function  HasProperty(const AName: string): Boolean; override;
   end;
@@ -186,6 +187,7 @@ type
     destructor Destroy(); override;
 
     function GetProperty(const AName: string): TFloriaJSValue; override;
+    function GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
 
     property Name: string read FName write FName;
     property IsNative: Boolean read FIsNative;
@@ -338,6 +340,7 @@ type
     { Reclaims the objects that no container refers to any more. It is only
       safe to call this at a point where no transient copy of a value is in
       use any more, such as the start of a program execution. }
+    procedure ReclaimOrphanedEnvironments();
     procedure Collect();
 
     procedure Clear();
@@ -404,6 +407,9 @@ function JSUnaryBitNot(const AVal: TFloriaJSValue): TFloriaJSValue;
 function JSTypeOf(const AVal: TFloriaJSValue): string;
 
 implementation
+
+uses
+  floria.js.env, floria.js.bytecode;
 
 type
   { Registry Entry of a Heap That Is Alive }
@@ -486,7 +492,10 @@ function JSMakeNumber(ANum: Double): TFloriaJSValue;
 begin
   Result.Kind := fjstNumber;
   Result.NumVal := ANum;
-  Result.BoolVal := (ANum <> 0.0) and not IsNaN(ANum);
+  if IsNaN(ANum) then
+    Result.BoolVal := False
+  else
+    Result.BoolVal := (ANum <> 0.0);
   Result.StrVal := '';
   Result.ObjVal := nil;
 end;
@@ -1237,6 +1246,11 @@ begin
 end;
 
 function TFloriaJSArray.GetProperty(const AName: string): TFloriaJSValue;
+begin
+  Result := GetPropertyWithReceiver(AName, Self);
+end;
+
+function TFloriaJSArray.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 var
   idx: Integer;
 begin
@@ -1246,7 +1260,7 @@ begin
   if TryStrToInt(AName, idx) then
     Exit(GetElement(idx));
 
-  Result := inherited GetProperty(AName);
+  Result := inherited GetPropertyWithReceiver(AName, AReceiver);
 end;
 
 procedure TFloriaJSArray.SetProperty(const AName: string; const AValue: TFloriaJSValue);
@@ -1362,6 +1376,8 @@ begin
   FParamNames := TStringList.Create();
   FBody := nil;
   FBytecode := ABytecode;
+  if FBytecode <> nil then
+    TFloriaJSBytecode(FBytecode).Retain();
   FClosureEnv := AClosure;
   FIsAsync := AIsAsync;
   FIsArrow := AIsArrow;
@@ -1382,6 +1398,11 @@ begin
   begin
     FBody.Release();
     FBody := nil;
+  end;
+  if FBytecode <> nil then
+  begin
+    TFloriaJSBytecode(FBytecode).Release();
+    FBytecode := nil;
   end;
   inherited Destroy();
 end;
@@ -1429,7 +1450,7 @@ begin
     Result := JSMakeString(nameStr + ': ' + msgStr);
 end;
 
-function TFloriaJSFunction.GetProperty(const AName: string): TFloriaJSValue;
+function TFloriaJSFunction.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 var
   protoObj: TFloriaJSObject;
 begin
@@ -1447,7 +1468,12 @@ begin
   if (AName = 'toString') and (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
     Exit(JSMakeFunction(FHeap.NewNativeFunction('toString', @JSFunctionToString)));
 
-  Result := inherited GetProperty(AName);
+  Result := inherited GetPropertyWithReceiver(AName, AReceiver);
+end;
+
+function TFloriaJSFunction.GetProperty(const AName: string): TFloriaJSValue;
+begin
+  Result := GetPropertyWithReceiver(AName, Self);
 end;
 
 { EFloriaJSThrow }
@@ -2268,12 +2294,88 @@ begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateBytecode(AName, ABytecode, AClosure, AIsArrow, AIsAsync)));
 end;
 
+procedure TFloriaJSHeap.ReclaimOrphanedEnvironments();
+var
+  i, j: Integer;
+  env: TFloriaJSEnvironment;
+  obj: TFloriaJSObject;
+  fn: TFloriaJSFunction;
+  kept: TFPList;
+  hasOrphans, keep: Boolean;
+
+  procedure MarkKept(AEnv: TFloriaJSEnvironment);
+  var
+    cur: TFloriaJSEnvironment;
+  begin
+    cur := AEnv;
+    while cur <> nil do
+    begin
+      if kept.IndexOf(cur) >= 0 then Exit;
+      kept.Add(cur);
+      cur := cur.Parent;
+    end;
+  end;
+
+begin
+  if FEnvironments = nil then Exit;
+
+  hasOrphans := False;
+  for i := 0 to FEnvironments.Count - 1 do
+    if TFloriaJSEnvironment(FEnvironments[i]).Detached then
+    begin
+      hasOrphans := True;
+      Break;
+    end;
+  if not hasOrphans then Exit;
+
+  kept := TFPList.Create();
+  try
+    for i := 0 to FEnvironments.Count - 1 do
+    begin
+      env := TFloriaJSEnvironment(FEnvironments[i]);
+      if (env = nil) or (not env.Detached) then Continue;
+
+      keep := False;
+      if FObjects <> nil then
+      begin
+        for j := 0 to FObjects.Count - 1 do
+        begin
+          obj := TFloriaJSObject(FObjects[j]);
+          if not (obj is TFloriaJSFunction) then Continue;
+          fn := TFloriaJSFunction(obj);
+          if fn.ClosureEnv <> Pointer(env) then Continue;
+          if fn.Pinned or (fn.RefCount > env.CountReferences(fn)) then
+          begin
+            keep := True;
+            Break;
+          end;
+        end;
+      end;
+
+      if keep then
+        MarkKept(env);
+    end;
+
+    for i := FEnvironments.Count - 1 downto 0 do
+    begin
+      env := TFloriaJSEnvironment(FEnvironments[i]);
+      if (env = nil) or (not env.Detached) or (kept.IndexOf(env) >= 0) then Continue;
+      Untrack(env);
+      env.Free();
+    end;
+  finally
+    kept.Free();
+  end;
+end;
+
 procedure TFloriaJSHeap.Collect();
 var
   i: Integer;
   obj: TFloriaJSObject;
   freed: Boolean;
 begin
+  ReclaimOrphanedEnvironments();
+
   { Reclaims the objects that no container refers to any more. Reclaiming an
     object gives up the references it holds, which can make other objects
     unreachable as well, so the sweep repeats until nothing changes. }
@@ -2643,6 +2745,7 @@ begin
 end;
 
 initialization
+  SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
   GLiveHeaps := TFPList.Create;
 
 finalization

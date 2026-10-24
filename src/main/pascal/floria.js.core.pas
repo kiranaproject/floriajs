@@ -119,7 +119,7 @@ begin
   inherited Create();
   FEngine := AEngine;
   FName := AName;
-  FBackend := fjbInterpreter;
+  FBackend := fjbBytecodeVM;
   if AEngine <> nil then
     FBackend := AEngine.Backend;
   FOutput := TStringList.Create();
@@ -258,17 +258,27 @@ begin
       if parser.HasErrors() then
         raise Exception.Create(parser.GetError(0));
 
+      if FHeap <> nil then
+        FHeap.Collect();
+
       if FBackend = fjbBytecodeVM then
       begin
         code := FCompiler.CompileProgram(prog);
         try
           Result := FVM.Execute(code, FGlobalEnv);
         finally
-          code.Free();
+          code.Release();
         end;
       end
       else
         Result := FEvaluator.ExecuteProgram(prog, FGlobalEnv);
+
+      if FHeap <> nil then
+      begin
+        FHeap.RunPendingJobs();
+        while FHeap.HasPromiseJobs() do
+          FHeap.RunPendingJobs();
+      end;
     finally
       prog.Free();
     end;
@@ -319,7 +329,7 @@ constructor TFloriaJSEngine.Create();
 begin
   inherited Create();
   FInitialized := False;
-  FBackend := fjbInterpreter;
+  FBackend := fjbBytecodeVM;
   FMemoryLimit := 64 * 1024 * 1024; { Default 64MB memory limit }
   FContexts := TFPList.Create();
   Initialize();
