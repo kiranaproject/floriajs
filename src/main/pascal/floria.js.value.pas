@@ -62,8 +62,8 @@ type
   end;
 
   { Callback Used by Heap-Side Built-ins to Invoke a JavaScript Function.
-    The evaluator installs it, so native methods such as Array.map can call
-    back into user code without depending on the evaluator unit. }
+    The VM installs it, so native methods such as Array.map can call
+    back into user code without depending on the VM unit. }
   TFloriaJSFunctionInvoker = function(const AFuncVal: TFloriaJSValue;
     const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue of object;
 

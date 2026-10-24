@@ -219,6 +219,7 @@ var
   item: TFloriaFTMLItem;
   itemEnv: TFloriaJSEnvironment;
   fnDecl: TFloriaJSFunctionDecl;
+  fnCode: TFloriaJSBytecode;
   fnObj: TFloriaJSFunction;
   childAST: TFloriaFTMLComponent;
   childItem: TFloriaFTMLItem;
@@ -253,7 +254,13 @@ begin
     fnDecl := AAST.GetFunction(i);
     if fnDecl <> nil then
     begin
-      fnObj := FContext.Heap.NewUserFunction(fnDecl.Name, fnDecl.Parameters, fnDecl.Body, Pointer(itemEnv));
+      if (FContext <> nil) and (FContext.Compiler <> nil) then
+      begin
+        fnCode := FContext.Compiler.CompileFunctionBody(fnDecl.Name, fnDecl.Parameters, fnDecl.Body);
+        fnObj := FContext.Heap.NewBytecodeFunction(fnDecl.Name, fnCode, Pointer(itemEnv));
+      end
+      else
+        fnObj := FContext.Heap.NewUserFunction(fnDecl.Name, fnDecl.Parameters, fnDecl.Body, Pointer(itemEnv));
       if FDocumentObjects <> nil then
         FDocumentObjects.Add(fnObj);
       itemEnv.Define(fnDecl.Name, JSMakeObject(fnObj));

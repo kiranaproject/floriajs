@@ -4,8 +4,8 @@
 {                                                                          }
 {   Implements the JavaScript-visible Array prototype and the Array global  }
 {   object. Callback-based methods (map, filter, sort, ...) reach user      }
-{   functions through the heap's function invoker, which the evaluator      }
-{   installs, so this unit does not depend on the evaluator.                }
+{   functions through the heap's function invoker, which the VM            }
+{   installs, so this unit does not depend on the VM.                      }
 {                                                                          }
 {   Copyright (c) 2026 Dio Affriza                                         }
 {   SPDX-License-Identifier: MPL-2.0                                       }
