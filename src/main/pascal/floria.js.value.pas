@@ -70,6 +70,10 @@ type
   TFloriaJSPropertyPair = record
     Key: string;
     Value: TFloriaJSValue;
+    Getter: TFloriaJSValue;
+    Setter: TFloriaJSValue;
+    HasGetter: Boolean;
+    HasSetter: Boolean;
   end;
 
   { Heap-allocated Base JavaScript Object }
@@ -98,6 +102,8 @@ type
 
     function  GetProperty(const AName: string): TFloriaJSValue; virtual;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); virtual;
+    procedure DefineGetter(const AName: string; const AGetter: TFloriaJSValue);
+    procedure DefineSetter(const AName: string; const ASetter: TFloriaJSValue);
     function  HasProperty(const AName: string): Boolean; virtual;
     function  DeleteProperty(const AName: string): Boolean; virtual;
 
@@ -717,7 +723,13 @@ begin
   if (FHeap = nil) or (not FHeap.IsClearing) then
   begin
     for i := 0 to FPropCount - 1 do
+    begin
       JSReleaseValue(FProperties[i].Value);
+      if FProperties[i].HasGetter then
+        JSReleaseValue(FProperties[i].Getter);
+      if FProperties[i].HasSetter then
+        JSReleaseValue(FProperties[i].Setter);
+    end;
     if FPrototype <> nil then
       FPrototype.Release;
   end;
@@ -792,7 +804,12 @@ var
 begin
   idx := FindPropertyIndex(AName);
   if idx >= 0 then
-    Exit(FProperties[idx].Value);
+  begin
+    if FProperties[idx].HasGetter and (FHeap <> nil) then
+      Exit(FHeap.InvokeFunction(FProperties[idx].Getter, [], JSMakeObject(Self)))
+    else
+      Exit(FProperties[idx].Value);
+  end;
 
   if FPrototype <> nil then
     Exit(FPrototype.GetProperty(AName));
@@ -807,6 +824,11 @@ begin
   idx := FindPropertyIndex(AName);
   if idx >= 0 then
   begin
+    if FProperties[idx].HasSetter and (FHeap <> nil) then
+    begin
+      FHeap.InvokeFunction(FProperties[idx].Setter, [AValue], JSMakeObject(Self));
+      Exit;
+    end;
     { A property owns the value it stores: the value that is replaced gives up
       its reference and the new value takes a reference over. }
     JSReleaseValue(FProperties[idx].Value);
@@ -825,7 +847,77 @@ begin
 
   FProperties[FPropCount].Key := AName;
   FProperties[FPropCount].Value := AValue;
+  FProperties[FPropCount].Getter := JSMakeUndefined();
+  FProperties[FPropCount].Setter := JSMakeUndefined();
+  FProperties[FPropCount].HasGetter := False;
+  FProperties[FPropCount].HasSetter := False;
   JSRetainValue(AValue);
+  Inc(FPropCount);
+end;
+
+procedure TFloriaJSObject.DefineGetter(const AName: string; const AGetter: TFloriaJSValue);
+var
+  idx: Integer;
+begin
+  idx := FindPropertyIndex(AName);
+  if idx >= 0 then
+  begin
+    if FProperties[idx].HasGetter then
+      JSReleaseValue(FProperties[idx].Getter);
+    FProperties[idx].Getter := AGetter;
+    FProperties[idx].HasGetter := True;
+    JSRetainValue(AGetter);
+    Exit;
+  end;
+
+  if FPropCount >= Length(FProperties) then
+  begin
+    if Length(FProperties) = 0 then
+      SetLength(FProperties, 8)
+    else
+      SetLength(FProperties, Length(FProperties) * 2);
+  end;
+
+  FProperties[FPropCount].Key := AName;
+  FProperties[FPropCount].Value := JSMakeUndefined();
+  FProperties[FPropCount].Getter := AGetter;
+  FProperties[FPropCount].Setter := JSMakeUndefined();
+  FProperties[FPropCount].HasGetter := True;
+  FProperties[FPropCount].HasSetter := False;
+  JSRetainValue(AGetter);
+  Inc(FPropCount);
+end;
+
+procedure TFloriaJSObject.DefineSetter(const AName: string; const ASetter: TFloriaJSValue);
+var
+  idx: Integer;
+begin
+  idx := FindPropertyIndex(AName);
+  if idx >= 0 then
+  begin
+    if FProperties[idx].HasSetter then
+      JSReleaseValue(FProperties[idx].Setter);
+    FProperties[idx].Setter := ASetter;
+    FProperties[idx].HasSetter := True;
+    JSRetainValue(ASetter);
+    Exit;
+  end;
+
+  if FPropCount >= Length(FProperties) then
+  begin
+    if Length(FProperties) = 0 then
+      SetLength(FProperties, 8)
+    else
+      SetLength(FProperties, Length(FProperties) * 2);
+  end;
+
+  FProperties[FPropCount].Key := AName;
+  FProperties[FPropCount].Value := JSMakeUndefined();
+  FProperties[FPropCount].Getter := JSMakeUndefined();
+  FProperties[FPropCount].Setter := ASetter;
+  FProperties[FPropCount].HasGetter := False;
+  FProperties[FPropCount].HasSetter := True;
+  JSRetainValue(ASetter);
   Inc(FPropCount);
 end;
 

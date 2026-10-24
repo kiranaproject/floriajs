@@ -483,13 +483,14 @@ var
   objLit: TFloriaJSObjectExpr;
   fnExpr: TFloriaJSFunctionExpr;
   promise: TFloriaJSPromise;
-  lVal, rVal, objVal, thisVal, fnVal: TFloriaJSValue;
-  arrObj: TFloriaJSArray;
-  jsObj: TFloriaJSObject;
+  lVal, rVal, objVal, thisVal, fnVal, spreadVal, val: TFloriaJSValue;
+  arrObj, srcArr: TFloriaJSArray;
+  jsObj, srcObj: TFloriaJSObject;
   fnObj: TFloriaJSFunction;
   argVals: array of TFloriaJSValue;
-  propName: string;
-  i, count: Integer;
+  propName, propKey: string;
+  argExpr: TFloriaJSExprNode;
+  i, j, count: Integer;
 begin
   if AExpr = nil then
     Exit(JSMakeUndefined());
@@ -555,6 +556,34 @@ begin
             Exit(JSMakeUndefined());
           end;
           Exit(lVal);
+        end;
+        tkDelete:
+        begin
+          { delete only removes properties of an object. Deleting a variable is
+            not allowed and reports false. }
+          if not (unary.Operand is TFloriaJSMemberExpr) then
+            Exit(JSMakeBoolean(False));
+
+          member := TFloriaJSMemberExpr(unary.Operand);
+          objVal := EvaluateExpr(member.Target, AEnv);
+
+          if member.IsOptional and (objVal.IsNull() or objVal.IsUndefined()) then
+            Exit(JSMakeBoolean(True));
+
+          if not member.Computed then
+            propName := member.PropertyName
+          else
+            propName := EvaluateExpr(member.PropertyExpr, AEnv).ToString();
+
+          if objVal.IsObject() then
+          begin
+            if objVal.IsArray() and TryStrToInt(propName, i) then
+              objVal.AsArray().SetElement(i, JSMakeUndefined())
+            else
+              objVal.AsObject().DeleteProperty(propName);
+          end;
+
+          Exit(JSMakeBoolean(True));
         end;
         tkPlusPlus:
         begin
@@ -726,9 +755,42 @@ begin
     end;
 
     count := call.GetArgumentCount();
-    SetLength(argVals, count);
+    SetLength(argVals, 0);
     for i := 0 to count - 1 do
-      argVals[i] := EvaluateExpr(call.GetArgument(i), AEnv);
+    begin
+      argExpr := call.GetArgument(i);
+      if argExpr is TFloriaJSSpreadExpr then
+      begin
+        spreadVal := EvaluateExpr(TFloriaJSSpreadExpr(argExpr).Expression, AEnv);
+        if spreadVal.IsArray() then
+        begin
+          srcArr := spreadVal.AsArray();
+          for j := 0 to srcArr.Length() - 1 do
+          begin
+            SetLength(argVals, Length(argVals) + 1);
+            argVals[High(argVals)] := srcArr.GetElement(j);
+          end;
+        end
+        else if spreadVal.IsString() then
+        begin
+          for j := 1 to Length(spreadVal.StrVal) do
+          begin
+            SetLength(argVals, Length(argVals) + 1);
+            argVals[High(argVals)] := JSMakeString(spreadVal.StrVal[j]);
+          end;
+        end
+        else
+        begin
+          SetLength(argVals, Length(argVals) + 1);
+          argVals[High(argVals)] := spreadVal;
+        end;
+      end
+      else
+      begin
+        SetLength(argVals, Length(argVals) + 1);
+        argVals[High(argVals)] := EvaluateExpr(argExpr, AEnv);
+      end;
+    end;
 
     if call.IsNew then
       Exit(ConstructObject(fnVal, argVals));
@@ -742,7 +804,30 @@ begin
     arrLit := TFloriaJSArrayExpr(AExpr);
     arrObj := FHeap.NewArray();
     for i := 0 to arrLit.GetElementCount() - 1 do
-      arrObj.Push(EvaluateExpr(arrLit.GetElement(i), AEnv));
+    begin
+      argExpr := arrLit.GetElement(i);
+      if argExpr = nil then
+        arrObj.Push(JSMakeUndefined())
+      else if argExpr is TFloriaJSSpreadExpr then
+      begin
+        spreadVal := EvaluateExpr(TFloriaJSSpreadExpr(argExpr).Expression, AEnv);
+        if spreadVal.IsArray() then
+        begin
+          srcArr := spreadVal.AsArray();
+          for j := 0 to srcArr.Length() - 1 do
+            arrObj.Push(srcArr.GetElement(j));
+        end
+        else if spreadVal.IsString() then
+        begin
+          for j := 1 to Length(spreadVal.StrVal) do
+            arrObj.Push(JSMakeString(spreadVal.StrVal[j]));
+        end
+        else
+          arrObj.Push(spreadVal);
+      end
+      else
+        arrObj.Push(EvaluateExpr(argExpr, AEnv));
+    end;
     Exit(JSMakeArray(arrObj));
   end;
 
@@ -752,7 +837,43 @@ begin
     objLit := TFloriaJSObjectExpr(AExpr);
     jsObj := FHeap.NewObject();
     for i := 0 to objLit.GetPropertyCount() - 1 do
-      jsObj.SetProperty(objLit.GetPropertyKey(i), EvaluateExpr(objLit.GetPropertyValue(i), AEnv));
+    begin
+      case objLit.GetPropertyKind(i) of
+        fjpkNormal:
+          jsObj.SetProperty(objLit.GetPropertyKey(i), EvaluateExpr(objLit.GetPropertyValue(i), AEnv));
+        fjpkComputed:
+        begin
+          propKey := EvaluateExpr(objLit.GetPropertyKeyExpr(i), AEnv).ToString();
+          jsObj.SetProperty(propKey, EvaluateExpr(objLit.GetPropertyValue(i), AEnv));
+        end;
+        fjpkSpread:
+        begin
+          val := EvaluateExpr(objLit.GetPropertyValue(i), AEnv);
+          if val.IsObject() then
+          begin
+            srcObj := val.AsObject();
+            for j := 0 to srcObj.GetPropertyCount() - 1 do
+              jsObj.SetProperty(srcObj.GetPropertyKey(j), srcObj.GetPropertyValue(j));
+          end;
+        end;
+        fjpkGetter:
+        begin
+          if objLit.GetPropertyKeyExpr(i) <> nil then
+            propKey := EvaluateExpr(objLit.GetPropertyKeyExpr(i), AEnv).ToString()
+          else
+            propKey := objLit.GetPropertyKey(i);
+          jsObj.DefineGetter(propKey, EvaluateExpr(objLit.GetPropertyValue(i), AEnv));
+        end;
+        fjpkSetter:
+        begin
+          if objLit.GetPropertyKeyExpr(i) <> nil then
+            propKey := EvaluateExpr(objLit.GetPropertyKeyExpr(i), AEnv).ToString()
+          else
+            propKey := objLit.GetPropertyKey(i);
+          jsObj.DefineSetter(propKey, EvaluateExpr(objLit.GetPropertyValue(i), AEnv));
+        end;
+      end;
+    end;
     Exit(JSMakeObject(jsObj));
   end;
 

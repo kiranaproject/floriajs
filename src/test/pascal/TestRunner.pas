@@ -118,6 +118,7 @@ type
     procedure TestObjectUtilities();
     procedure TestJSONSupport();
     procedure TestTemplateLiteralInterpolation();
+    procedure TestObjectAndArrayLiteralCompletion();
   end;
 
   { Test 8: Declarative FTML Types & Built-in Elements }
@@ -2209,6 +2210,68 @@ begin
     res := engine.Execute('`count: ${[1, 2, 3].length}`;');
     AssertTrue('Template with property call success', res.Success);
     AssertEquals('Template property value', 'count: 3', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSEvaluatorTest.TestObjectAndArrayLiteralCompletion();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { 1. Object shorthand }
+    res := engine.Execute('var x = 10, y = 20; var o = { x, y }; o.x + o.y;');
+    AssertTrue('Object shorthand success', res.Success);
+    AssertEquals('Object shorthand sum', 30.0, res.NumberValue, 0.0001);
+
+    { 2. Computed property keys }
+    res := engine.Execute('var k = "foo"; var o = { [k]: 42, [k + "Bar"]: 100 }; o.foo + o.fooBar;');
+    AssertTrue('Computed keys success', res.Success);
+    AssertEquals('Computed keys sum', 142.0, res.NumberValue, 0.0001);
+
+    { 3. Object spread }
+    res := engine.Execute('var a = { x: 1, y: 2 }; var b = { ...a, z: 3, x: 99 }; b.x + b.y + b.z;');
+    AssertTrue('Object spread success', res.Success);
+    AssertEquals('Object spread sum', 104.0, res.NumberValue, 0.0001);
+
+    { 4. Array spread }
+    res := engine.Execute('var a = [2, 3]; var b = [1, ...a, 4]; b.join(",");');
+    AssertTrue('Array spread success', res.Success);
+    AssertEquals('Array spread joined', '1,2,3,4', res.StringValue);
+
+    { 5. Array holes }
+    res := engine.Execute('var a = [1, , 3]; a.length;');
+    AssertTrue('Array holes length success', res.Success);
+    AssertEquals('Array holes length = 3', 3.0, res.NumberValue, 0.0001);
+
+    res := engine.Execute('var a = [1, , 3]; a[1] === undefined;');
+    AssertTrue('Array hole index 1 is undefined', res.BooleanValue);
+
+    { 6. Object methods }
+    res := engine.Execute('var calc = { add(a, b) { return a + b; }, mult(a, b) { return a * b; } }; calc.mult(calc.add(2, 3), 4);');
+    AssertTrue('Object methods success', res.Success);
+    AssertEquals('Object methods result', 20.0, res.NumberValue, 0.0001);
+
+    { 7. Object getters and setters }
+    res := engine.Execute(
+      'var o = {' + LineEnding +
+      '  _val: 0,' + LineEnding +
+      '  get val() { return this._val; },' + LineEnding +
+      '  set val(v) { this._val = v * 2; }' + LineEnding +
+      '};' + LineEnding +
+      'o.val = 21;' + LineEnding +
+      'o.val;'
+    );
+    AssertTrue('Getters/setters success', res.Success);
+    AssertEquals('Getter returned modified value', 42.0, res.NumberValue, 0.0001);
+
+    { 8. Spread call arguments }
+    res := engine.Execute('function sum(a, b, c) { return a + b + c; } sum(...[10, 20, 30]);');
+    AssertTrue('Spread call arguments success', res.Success);
+    AssertEquals('Spread call sum', 60.0, res.NumberValue, 0.0001);
   finally
     engine.Free();
   end;

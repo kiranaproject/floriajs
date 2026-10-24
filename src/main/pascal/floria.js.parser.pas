@@ -69,6 +69,7 @@ type
     function  ParseMemberTail(ALeft: TFloriaJSExprNode): TFloriaJSExprNode;
     function  ParseArrayLiteral(): TFloriaJSExprNode;
     function  ParseObjectLiteral(): TFloriaJSExprNode;
+    function  ParseMethodBody(const AName: string): TFloriaJSFunctionExpr;
     function  ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
     function  ExtractParameters(AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
 
@@ -529,7 +530,10 @@ begin
       repeat
         if Check(tkRParen) then
           Break;
-        callExpr.AddArgument(ParseAssignmentExpression());
+        if Match(tkEllipsis) then
+          callExpr.AddArgument(TFloriaJSSpreadExpr.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column))
+        else
+          callExpr.AddArgument(ParseAssignmentExpression());
       until not Match(tkComma);
     end;
     Consume(tkRParen, 'Expected '')'' after argument list');
@@ -547,48 +551,196 @@ begin
   startCol := FPrevious.Column;
   arr := TFloriaJSArrayExpr.Create(startLine, startCol);
 
-  if not Check(tkRBracket) then
+  while (not Check(tkRBracket)) and (not IsAtEnd()) do
   begin
-    repeat
-      if Check(tkRBracket) then
-        Break;
+    if Match(tkComma) then
+    begin
+      arr.AddElement(nil); // Array hole
+      Continue;
+    end;
+
+    if Match(tkEllipsis) then
+      arr.AddElement(TFloriaJSSpreadExpr.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column))
+    else
       arr.AddElement(ParseAssignmentExpression());
-    until not Match(tkComma);
+
+    if not Check(tkRBracket) then
+      Consume(tkComma, 'Expected '','' or '']'' after array element');
   end;
 
   Consume(tkRBracket, 'Expected '']'' after array elements');
   Result := arr;
 end;
 
+function TFloriaJSParser.ParseMethodBody(const AName: string): TFloriaJSFunctionExpr;
+var
+  fnExpr: TFloriaJSFunctionExpr;
+  startLine, startCol: Integer;
+  bodyStmt: TFloriaJSStmtNode;
+begin
+  startLine := FCurrent.Line;
+  startCol := FCurrent.Column;
+
+  Consume(tkLParen, 'Expected ''('' after method name');
+  fnExpr := TFloriaJSFunctionExpr.Create(AName, False, startLine, startCol);
+
+  if not Check(tkRParen) then
+  begin
+    repeat
+      if Match(tkIdentifier) then
+        fnExpr.AddParameter(FPrevious.Text)
+      else
+      begin
+        ErrorAtCurrent('Expected parameter name');
+        Break;
+      end;
+    until not Match(tkComma);
+  end;
+
+  Consume(tkRParen, 'Expected '')'' after parameters');
+  bodyStmt := ParseBlockStatement();
+  fnExpr.SetBody(bodyStmt);
+  Result := fnExpr;
+end;
+
 function TFloriaJSParser.ParseObjectLiteral(): TFloriaJSExprNode;
 var
   obj: TFloriaJSObjectExpr;
   startLine, startCol: Integer;
-  propKey: string;
-  propVal: TFloriaJSExprNode;
+  propKey, realKey: string;
+  propVal, keyExpr: TFloriaJSExprNode;
+  methodFn: TFloriaJSFunctionExpr;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
   obj := TFloriaJSObjectExpr.Create(startLine, startCol);
 
-  if not Check(tkRBrace) then
+  while (not Check(tkRBrace)) and (not IsAtEnd()) do
   begin
-    repeat
-      if Check(tkRBrace) then
-        Break;
+    // 1. Spread: ...expr
+    if Match(tkEllipsis) then
+    begin
+      obj.AddSpreadProperty(ParseAssignmentExpression());
+      if not Check(tkRBrace) then
+        Consume(tkComma, 'Expected '','' or ''}'' after spread property');
+      Continue;
+    end;
 
-      if Match(tkIdentifier) or Match(tkString) then
-        propKey := FPrevious.Text
+    // 2. Computed property: [expr]: val, or [expr]() { ... }
+    if Match(tkLBracket) then
+    begin
+      keyExpr := ParseAssignmentExpression();
+      Consume(tkRBracket, 'Expected '']'' after computed property name');
+
+      if Match(tkColon) then
+      begin
+        propVal := ParseAssignmentExpression();
+        obj.AddComputedProperty(keyExpr, propVal);
+      end
+      else if Check(tkLParen) then
+      begin
+        methodFn := ParseMethodBody('');
+        obj.AddComputedProperty(keyExpr, methodFn);
+      end
+      else
+        ErrorAtCurrent('Expected '':'' or ''('' after computed property name');
+
+      if not Check(tkRBrace) then
+        Consume(tkComma, 'Expected '','' or ''}'' after property');
+      Continue;
+    end;
+
+    // 3. Identifier / Keyword / String / Number key
+    if Match(tkIdentifier) or Match(tkString) or Match(tkNumber) then
+      propKey := FPrevious.Text
+    else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+    begin
+      propKey := FCurrent.Text;
+      Advance();
+    end
+    else
+    begin
+      ErrorAtCurrent('Expected property key in object literal');
+      Break;
+    end;
+
+    // Check for getter: get x() { ... } or get [k]() { ... }
+    if (propKey = 'get') and (not Check(tkColon)) and (not Check(tkComma)) and (not Check(tkRBrace)) and (not Check(tkLParen)) then
+    begin
+      if Match(tkLBracket) then
+      begin
+        keyExpr := ParseAssignmentExpression();
+        Consume(tkRBracket, 'Expected '']'' after computed getter name');
+        methodFn := ParseMethodBody('');
+        obj.AddGetter('', methodFn, keyExpr);
+      end
       else
       begin
-        ErrorAtCurrent('Expected property key identifier or string literal in object literal');
-        Break;
+        if Match(tkIdentifier) or Match(tkString) then
+          realKey := FPrevious.Text
+        else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+        begin
+          realKey := FCurrent.Text;
+          Advance();
+        end
+        else
+        begin
+          ErrorAtCurrent('Expected getter name');
+          realKey := '';
+        end;
+        methodFn := ParseMethodBody(realKey);
+        obj.AddGetter(realKey, methodFn);
       end;
-
+    end
+    // Check for setter: set x(v) { ... } or set [k](v) { ... }
+    else if (propKey = 'set') and (not Check(tkColon)) and (not Check(tkComma)) and (not Check(tkRBrace)) and (not Check(tkLParen)) then
+    begin
+      if Match(tkLBracket) then
+      begin
+        keyExpr := ParseAssignmentExpression();
+        Consume(tkRBracket, 'Expected '']'' after computed setter name');
+        methodFn := ParseMethodBody('');
+        obj.AddSetter('', methodFn, keyExpr);
+      end
+      else
+      begin
+        if Match(tkIdentifier) or Match(tkString) then
+          realKey := FPrevious.Text
+        else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+        begin
+          realKey := FCurrent.Text;
+          Advance();
+        end
+        else
+        begin
+          ErrorAtCurrent('Expected setter name');
+          realKey := '';
+        end;
+        methodFn := ParseMethodBody(realKey);
+        obj.AddSetter(realKey, methodFn);
+      end;
+    end
+    // Method syntax: f() { ... }
+    else if Check(tkLParen) then
+    begin
+      methodFn := ParseMethodBody(propKey);
+      obj.AddProperty(propKey, methodFn);
+    end
+    // Shorthand syntax: { x }
+    else if Check(tkComma) or Check(tkRBrace) then
+    begin
+      obj.AddProperty(propKey, TFloriaJSIdentifierExpr.Create(propKey, startLine, startCol));
+    end
+    // Standard property: key: value
+    else
+    begin
       Consume(tkColon, 'Expected '':'' after object property key');
       propVal := ParseAssignmentExpression();
       obj.AddProperty(propKey, propVal);
-    until not Match(tkComma);
+    end;
+
+    if not Check(tkRBrace) then
+      Consume(tkComma, 'Expected '','' or ''}'' after property');
   end;
 
   Consume(tkRBrace, 'Expected ''}'' after object literal');
@@ -697,7 +849,10 @@ begin
           repeat
             if Check(tkRParen) then
               Break;
-            callExpr.AddArgument(ParseAssignmentExpression());
+            if Match(tkEllipsis) then
+          callExpr.AddArgument(TFloriaJSSpreadExpr.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column))
+        else
+          callExpr.AddArgument(ParseAssignmentExpression());
           until not Match(tkComma);
         end;
         Consume(tkRParen, 'Expected '')'' after argument list');
@@ -716,7 +871,10 @@ begin
             repeat
               if Check(tkRParen) then
                 Break;
-              callExpr.AddArgument(ParseAssignmentExpression());
+              if Match(tkEllipsis) then
+          callExpr.AddArgument(TFloriaJSSpreadExpr.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column))
+        else
+          callExpr.AddArgument(ParseAssignmentExpression());
             until not Match(tkComma);
           end;
           Consume(tkRParen, 'Expected '')'' after optional call arguments');

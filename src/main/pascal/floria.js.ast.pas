@@ -231,10 +231,26 @@ type
     property Elements: TFPList read FElements;
   end;
 
+  { Spread Expression: ...expr }
+  TFloriaJSSpreadExpr = class(TFloriaJSExprNode)
+  private
+    FExpression: TFloriaJSExprNode;
+  public
+    constructor Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+    property Expression: TFloriaJSExprNode read FExpression;
+  end;
+
+  { Object Literal Property Kind }
+  TFloriaJSPropertyKind = (fjpkNormal, fjpkComputed, fjpkSpread, fjpkGetter, fjpkSetter);
+
   // Object Literal Property Entry
   TFloriaJSPropertyEntry = record
     Key: string;
+    KeyExpr: TFloriaJSExprNode;
     Value: TFloriaJSExprNode;
+    Kind: TFloriaJSPropertyKind;
   end;
 
   // Object Literal: { a: 1, b: "hello" }
@@ -247,9 +263,15 @@ type
     destructor Destroy(); override;
 
     procedure AddProperty(const AKey: string; AValue: TFloriaJSExprNode);
+    procedure AddComputedProperty(AKeyExpr: TFloriaJSExprNode; AValue: TFloriaJSExprNode);
+    procedure AddSpreadProperty(ASpreadExpr: TFloriaJSExprNode);
+    procedure AddGetter(const AKey: string; AGetter: TFloriaJSExprNode; AKeyExpr: TFloriaJSExprNode = nil);
+    procedure AddSetter(const AKey: string; ASetter: TFloriaJSExprNode; AKeyExpr: TFloriaJSExprNode = nil);
     function  GetPropertyCount(): Integer;
     function  GetPropertyKey(AIndex: Integer): string;
     function  GetPropertyValue(AIndex: Integer): TFloriaJSExprNode;
+    function  GetPropertyKeyExpr(AIndex: Integer): TFloriaJSExprNode;
+    function  GetPropertyKind(AIndex: Integer): TFloriaJSPropertyKind;
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
   end;
@@ -943,7 +965,7 @@ end;
 
 procedure TFloriaJSArrayExpr.AddElement(AElem: TFloriaJSExprNode);
 begin
-  if (AElem <> nil) and (FElements <> nil) then
+  if FElements <> nil then
     FElements.Add(AElem);
 end;
 
@@ -968,6 +990,27 @@ begin
   if AVisitor <> nil then AVisitor.VisitArray(Self);
 end;
 
+{ TFloriaJSSpreadExpr }
+
+constructor TFloriaJSSpreadExpr.Create(AExpr: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FExpression := AExpr;
+end;
+
+destructor TFloriaJSSpreadExpr.Destroy();
+begin
+  if FExpression <> nil then
+    FreeAndNil(FExpression);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSSpreadExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if (AVisitor <> nil) and (FExpression <> nil) then
+    FExpression.Accept(AVisitor);
+end;
+
 { TFloriaJSObjectExpr }
 
 constructor TFloriaJSObjectExpr.Create(ALine, ACol: Integer);
@@ -982,7 +1025,12 @@ var
   i: Integer;
 begin
   for i := 0 to FCount - 1 do
-    FProperties[i].Value.Free();
+  begin
+    if FProperties[i].Value <> nil then
+      FreeAndNil(FProperties[i].Value);
+    if FProperties[i].KeyExpr <> nil then
+      FreeAndNil(FProperties[i].KeyExpr);
+  end;
   SetLength(FProperties, 0);
   inherited Destroy();
 end;
@@ -992,7 +1040,53 @@ begin
   if FCount >= Length(FProperties) then
     SetLength(FProperties, (FCount + 1) * 2);
   FProperties[FCount].Key := AKey;
+  FProperties[FCount].KeyExpr := nil;
   FProperties[FCount].Value := AValue;
+  FProperties[FCount].Kind := fjpkNormal;
+  Inc(FCount);
+end;
+
+procedure TFloriaJSObjectExpr.AddComputedProperty(AKeyExpr: TFloriaJSExprNode; AValue: TFloriaJSExprNode);
+begin
+  if FCount >= Length(FProperties) then
+    SetLength(FProperties, (FCount + 1) * 2);
+  FProperties[FCount].Key := '';
+  FProperties[FCount].KeyExpr := AKeyExpr;
+  FProperties[FCount].Value := AValue;
+  FProperties[FCount].Kind := fjpkComputed;
+  Inc(FCount);
+end;
+
+procedure TFloriaJSObjectExpr.AddSpreadProperty(ASpreadExpr: TFloriaJSExprNode);
+begin
+  if FCount >= Length(FProperties) then
+    SetLength(FProperties, (FCount + 1) * 2);
+  FProperties[FCount].Key := '';
+  FProperties[FCount].KeyExpr := nil;
+  FProperties[FCount].Value := ASpreadExpr;
+  FProperties[FCount].Kind := fjpkSpread;
+  Inc(FCount);
+end;
+
+procedure TFloriaJSObjectExpr.AddGetter(const AKey: string; AGetter: TFloriaJSExprNode; AKeyExpr: TFloriaJSExprNode = nil);
+begin
+  if FCount >= Length(FProperties) then
+    SetLength(FProperties, (FCount + 1) * 2);
+  FProperties[FCount].Key := AKey;
+  FProperties[FCount].KeyExpr := AKeyExpr;
+  FProperties[FCount].Value := AGetter;
+  FProperties[FCount].Kind := fjpkGetter;
+  Inc(FCount);
+end;
+
+procedure TFloriaJSObjectExpr.AddSetter(const AKey: string; ASetter: TFloriaJSExprNode; AKeyExpr: TFloriaJSExprNode = nil);
+begin
+  if FCount >= Length(FProperties) then
+    SetLength(FProperties, (FCount + 1) * 2);
+  FProperties[FCount].Key := AKey;
+  FProperties[FCount].KeyExpr := AKeyExpr;
+  FProperties[FCount].Value := ASetter;
+  FProperties[FCount].Kind := fjpkSetter;
   Inc(FCount);
 end;
 
@@ -1015,6 +1109,22 @@ begin
     Result := FProperties[AIndex].Value
   else
     Result := nil;
+end;
+
+function TFloriaJSObjectExpr.GetPropertyKeyExpr(AIndex: Integer): TFloriaJSExprNode;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FProperties[AIndex].KeyExpr
+  else
+    Result := nil;
+end;
+
+function TFloriaJSObjectExpr.GetPropertyKind(AIndex: Integer): TFloriaJSPropertyKind;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FProperties[AIndex].Kind
+  else
+    Result := fjpkNormal;
 end;
 
 procedure TFloriaJSObjectExpr.Accept(AVisitor: IFloriaJSASTVisitor);
