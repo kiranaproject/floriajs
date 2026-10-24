@@ -6459,6 +6459,60 @@ begin
     // For loop init let vs inner block let
     res := engine.Execute('var sum = 0; for (let i = 0; i < 2; i++) { let i = 10; sum += i; } sum === 20;');
     AssertTrue('For loop let shadowed in inner block let is valid', res.Success and res.BooleanValue);
+
+    // 7. Cross-scope var/let conflicts (P0-04 / P0-07)
+    // Function let + nested var
+    res := engine.Execute('function f() { let x = 1; { var x = 2; } return x; } f();');
+    AssertFalse('Function let + nested var must be rejected as SyntaxError', res.Success);
+
+    // Function const + nested var
+    res := engine.Execute('function f() { const x = 1; { var x = 2; } } f();');
+    AssertFalse('Function const + nested var must be rejected as SyntaxError', res.Success);
+
+    // Top-level let + block var
+    res := engine.Execute('let x = 1; { var x = 2; }');
+    AssertFalse('Top-level let + block var must be rejected as SyntaxError', res.Success);
+
+    // Top-level const + block var
+    res := engine.Execute('const x = 1; { var x = 2; }');
+    AssertFalse('Top-level const + block var must be rejected as SyntaxError', res.Success);
+
+    // Switch case var vs outer let
+    res := engine.Execute('let x = 1; switch (1) { case 1: var x = 2; }');
+    AssertFalse('Switch case var vs outer let must be rejected as SyntaxError', res.Success);
+
+    // Switch case let vs switch case var
+    res := engine.Execute('switch (1) { case 1: let x = 1; case 2: var x = 2; }');
+    AssertFalse('Switch case let vs switch case var must be rejected as SyntaxError', res.Success);
+
+    // Switch case var vs switch case let
+    res := engine.Execute('switch (1) { case 1: var x = 1; case 2: let x = 2; }');
+    AssertFalse('Switch case var vs switch case let must be rejected as SyntaxError', res.Success);
+
+    // For loop let vs body var
+    res := engine.Execute('for (let i = 0; i < 1; i++) { var i; }');
+    AssertFalse('For loop let vs body var must be rejected as SyntaxError', res.Success);
+
+    // For-in loop let vs body var
+    res := engine.Execute('for (let x in {a:1}) { var x; }');
+    AssertFalse('For-in loop let vs body var must be rejected as SyntaxError', res.Success);
+
+    // For-of loop let vs body var
+    res := engine.Execute('for (let x of [1]) { var x; }');
+    AssertFalse('For-of loop let vs body var must be rejected as SyntaxError', res.Success);
+
+    // 8. Cross-scope valid shadowing cases
+    res := engine.Execute('function f(){ var x = 1; { let x = 2; } return x; } f() === 1;');
+    AssertTrue('Outer var shadowed by inner block let is valid', res.Success and res.BooleanValue);
+
+    res := engine.Execute('function f(){ { let x = 1; } var x = 2; return x; } f() === 2;');
+    AssertTrue('Preceding block let followed by outer var is valid', res.Success and res.BooleanValue);
+
+    res := engine.Execute('var r = 0; try { throw 1; } catch (e) { var e = 2; r = e; } r === 2;');
+    AssertTrue('Catch parameter allows var of same name', res.Success and res.BooleanValue);
+
+    res := engine.Execute('function f(a){ var a = 2; return a; } f(1) === 2;');
+    AssertTrue('Parameter allows var of same name', res.Success and res.BooleanValue);
   finally
     engine.Free();
   end;

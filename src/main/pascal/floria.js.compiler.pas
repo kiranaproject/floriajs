@@ -357,174 +357,263 @@ begin
   // NOTE: TFloriaJSFunctionDecl is intentionally NOT traversed into!
 end;
 
-procedure ValidateVarStmtDeclarations(AVar: TFloriaJSVarStmt);
-var
-  lexicalNames, varNames, declNames: TStringList;
-  j, k: Integer;
-  name: string;
-begin
-  if AVar = nil then Exit;
-  lexicalNames := TStringList.Create();
-  varNames := TStringList.Create();
-  declNames := TStringList.Create();
-  try
-    for j := 0 to AVar.GetDeclaratorCount() - 1 do
-    begin
-      declNames.Clear();
-      if AVar.GetDeclaratorPattern(j) <> nil then
-        CollectPatternNames(AVar.GetDeclaratorPattern(j), declNames)
-      else if AVar.GetDeclaratorName(j) <> '' then
-        declNames.Add(AVar.GetDeclaratorName(j));
+type
+  TFloriaJSScopeKind = (fjskProgram, fjskFunction, fjskBlock, fjskSwitch, fjskFor, fjskCatch);
 
-      for k := 0 to declNames.Count - 1 do
-      begin
-        name := declNames[k];
-        if AVar.Kind in [tkLet, tkConst] then
-        begin
-          if (lexicalNames.IndexOf(name) >= 0) or (varNames.IndexOf(name) >= 0) then
-            raise Exception.Create('SyntaxError: Identifier ''' + name + ''' has already been declared');
-          lexicalNames.Add(name);
-        end
-        else
-        begin
-          if lexicalNames.IndexOf(name) >= 0 then
-            raise Exception.Create('SyntaxError: Identifier ''' + name + ''' has already been declared');
-          varNames.Add(name);
-        end;
-      end;
-    end;
-  finally
-    declNames.Free();
-    varNames.Free();
-    lexicalNames.Free();
+  TFloriaJSDeclarationScope = class
+  private
+    FParent: TFloriaJSDeclarationScope;
+    FKind: TFloriaJSScopeKind;
+    FLexicalNames: TStringList;
+    FAllSubtreeVars: TStringList;
+    FParamNames: TStrings;
+    FCatchParam: string;
+  public
+    constructor Create(AParent: TFloriaJSDeclarationScope; AKind: TFloriaJSScopeKind; AParamNames: TStrings = nil; const ACatchParam: string = '');
+    destructor Destroy(); override;
+
+    procedure AddLexical(const AName: string);
+    procedure AddVar(const AName: string);
+    procedure AddFunction(const AName: string);
+    function HasAncestorLexical(const AName: string): Boolean;
+
+    property Kind: TFloriaJSScopeKind read FKind;
+    property Parent: TFloriaJSDeclarationScope read FParent;
+    property LexicalNames: TStringList read FLexicalNames;
+    property AllSubtreeVars: TStringList read FAllSubtreeVars;
+  end;
+
+constructor TFloriaJSDeclarationScope.Create(AParent: TFloriaJSDeclarationScope; AKind: TFloriaJSScopeKind; AParamNames: TStrings; const ACatchParam: string);
+begin
+  inherited Create();
+  FParent := AParent;
+  FKind := AKind;
+  FLexicalNames := TStringList.Create();
+  FAllSubtreeVars := TStringList.Create();
+  FParamNames := AParamNames;
+  FCatchParam := ACatchParam;
+end;
+
+destructor TFloriaJSDeclarationScope.Destroy();
+begin
+  FAllSubtreeVars.Free();
+  FLexicalNames.Free();
+  inherited Destroy();
+end;
+
+function TFloriaJSDeclarationScope.HasAncestorLexical(const AName: string): Boolean;
+var
+  curr: TFloriaJSDeclarationScope;
+begin
+  curr := Self;
+  while curr <> nil do
+  begin
+    if curr.FLexicalNames.IndexOf(AName) >= 0 then
+      Exit(True);
+    if curr.FKind in [fjskFunction, fjskProgram] then
+      Break;
+    curr := curr.FParent;
+  end;
+  Result := False;
+end;
+
+procedure TFloriaJSDeclarationScope.AddVar(const AName: string);
+var
+  curr: TFloriaJSDeclarationScope;
+begin
+  if HasAncestorLexical(AName) then
+    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+
+  curr := Self;
+  while curr <> nil do
+  begin
+    if curr.FAllSubtreeVars.IndexOf(AName) < 0 then
+      curr.FAllSubtreeVars.Add(AName);
+    if curr.FKind in [fjskFunction, fjskProgram] then
+      Break;
+    curr := curr.FParent;
   end;
 end;
 
-procedure ValidateStatementsDeclarations(ACount: Integer; AGetStmt: TFloriaJSStmtGetter; AParamNames: TStrings = nil; const ACatchParam: string = '');
+procedure TFloriaJSDeclarationScope.AddLexical(const AName: string);
+begin
+  if FLexicalNames.IndexOf(AName) >= 0 then
+    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+
+  if (FKind = fjskFunction) and (FParamNames <> nil) and (FParamNames.IndexOf(AName) >= 0) then
+    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+
+  if (FCatchParam <> '') and (AName = FCatchParam) then
+    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+
+  if FAllSubtreeVars.IndexOf(AName) >= 0 then
+    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+
+  FLexicalNames.Add(AName);
+end;
+
+procedure TFloriaJSDeclarationScope.AddFunction(const AName: string);
+begin
+  if not (FKind in [fjskProgram, fjskFunction]) then
+    AddLexical(AName)
+  else
+  begin
+    if FLexicalNames.IndexOf(AName) >= 0 then
+      raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+    if FAllSubtreeVars.IndexOf(AName) < 0 then
+      FAllSubtreeVars.Add(AName);
+  end;
+end;
+
+procedure ValidateScopeStmt(AStmt: TFloriaJSStmtNode; AScope: TFloriaJSDeclarationScope);
 var
-  lexicalNames, varNames, declNames: TStringList;
+  blockStmt: TFloriaJSBlockStmt;
+  ifStmt: TFloriaJSIfStmt;
+  whileStmt: TFloriaJSWhileStmt;
+  forStmt: TFloriaJSForStmt;
+  forInOf: TFloriaJSForInOfStmt;
+  switchStmt: TFloriaJSSwitchStmt;
+  switchCase: TFloriaJSSwitchCase;
+  tryStmt: TFloriaJSTryStmt;
+  labeledStmt: TFloriaJSLabeledStmt;
+  varStmt: TFloriaJSVarStmt;
+  fnDecl: TFloriaJSFunctionDecl;
+  childScope: TFloriaJSDeclarationScope;
+  declNames: TStringList;
   i, j, k: Integer;
-  stmt: TFloriaJSStmtNode;
-  varStmt: TFloriaJSVarStmt;
-  fnDecl: TFloriaJSFunctionDecl;
-  name: string;
 begin
-  lexicalNames := TStringList.Create();
-  varNames := TStringList.Create();
-  declNames := TStringList.Create();
-  try
-    for i := 0 to ACount - 1 do
-    begin
-      stmt := AGetStmt(i);
-      if stmt is TFloriaJSVarStmt then
-      begin
-        varStmt := TFloriaJSVarStmt(stmt);
-        for j := 0 to varStmt.GetDeclaratorCount() - 1 do
-        begin
-          declNames.Clear();
-          if varStmt.GetDeclaratorPattern(j) <> nil then
-            CollectPatternNames(varStmt.GetDeclaratorPattern(j), declNames)
-          else if varStmt.GetDeclaratorName(j) <> '' then
-            declNames.Add(varStmt.GetDeclaratorName(j));
+  if AStmt = nil then Exit;
 
-          for k := 0 to declNames.Count - 1 do
-          begin
-            name := declNames[k];
-            if varStmt.Kind in [tkLet, tkConst] then
-            begin
-              if (lexicalNames.IndexOf(name) >= 0) or (varNames.IndexOf(name) >= 0) or
-                 ((AParamNames <> nil) and (AParamNames.IndexOf(name) >= 0)) or
-                 ((ACatchParam <> '') and (name = ACatchParam)) then
-                raise Exception.Create('SyntaxError: Identifier ''' + name + ''' has already been declared');
-              lexicalNames.Add(name);
-            end
-            else
-            begin
-              if lexicalNames.IndexOf(name) >= 0 then
-                raise Exception.Create('SyntaxError: Identifier ''' + name + ''' has already been declared');
-              varNames.Add(name);
-            end;
-          end;
-        end;
-      end
-      else if stmt is TFloriaJSFunctionDecl then
-      begin
-        fnDecl := TFloriaJSFunctionDecl(stmt);
-        if lexicalNames.IndexOf(fnDecl.Name) >= 0 then
-          raise Exception.Create('SyntaxError: Identifier ''' + fnDecl.Name + ''' has already been declared');
-        varNames.Add(fnDecl.Name);
-      end;
+  if AStmt is TFloriaJSBlockStmt then
+  begin
+    blockStmt := TFloriaJSBlockStmt(AStmt);
+    childScope := TFloriaJSDeclarationScope.Create(AScope, fjskBlock);
+    try
+      for i := 0 to blockStmt.GetStatementCount() - 1 do
+        ValidateScopeStmt(blockStmt.GetStatement(i), childScope);
+    finally
+      childScope.Free();
     end;
-  finally
-    declNames.Free();
-    varNames.Free();
-    lexicalNames.Free();
-  end;
-end;
-
-procedure ValidateSwitchDeclarations(ASwitch: TFloriaJSSwitchStmt);
-var
-  lexicalNames, varNames, declNames: TStringList;
-  i, s, j, k: Integer;
-  caseClause: TFloriaJSSwitchCase;
-  stmt: TFloriaJSStmtNode;
-  varStmt: TFloriaJSVarStmt;
-  fnDecl: TFloriaJSFunctionDecl;
-  name: string;
-begin
-  if ASwitch = nil then Exit;
-  lexicalNames := TStringList.Create();
-  varNames := TStringList.Create();
-  declNames := TStringList.Create();
-  try
-    for i := 0 to ASwitch.GetCaseCount() - 1 do
-    begin
-      caseClause := ASwitch.GetCase(i);
-      for s := 0 to caseClause.GetStatementCount() - 1 do
+  end
+  else if AStmt is TFloriaJSVarStmt then
+  begin
+    varStmt := TFloriaJSVarStmt(AStmt);
+    declNames := TStringList.Create();
+    try
+      for j := 0 to varStmt.GetDeclaratorCount() - 1 do
       begin
-        stmt := caseClause.GetStatement(s);
-        if stmt is TFloriaJSVarStmt then
-        begin
-          varStmt := TFloriaJSVarStmt(stmt);
-          for j := 0 to varStmt.GetDeclaratorCount() - 1 do
-          begin
-            declNames.Clear();
-            if varStmt.GetDeclaratorPattern(j) <> nil then
-              CollectPatternNames(varStmt.GetDeclaratorPattern(j), declNames)
-            else if varStmt.GetDeclaratorName(j) <> '' then
-              declNames.Add(varStmt.GetDeclaratorName(j));
+        declNames.Clear();
+        if varStmt.GetDeclaratorPattern(j) <> nil then
+          CollectPatternNames(varStmt.GetDeclaratorPattern(j), declNames)
+        else if varStmt.GetDeclaratorName(j) <> '' then
+          declNames.Add(varStmt.GetDeclaratorName(j));
 
-            for k := 0 to declNames.Count - 1 do
-            begin
-              name := declNames[k];
-              if varStmt.Kind in [tkLet, tkConst] then
-              begin
-                if (lexicalNames.IndexOf(name) >= 0) or (varNames.IndexOf(name) >= 0) then
-                  raise Exception.Create('SyntaxError: Identifier ''' + name + ''' has already been declared');
-                lexicalNames.Add(name);
-              end
-              else
-              begin
-                if lexicalNames.IndexOf(name) >= 0 then
-                  raise Exception.Create('SyntaxError: Identifier ''' + name + ''' has already been declared');
-                varNames.Add(name);
-              end;
-            end;
-          end;
-        end
-        else if stmt is TFloriaJSFunctionDecl then
+        for k := 0 to declNames.Count - 1 do
         begin
-          fnDecl := TFloriaJSFunctionDecl(stmt);
-          if lexicalNames.IndexOf(fnDecl.Name) >= 0 then
-            raise Exception.Create('SyntaxError: Identifier ''' + fnDecl.Name + ''' has already been declared');
-          varNames.Add(fnDecl.Name);
+          if varStmt.Kind in [tkLet, tkConst] then
+            AScope.AddLexical(declNames[k])
+          else
+            AScope.AddVar(declNames[k]);
         end;
       end;
+    finally
+      declNames.Free();
     end;
-  finally
-    declNames.Free();
-    varNames.Free();
-    lexicalNames.Free();
+  end
+  else if AStmt is TFloriaJSFunctionDecl then
+  begin
+    fnDecl := TFloriaJSFunctionDecl(AStmt);
+    AScope.AddFunction(fnDecl.Name);
+  end
+  else if AStmt is TFloriaJSIfStmt then
+  begin
+    ifStmt := TFloriaJSIfStmt(AStmt);
+    ValidateScopeStmt(ifStmt.Consequent, AScope);
+    if ifStmt.Alternate <> nil then
+      ValidateScopeStmt(ifStmt.Alternate, AScope);
+  end
+  else if AStmt is TFloriaJSWhileStmt then
+  begin
+    whileStmt := TFloriaJSWhileStmt(AStmt);
+    ValidateScopeStmt(whileStmt.Body, AScope);
+  end
+  else if AStmt is TFloriaJSForStmt then
+  begin
+    forStmt := TFloriaJSForStmt(AStmt);
+    if (forStmt.Init <> nil) and (forStmt.Init is TFloriaJSVarStmt) and
+       (TFloriaJSVarStmt(forStmt.Init).Kind in [tkLet, tkConst]) then
+    begin
+      childScope := TFloriaJSDeclarationScope.Create(AScope, fjskFor);
+      try
+        ValidateScopeStmt(TFloriaJSStmtNode(forStmt.Init), childScope);
+        ValidateScopeStmt(forStmt.Body, childScope);
+      finally
+        childScope.Free();
+      end;
+    end
+    else
+    begin
+      if (forStmt.Init <> nil) and (forStmt.Init is TFloriaJSStmtNode) then
+        ValidateScopeStmt(TFloriaJSStmtNode(forStmt.Init), AScope);
+      ValidateScopeStmt(forStmt.Body, AScope);
+    end;
+  end
+  else if AStmt is TFloriaJSForInOfStmt then
+  begin
+    forInOf := TFloriaJSForInOfStmt(AStmt);
+    if forInOf.VarKind in [tkLet, tkConst] then
+    begin
+      childScope := TFloriaJSDeclarationScope.Create(AScope, fjskFor);
+      try
+        childScope.AddLexical(forInOf.VarName);
+        ValidateScopeStmt(forInOf.Body, childScope);
+      finally
+        childScope.Free();
+      end;
+    end
+    else
+    begin
+      if forInOf.VarKind = tkVar then
+        AScope.AddVar(forInOf.VarName);
+      ValidateScopeStmt(forInOf.Body, AScope);
+    end;
+  end
+  else if AStmt is TFloriaJSSwitchStmt then
+  begin
+    switchStmt := TFloriaJSSwitchStmt(AStmt);
+    childScope := TFloriaJSDeclarationScope.Create(AScope, fjskSwitch);
+    try
+      for i := 0 to switchStmt.GetCaseCount() - 1 do
+      begin
+        switchCase := switchStmt.GetCase(i);
+        for j := 0 to switchCase.GetStatementCount() - 1 do
+          ValidateScopeStmt(switchCase.GetStatement(j), childScope);
+      end;
+    finally
+      childScope.Free();
+    end;
+  end
+  else if AStmt is TFloriaJSTryStmt then
+  begin
+    tryStmt := TFloriaJSTryStmt(AStmt);
+    ValidateScopeStmt(tryStmt.Block, AScope);
+    if tryStmt.CatchBlock <> nil then
+    begin
+      childScope := TFloriaJSDeclarationScope.Create(AScope, fjskCatch, nil, tryStmt.CatchParam);
+      try
+        for i := 0 to tryStmt.CatchBlock.GetStatementCount() - 1 do
+          ValidateScopeStmt(tryStmt.CatchBlock.GetStatement(i), childScope);
+      finally
+        childScope.Free();
+      end;
+    end;
+    if tryStmt.FinallyBlock <> nil then
+      ValidateScopeStmt(tryStmt.FinallyBlock, AScope);
+  end
+  else if AStmt is TFloriaJSLabeledStmt then
+  begin
+    labeledStmt := TFloriaJSLabeledStmt(AStmt);
+    ValidateScopeStmt(labeledStmt.Body, AScope);
   end;
 end;
 
@@ -534,6 +623,7 @@ var
   fnNames, varNames: TStringList;
   fnDecl: TFloriaJSFunctionDecl;
   vName: string;
+  rootScope: TFloriaJSDeclarationScope;
 begin
   FLoopDepth := 0;
   FTryDepth := 0;
@@ -551,7 +641,13 @@ begin
   end;
 
   count := AProgram.GetStatementCount();
-  ValidateStatementsDeclarations(count, @AProgram.GetStatement);
+  rootScope := TFloriaJSDeclarationScope.Create(nil, fjskProgram);
+  try
+    for i := 0 to count - 1 do
+      ValidateScopeStmt(AProgram.GetStatement(i), rootScope);
+  finally
+    rootScope.Free();
+  end;
 
   fnNames := TStringList.Create();
   try
@@ -616,7 +712,22 @@ var
   fnNames, varNames: TStringList;
   fnDecl: TFloriaJSFunctionDecl;
   bodyBlock: TFloriaJSBlockStmt;
+  rootScope: TFloriaJSDeclarationScope;
 begin
+  rootScope := TFloriaJSDeclarationScope.Create(nil, fjskFunction, AParams);
+  try
+    if ABody is TFloriaJSBlockStmt then
+    begin
+      bodyBlock := TFloriaJSBlockStmt(ABody);
+      for i := 0 to bodyBlock.GetStatementCount() - 1 do
+        ValidateScopeStmt(bodyBlock.GetStatement(i), rootScope);
+    end
+    else
+      ValidateScopeStmt(ABody, rootScope);
+  finally
+    rootScope.Free();
+  end;
+
   compiler := TFloriaJSCompiler.Create();
   try
     subCode := TFloriaJSBytecode.Create(AName);
@@ -2038,15 +2149,8 @@ procedure TFloriaJSCompiler.CompileBlockStmt(ABlock: TFloriaJSBlockStmt; AHoistF
 var
   i, count: Integer;
   needsScope: Boolean;
-  paramNames: TStrings;
-  catchParam: string;
 begin
   count := ABlock.GetStatementCount();
-  paramNames := FParamNames;
-  FParamNames := nil;
-  catchParam := FCatchParam;
-  FCatchParam := '';
-  ValidateStatementsDeclarations(count, @ABlock.GetStatement, paramNames, catchParam);
   needsScope := HasBlockScopedDecls(ABlock);
   if needsScope then
   begin
@@ -2114,9 +2218,6 @@ var
 begin
   if AFor.Init <> nil then
   begin
-    if AFor.Init is TFloriaJSVarStmt then
-      ValidateVarStmtDeclarations(TFloriaJSVarStmt(AFor.Init));
-
     if AFor.Init is TFloriaJSStmtNode then
       CompileStmt(TFloriaJSStmtNode(AFor.Init))
     else if AFor.Init is TFloriaJSExprNode then
@@ -2253,7 +2354,6 @@ var
   stmt: TFloriaJSStmtNode;
 begin
   count := ASwitch.GetCaseCount();
-  ValidateSwitchDeclarations(ASwitch);
 
   needsScope := False;
   for i := 0 to count - 1 do
