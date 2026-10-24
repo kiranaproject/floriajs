@@ -18,7 +18,7 @@ uses
   Classes, SysUtils, Math,
   fpcunit, testregistry, consoletestrunner,
   floria.js.types, floria.js.lexer, floria.js.ast, floria.js.parser,
-  floria.js.value, floria.js.env, floria.js.evaluator, floria.js.stdlib,
+  floria.js.value, floria.js.env, floria.js.stdlib,
   floria.js.core, floria.js.bytecode, floria.js.vm, floria.js.compiler,
   floria.ftml.types, floria.ftml.binding, floria.ftml.engine, floriajs;
 
@@ -3676,12 +3676,12 @@ var
   block: TFloriaJSBlockStmt;
   retStmt: TFloriaJSReturnStmt;
   fn: TFloriaJSFunction;
-  evaluator: TFloriaJSEvaluator;
+  vm: TFloriaJSVM;
   env: TFloriaJSEnvironment;
   args: array of TFloriaJSValue;
   val: TFloriaJSValue;
 begin
-  evaluator := TFloriaJSEvaluator.Create;
+  vm := TFloriaJSVM.Create(nil);
   try
     env := TFloriaJSEnvironment.Create(nil);
     try
@@ -3698,7 +3698,7 @@ begin
         created it ends: the body must stay alive for the closure. }
       decl.Free();
 
-      val := evaluator.CallFunction(JSMakeFunction(fn), args, JSMakeUndefined());
+      val := vm.CallFunction(JSMakeFunction(fn), args, JSMakeUndefined());
       AssertEquals('The closure must still execute its body', '42',
         val.ToString());
     finally
@@ -3706,7 +3706,7 @@ begin
       fn.Free();
     end;
   finally
-    evaluator.Free();
+    vm.Free();
   end;
 end;
 

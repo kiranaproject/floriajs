@@ -411,7 +411,16 @@ Implement a tight, register-friendly opcode interpreter loop in Pascal:
   destructuring, async/await microtasks, try/catch/finally with early return/break unwinding.
 - Full test suite parity: 157 of 157 unit tests pass (100%) under the `fjbBytecodeVM` backend.
 
-#### Phase 4: FTML Reactive Fast-Path & Inline Caching
+#### Phase 4: Full Bytecode VM Migration & Evaluator Retirement — [x] Completed
+Migrate the entire engine, reactive binding system, and signal dispatcher exclusively to the bytecode VM:
+- Compile reactive FTML property bindings and signal handlers (`on<Signal>`) into bytecode snippets executed directly on `TFloriaJSVM`.
+- Fully retire and remove the recursive tree-walking interpreter (`floria.js.evaluator.pas`).
+- Replaced `FEvaluator` in `TFloriaJSContext` and `TFloriaFTMLBindingManager` with `FVM: TFloriaJSVM` and `FCompiler: TFloriaJSCompiler`.
+- Proper frame and environment lifetime management (`AOwnsCallEnv`) ensuring caller-provided document and item environments remain valid across binding evaluations and signal invocations.
+- Virtual `GetPropertyWithReceiver` dynamic dispatch implemented across `TFloriaFTMLItem`, `TFloriaFTMLAnchorLine`, and `TFloriaJSPromise`, enabling reactive property subscription tracking and prototype method resolution.
+- All 157 unit tests in `./target/TestRunner` pass with 0 errors and 0 failures.
+
+#### Phase 5: FTML Reactive Fast-Path & Inline Caching
 Tailor the VM execution specifically for declarative UI property bindings:
 - Decouple `TFloriaFTMLItem` from direct `TFloriaJSObject` inheritance; use native
   Pascal handles with inline caches.
@@ -421,7 +430,7 @@ Tailor the VM execution specifically for declarative UI property bindings:
 - Direct field offset lookups (Inline Caching) bypass dictionary lookups for item
   geometry (`x`, `y`, `width`, `height`).
 
-#### Phase 5: Hot-Function JIT / Ahead-of-Time (AOT) Compilation
+#### Phase 6: Hot-Function JIT / Ahead-of-Time (AOT) Compilation
 Provide native machine-code compilation for performance-critical execution paths:
 - Ahead-of-Time (AOT) binding compiler translating pure arithmetic/layout
   bindings directly to native Pascal functions.

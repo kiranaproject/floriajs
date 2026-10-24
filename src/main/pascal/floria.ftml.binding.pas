@@ -20,7 +20,8 @@ interface
 
 uses
   Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.value,
-  floria.js.env, floria.js.evaluator, floria.ftml.types;
+  floria.js.env, floria.js.bytecode, floria.js.vm, floria.js.compiler,
+  floria.ftml.types;
 
 type
   { Forward Declarations }
@@ -39,6 +40,7 @@ type
     FTargetItem: TFloriaFTMLItem;
     FTargetProperty: string;
     FExpression: TFloriaJSExprNode;
+    FBytecode: TFloriaJSBytecode;
     FEnv: TFloriaJSEnvironment;
     FDependencies: array of TFloriaFTMLDependency;
     FDepCount: Integer;
@@ -58,6 +60,7 @@ type
     property TargetItem: TFloriaFTMLItem read FTargetItem;
     property TargetProperty: string read FTargetProperty;
     property Expression: TFloriaJSExprNode read FExpression;
+    property Bytecode: TFloriaJSBytecode read FBytecode;
     property Env: TFloriaJSEnvironment read FEnv;
     property IsEvaluating: Boolean read FIsEvaluating;
     property Enabled: Boolean read FEnabled write FEnabled;
@@ -67,7 +70,8 @@ type
   { Reactive Binding Manager }
   TFloriaFTMLBindingManager = class(TObject, IFloriaFTMLBindingManager)
   private
-    FEvaluator: TFloriaJSEvaluator;
+    FVM: TFloriaJSVM;
+    FCompiler: TFloriaJSCompiler;
     FActiveBindings: TFPList;
     FBindings: TFPList;
     FCascadeDepth: Integer;
@@ -75,7 +79,7 @@ type
 
     function GetBindingCount(): Integer;
   public
-    constructor Create(AEvaluator: TFloriaJSEvaluator);
+    constructor Create(AVM: TFloriaJSVM = nil; ACompiler: TFloriaJSCompiler = nil);
     destructor Destroy(); override;
 
     { IFloriaFTMLBindingManager Implementation }
@@ -93,7 +97,8 @@ type
       AExpr: TFloriaJSExprNode; AEnv: TFloriaJSEnvironment): TFloriaFTMLBinding;
     procedure RemoveBinding(ABinding: TFloriaFTMLBinding);
 
-    property Evaluator: TFloriaJSEvaluator read FEvaluator write FEvaluator;
+    property VM: TFloriaJSVM read FVM write FVM;
+    property Compiler: TFloriaJSCompiler read FCompiler write FCompiler;
     property BindingCount: Integer read GetBindingCount;
     property MaxCascadeDepth: Integer read FMaxCascadeDepth write FMaxCascadeDepth;
   end;
@@ -111,6 +116,9 @@ begin
   FTargetProperty := ATargetProperty;
   FExpression := AExpr;
   FEnv := AEnv;
+  FBytecode := nil;
+  if (FManager <> nil) and (FManager.Compiler <> nil) and (FExpression <> nil) then
+    FBytecode := FManager.Compiler.CompileExpression(FExpression);
   SetLength(FDependencies, 0);
   FDepCount := 0;
   FIsEvaluating := False;
@@ -120,6 +128,11 @@ end;
 destructor TFloriaFTMLBinding.Destroy();
 begin
   ClearDependencies();
+  if FBytecode <> nil then
+  begin
+    FBytecode.Release();
+    FBytecode := nil;
+  end;
   inherited Destroy();
 end;
 
@@ -163,7 +176,7 @@ function TFloriaFTMLBinding.Evaluate(): TFloriaJSValue;
 var
   newVal: TFloriaJSValue;
 begin
-  if (not FEnabled) or (FTargetItem = nil) or (FExpression = nil) or (FEnv = nil) then
+  if (not FEnabled) or (FTargetItem = nil) or (FEnv = nil) then
     Exit(JSMakeUndefined());
 
   // Prevent recursive cycle re-entry on the same binding
@@ -179,8 +192,11 @@ begin
       FManager.PushActiveBinding(Self);
 
     try
-      if (FManager <> nil) and (FManager.Evaluator <> nil) then
-        newVal := FManager.Evaluator.EvaluateExpr(FExpression, FEnv)
+      if (FBytecode = nil) and (FManager <> nil) and (FManager.Compiler <> nil) and (FExpression <> nil) then
+        FBytecode := FManager.Compiler.CompileExpression(FExpression);
+
+      if (FBytecode <> nil) and (FManager <> nil) and (FManager.VM <> nil) then
+        newVal := FManager.VM.Execute(FBytecode, FEnv)
       else
         newVal := JSMakeUndefined();
     finally
@@ -198,10 +214,11 @@ end;
 
 { TFloriaFTMLBindingManager }
 
-constructor TFloriaFTMLBindingManager.Create(AEvaluator: TFloriaJSEvaluator);
+constructor TFloriaFTMLBindingManager.Create(AVM: TFloriaJSVM; ACompiler: TFloriaJSCompiler);
 begin
   inherited Create();
-  FEvaluator := AEvaluator;
+  FVM := AVM;
+  FCompiler := ACompiler;
   FActiveBindings := TFPList.Create();
   FBindings := TFPList.Create();
   FCascadeDepth := 0;

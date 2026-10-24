@@ -23,7 +23,9 @@ uses
   floria.js.parser,
   floria.js.value,
   floria.js.env,
-  floria.js.evaluator,
+  floria.js.bytecode,
+  floria.js.vm,
+  floria.js.compiler,
   floria.js.stdlib,
   floria.js.core,
   floria.ftml.types,
@@ -93,9 +95,11 @@ type
   TFloriaJSNativeProc      = floria.js.value.TFloriaJSNativeProc;
   TFloriaJSNativeMethod    = floria.js.value.TFloriaJSNativeMethod;
 
-  { Environment & Evaluator }
+  { Environment, Bytecode & Virtual Machine }
   TFloriaJSEnvironment     = floria.js.env.TFloriaJSEnvironment;
-  TFloriaJSEvaluator       = floria.js.evaluator.TFloriaJSEvaluator;
+  TFloriaJSBytecode        = floria.js.bytecode.TFloriaJSBytecode;
+  TFloriaJSVM              = floria.js.vm.TFloriaJSVM;
+  TFloriaJSCompiler        = floria.js.compiler.TFloriaJSCompiler;
 
   { Runtime & Context }
   TFloriaJSContext         = floria.js.core.TFloriaJSContext;

@@ -250,6 +250,7 @@ type
     destructor Destroy(); override;
 
     function  GetProperty(const AName: string): TFloriaJSValue; override;
+    function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
     function  HasProperty(const AName: string): Boolean; override;
 
     procedure Fulfill(const AValue: TFloriaJSValue);
@@ -1688,7 +1689,7 @@ begin
   Attach(JSMakeUndefined(), JSMakeUndefined(), AOnFinally, True, Result);
 end;
 
-function TFloriaJSPromise.GetProperty(const AName: string): TFloriaJSValue;
+function TFloriaJSPromise.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 begin
   if AName = 'then' then
   begin
@@ -1711,7 +1712,12 @@ begin
     Exit(JSMakeFunction(FFinallyFn));
   end;
 
-  Result := inherited GetProperty(AName);
+  Result := inherited GetPropertyWithReceiver(AName, AReceiver);
+end;
+
+function TFloriaJSPromise.GetProperty(const AName: string): TFloriaJSValue;
+begin
+  Result := GetPropertyWithReceiver(AName, Self);
 end;
 
 function TFloriaJSPromise.HasProperty(const AName: string): Boolean;

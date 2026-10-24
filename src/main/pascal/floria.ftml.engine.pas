@@ -20,8 +20,8 @@ interface
 
 uses
   Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.parser,
-  floria.js.value, floria.js.env, floria.js.evaluator, floria.js.core,
-  floria.ftml.types, floria.ftml.binding;
+  floria.js.value, floria.js.env, floria.js.bytecode, floria.js.vm,
+  floria.js.compiler, floria.js.core, floria.ftml.types, floria.ftml.binding;
 
 type
   { Declarative FTML Engine }
@@ -54,7 +54,8 @@ type
     destructor Destroy(); override;
 
     { IFloriaFTMLEngineContext Implementation }
-    function GetEvaluator(): TFloriaJSEvaluator;
+    function GetVM(): TFloriaJSVM;
+    function GetCompiler(): TFloriaJSCompiler;
 
     { Component Type Registration }
     procedure RegisterComponentType(const ATypeName: string; AClass: TFloriaFTMLItemClass);
@@ -94,7 +95,7 @@ begin
     FOwnsContext := True;
   end;
 
-  FBindingManager := TFloriaFTMLBindingManager.Create(FContext.Evaluator);
+  FBindingManager := TFloriaFTMLBindingManager.Create(FContext.VM, FContext.Compiler);
   FRootItem := nil;
   FRootAST := nil;
   FRootEnv := nil;
@@ -161,10 +162,18 @@ begin
   inherited Destroy();
 end;
 
-function TFloriaFTMLEngine.GetEvaluator(): TFloriaJSEvaluator;
+function TFloriaFTMLEngine.GetVM(): TFloriaJSVM;
 begin
   if FContext <> nil then
-    Result := FContext.Evaluator
+    Result := FContext.VM
+  else
+    Result := nil;
+end;
+
+function TFloriaFTMLEngine.GetCompiler(): TFloriaJSCompiler;
+begin
+  if FContext <> nil then
+    Result := FContext.Compiler
   else
     Result := nil;
 end;
@@ -282,6 +291,7 @@ var
   binding: TFloriaFTMLBinding;
   childAST: TFloriaFTMLComponent;
   childItem: TFloriaFTMLItem;
+  code: TFloriaJSBytecode;
 begin
   if (AAST = nil) or (AItem = nil) then Exit;
 
@@ -295,8 +305,13 @@ begin
       if propExpr is TFloriaJSLiteralExpr then
       begin
         // Static literal: evaluate once directly without overhead of dynamic binding
-        litVal := FContext.Evaluator.EvaluateExpr(propExpr, AItem.Env);
-        AItem.SetProperty(propName, litVal);
+        code := FContext.Compiler.CompileExpression(propExpr);
+        try
+          litVal := FContext.VM.Execute(code, AItem.Env);
+          AItem.SetProperty(propName, litVal);
+        finally
+          code.Release();
+        end;
       end
       else
       begin
@@ -556,7 +571,7 @@ begin
   ReleaseDocument();
 
   if FBindingManager = nil then
-    FBindingManager := TFloriaFTMLBindingManager.Create(FContext.Evaluator);
+    FBindingManager := TFloriaFTMLBindingManager.Create(FContext.VM, FContext.Compiler);
 
   if FRootAST <> nil then
   begin
@@ -652,6 +667,7 @@ var
   parser: TFloriaJSParser;
   prog: TFloriaJSProgram;
   targetEnv: TFloriaJSEnvironment;
+  code: TFloriaJSBytecode;
 begin
   if FContext = nil then Exit(JSMakeUndefined());
 
@@ -664,7 +680,12 @@ begin
   try
     prog := parser.ParseProgram();
     try
-      Result := FContext.Evaluator.ExecuteProgram(prog, targetEnv);
+      code := FContext.Compiler.CompileProgram(prog);
+      try
+        Result := FContext.VM.Execute(code, targetEnv);
+      finally
+        code.Release();
+      end;
       { The caller holds on to the returned value, so the object it points at
         must stay alive for as long as the caller keeps it. }
       if Result.IsObject() and (Result.ObjVal <> nil) then

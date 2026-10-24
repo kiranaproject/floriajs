@@ -18,7 +18,7 @@ interface
 
 uses
   Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.parser,
-  floria.js.value, floria.js.env, floria.js.evaluator, floria.js.stdlib,
+  floria.js.value, floria.js.env, floria.js.stdlib,
   floria.js.bytecode, floria.js.vm, floria.js.compiler;
 
 type
@@ -36,7 +36,6 @@ type
     FName: string;
     FHeap: TFloriaJSHeap;
     FGlobalEnv: TFloriaJSEnvironment;
-    FEvaluator: TFloriaJSEvaluator;
     FVM: TFloriaJSVM;
     FCompiler: TFloriaJSCompiler;
     FBackend: TFloriaJSExecutionBackend;
@@ -73,7 +72,6 @@ type
     property Name: string read FName write FName;
     property Heap: TFloriaJSHeap read FHeap;
     property GlobalEnv: TFloriaJSEnvironment read FGlobalEnv;
-    property Evaluator: TFloriaJSEvaluator read FEvaluator;
     property VM: TFloriaJSVM read FVM;
     property Compiler: TFloriaJSCompiler read FCompiler;
     property Backend: TFloriaJSExecutionBackend read FBackend write FBackend;
@@ -125,7 +123,6 @@ begin
   FOutput := TStringList.Create();
   FHeap := TFloriaJSHeap.Create();
   FGlobalEnv := TFloriaJSEnvironment(FHeap.TrackEnvironment(TFloriaJSEnvironment.Create(nil)));
-  FEvaluator := TFloriaJSEvaluator.Create(FHeap);
   FVM := TFloriaJSVM.Create(FHeap);
   FVM.GlobalEnv := FGlobalEnv;
   FCompiler := TFloriaJSCompiler.Create();
@@ -137,7 +134,6 @@ destructor TFloriaJSContext.Destroy();
 begin
   FreeAndNil(FCompiler);
   FreeAndNil(FVM);
-  FreeAndNil(FEvaluator);
   FreeAndNil(FHeap);
   FGlobalEnv := nil;
   FreeAndNil(FOutput);
@@ -261,17 +257,12 @@ begin
       if FHeap <> nil then
         FHeap.Collect();
 
-      if FBackend = fjbBytecodeVM then
-      begin
-        code := FCompiler.CompileProgram(prog);
-        try
-          Result := FVM.Execute(code, FGlobalEnv);
-        finally
-          code.Release();
-        end;
-      end
-      else
-        Result := FEvaluator.ExecuteProgram(prog, FGlobalEnv);
+      code := FCompiler.CompileProgram(prog);
+      try
+        Result := FVM.Execute(code, FGlobalEnv);
+      finally
+        code.Release();
+      end;
 
       if FHeap <> nil then
       begin
@@ -295,10 +286,7 @@ begin
   if not fnVal.IsFunction() then
     Exit(JSMakeUndefined());
 
-  if FBackend = fjbBytecodeVM then
-    Result := FVM.CallFunction(fnVal, AArgs, JSMakeUndefined())
-  else
-    Result := FEvaluator.CallFunction(fnVal, AArgs, JSMakeUndefined());
+  Result := FVM.CallFunction(fnVal, AArgs, JSMakeUndefined());
 
   { The caller holds on to the returned value, so the object it points at must
     stay alive for as long as the caller keeps it. }

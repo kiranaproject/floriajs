@@ -28,7 +28,8 @@ type
     BaseBP: Integer;
     ThisVal: TFloriaJSValue;
     Env: TFloriaJSEnvironment;
-    BaseEnv: TFloriaJSEnvironment;
+    InitialEnv: TFloriaJSEnvironment;
+    OwnsCallEnv: Boolean;
     IsConstructor: Boolean;
     ConstructedObj: TFloriaJSObject;
   end;
@@ -65,7 +66,7 @@ type
     FTryCapacity: Integer;
 
     procedure EnsureStackCapacity();
-    procedure PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer = 0; AIsConstructor: Boolean = False; AConstructedObj: TFloriaJSObject = nil);
+    procedure PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer = 0; AIsConstructor: Boolean = False; AConstructedObj: TFloriaJSObject = nil; AOwnsCallEnv: Boolean = False);
     procedure PopFrame();
 
     procedure PushTryHandler(ACatchIP: Integer; AFrameIndex, AStackDepth: Integer; AEnv: TFloriaJSEnvironment);
@@ -214,7 +215,7 @@ begin
   FTryCount := 0;
 end;
 
-procedure TFloriaJSVM.PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer; AIsConstructor: Boolean; AConstructedObj: TFloriaJSObject);
+procedure TFloriaJSVM.PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer; AIsConstructor: Boolean; AConstructedObj: TFloriaJSObject; AOwnsCallEnv: Boolean);
 begin
   if FFP + 1 >= FMaxCallDepth then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('RangeError', 'Maximum call stack size exceeded')));
@@ -234,10 +235,8 @@ begin
   else
     FFrames[FFP].ThisVal := AThis;
   FFrames[FFP].Env := AEnv;
-  if AEnv <> nil then
-    FFrames[FFP].BaseEnv := AEnv.Parent
-  else
-    FFrames[FFP].BaseEnv := nil;
+  FFrames[FFP].InitialEnv := AEnv;
+  FFrames[FFP].OwnsCallEnv := AOwnsCallEnv;
   FFrames[FFP].IsConstructor := AIsConstructor;
   FFrames[FFP].ConstructedObj := AConstructedObj;
 end;
@@ -249,7 +248,11 @@ begin
   if FFP >= 0 then
   begin
     frameEnv := FFrames[FFP].Env;
-    stopEnv := FFrames[FFP].BaseEnv;
+    if FFrames[FFP].OwnsCallEnv and (FFrames[FFP].InitialEnv <> nil) then
+      stopEnv := FFrames[FFP].InitialEnv.Parent
+    else
+      stopEnv := FFrames[FFP].InitialEnv;
+
     while (frameEnv <> nil) and (frameEnv <> FGlobalEnv) and (frameEnv <> stopEnv) do
     begin
       parentEnv := frameEnv.Parent;
@@ -266,7 +269,7 @@ begin
 
     FFrames[FFP].Bytecode := nil;
     FFrames[FFP].Env := nil;
-    FFrames[FFP].BaseEnv := nil;
+    FFrames[FFP].InitialEnv := nil;
     FFrames[FFP].ConstructedObj := nil;
     Dec(FFP);
   end;
@@ -1078,7 +1081,7 @@ begin
               begin
                 promise := FHeap.NewPromise();
                 asyncInitialFP := FFP;
-                PushFrame(subCode, callEnv, thisVal, callBaseBP);
+                PushFrame(subCode, callEnv, thisVal, callBaseBP, False, nil, True);
                 try
                   resVal := RunLoop(asyncInitialFP, callBaseBP);
                   promise.Fulfill(resVal);
@@ -1095,9 +1098,9 @@ begin
                 Push(JSMakePromise(promise));
               end
               else if fn.IsArrow then
-                PushFrame(subCode, callEnv, curFrame^.ThisVal, callBaseBP)
+                PushFrame(subCode, callEnv, curFrame^.ThisVal, callBaseBP, False, nil, True)
               else
-                PushFrame(subCode, callEnv, thisVal, callBaseBP);
+                PushFrame(subCode, callEnv, thisVal, callBaseBP, False, nil, True);
             end
             else
             begin
@@ -1207,7 +1210,7 @@ begin
                   Push(JSMakeUndefined());
               end;
 
-              PushFrame(subCode, callEnv, objVal, callBaseBP, True, objVal.AsObject());
+              PushFrame(subCode, callEnv, objVal, callBaseBP, True, objVal.AsObject(), True);
             end;
           end;
 
@@ -1408,7 +1411,7 @@ begin
     if fn.IsAsync then
     begin
       promise := FHeap.NewPromise();
-      PushFrame(subCode, callEnv, AThisVal, initialBaseBP);
+      PushFrame(subCode, callEnv, AThisVal, initialBaseBP, False, nil, True);
       try
         resVal := RunLoop(initialFP, initialBaseBP);
         promise.Fulfill(resVal);
@@ -1426,7 +1429,7 @@ begin
     end
     else
     begin
-      PushFrame(subCode, callEnv, AThisVal, initialBaseBP);
+      PushFrame(subCode, callEnv, AThisVal, initialBaseBP, False, nil, True);
       try
         Result := RunLoop(initialFP, initialBaseBP);
       finally

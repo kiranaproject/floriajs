@@ -21,7 +21,7 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.ast, floria.js.value,
-  floria.js.env, floria.js.evaluator;
+  floria.js.env, floria.js.bytecode, floria.js.vm, floria.js.compiler;
 
 type
   { Forward Declarations }
@@ -48,9 +48,10 @@ type
     procedure RemoveBindingsForTarget(ATargetItem: TObject; const ATargetProperty: string = '');
   end;
 
-  { Engine Context Interface for Evaluator & Runtime Access }
+  { Engine Context Interface for VM & Runtime Access }
   IFloriaFTMLEngineContext = interface
-    function GetEvaluator(): TFloriaJSEvaluator;
+    function GetVM(): TFloriaJSVM;
+    function GetCompiler(): TFloriaJSCompiler;
   end;
 
   { Single FTML Property Record }
@@ -65,6 +66,7 @@ type
   TFloriaFTMLSignalEntry = record
     SignalName: string;
     HandlerStmt: TFloriaJSStmtNode;
+    Bytecode: TFloriaJSBytecode;
   end;
 
   { Semantic Anchor Line Object (Item + Edge) }
@@ -75,6 +77,7 @@ type
   public
     constructor Create(AItem: TFloriaFTMLItem; AEdge: TFloriaAnchorEdge);
     function  GetProperty(const AName: string): TFloriaJSValue; override;
+    function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
     function  HasProperty(const AName: string): Boolean; override;
 
     property Item: TFloriaFTMLItem read FItem;
@@ -125,6 +128,7 @@ type
 
     { Property Access & Reflection }
     function  GetProperty(const AName: string): TFloriaJSValue; override;
+    function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); override;
     procedure SetPropertyFromBinding(const AName: string; const AValue: TFloriaJSValue);
     function  HasProperty(const AName: string): Boolean; override;
@@ -440,7 +444,7 @@ begin
   FEdge := AEdge;
 end;
 
-function TFloriaFTMLAnchorLine.GetProperty(const AName: string): TFloriaJSValue;
+function TFloriaFTMLAnchorLine.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 begin
   if AName = 'item' then
   begin
@@ -452,7 +456,12 @@ begin
   if AName = 'edge' then
     Exit(JSMakeString(AnchorEdgeToString(FEdge)));
 
-  Result := inherited GetProperty(AName);
+  Result := inherited GetPropertyWithReceiver(AName, AReceiver);
+end;
+
+function TFloriaFTMLAnchorLine.GetProperty(const AName: string): TFloriaJSValue;
+begin
+  Result := GetPropertyWithReceiver(AName, Self);
 end;
 
 function TFloriaFTMLAnchorLine.HasProperty(const AName: string): Boolean;
@@ -557,6 +566,11 @@ begin
       JSReleaseValue(FFTMLProperties[i].Value);
   FFTMLPropCount := 0;
   SetLength(FFTMLProperties, 0);
+
+  for i := 0 to FFTMLSignalCount - 1 do
+    if FFTMLSignals[i].Bytecode <> nil then
+      FFTMLSignals[i].Bytecode.Release();
+  FFTMLSignalCount := 0;
   SetLength(FFTMLSignals, 0);
 
   // Unlink from the anchor graph. During a bulk document teardown this has
@@ -764,7 +778,7 @@ begin
   Result := JSMakeObject(arr);
 end;
 
-function TFloriaFTMLItem.GetProperty(const AName: string): TFloriaJSValue;
+function TFloriaFTMLItem.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 var
   idx: Integer;
 begin
@@ -869,7 +883,12 @@ begin
     Exit(FFTMLProperties[idx].Value);
 
   // Fallback to base object property (e.g. attached methods or prototypes)
-  Result := inherited GetProperty(AName);
+  Result := inherited GetPropertyWithReceiver(AName, AReceiver);
+end;
+
+function TFloriaFTMLItem.GetProperty(const AName: string): TFloriaJSValue;
+begin
+  Result := GetPropertyWithReceiver(AName, Self);
 end;
 
 procedure TFloriaFTMLItem.SetProperty(const AName: string; const AValue: TFloriaJSValue);
@@ -1496,6 +1515,9 @@ begin
   idx := FindSignalIndex(ASignalName);
   if idx >= 0 then
   begin
+    if FFTMLSignals[idx].Bytecode <> nil then
+      FFTMLSignals[idx].Bytecode.Release();
+    FFTMLSignals[idx].Bytecode := nil;
     FFTMLSignals[idx].HandlerStmt := AHandler;
     Exit;
   end;
@@ -1510,6 +1532,7 @@ begin
 
   FFTMLSignals[FFTMLSignalCount].SignalName := ASignalName;
   FFTMLSignals[FFTMLSignalCount].HandlerStmt := AHandler;
+  FFTMLSignals[FFTMLSignalCount].Bytecode := nil;
   Inc(FFTMLSignalCount);
 end;
 
@@ -1517,9 +1540,9 @@ function TFloriaFTMLItem.EmitSignal(const ASignalName: string; const AArgs: arra
 var
   normName, onName: string;
   idx: Integer;
-  evaluator: TFloriaJSEvaluator;
+  vm: TFloriaJSVM;
+  compiler: TFloriaJSCompiler;
   sigEnv: TFloriaJSEnvironment;
-  closureMark: Integer;
   i: Integer;
 begin
   Result := JSMakeUndefined();
@@ -1541,14 +1564,22 @@ begin
 
   if (idx >= 0) and (FFTMLSignals[idx].HandlerStmt <> nil) then
   begin
-    evaluator := nil;
+    vm := nil;
+    compiler := nil;
     if (FEngine <> nil) and (FEngine is IFloriaFTMLEngineContext) then
-      evaluator := (FEngine as IFloriaFTMLEngineContext).GetEvaluator();
-
-    if evaluator <> nil then
     begin
+      vm := (FEngine as IFloriaFTMLEngineContext).GetVM();
+      compiler := (FEngine as IFloriaFTMLEngineContext).GetCompiler();
+    end;
+
+    if (vm <> nil) and (compiler <> nil) then
+    begin
+      if FFTMLSignals[idx].Bytecode = nil then
+        FFTMLSignals[idx].Bytecode := compiler.CompileFunctionBody('signal_' + ASignalName, nil, FFTMLSignals[idx].HandlerStmt);
+
       sigEnv := TFloriaJSEnvironment.Create(FEnv);
-      closureMark := evaluator.GetClosureCount();
+      if vm.Heap <> nil then
+        vm.Heap.TrackEnvironment(sigEnv);
       try
         sigEnv.DelegateObject := Self;
         if Length(AArgs) > 0 then
@@ -1556,16 +1587,16 @@ begin
         for i := 0 to High(AArgs) do
           sigEnv.Define('arg' + IntToStr(i), AArgs[i]);
 
-        Result := evaluator.ExecuteStmt(FFTMLSignals[idx].HandlerStmt, sigEnv);
+        Result := vm.Execute(FFTMLSignals[idx].Bytecode, sigEnv);
       finally
-        { The signal scope may only outlive the handler when a closure captured
-          it. In that case the scope is handed over to the runtime, which keeps
-          the closure's scope chain alive and reclaims the scope once the
-          closure is unreachable. }
-        if evaluator.GetClosureCount() = closureMark then
-          sigEnv.Free()
+        if not sigEnv.Captured then
+        begin
+          if vm.Heap <> nil then
+            vm.Heap.Untrack(sigEnv);
+          sigEnv.Free();
+        end
         else
-          evaluator.OrphanEnv(sigEnv);
+          sigEnv.Detach();
       end;
     end;
   end;
