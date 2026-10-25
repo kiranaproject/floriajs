@@ -333,6 +333,29 @@ pump, delayed and repeating callbacks do not execute.
 - `NaN` and the infinities stringify as `"NaN"`, `"Infinity"`, and
   `"-Infinity"`; both zeros stringify as `"0"`.
 
+### Built-in coverage
+
+Available beyond the earlier sections:
+
+- `Object.is`, `Object.getOwnPropertyNames`, `Object.defineProperty`,
+  `Object.freeze`/`seal`/`isFrozen`/`isSealed`.
+- `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, and `at`.
+- `String.fromCharCode` and `String.fromCodePoint` (astral code points become a
+  surrogate pair).
+- Date component setters: `setFullYear`, `setMonth`, `setDate`, `setHours`,
+  `setMinutes`, `setSeconds`, `setMilliseconds`. Out-of-range months and days
+  carry into the next year or month, as ECMAScript specifies.
+- Symbol-keyed properties are real keys: two symbols with the same description
+  are distinct, a symbol key never collides with a string, and symbol-keyed
+  properties are non-enumerable (invisible to `Object.keys`, `for…in`, and
+  `JSON.stringify`).
+
+### Assignment targets
+
+Only identifiers, member expressions, and destructuring patterns may be
+assigned. `1 += 2`, `(a + b) = 1`, and `f() &&= 1` are `SyntaxError`s for every
+assignment operator, including plain `=`.
+
 ### Functions as values
 
 - `fn.length` is the declared parameter count; `fn.name` is the declared name.
@@ -442,6 +465,8 @@ are grouped by cause, because the three groups have different answers:
 | `globalThis` | A snapshot object, not a live binding to the global scope. | A live proxy would need a global object model. |
 | `Map`/`Set` storage | Lookup is linear rather than hash-based. | Simplicity; hashing is P3 work. |
 | Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. | Reuses the FPC regex engine instead of shipping one. |
+| `Object.freeze` / `seal` | Mark the object; `Object.isFrozen`/`isSealed` report the mark, but writes to a frozen object are **not** rejected, because the runtime has no per-property attributes. |
+| `Object.defineProperty` | Honours `value`, `get`, `set`, and `enumerable`; other descriptor fields (`writable`, `configurable`) are ignored. |
 | `Symbol` property keys | Symbols are primitives, but `obj[sym]` stores under the string form `Symbol(description)`; not real symbol-keyed properties. | Would require a separate symbol-keyed property table. |
 
 ### Missing features (scheduled)

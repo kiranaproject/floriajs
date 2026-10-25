@@ -50,6 +50,10 @@ Implemented and covered by the test suite:
   arithmetic and comparison, and `BigInt()` conversion.
 - Function metadata: `fn.length`, `fn.name` (including inference for anonymous
   functions assigned to properties), and the `Function(...)` constructor.
+- Library coverage: `Object.is`/`getOwnPropertyNames`/`defineProperty`/
+  `freeze`/`seal`, `Array.flat`/`flatMap`/`fill`/`copyWithin`/`at`,
+  `String.fromCharCode`/`fromCodePoint`, Date component setters, and
+  symbol-keyed properties.
 - Functions: declarations, function expressions, arrow functions (including
   lexical `this`), closures, recursion, `async`/`await`, `new` and `this`,
   default/rest parameters, and destructured parameters.

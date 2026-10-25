@@ -14,12 +14,12 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **213 tests pass** with `pasbuild test`.
-- Gap scan: **173 probes OK / 7 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **219 tests pass** with `pasbuild test`.
+- Gap scan: **186 probes OK / 8 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
-- Documentation claims: **64 checked, 0 failing** with
+- Documentation claims: **71 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -56,6 +56,8 @@ currently untested because the existing tests assert only the happy path.
   `BigInt()` conversion.
 - Function metadata: `fn.length`, `fn.name` with anonymous inference, and the
   `Function(...)` constructor.
+- Library coverage: modern `Object`, `Array`, and `String` statics, Date
+  component setters, and symbol-keyed properties.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -1139,22 +1141,58 @@ against Node), a genuinely malformed body raising `SyntaxError`, independent
 constructed functions, and global rather than caller scope. Verified against
 Node over 22 cases: no differences.
 
-### [ ] P2-11 — Library completeness audit
+### [x] P2-11 — Library completeness audit
 
-Add or explicitly defer the remaining bits currently known to be missing:
+Seven gaps were listed. All were real, and one turned out to be a correctness
+bug rather than a missing feature.
 
-- `Object.is`, `defineProperty`, `getOwnPropertyNames`, `freeze`/`seal`.
-- `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`.
-- `String.fromCharCode`/`fromCodePoint`.
-- Date component setters and broader parse formats.
-- RegExp flags/features beyond `gim` (named groups, lookbehind, etc.) only if
-  the chosen Pascal engine supports them; otherwise document limits.
-- Symbol-keyed properties (currently symbols are stringified).
-- Reject non-reference assignment targets. `1 += 2`, `f() &&= 1`, and
-  `(a + b) = 1` should be `SyntaxError`, but the parser only rejects optional
-  chains, so the compiler silently produces `undefined`. This affects every
-  assignment operator, including the plain `=`, and was found while adding
-  `&&=`/`||=`.
+**Added.**
+
+- `Object.is` (SameValue, so `NaN` equals itself and `+0` differs from `-0`),
+  `getOwnPropertyNames`, `defineProperty` (honouring `value`, `get`, `set`,
+  `enumerable`), `freeze`/`seal`/`isFrozen`/`isSealed`.
+- `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, `at`.
+- `String.fromCharCode` and `String.fromCodePoint`, the latter encoding astral
+  code points as a surrogate pair.
+- Date component setters: `setFullYear`, `setMonth`, `setDate`, `setHours`,
+  `setMinutes`, `setSeconds`, `setMilliseconds`, with out-of-range months and
+  days carrying into the next year or month.
+
+**Fixed: non-reference assignment targets.** `CompileAssignExpr` ended its
+type chain with no final `else`, so any target that was not an identifier,
+member, or destructuring pattern compiled to *nothing* and the expression
+evaluated to `undefined`. `1 += 2` and `(a + b) = 1` therefore looked like they
+succeeded. The chain now raises `SyntaxError: Invalid left-hand side in
+assignment`, covering every assignment operator.
+
+**Fixed: symbol-keyed properties.** `opSetProp` stringified the key, so every
+symbol property was stored under `"Symbol(<description>)"`. That made two
+symbols with the same description collide, let a symbol key collide with a real
+string property, and exposed symbol keys to `Object.keys` and `JSON.stringify`.
+Keys now use a form that cannot collide (`JSPropertyKeyName`), symbol-keyed
+properties are stored non-enumerably, and lookup falls back to matching a
+well-known symbol by description so `Symbol.iterator` still resolves however its
+id was allocated.
+
+**Fixed: a Date precision bug.** The component setters first added the time of
+day as a fraction of a day, which cannot represent every millisecond: `setHours(10)`
+landed on 09:59:59.999 and read back as hour 9. The time of day is now added as
+an exact millisecond count.
+
+**Deferred, with limits documented.**
+
+- RegExp: the Pascal `RegExpr` engine backs it. Lookbehind, named groups, and
+  backreferences were probed and work; Unicode property escapes are not
+  guaranteed. The limits are recorded rather than claimed.
+- `Object.freeze`/`seal` mark the object and are observable through
+  `isFrozen`/`isSealed`, but writes to a frozen object are not rejected: the
+  runtime has no per-property attributes. Documented as a limit.
+
+**Tests.** Each added method, the `Object.is` SameValue edge cases,
+non-enumerability of `defineProperty` and symbol keys, `flat` depth by shape
+rather than `join` output, Date carry-over and exactness, and rejection of five
+kinds of non-reference target alongside the reference forms that must keep
+working. Verified against Node over 32 cases: no differences.
 
 ---
 
