@@ -193,7 +193,7 @@ The opcode enum lives in `floria.js.bytecode`. The main groups are:
 | Locals | `LOAD_LOC`, `STORE_LOC`, `SET_LOC` |
 | Globals/environments | `LOAD_GLOBAL`, `STORE_GLOBAL`, `SET_GLOBAL`, `LOAD_ENV`, `STORE_ENV`, `DEFINE_ENV`, `PUSH_ENV`, `POP_ENV` |
 | Objects | `NEW_OBJECT`, `GET_PROP`, `GET_PROP_NAMED`, `SET_PROP`, `SET_PROP_NAMED`, `GET_PROP_OPT`, `GET_PROP_NAMED_OPT`, `DEFINE_GETTER`, `DEFINE_SETTER`, `OBJECT_REST`, `DELETE_PROP`, `IN`, `INSTANCEOF` |
-| Arrays | `NEW_ARRAY` |
+| Arrays | `NEW_ARRAY`, `ARRAY_MARK_HOLE`, `ARRAY_PUSH_HOLE`, `SPREAD_ITERABLE` |
 | Arithmetic | `ADD`, `SUB`, `MUL`, `DIV`, `MOD`, `POWER`, `NEG`, `POS`, `BIT_NOT`, `BIT_AND`, `BIT_OR`, `BIT_XOR`, `SHL`, `SHR`, `SAR` |
 | Comparison | `EQ`, `STRICT_EQ`, `NOT_EQ`, `STRICT_NOT_EQ`, `LT`, `LE`, `GT`, `GE` |
 | Unary/logic | `NOT`, `TYPEOF`, `VOID`, `AWAIT` |
@@ -206,6 +206,12 @@ The opcode enum lives in `floria.js.bytecode`. The main groups are:
 `FloriaJSOpcodeToString` maps opcodes to names for dumps. Note that some
 opcode names are historical; for example `SHR`/`SAR` correspond to the two
 right-shift forms in the parser.
+
+`ARRAY_MARK_HOLE` (peek the array, mark `Imm` as a hole) and `ARRAY_PUSH_HOLE`
+(pop the array, append a hole) carry the elisions of an array literal. They are
+needed because `NEW_ARRAY` builds a dense array. `SPREAD_ITERABLE` pops a
+value and pushes a dense array of its items, so spread of a holey array yields
+explicit `undefined` elements and strings expand to characters.
 
 ## Engine integration
 

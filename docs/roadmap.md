@@ -14,8 +14,8 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **176 tests pass** with `pasbuild test`.
-- Gap scan: **109 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **180 tests pass** with `pasbuild test`.
+- Gap scan: **112 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 25 units.
@@ -461,7 +461,7 @@ loop declarators, labeled/nested `break`/`continue`, `return` from inside the
 loop, exception paths, `const` without an update, shared `var` semantics, and a
 5,000-iteration environment-growth check.
 
-### [ ] P1-02 — Array holes, explicit `undefined`, and `length` mutation
+### [x] P1-02 — Array holes, explicit `undefined`, and `length` mutation
 
 **Failure.**
 
@@ -476,28 +476,55 @@ b.length = 5;
 b.length;             // 2       expected 5
 ```
 
-Explicit `undefined` elements and holes are indistinguishable because the array
-stores only a dense value array. Numeric keys are not real object properties.
+Explicit `undefined` elements and holes were indistinguishable because the
+array stored only a dense value array. Numeric keys were not real object
+properties.
 
-**Files.** `src/main/pascal/floria.js.value.pas` (`TFloriaJSArray`),
-`src/main/pascal/floria.js.objects.pas` (keys/values/entries),
-`src/main/pascal/floria.js.vm.pas` (`FOR_IN_INIT`, `IN`, property ops),
-`src/main/pascal/floria.js.arrays.pas` (length behaviour).
+**Files.**
+
+- `src/main/pascal/floria.js.value.pas` (`TFloriaJSArray` presence bitmap,
+  `length` setter, `delete` handling, `Array(n)`).
+- `src/main/pascal/floria.js.arrays.pas` (hole-aware array methods).
+- `src/main/pascal/floria.js.objects.pas` (keys/values/entries).
+- `src/main/pascal/floria.js.vm.pas` (`FOR_IN_INIT`, new array opcodes).
+- `src/main/pascal/floria.js.bytecode.pas` (`opArrayMarkHole`,
+  `opArrayPushHole`, `opSpreadIterable`).
+- `src/main/pascal/floria.js.compiler.pas` (array literal elisions and spread).
 
 **Implementation.**
 
-- Add element-presence tracking (hole bitmap or equivalent) or store a hole
-  sentinel distinct from `undefined`.
-- Make `hasOwnProperty`, `in`, `Object.keys/values/entries`, and `for…in`
-  distinguish holes from explicit `undefined`.
-- Make `length = n` extend with holes and truncate correctly.
-- Preserve JavaScript hole semantics in array methods: `map`/`forEach` skip
-  holes, `join` renders holes as empty strings, array spread yields
-  `undefined`, and `JSON.stringify` emits `null` for holes.
-- Ensure array enumerations do not expose `length` as an index.
+- Added a presence bitmap (`TFloriaJSArray.FPresent`) next to the element
+  storage. A hole keeps its slot in the length but is not an own property, so
+  an explicit `undefined` element stays distinguishable from an elision.
+- Array literals compile elisions as `NEW_ARRAY` followed by one
+  `ARRAY_MARK_HOLE` per elided index; the spread-built path appends holes with
+  `ARRAY_PUSH_HOLE`. `NEW_ARRAY` still builds dense arrays.
+- `new Array(n)` and `length = n` create holes. Assigning past the end fills the
+  gap with holes, truncation releases the dropped elements, and `delete arr[i]`
+  turns a present element into a hole without changing the length. Invalid
+  lengths (fractional, negative, not representable) raise `RangeError`.
+- `hasOwnProperty`, `in`, `Object.keys/values/entries`, and `for…in` consult the
+  presence bitmap instead of testing for `undefined`.
+- Array methods follow ECMAScript hole rules: `map`/`forEach`/`filter`/`some`/
+  `every`/`reduce`/`reduceRight`/`indexOf`/`lastIndexOf` skip holes; `map`
+  preserves them in its result; `join`/`toString` render them as empty text;
+  `JSON.stringify` emits `null`; `concat`/`slice`/`splice`/`reverse`/`sort`
+  preserve them (`sort` moves holes to the end).
+- Spread uses the new `SPREAD_ITERABLE` opcode, which materialises an iterable
+  into a dense array (holes become explicit `undefined`, strings expand to
+  characters).
+- `reduce`/`reduceRight` with no initial value throw `TypeError` when every
+  index is a hole.
+- Array enumeration still exposes only numeric indices and named properties,
+  never `length`.
 
-**Tests.** Explicit undefined, holes, mixed arrays, length grow/shrink,
-enumeration, string/JSON conversion, and array methods over holes.
+**Tests.** Explicit `undefined` vs holes, mixed arrays, `Object.keys/values/
+entries`, `for…in`, `hasOwnProperty`, `new Array(n)`, index assignment past the
+end, `delete`, length grow/shrink, invalid lengths, `join`/`JSON.stringify`,
+spread densification, and the hole-skipping/preserving behaviour of every array
+callback method. A Pascal-level test covers the presence API directly, and a
+lifetime test checks that repeated length growth/truncation does not accumulate
+objects and that truncation releases the dropped elements.
 
 ### [ ] P1-03 — Correct `new` on bound functions
 

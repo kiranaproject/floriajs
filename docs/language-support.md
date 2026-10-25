@@ -21,7 +21,7 @@ them.
 | `while`, `do…while` | Yes | `break` / `continue`, including labels. |
 | Classic `for` | Yes | `var`/`let`/`const` initializers, multiple declarators, optional clauses. |
 | `for…of` | Yes | Arrays and strings. Non-iterables throw `TypeError`. `Map`/`Set` iterator protocol scheduled for P2-05. Target must be a plain identifier. |
-| `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates array indices. Target must be a plain identifier. |
+| `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates the present element indices; holes are skipped. Target must be a plain identifier. |
 | `switch` / `case` / `default` | Yes | Strict equality, fall-through, `break`. |
 | `try` / `catch` / `finally` | Yes | Catch binding is optional; `finally` always runs. |
 | `throw` | Yes | Throws any value; caught as `EFloriaJSThrow` by the runtime. |
@@ -84,9 +84,9 @@ Notes:
 - `in` requires an object on the right; otherwise it returns `false`.
 - `instanceof` walks the prototype chain through the constructor's
   `prototype`; arrow functions return `false`.
-- `delete` removes object properties and clears array elements. Deleting a
-  variable returns `true` but does not remove the binding, and it returns
-  `true` for missing properties.
+- `delete` removes object properties and turns array elements into holes (the
+  array length is unchanged). Deleting a variable returns `true` but does not
+  remove the binding, and it returns `true` for missing properties.
 - Optional chaining short-circuits the full chain across member accesses and calls (`a?.b.c` and `a?.b()` return `undefined` on nullish `a`). Grouping boundaries `(a?.b).c` terminate the optional chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets such as `(a?.b)++`, are rejected as syntax errors.
 - `==` handles `null == undefined`, number/string, and boolean conversions.
   Object-to-primitive coercion is not implemented (`[1] == 1` is `false`).
@@ -101,7 +101,7 @@ Notes:
 | Strings | Yes | `\n`, `\r`, `\t`, `\b`, `\f`, `\v`, `\0`, `\\`, `\'`, `\"`, `\xNN`, `\uNNNN` |
 | Template literals | Yes | `` `v=${n + 1}` `` interpolation via string concatenation |
 | Tagged templates | No | `tag\`x\`` is silently treated as adjacent expressions |
-| Array literals | Yes | Holes (`[1, , 3]`), spread (`[...a]`), trailing commas |
+| Array literals | Yes | Holes/elisions (`[1, , 3]`), spread (`[...a]`), trailing commas. Holes are tracked separately from explicit `undefined`. |
 | Object literals | Yes | Shorthand, computed keys, spread, methods, getters/setters, trailing commas |
 | Spread in calls | Yes | `f(...args)` |
 | Destructuring assignment | Yes | `[a, b] = arr;`, `({ a } = obj);` |
@@ -158,6 +158,17 @@ Prototype methods:
 Statics: `Array.isArray`, `Array.from` (arrays, strings, array-like objects,
 optional map function), `Array.of`. `Array.prototype` is the shared prototype
 used by array values, and `[] instanceof Array` is `true`.
+
+Sparse arrays follow ECMAScript: an array literal elision, `new Array(n)`, and
+`length = n` create **holes**, which read as `undefined` but are not own
+properties. `hasOwnProperty`, `in`, `Object.keys`/`values`/`entries`, and
+`for…in` therefore distinguish a hole from an explicit `undefined` element.
+Hole-skipping methods (`map`, `forEach`, `filter`, `some`, `every`, `reduce`,
+`reduceRight`, `indexOf`, `lastIndexOf`) skip holes while `map` preserves them
+in its result; `sort` moves holes to the end; `join`/`toString` render them as
+empty text; `JSON.stringify` emits `null`; spread materialises holes as
+explicit `undefined`. `length = n` extends with holes or truncates the array,
+and invalid lengths raise `RangeError`.
 
 Not implemented: `flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`,
 `values`, `entries`. `arr.toString()` returns comma-joined elements like `arr.join()`.

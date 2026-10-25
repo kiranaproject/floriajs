@@ -186,30 +186,49 @@ destructor Destroy(); override;
 
 function  GetElement(AIndex: Integer): TFloriaJSValue;
 procedure SetElement(AIndex: Integer; const AValue: TFloriaJSValue);
+function  HasElement(AIndex: Integer): Boolean;
 procedure Push(const AValue: TFloriaJSValue);
+procedure PushHole();
 function  Pop(): TFloriaJSValue;
 function  Shift(): TFloriaJSValue;
 procedure Unshift(const AValue: TFloriaJSValue);
 procedure InsertAt(AIndex: Integer; const AValue: TFloriaJSValue);
 procedure RemoveAt(AIndex: Integer);
+procedure MarkHole(AIndex: Integer);
+function  DeleteElement(AIndex: Integer): Boolean;
+procedure SetLengthTo(ANewLength: Integer);
+procedure SwapElements(AIndex, BIndex: Integer);
 function  Join(const ASeparator: string = ','): string;
 function  Length(): Integer;
 
 function  GetProperty(const AName: string): TFloriaJSValue; override;
+function  GetPropertyWithReceiver(const AName: string;
+  AReceiver: TFloriaJSObject): TFloriaJSValue; override;
 procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); override;
+function  DeleteProperty(const AName: string): Boolean; override;
 function  HasProperty(const AName: string): Boolean; override;
+function  HasOwnProperty(const AName: string): Boolean; override;
 ```
 
-- Reading `length` returns the element count.
+- Reading `length` returns the element count. The array keeps a parallel
+  presence bitmap, so a **hole** (an elision, a grown `length` slot, or a
+  deleted element) is length-bearing but is not an own property. `HasElement`
+  reports presence; `GetElement` returns `undefined` for both a hole and an
+  explicit `undefined` element.
+- `PushHole` appends a hole, `MarkHole` turns a present element into a hole
+  (releasing its reference), and `DeleteElement` is the primitive behind
+  `delete arr[i]` (it keeps the length). `SetLengthTo` grows with holes or
+  truncates; `SetProperty('length', …)` validates the value first and raises
+  `RangeError` for a fractional, negative, or too-large length.
+- `SwapElements` swaps both the value and the presence flag, which keeps holes
+  at their positions during `reverse`/`sort`.
 - Numeric property names map to elements; out-of-range reads return
-  `undefined`.
-- `HasProperty` (and `in`) recognises `length` and valid numeric indices.
-  `HasOwnProperty` currently only sees named properties, so
-  `arr.HasOwnProperty('0')` is `false` even when the element exists.
+  `undefined`. Out-of-range writes extend the array with holes in the gap.
+  `HasProperty`, `HasOwnProperty`, and `in` recognise `length` and only the
+  numeric indices that hold a present element, so an explicit `undefined`
+  element is an own property while a hole is not.
 - `Pop` and `Shift` release the array's own reference to the removed value.
   If the caller wants to keep it, pin/retain it immediately.
-- Assigning `length` truncates the array when the new length is smaller.
-  Assigning a larger value currently does not extend the element count.
 - JavaScript array methods (`push`, `map`, `sort`, …) are installed on the
   shared array prototype by `floria.js.arrays`; these Pascal methods are the
   primitive operations used by that layer.
