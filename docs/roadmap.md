@@ -14,12 +14,12 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **187 tests pass** with `pasbuild test`.
-- Gap scan: **125 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **192 tests pass** with `pasbuild test`.
+- Gap scan: **131 probes OK / 10 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
-- Documentation claims: **36 checked, 0 failing** with
+- Documentation claims: **40 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -39,6 +39,8 @@ currently untested because the existing tests assert only the happy path.
   `Foo.prototype.constructor === Foo`.
 - `Number("0x10")`, `parseInt("010")`, and ECMAScript-exact number formatting
   and parsing (`floria.js.number`), including `toString(radix)`.
+- The `void` operator and the short-circuiting logical assignments `&&=` and
+  `||=`, for identifiers and member targets.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -740,17 +742,68 @@ detects drift rather than just passing.
 Implement these only after P0 is clean. Each needs syntax/feature tests and a
 gap-scan probe.
 
-### [ ] P2-01 — `void` operator
+### [x] P2-01 — `void` operator
 
-Add `tkVoid`, parse `void <expr>`, and emit the existing `OP_VOID` (or an
-equivalent) so the operand is evaluated and discarded. Add `void 0` and
-side-effect tests; currently `void` is an undeclared identifier.
+`opVoid` already existed in the bytecode set and the VM, but nothing emitted
+it: `void` was not a keyword, so it lexed as an identifier and every use threw
+`ReferenceError: void is not defined`.
 
-### [ ] P2-02 — Logical assignment operators
+**Files.** `src/main/pascal/floria.js.lexer.pas` (`tkVoid`),
+`src/main/pascal/floria.js.parser.pas` (prefix set),
+`src/main/pascal/floria.js.compiler.pas` (`tkVoid`).
 
-Add `&&=` and `||=`, including short-circuiting (the RHS must not be evaluated
-when the condition is not met) for identifiers and member targets. Add parse,
-evaluation, and side-effect tests.
+**Implementation.** Added `tkVoid` inside the keyword block, included it in the
+prefix-operator set, and compiled it to `opVoid`, which pops the operand and
+pushes `undefined`. Precedence falls out of the existing unary path, so
+`void 1 + 2` is `(void 1) + 2` = `NaN`, as in ECMAScript.
+
+**Tests.** `void 0` and `typeof void 0`, operand side effects being kept, the
+precedence against `+`, use in argument and property-value position, and a
+missing operand being a syntax error.
+
+### [x] P2-02 — Logical assignment operators
+
+`&&=` and `||=` were parse errors.
+
+**Files.** `src/main/pascal/floria.js.lexer.pas` (`tkAndAssign`, `tkOrAssign`),
+`src/main/pascal/floria.js.parser.pas` (precedence and assignment dispatch),
+`src/main/pascal/floria.js.compiler.pas` (`ShortCircuitAssignJump`).
+
+**Implementation.** Added the two tokens, lexed by extending the existing `&&`
+and `||` cases with an `=` check. The compiler already implemented `??=` as a
+load / peek-test / conditional-assign / drop sequence, and the VM already had
+the peeking jumps `opJumpIfFalseyPeek` and `opJumpIfTruthyPeek`, so the three
+conditional assignments differ only in which jump performs the test. All four
+`??=` sites (local, environment, computed member, named member) now accept the
+three operators and pick the jump through `ShortCircuitAssignJump`. Because the
+jump *peeks*, the skipped branch leaves the existing value on the stack, which
+is what makes the expression value correct as well as avoiding the assignment.
+
+**Tests.** Each operator assigning and skipping for identifiers and for named
+and computed members, the expression value, truthiness following JavaScript
+rules (`""`, `NaN`), no-space lexing, the member base being evaluated once,
+`TypeError` on a null base, and — the important one — the right-hand side not
+being evaluated when the assignment is skipped, proved with a side effect and
+with a throwing function.
+
+### Also fixed while working P2
+
+- **Keyword property names were unreadable.** Five sites accepted a property
+  name by comparing the token enum against a hard-coded keyword range. That
+  broke for any keyword added after `tkUndefined`: `o.debugger` and `o.with`
+  were syntax errors while `o.delete` worked. Replaced with an
+  `IsKeywordToken` predicate that bounds the range by the last keyword, so new
+  keywords are covered automatically.
+- **BigInt literals silently evaluated to the wrong value.** `10n` lexed as the
+  number `10` followed by the identifier `n`, so `var b = 10n;` threw
+  `ReferenceError` only by luck: once any `n` existed in scope it silently
+  became that variable's value. The lexer now rejects a BigInt suffix in every
+  radix and in the decimal, fractional, and exponent forms. Found by the
+  documentation-claims harness, not by the test suite.
+- **Invalid assignment targets are accepted.** `1 += 2` and `f() &&= 1` should
+  be `SyntaxError`; they currently evaluate to `undefined`. This affects every
+  compound assignment and predates this work, so it is recorded under P2-11
+  rather than fixed here.
 
 ### [ ] P2-03 — Promise constructor
 
@@ -817,6 +870,11 @@ Add or explicitly defer the remaining bits currently known to be missing:
 - RegExp flags/features beyond `gim` (named groups, lookbehind, etc.) only if
   the chosen Pascal engine supports them; otherwise document limits.
 - Symbol-keyed properties (currently symbols are stringified).
+- Reject non-reference assignment targets. `1 += 2`, `f() &&= 1`, and
+  `(a + b) = 1` should be `SyntaxError`, but the parser only rejects optional
+  chains, so the compiler silently produces `undefined`. This affects every
+  assignment operator, including the plain `=`, and was found while adding
+  `&&=`/`||=`.
 
 ---
 

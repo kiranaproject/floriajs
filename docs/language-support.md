@@ -65,7 +65,7 @@ function f() { return
 | Group | Operators |
 | :--- | :--- |
 | Assignment | `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `??=` |
-| Logical assignment | `&&=`, `\|\|=` — **not implemented** |
+| Logical assignment | `&&=`, `\|\|=`, including short-circuiting: the right-hand side is not evaluated when the assignment is skipped |
 | Conditional | `? :` (right-associative chains work) |
 | Nullish | `??` |
 | Logical | `\|\|`, `&&` |
@@ -74,11 +74,11 @@ function f() { return
 | Relational | `<`, `<=`, `>`, `>=`, `in`, `instanceof` |
 | Additive / multiplicative | `+`, `-`, `*`, `/`, `%` |
 | Exponentiation | `**` (right-associative) |
-| Unary | `!`, `~`, `+`, `-`, `typeof`, `delete`, `await`, prefix `++`/`--` |
+| Unary | `!`, `~`, `+`, `-`, `typeof`, `delete`, `void`, `await`, prefix `++`/`--` |
 | Postfix | `++`, `--` |
 | Comma | `(a, b)` — evaluates left to right, yields the right value |
 | Optional chaining | `a?.b`, `a?.[k]`, `a?.()` |
-| `void` | **Not implemented** (lexed as an identifier) |
+| `void` | `void expr` evaluates the operand and yields `undefined` |
 
 Notes:
 
@@ -145,7 +145,7 @@ code units. Non-ASCII characters count as multiple units.
 | `RegExp` | Regular-expression constructor and regex literals. |
 | `URIError`, `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI` | URI helpers. |
 | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | Host timers. They require the host to pump `FloriaJSProcessTimers`. |
-| `Intl`, `eval`, `alert`, `BigInt` | Not defined; accessing them yields `undefined`. |
+| `Intl`, `eval`, `alert`, `BigInt` | Not defined. Reading them throws `ReferenceError`; only `typeof` yields `undefined`. |
 
 ### Math
 
@@ -376,15 +376,13 @@ are grouped by cause, because the three groups have different answers:
 
 | Area | Current behaviour | Task |
 | :--- | :--- | :--- |
-| `void` | Not a keyword or operator: `void` parses as an identifier, so any use throws `ReferenceError: void is not defined`. | P2-01 |
-| Logical assignment | `&&=` and `\|\|=` are not implemented; `a &&= b` is a parse error. | P2-02 |
 | Promise construction | `new Promise(executor)` is not supported (`TypeError: Value is not a constructor`); use `Promise.resolve`/`reject`/`all`/`race`. | P2-03 |
 | `JSON` parity | `JSON.stringify` ignores the replacer, does not invoke getters, and does not call `toJSON`; `JSON.parse` has no reviver. | P2-04 |
 | `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
 | `class` | Not a keyword: every form (`class A {}`, `class {}`, `extends`) parses as the identifier `class` and throws `ReferenceError: class is not defined`. | P2-06 |
 | Generators / `for await` | `function*` and `for await` are parse errors. | P2-07 |
 | Tagged templates | The tag is never called: `tag\`x\`` evaluates to the template string itself, so `function t(s){ return 1; } t\`x\`` is `"x"`, not `1`. | P2-08 |
-| `BigInt` | `10n` is not supported. | P2-09 |
+| `BigInt` | BigInt literals are rejected at lex time (`BigInt literals are not supported`) rather than being mis-parsed. | P2-09 |
 | Function metadata | `Function` constructor, `length`, `name`, and `toString` parity. | P2-10 |
 | Library completeness | `Object.is`/`defineProperty`/`getOwnPropertyNames`/`freeze`/`seal`/`fromEntries`, `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`, `String.fromCharCode`/`fromCodePoint`, `String.prototype.localeCompare`/`normalize`, `Date` setters, `Intl`, `eval`, `alert`. | P2-11 |
 | Modules | `import`/`export` are not implemented; no module system. | — |

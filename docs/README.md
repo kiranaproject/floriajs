@@ -46,9 +46,9 @@ Implemented and covered by the test suite:
   lexical `this`), closures, recursion, `async`/`await`, `new` and `this`,
   default/rest parameters, and destructured parameters.
 - Operators: arithmetic, comparison, logical, bitwise, shifts, `typeof`,
-  `delete`, `in`, `instanceof`, `**`, `??`, optional chaining
-  (`?.`, `?.[k]`, `?.()`), comma, and compound assignment including `**=` and
-  `??=`.
+  `delete`, `void`, `in`, `instanceof`, `**`, `??`, optional chaining
+  (`?.`, `?.[k]`, `?.()`), comma, and compound assignment including `**=`,
+  `??=`, and the short-circuiting `&&=`/`||=`.
 - Literals: numbers (hex, octal, binary, exponent, numeric separators),
   strings with escapes, template interpolation, array/object spread, array
   holes, shorthand and computed properties, object methods, getters/setters,
@@ -67,7 +67,7 @@ Not implemented yet (see the [roadmap](roadmap.md)):
 
 - `class`, `super`, and `extends`.
 - Generators/`yield`, tagged templates, `for await`, and `import`/`export`.
-- `BigInt`, the `void` operator, and logical assignment (`&&=`, `||=`).
+- `BigInt` (literals are rejected at lex time).
 - A promise constructor (`new Promise(executor)`).
 - Convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
   and `Object.is`.
