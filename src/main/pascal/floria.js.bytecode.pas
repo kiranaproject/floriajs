@@ -522,6 +522,11 @@ end;
 
 function TFloriaJSBytecode.AddSubFunction(AFunc: TFloriaJSBytecode): Integer;
 begin
+  { The parent owns a reference to each sub-function, and releases it on
+    destroy. Retaining here means a sub-function held elsewhere (a generator's
+    saved bytecode, for example) survives the parent's release. }
+  if AFunc <> nil then
+    AFunc.Retain();
   Result := FSubFunctions.Add(AFunc);
 end;
 

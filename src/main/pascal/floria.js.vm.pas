@@ -356,6 +356,8 @@ begin
   FYieldedValue := JSMakeUndefined();
 
   PushFrame(subCode, genEnv, AGen.ThisVal, baseBP, False, nil, False);
+  { Remember this frame so a later yield unwinds exactly back to it. }
+  AGen.FrameFP := FFP;
   if isResume then
     FFrames[FFP].IP := AGen.IP;
 
@@ -1679,9 +1681,13 @@ begin
                 zero would also destroy the *caller's* frame and stack, which is
                 what made a generator usable exactly once inside a loop. The
                 runner restores the rest of its own state afterwards. }
-              while FFP > 0 do
+              { Unwind back to the frame the generator runner pushed, which is
+                the one that suspended: popping every frame would also destroy
+                the caller's, and the saved IP would then be applied to the
+                wrong frame on resume. }
+              while FFP > FActiveGenerator.FrameFP do
                 PopFrame();
-              while FSP > curFrame^.BaseBP do
+              while FSP > FActiveGenerator.BaseBP do
                 Pop();
               Break;
             end

@@ -263,9 +263,14 @@ begin
 end;
 
 function JSMathRound(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  v: Double;
 begin
   if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
-  Result := JSMakeNumber(Round(AArgs[0].ToNumber()));
+  v := AArgs[0].ToNumber();
+  { Pascal's Round uses banker's rounding, so 2.5 becomes 2; JavaScript rounds
+    halves toward +Infinity. Floor(x + 0.5) is the specified behaviour. }
+  Result := JSMakeNumber(Floor(v + 0.5));
 end;
 
 function JSMathSin(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -527,7 +532,7 @@ begin
   for i := 0 to Length(AArgs) - 1 do
   begin
     code := Trunc(AArgs[i].ToNumber()) and $FFFF;
-    sb := sb + WideChar(code);
+    AppendUTF8CodePoint(sb, LongWord(code));
   end;
   Result := JSMakeString(sb);
 end;
@@ -546,14 +551,9 @@ begin
     cp := Trunc(AArgs[i].ToNumber());
     if (cp < 0) or (cp > $10FFFF) then
       raise EFloriaJSThrow.Create(JSMakeString('RangeError: Invalid code point ' + IntToStr(cp)));
-    if cp <= $FFFF then
-      sb := sb + WideChar(cp)
-    else
-    begin
-      Dec(cp, $10000);
-      sb := sb + WideChar($D800 + (cp shr 10));
-      sb := sb + WideChar($DC00 + (cp and $3FF));
-    end;
+    { Astral code points are kept as a single character: this runtime works on
+      UTF-8 bytes, so a surrogate pair would encode as two characters. }
+    AppendUTF8CodePoint(sb, LongWord(cp));
   end;
   Result := JSMakeString(sb);
 end;

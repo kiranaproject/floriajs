@@ -50,6 +50,18 @@ function BigIntIsNegative(const A: string): Boolean;
 function BigIntCompare(const A, B: string): Integer;
 function BigIntNegate(const A: string): string;
 function BigIntToString(const A: string): string;
+
+{ Number.prototype.toFixed: fixed-point notation with ADigits decimals. }
+function JSNumberToFixed(const V: Double; ADigits: Integer): string;
+{ Number.prototype.toPrecision: APrecision significant digits. }
+function JSNumberToPrecision(const V: Double; APrecision: Integer): string;
+{ Number.prototype.toExponential: exponential notation with ADigits decimals. }
+function JSNumberToExponential(const V: Double; ADigits: Integer): string;
+
+{ Appends the UTF-8 encoding of ACode to AResult. Assigning a WideChar above
+  0x7F to a UTF-8 string yields '?', which silently replaces every non-ASCII
+  character, so callers must encode explicitly. }
+procedure AppendUTF8CodePoint(var AResult: string; ACode: LongWord);
 { Converts a digit string in ARadix (2, 8, or 16) to a canonical decimal string. }
 function BigIntFromRadix(const ADigits: string; ARadix: Integer): string;
 { True when the BigInt equals the double exactly. The double is converted to an
@@ -860,6 +872,33 @@ begin
   Result := BigIntNormalize(A);
 end;
 
+{ Appends the UTF-8 encoding of ACode to AResult. Assigning a WideChar above
+  0x7F to a UTF-8 string yields '?', which silently replaces every non-ASCII
+  character, so callers must encode explicitly. }
+procedure AppendUTF8CodePoint(var AResult: string; ACode: LongWord);
+begin
+  if ACode < $80 then
+    AResult := AResult + Chr(ACode)
+  else if ACode < $800 then
+  begin
+    AResult := AResult + Chr($C0 or (ACode shr 6));
+    AResult := AResult + Chr($80 or (ACode and $3F));
+  end
+  else if ACode < $10000 then
+  begin
+    AResult := AResult + Chr($E0 or (ACode shr 12));
+    AResult := AResult + Chr($80 or ((ACode shr 6) and $3F));
+    AResult := AResult + Chr($80 or (ACode and $3F));
+  end
+  else
+  begin
+    AResult := AResult + Chr($F0 or (ACode shr 18));
+    AResult := AResult + Chr($80 or ((ACode shr 12) and $3F));
+    AResult := AResult + Chr($80 or ((ACode shr 6) and $3F));
+    AResult := AResult + Chr($80 or (ACode and $3F));
+  end;
+end;
+
 { Converts a digit string in ARadix (2, 8, or 16) to a canonical decimal string. }
 function BigIntFromRadix(const ADigits: string; ARadix: Integer): string;
 var
@@ -894,6 +933,211 @@ begin
     Exit(False);
   asInt := FloatToStrF(V, ffFixed, 0, 0);
   Result := BigIntCompare(ADigits, BigIntNormalize(asInt)) = 0;
+end;
+
+
+{ ---------------- toFixed / toPrecision / toExponential ---------------- }
+
+{ Splits a positive finite double into its shortest round-tripping digits and
+  the position of the decimal point, then formats from those. }
+function NumberDigitsAndPoint(const V: Double; out ADigits: string; out AN: Integer): Boolean;
+begin
+  Result := ShortestDecimal(V, ADigits, AN);
+end;
+
+{ The exact decimal expansion of a positive finite double, so that rounding to
+  a fixed number of places matches ECMAScript, which rounds the true binary
+  value: 1.005 is stored slightly below 1.005, so toFixed(2) is '1.00'. }
+function NumberExactDigitsAndPoint(const V: Double; out ADigits: string; out AN: Integer): Boolean;
+var
+  dec: TDecimal;
+begin
+  dec := DecFromDouble(V);
+  ADigits := StripLeadingZeros(dec.Digits);
+  { TDecimal stores value = Digits * 10^P, while the formatters here expect
+    value = 0.Digits * 10^N, so N = Length(Digits) + P. }
+  AN := Length(ADigits) + dec.P;
+  Result := (ADigits <> '') and (ADigits <> '0');
+end;
+
+function JSNumberToFixed(const V: Double; ADigits: Integer): string;
+var
+  digits, intPart, frac: string;
+  n, cut, i: Integer;
+  neg: Boolean;
+begin
+  if IsNaN(V) then Exit('NaN');
+  if IsInfinite(V) then
+  begin
+    if V < 0 then Exit('-Infinity') else Exit('Infinity');
+  end;
+  if ADigits < 0 then ADigits := 0;
+  if ADigits > 100 then ADigits := 100;
+
+  neg := V < 0;
+  if V = 0 then
+  begin
+    if ADigits > 0 then
+      Result := '0.' + StringOfChar('0', ADigits)
+    else
+      Result := '0';
+    Exit;
+  end;
+
+  if not NumberExactDigitsAndPoint(Abs(V), digits, n) then
+    Exit('0');
+
+  { `n` is the decimal point position: the value is 0.<digits> * 10^n, so the
+    integer part is digits[1..n]. Keep `ADigits` digits after the point, which
+    means rounding at position n + ADigits. }
+  cut := n + ADigits;
+  if Length(digits) < cut + 1 then
+    digits := digits + StringOfChar('0', cut + 1 - Length(digits));
+
+  if (cut >= 0) and (cut < Length(digits)) and (digits[cut + 1] >= '5') then
+  begin
+    i := cut;
+    while i >= 1 do
+    begin
+      if digits[i] = '9' then
+      begin
+        digits[i] := '0';
+        Dec(i);
+      end
+      else
+      begin
+        digits[i] := Chr(Ord(digits[i]) + 1);
+        Break;
+      end;
+    end;
+    if i = 0 then
+    begin
+      digits := '1' + digits;
+      Inc(n);
+      Inc(cut);
+    end;
+  end;
+
+  if n > 0 then
+    intPart := Copy(digits, 1, n)
+  else
+    intPart := '0';
+
+  if ADigits = 0 then
+    frac := ''
+  else if n >= 0 then
+    frac := Copy(digits, n + 1, ADigits)
+  else
+    frac := StringOfChar('0', -n) + Copy(digits, 1, ADigits + n);
+
+  if Length(frac) < ADigits then
+    frac := frac + StringOfChar('0', ADigits - Length(frac));
+  if intPart = '' then
+    intPart := '0';
+
+  if ADigits > 0 then
+    Result := intPart + '.' + frac
+  else
+    Result := intPart;
+
+  { A value that rounds to zero is not negative in JavaScript's output. }
+  if neg and (Pos('1', Result) > 0) then
+    Result := '-' + Result;
+end;
+
+function JSNumberToExponential(const V: Double; ADigits: Integer): string;
+var
+  digits: string;
+  n, i: Integer;
+  neg: Boolean;
+  mantissa: string;
+begin
+  if IsNaN(V) then Exit('NaN');
+  if IsInfinite(V) then
+  begin
+    if V < 0 then Exit('-Infinity') else Exit('Infinity');
+  end;
+  if ADigits < 0 then ADigits := 0;
+  if ADigits > 100 then ADigits := 100;
+
+  neg := V < 0;
+  if V = 0 then
+  begin
+    mantissa := '0';
+    if ADigits > 0 then
+      mantissa := mantissa + '.' + StringOfChar('0', ADigits);
+    Result := mantissa + 'e+0';
+    if neg then Result := '-' + Result;
+    Exit;
+  end;
+
+  if not NumberDigitsAndPoint(Abs(V), digits, n) then
+    Exit('0');
+  if Length(digits) < ADigits + 1 then
+    digits := digits + StringOfChar('0', ADigits + 1 - Length(digits));
+  if (Length(digits) > ADigits + 1) and (digits[ADigits + 2] >= '5') then
+  begin
+    i := ADigits + 1;
+    while i >= 1 do
+    begin
+      if digits[i] = '9' then
+      begin
+        digits[i] := '0';
+        Dec(i);
+      end
+      else
+      begin
+        digits[i] := Chr(Ord(digits[i]) + 1);
+        Break;
+      end;
+    end;
+    if i = 0 then
+    begin
+      digits := '1' + digits;
+      Inc(n);
+    end;
+  end;
+
+  mantissa := Copy(digits, 1, 1);
+  if ADigits > 0 then
+    mantissa := mantissa + '.' + Copy(digits, 2, ADigits);
+  if n - 1 >= 0 then
+    Result := mantissa + 'e+' + IntToStr(n - 1)
+  else
+    Result := mantissa + 'e-' + IntToStr(-(n - 1));
+  if neg then Result := '-' + Result;
+end;
+
+function JSNumberToPrecision(const V: Double; APrecision: Integer): string;
+var
+  digits: string;
+  n: Integer;
+begin
+  if IsNaN(V) then Exit('NaN');
+  if IsInfinite(V) then
+  begin
+    if V < 0 then Exit('-Infinity') else Exit('Infinity');
+  end;
+  { toPrecision falls back to the default string form for a missing argument,
+    which the caller handles; here APrecision is always in range. }
+  if APrecision < 1 then APrecision := 1;
+  if APrecision > 100 then APrecision := 100;
+
+  if V = 0 then
+  begin
+    digits := StringOfChar('0', APrecision);
+    Result := '0.' + Copy(digits, 2, APrecision - 1);
+    if APrecision = 1 then Result := '0';
+    Exit;
+  end;
+
+  if not NumberDigitsAndPoint(Abs(V), digits, n) then
+    Exit('0');
+  { Use fixed notation when the exponent is in [-6, APrecision), as specified. }
+  if (n - 1 >= -6) and (n - 1 < APrecision) then
+    Result := JSNumberToFixed(V, APrecision - n)
+  else
+    Result := JSNumberToExponential(V, APrecision - 1);
 end;
 
 { ---------------- correctly rounded string -> double ---------------- }

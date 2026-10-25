@@ -621,7 +621,7 @@ begin
         begin
           hexCode := AdvanceChar() + AdvanceChar() + AdvanceChar() + AdvanceChar();
           if TryStrToInt('$' + hexCode, valInt) then
-            sb := sb + WideChar(valInt)
+            AppendUTF8CodePoint(sb, LongWord(valInt))
           else
             sb := sb + '\u' + hexCode;
         end;

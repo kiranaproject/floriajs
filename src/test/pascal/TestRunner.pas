@@ -358,6 +358,8 @@ type
     procedure TestDateComponentSetters();
     procedure TestSymbolKeyedProperties();
     procedure TestNonReferenceAssignmentTargets();
+    procedure TestNumberFormatting();
+    procedure TestUnicodeEncoding();
   end;
 
 { TFloriaJSTypesTest }
@@ -9142,10 +9144,19 @@ begin
     AssertTrue('fromCodePoint', res.Success);
     AssertEquals('a BMP code point', 'A', res.StringValue);
 
-    // Above the BMP the result is a surrogate pair, so length is 2.
+    // This runtime stores strings as UTF-8 bytes, so an astral code point is
+    // one character of four bytes; it must not become '?' or a surrogate pair.
     res := engine.Execute('String.fromCodePoint(0x1F600).length;');
     AssertTrue('fromCodePoint astral', res.Success);
-    AssertEquals('an astral code point is two units', '2', res.StringValue);
+    AssertEquals('an astral code point is four UTF-8 bytes', '4', res.StringValue);
+
+    res := engine.Execute('String.fromCodePoint(0x1F600).charCodeAt(0);');
+    AssertTrue('fromCodePoint encoding', res.Success);
+    AssertEquals('the first UTF-8 byte of U+1F600', '240', res.StringValue);
+
+    res := engine.Execute('String.fromCodePoint(0xE9).charCodeAt(0) > 127;');
+    AssertTrue('non-ASCII is encoded, not replaced', res.Success);
+    AssertTrue('a non-ASCII character is not turned into ?', res.BooleanValue);
 
     res := engine.Execute('String.fromCodePoint(-1);');
     AssertFalse('invalid code point is rejected', res.Success);
@@ -9293,6 +9304,111 @@ begin
     res := engine.Execute('var o = {a: 1}; o.a += 2; o.a;');
     AssertTrue('member compound target with a value', res.Success);
     AssertEquals('member compound assignment still works', '3', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestNumberFormatting();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Math.round rounds halves toward +Infinity. Pascal's Round is banker's
+    // rounding, so 2.5 became 2 before this was fixed.
+    res := engine.Execute('Math.round(2.5);');
+    AssertTrue('round half up', res.Success);
+    AssertEquals('2.5 rounds to 3', '3', res.StringValue);
+
+    res := engine.Execute('Math.round(-2.5);');
+    AssertTrue('round half toward +Infinity', res.Success);
+    AssertEquals('-2.5 rounds to -2', '-2', res.StringValue);
+
+    res := engine.Execute('Math.round(0.5);');
+    AssertTrue('round 0.5', res.Success);
+    AssertEquals('0.5 rounds to 1', '1', res.StringValue);
+
+    res := engine.Execute('Math.round(-0.5);');
+    AssertTrue('round -0.5', res.Success);
+    AssertEquals('-0.5 rounds to 0', '0', res.StringValue);
+
+    // toFixed rounds the true binary value, not the shortest decimal.
+    res := engine.Execute('(0.1 + 0.2).toFixed(2);');
+    AssertTrue('toFixed', res.Success);
+    AssertEquals('0.30000000000000004 to two places', '0.30', res.StringValue);
+
+    res := engine.Execute('(1234.5678).toFixed(2);');
+    AssertTrue('toFixed larger', res.Success);
+    AssertEquals('rounds to two places', '1234.57', res.StringValue);
+
+    res := engine.Execute('(2.5).toFixed(0);');
+    AssertTrue('toFixed zero places', res.Success);
+    AssertEquals('no decimal point at zero places', '3', res.StringValue);
+
+    res := engine.Execute('(0).toFixed(2);');
+    AssertTrue('toFixed zero', res.Success);
+    AssertEquals('zero keeps its places', '0.00', res.StringValue);
+
+    res := engine.Execute('(-1.5).toFixed(1);');
+    AssertTrue('toFixed negative', res.Success);
+    AssertEquals('the sign is kept', '-1.5', res.StringValue);
+
+    // 1.005 is stored just below 1.005, so it rounds down.
+    res := engine.Execute('(1.005).toFixed(2);');
+    AssertTrue('toFixed exact value', res.Success);
+    AssertEquals('rounds the binary value', '1.00', res.StringValue);
+
+    res := engine.Execute('(1234.5678).toExponential(2);');
+    AssertTrue('toExponential', res.Success);
+    AssertEquals('exponential form', '1.23e+3', res.StringValue);
+
+    res := engine.Execute('(1234.5678).toPrecision(6);');
+    AssertTrue('toPrecision', res.Success);
+    AssertEquals('significant digits', '1234.57', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestUnicodeEncoding();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // A WideChar assigned to a UTF-8 string becomes '?' above 0x7F, so the
+    // lexer and String statics must encode explicitly.
+    res := engine.Execute('"\u00e9".charCodeAt(0);');
+    AssertTrue('unicode escape', res.Success);
+    AssertEquals('the escape is encoded as UTF-8', '195', res.StringValue);
+
+    res := engine.Execute('"\u4e2d".charCodeAt(0);');
+    AssertTrue('CJK escape', res.Success);
+    AssertEquals('a three-byte character starts correctly', '228', res.StringValue);
+
+    res := engine.Execute('"\u0041";');
+    AssertTrue('ASCII escape', res.Success);
+    AssertEquals('ASCII is unchanged', 'A', res.StringValue);
+
+    res := engine.Execute('String.fromCharCode(0xE9).charCodeAt(0);');
+    AssertTrue('fromCharCode encoding', res.Success);
+    AssertEquals('a non-ASCII code unit is encoded', '195', res.StringValue);
+
+    res := engine.Execute('String.fromCodePoint(0x1F600).length;');
+    AssertTrue('astral code point', res.Success);
+    AssertEquals('an astral code point is four UTF-8 bytes', '4', res.StringValue);
+
+    res := engine.Execute('String.fromCodePoint(0x1F600).charCodeAt(0);');
+    AssertTrue('astral encoding', res.Success);
+    AssertEquals('a four-byte character starts correctly', '240', res.StringValue);
+
+    // The encoded character must be a real character, never '?' (63).
+    res := engine.Execute('String.fromCodePoint(0xE9).charCodeAt(0) === 63;');
+    AssertTrue('not a replacement', res.Success);
+    AssertFalse('a non-ASCII character is not replaced by ?', res.BooleanValue);
   finally
     engine.Free();
   end;

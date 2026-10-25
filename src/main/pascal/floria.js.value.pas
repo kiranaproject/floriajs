@@ -401,6 +401,9 @@ type
     FArgs: TFloriaJSValueArray;
     FIP: Integer;
     FBaseBP: Integer;
+    { The frame pointer the generator body runs at, so suspension unwinds only
+      this generator's frames and not the caller's. }
+    FFrameFP: Integer;
     FStack: TFloriaJSValueArray;
     FStackCount: Integer;
     FState: TFloriaJSGeneratorState;
@@ -438,6 +441,7 @@ type
     property Args: TFloriaJSValueArray read FArgs write SetArgs;
     property IP: Integer read FIP write FIP;
     property BaseBP: Integer read FBaseBP write FBaseBP;
+    property FrameFP: Integer read FFrameFP write FFrameFP;
     property StackCount: Integer read FStackCount write FStackCount;
     function  SnapshotValue(AIndex: Integer): TFloriaJSValue;
     property State: TFloriaJSGeneratorState read FState write FState;
@@ -1947,6 +1951,40 @@ begin
   inherited Destroy();
 end;
 
+function JSNumberToFixedMethod(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  digits: Integer;
+begin
+  if not AThis.IsNumber() then Exit(JSMakeString('NaN'));
+  digits := 0;
+  if (Length(AArgs) > 0) and not AArgs[0].IsUndefined() then
+    digits := Trunc(AArgs[0].ToNumber());
+  Result := JSMakeString(JSNumberToFixed(AThis.NumVal, digits));
+end;
+
+function JSNumberToPrecisionMethod(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  precision: Integer;
+begin
+  if not AThis.IsNumber() then Exit(JSMakeString('NaN'));
+  { A missing precision means the default string conversion. }
+  if (Length(AArgs) = 0) or AArgs[0].IsUndefined() then
+    Exit(JSMakeString(JSNumberToStr(AThis.NumVal)));
+  precision := Trunc(AArgs[0].ToNumber());
+  Result := JSMakeString(JSNumberToPrecision(AThis.NumVal, precision));
+end;
+
+function JSNumberToExponentialMethod(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  digits: Integer;
+begin
+  if not AThis.IsNumber() then Exit(JSMakeString('NaN'));
+  digits := 0;
+  if (Length(AArgs) > 0) and not AArgs[0].IsUndefined() then
+    digits := Trunc(AArgs[0].ToNumber());
+  Result := JSMakeString(JSNumberToExponential(AThis.NumVal, digits));
+end;
+
 function JSNumberToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   radix: Integer;
@@ -2814,6 +2852,9 @@ begin
   begin
     FNumberPrototype := NewObject(GetObjectPrototype());
     FNumberPrototype.Pin();
+    FNumberPrototype.SetProperty('toFixed', JSMakeFunction(NewNativeFunction('toFixed', @JSNumberToFixedMethod)));
+    FNumberPrototype.SetProperty('toPrecision', JSMakeFunction(NewNativeFunction('toPrecision', @JSNumberToPrecisionMethod)));
+    FNumberPrototype.SetProperty('toExponential', JSMakeFunction(NewNativeFunction('toExponential', @JSNumberToExponentialMethod)));
     FNumberPrototype.SetProperty('toString', JSMakeFunction(NewNativeFunction('toString', @JSNumberToString)));
     FNumberPrototype.SetProperty('valueOf', JSMakeFunction(NewNativeFunction('valueOf', @JSNumberValueOf)));
   end;
