@@ -60,6 +60,10 @@ type
     procedure Synchronize();
 
     { Expression Pratt Parsing }
+    { True for any reserved word. Property names and object-literal keys accept
+      keywords, so those sites must not compare the token enum by range: the
+      keyword block is not contiguous with the delimiters that follow it. }
+    function  IsKeywordToken(AKind: TFloriaJSTokenKind): Boolean;
     function  GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
     function  ParsePrecedence(APrec: Integer): TFloriaJSExprNode;
     function  ParseAssignmentExpression(): TFloriaJSExprNode;
@@ -229,13 +233,20 @@ end;
 
 { Precedence Table }
 
+function TFloriaJSParser.IsKeywordToken(AKind: TFloriaJSTokenKind): Boolean;
+begin
+  { The keyword block is contiguous in the enum; keep the upper bound on the
+    last keyword so a newly added keyword is covered automatically. }
+  Result := (AKind >= tkLet) and (AKind <= tkWith);
+end;
+
 function TFloriaJSParser.GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
 begin
   case AKind of
     tkComma:
       Result := PREC_COMMA;
     tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
-    tkPowerAssign, tkNullishAssign, tkArrow:
+    tkPowerAssign, tkNullishAssign, tkAndAssign, tkOrAssign, tkArrow:
       Result := PREC_ASSIGNMENT;
     tkQuestion:
       Result := PREC_CONDITIONAL;
@@ -525,7 +536,7 @@ begin
     begin
       if Match(tkIdentifier) then
         memberPropName := FPrevious.Text
-      else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+      else if IsKeywordToken(FCurrent.Kind) then
       begin
         memberPropName := FCurrent.Text;
         Advance();
@@ -687,7 +698,7 @@ begin
     // 3. Identifier / Keyword / String / Number key
     if Match(tkIdentifier) or Match(tkString) or Match(tkNumber) then
       propKey := FPrevious.Text
-    else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+    else if IsKeywordToken(FCurrent.Kind) then
     begin
       propKey := FCurrent.Text;
       Advance();
@@ -712,7 +723,7 @@ begin
       begin
         if Match(tkIdentifier) or Match(tkString) then
           realKey := FPrevious.Text
-        else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+        else if IsKeywordToken(FCurrent.Kind) then
         begin
           realKey := FCurrent.Text;
           Advance();
@@ -740,7 +751,7 @@ begin
       begin
         if Match(tkIdentifier) or Match(tkString) then
           realKey := FPrevious.Text
-        else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+        else if IsKeywordToken(FCurrent.Kind) then
         begin
           realKey := FCurrent.Text;
           Advance();
@@ -992,7 +1003,7 @@ begin
     Advance();
     left := ParseNewExpression(op);
   end
-  else if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete, tkAwait, tkEllipsis] then
+  else if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete, tkVoid, tkAwait, tkEllipsis] then
     left := ParseUnaryPrefix()
   else
     left := ParsePrimary();
@@ -1060,7 +1071,7 @@ begin
         begin
           if Match(tkIdentifier) then
             memberPropName := FPrevious.Text
-          else if (FCurrent.Kind >= tkLet) and (FCurrent.Kind <= tkUndefined) then
+          else if IsKeywordToken(FCurrent.Kind) then
           begin
             memberPropName := FCurrent.Text;
             Advance();
@@ -1092,9 +1103,9 @@ begin
         left := TFloriaJSConditionalExpr.Create(left, consequent, alternate, op.Line, op.Column);
       end;
 
-      { Assignment Operators: =, +=, -=, *=, /=, %=, **=, ??= }
+      { Assignment Operators: =, +=, -=, *=, /=, %=, **=, ??=, &&=, ||= }
       tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
-      tkPowerAssign, tkNullishAssign:
+      tkPowerAssign, tkNullishAssign, tkAndAssign, tkOrAssign:
       begin
         if IsOptionalChainTarget(left) then
           ErrorAtCurrent('Invalid left-hand side in assignment');

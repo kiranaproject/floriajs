@@ -108,6 +108,20 @@ type
     Line, Column: Integer;
   end;
 
+{ The conditional-assignment operators share one shape: load the target, test
+  it with a peeking jump that leaves the value on the stack when the assignment
+  must be skipped, then either assign or drop the value. Only the test differs,
+  so it is chosen here once. }
+function ShortCircuitAssignJump(AOp: TFloriaJSTokenKind): TFloriaJSOpcode;
+begin
+  case AOp of
+    tkAndAssign:  Result := opJumpIfFalseyPeek;  { &&= skips when falsy }
+    tkOrAssign:   Result := opJumpIfTruthyPeek;  { ||= skips when truthy }
+  else
+    Result := opJumpIfNullish;                   { ??= skips when not nullish }
+  end;
+end;
+
 { TFloriaJSCompiler }
 
 constructor TFloriaJSCompiler.Create();
@@ -1007,6 +1021,13 @@ begin
           CompileExpr(AUnary.Operand);
         FBytecode.Emit(opTypeOf, 0, AUnary.Line);
       end;
+    tkVoid:
+      begin
+        { `void expr` evaluates the operand for its side effects and discards
+          the result, yielding undefined. }
+        CompileExpr(AUnary.Operand);
+        FBytecode.Emit(opVoid, 0, AUnary.Line);
+      end;
     tkAwait:
       begin
         CompileExpr(AUnary.Operand);
@@ -1263,7 +1284,7 @@ var
   targetNode: TFloriaJSExprNode;
   ident: TFloriaJSIdentifierExpr;
   member: TFloriaJSMemberExpr;
-  locIdx, nameIdx, jumpNullish, jumpDone: Integer;
+  locIdx, nameIdx, jumpSkip, jumpDone: Integer;
 begin
   targetNode := AAssign.Target;
   while targetNode is TFloriaJSGroupExpr do
@@ -1280,20 +1301,20 @@ begin
     begin
       locIdx := FBytecode.FindLocal(ident.Name);
 
-      if AAssign.Op = tkNullishAssign then
+      if AAssign.Op in [tkNullishAssign, tkAndAssign, tkOrAssign] then
       begin
         if locIdx >= 0 then
           FBytecode.Emit(opLoadLoc, locIdx)
         else
           FBytecode.Emit(opLoadEnv, FBytecode.AddStringConstant(ident.Name));
 
-        jumpNullish := FBytecode.Emit(opJumpIfNullish, 0, AAssign.Line);
+        jumpSkip := FBytecode.Emit(ShortCircuitAssignJump(AAssign.Op), 0, AAssign.Line);
         CompileExpr(AAssign.Value);
         if locIdx >= 0 then
           FBytecode.Emit(opStoreLoc, locIdx, AAssign.Line)
         else
           FBytecode.Emit(opStoreEnv, FBytecode.AddStringConstant(ident.Name), AAssign.Line);
-        FBytecode.PatchJump(jumpNullish, FBytecode.CurrentIP());
+        FBytecode.PatchJump(jumpSkip, FBytecode.CurrentIP());
       end
       else if AAssign.Op <> tkAssign then
       begin
@@ -1330,13 +1351,13 @@ begin
     begin
       nameIdx := FBytecode.AddStringConstant(ident.Name);
 
-      if AAssign.Op = tkNullishAssign then
+      if AAssign.Op in [tkNullishAssign, tkAndAssign, tkOrAssign] then
       begin
         FBytecode.Emit(opLoadEnv, nameIdx);
-        jumpNullish := FBytecode.Emit(opJumpIfNullish, 0, AAssign.Line);
+        jumpSkip := FBytecode.Emit(ShortCircuitAssignJump(AAssign.Op), 0, AAssign.Line);
         CompileExpr(AAssign.Value);
         FBytecode.Emit(opStoreEnv, nameIdx, AAssign.Line);
-        FBytecode.PatchJump(jumpNullish, FBytecode.CurrentIP());
+        FBytecode.PatchJump(jumpSkip, FBytecode.CurrentIP());
       end
       else if AAssign.Op <> tkAssign then
       begin
@@ -1368,15 +1389,15 @@ begin
     begin
       CompileExpr(member.PropertyExpr);
 
-      if AAssign.Op = tkNullishAssign then
+      if AAssign.Op in [tkNullishAssign, tkAndAssign, tkOrAssign] then
       begin
         FBytecode.Emit(opDup2);
         FBytecode.Emit(opGetProp, 0, AAssign.Line);
-        jumpNullish := FBytecode.Emit(opJumpIfNullish, 0, AAssign.Line);
+        jumpSkip := FBytecode.Emit(ShortCircuitAssignJump(AAssign.Op), 0, AAssign.Line);
         CompileExpr(AAssign.Value);
         FBytecode.Emit(opSetProp, 0, AAssign.Line);
         jumpDone := FBytecode.Emit(opJump, 0, AAssign.Line);
-        FBytecode.PatchJump(jumpNullish, FBytecode.CurrentIP());
+        FBytecode.PatchJump(jumpSkip, FBytecode.CurrentIP());
         FBytecode.Emit(opSwap);
         FBytecode.Emit(opPop);
         FBytecode.Emit(opSwap);
@@ -1408,15 +1429,15 @@ begin
     begin
       nameIdx := FBytecode.AddStringConstant(member.PropertyName);
 
-      if AAssign.Op = tkNullishAssign then
+      if AAssign.Op in [tkNullishAssign, tkAndAssign, tkOrAssign] then
       begin
         FBytecode.Emit(opDup);
         FBytecode.Emit(opGetPropNamed, nameIdx, AAssign.Line);
-        jumpNullish := FBytecode.Emit(opJumpIfNullish, 0, AAssign.Line);
+        jumpSkip := FBytecode.Emit(ShortCircuitAssignJump(AAssign.Op), 0, AAssign.Line);
         CompileExpr(AAssign.Value);
         FBytecode.Emit(opSetPropNamed, nameIdx, AAssign.Line);
         jumpDone := FBytecode.Emit(opJump, 0, AAssign.Line);
-        FBytecode.PatchJump(jumpNullish, FBytecode.CurrentIP());
+        FBytecode.PatchJump(jumpSkip, FBytecode.CurrentIP());
         FBytecode.Emit(opSwap);
         FBytecode.Emit(opPop);
         FBytecode.PatchJump(jumpDone, FBytecode.CurrentIP());

@@ -71,6 +71,7 @@ type
     tkNull,
     tkUndefined,
     tkDebugger,
+    tkVoid,
     tkWith,
 
     { Delimiters }
@@ -101,6 +102,8 @@ type
     tkPower,          { ** }
     tkPowerAssign,    { **= }
     tkNullishAssign,  { ??= }
+    tkAndAssign,      { &&= }
+    tkOrAssign,       { ||= }
     tkDivide,         { / }
     tkDivideAssign,   { /= }
     tkModulo,         { % }
@@ -168,6 +171,7 @@ type
     function  ScanRegExp(AStartLine, AStartCol, AStartPos: Integer): TFloriaJSToken;
     function  ScanIdentifierOrKeyword(): TFloriaJSToken;
     function  ScanNumber(): TFloriaJSToken;
+    function  HasBigIntSuffix(): Boolean;
     function  ScanString(AQuote: Char): TFloriaJSToken;
     function  ScanTemplateString(AFromExpression: Boolean = False): TFloriaJSToken;
     function  ScanComment(): TFloriaJSToken;
@@ -225,6 +229,7 @@ begin
     'null':       Result := tkNull;
     'undefined':  Result := tkUndefined;
     'debugger':   Result := tkDebugger;
+    'void':       Result := tkVoid;
     'with':       Result := tkWith;
   else
     Result := tkIdentifier;
@@ -385,6 +390,14 @@ begin
   Result := MakeToken(kind, txt, startLine, startCol, startPos);
 end;
 
+{ True when the cursor sits on a BigInt suffix: an `n` that is not the start of
+  a longer identifier. }
+function TFloriaJSLexer.HasBigIntSuffix(): Boolean;
+begin
+  Result := (not IsAtEnd()) and (PeekChar() in ['n', 'N']) and
+            ((FPos + 1 > Length(FSource)) or (not IsIdentPart(FSource[FPos + 1])));
+end;
+
 function TFloriaJSLexer.ScanNumber(): TFloriaJSToken;
 var
   startPos, startCol, startLine: Integer;
@@ -395,6 +408,13 @@ begin
   startLine := FLine;
   startCol := FColumn;
 
+  { A BigInt suffix would otherwise lex as the number followed by an
+    identifier, so `10n` silently became `10 n` and evaluated to the value of a
+    variable called `n`. Reject it rather than mis-parse it. This is checked
+    again after each radix form below, because those return early. }
+  if HasBigIntSuffix() then
+    Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
+
   { Check for Hex (0x), Binary (0b), Octal (0o) }
   if (PeekChar() = '0') and (PeekNextChar() in ['x', 'X']) then
   begin
@@ -402,6 +422,8 @@ begin
     AdvanceChar(); { x }
     while (not IsAtEnd()) and IsHexDigit(PeekChar()) do
       AdvanceChar();
+    if HasBigIntSuffix() then
+      Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
     numStr := Copy(FSource, startPos, FPos - startPos);
     val := StrToInt64('$' + Copy(numStr, 3, Length(numStr) - 2));
     Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
@@ -418,6 +440,8 @@ begin
     begin
       val := val * 2.0 + (Ord(AdvanceChar()) - Ord('0'));
     end;
+    if HasBigIntSuffix() then
+      Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
     numStr := Copy(FSource, startPos, FPos - startPos);
     Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
     Result.NumberValue := val;
@@ -433,6 +457,8 @@ begin
     begin
       val := val * 8.0 + (Ord(AdvanceChar()) - Ord('0'));
     end;
+    if HasBigIntSuffix() then
+      Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
     numStr := Copy(FSource, startPos, FPos - startPos);
     Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
     Result.NumberValue := val;
@@ -481,6 +507,9 @@ begin
         Break;
     end;
   end;
+
+  if HasBigIntSuffix() then
+    Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
 
   numStr := Copy(FSource, startPos, FPos - startPos);
   { Remove numeric separators }
@@ -946,7 +975,11 @@ begin
       '&':
       begin
         if MatchChar('&') then
-          Exit(MakeToken(tkAnd, '&&', startLine, startCol, startPos))
+        begin
+          if MatchChar('=') then
+            Exit(MakeToken(tkAndAssign, '&&=', startLine, startCol, startPos));
+          Exit(MakeToken(tkAnd, '&&', startLine, startCol, startPos));
+        end
         else
           Exit(MakeToken(tkBitAnd, '&', startLine, startCol, startPos));
       end;
@@ -954,7 +987,11 @@ begin
       '|':
       begin
         if MatchChar('|') then
-          Exit(MakeToken(tkOr, '||', startLine, startCol, startPos))
+        begin
+          if MatchChar('=') then
+            Exit(MakeToken(tkOrAssign, '||=', startLine, startCol, startPos));
+          Exit(MakeToken(tkOr, '||', startLine, startCol, startPos));
+        end
         else
           Exit(MakeToken(tkBitOr, '|', startLine, startCol, startPos));
       end;
@@ -1025,6 +1062,7 @@ begin
     tkNull:           Result := 'null';
     tkUndefined:      Result := 'undefined';
     tkDebugger:       Result := 'debugger';
+    tkVoid:           Result := 'void';
     tkWith:           Result := 'with';
     tkLParen:         Result := '(';
     tkRParen:         Result := ')';
@@ -1067,6 +1105,8 @@ begin
     tkOr:             Result := '||';
     tkNullish:        Result := '??';
     tkNullishAssign:  Result := '??=';
+    tkAndAssign:      Result := '&&=';
+    tkOrAssign:       Result := '||=';
     tkBitAnd:         Result := '&';
     tkBitOr:          Result := '|';
     tkBitXor:         Result := '^';

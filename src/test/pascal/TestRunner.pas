@@ -323,6 +323,16 @@ type
     procedure TestDebuggerAndWith();
   end;
 
+  { Priority 2 language features. }
+  TFloriaJSPriority2Test = class(TTestCase)
+  published
+    procedure TestVoidOperator();
+    procedure TestLogicalAssignmentIdentifiers();
+    procedure TestLogicalAssignmentMembers();
+    procedure TestLogicalAssignmentShortCircuit();
+    procedure TestBigIntLiteralRejection();
+  end;
+
 { TFloriaJSTypesTest }
 
 destructor TCountedASTNode.Destroy();
@@ -7520,6 +7530,274 @@ begin
   end;
 end;
 
+procedure TFloriaJSPriority2Test.TestVoidOperator();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. `void` is an operator, not an identifier.
+    res := engine.Execute('void 0;');
+    AssertTrue('void 0 succeeds', res.Success);
+    AssertEquals('void 0 is undefined', 'undefined', res.StringValue);
+
+    res := engine.Execute('typeof void 0 === "undefined";');
+    AssertTrue('typeof void 0', res.Success and res.BooleanValue);
+
+    res := engine.Execute('(void 0) === undefined;');
+    AssertTrue('void yields undefined', res.Success and res.BooleanValue);
+
+    // 2. The operand is evaluated for its side effects and then discarded.
+    res := engine.Execute('var n = 0; void (n = 1); n;');
+    AssertTrue('void evaluates its operand', res.Success);
+    AssertEquals('void keeps the side effect', '1', res.StringValue);
+
+    res := engine.Execute('var n = 0; void n; n;');
+    AssertTrue('void of a plain read', res.Success);
+    AssertEquals('void does not change the variable', '0', res.StringValue);
+
+    // 3. `void` binds tighter than a binary operator, so `void 1 + 2` is
+    //    `undefined + 2`, which is NaN.
+    res := engine.Execute('isNaN(void 1 + 2);');
+    AssertTrue('void binds tighter than +', res.Success and res.BooleanValue);
+
+    // 4. It is an operator in expression position, including arguments and
+    //    property values.
+    res := engine.Execute('function f(x) { return typeof x; } f(void 0) === "undefined";');
+    AssertTrue('void as an argument', res.Success and res.BooleanValue);
+
+    res := engine.Execute('var o = {a: void 0}; typeof o.a === "undefined";');
+    AssertTrue('void as a property value', res.Success and res.BooleanValue);
+
+    // 5. A missing operand is a syntax error, as in ECMAScript.
+    res := engine.Execute('void;');
+    AssertFalse('void without an operand is rejected', res.Success);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestLogicalAssignmentIdentifiers();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // &&= assigns only when the current value is truthy.
+    res := engine.Execute('var a = 1; a &&= 2; a;');
+    AssertTrue('&&= on a truthy value', res.Success);
+    AssertEquals('&&= assigns', '2', res.StringValue);
+
+    res := engine.Execute('var a = 0; a &&= 2; a;');
+    AssertTrue('&&= on a falsy value', res.Success);
+    AssertEquals('&&= keeps a falsy value', '0', res.StringValue);
+
+    // ||= assigns only when the current value is falsy.
+    res := engine.Execute('var a = 0; a ||= 5; a;');
+    AssertTrue('||= on a falsy value', res.Success);
+    AssertEquals('||= assigns', '5', res.StringValue);
+
+    res := engine.Execute('var a = 1; a ||= 5; a;');
+    AssertTrue('||= on a truthy value', res.Success);
+    AssertEquals('||= keeps a truthy value', '1', res.StringValue);
+
+    // ??= assigns only when the current value is null or undefined.
+    res := engine.Execute('var a = null; a ??= 4; a;');
+    AssertTrue('??= on null', res.Success);
+    AssertEquals('??= assigns on null', '4', res.StringValue);
+
+    res := engine.Execute('var a = 0; a ??= 4; a;');
+    AssertTrue('??= on zero', res.Success);
+    AssertEquals('??= keeps a non-nullish falsy value', '0', res.StringValue);
+
+    // The expression value is the assigned or retained value.
+    res := engine.Execute('var a = 1; var b = (a &&= 5); b === 5 && a === 5;');
+    AssertTrue('&&= yields the new value', res.Success and res.BooleanValue);
+
+    res := engine.Execute('var a = 0; var b = (a ||= 5); b === 5 && a === 5;');
+    AssertTrue('||= yields the new value', res.Success and res.BooleanValue);
+
+    // Truthiness follows JavaScript rules, not just zero/non-zero.
+    res := engine.Execute('var a = ""; a ||= "d"; a;');
+    AssertTrue('||= on an empty string', res.Success);
+    AssertEquals('||= treats "" as falsy', 'd', res.StringValue);
+
+    res := engine.Execute('var a = NaN; a ||= 3; a;');
+    AssertTrue('||= on NaN', res.Success);
+    AssertEquals('||= treats NaN as falsy', '3', res.StringValue);
+
+    // No spaces are required around the operator.
+    res := engine.Execute('var a = 1; a&&=2; a;');
+    AssertTrue('&&= without spaces', res.Success);
+    AssertEquals('&&= lexes without spaces', '2', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestLogicalAssignmentMembers();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('var o = {a: 1}; o.a &&= 2; o.a;');
+    AssertTrue('named member &&=', res.Success);
+    AssertEquals('named member &&= assigns', '2', res.StringValue);
+
+    res := engine.Execute('var o = {a: 0}; o.a &&= 2; o.a;');
+    AssertTrue('named member &&= skips', res.Success);
+    AssertEquals('named member &&= keeps falsy', '0', res.StringValue);
+
+    res := engine.Execute('var o = {a: 0}; o.a ||= 7; o.a;');
+    AssertTrue('named member ||=', res.Success);
+    AssertEquals('named member ||= assigns', '7', res.StringValue);
+
+    res := engine.Execute('var o = {a: 1}; o.a ||= 7; o.a;');
+    AssertTrue('named member ||= skips', res.Success);
+    AssertEquals('named member ||= keeps truthy', '1', res.StringValue);
+
+    res := engine.Execute('var o = {}; o.a ??= 9; o.a;');
+    AssertTrue('named member ??=', res.Success);
+    AssertEquals('named member ??= assigns on undefined', '9', res.StringValue);
+
+    // Computed members take the same path.
+    res := engine.Execute('var o = {a: 1}; o["a"] &&= 3; o.a;');
+    AssertTrue('computed member &&=', res.Success);
+    AssertEquals('computed member &&= assigns', '3', res.StringValue);
+
+    res := engine.Execute('var o = {a: 0}; o["a"] ||= 3; o.a;');
+    AssertTrue('computed member ||=', res.Success);
+    AssertEquals('computed member ||= assigns', '3', res.StringValue);
+
+    // The base expression is evaluated once.
+    res := engine.Execute(
+      'var n = 0;' +
+      'var o = {a: 1};' +
+      'function base() { n++; return o; }' +
+      'base().a &&= 2;' +
+      'n === 1 && o.a === 2;'
+    );
+    AssertTrue('member base is evaluated once', res.Success and res.BooleanValue);
+
+    // A member of null still throws, as the reference evaluation requires.
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { var o = null; o.a &&= 1; } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('member &&= on null throws TypeError', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestLogicalAssignmentShortCircuit();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // The right-hand side must not be evaluated when the assignment is
+    // skipped; a side effect makes that observable.
+    res := engine.Execute('var n = 0; var a = 0; a &&= (n = 1); n;');
+    AssertTrue('&&= short-circuits', res.Success);
+    AssertEquals('&&= does not evaluate the RHS', '0', res.StringValue);
+
+    res := engine.Execute('var n = 0; var a = 1; a ||= (n = 1); n;');
+    AssertTrue('||= short-circuits', res.Success);
+    AssertEquals('||= does not evaluate the RHS', '0', res.StringValue);
+
+    res := engine.Execute('var n = 0; var a = 5; a ??= (n = 1); n;');
+    AssertTrue('??= short-circuits', res.Success);
+    AssertEquals('??= does not evaluate the RHS', '0', res.StringValue);
+
+    // When it does assign, the RHS runs exactly once.
+    res := engine.Execute('var n = 0; var a = 1; a &&= (n = n + 1); n;');
+    AssertTrue('&&= evaluates the RHS when assigning', res.Success);
+    AssertEquals('&&= evaluates the RHS once', '1', res.StringValue);
+
+    res := engine.Execute('var n = 0; var a = 0; a ||= (n = n + 1); n;');
+    AssertTrue('||= evaluates the RHS when assigning', res.Success);
+    AssertEquals('||= evaluates the RHS once', '1', res.StringValue);
+
+    // A throwing RHS proves it is not evaluated when skipped.
+    res := engine.Execute(
+      'var a = 0;' +
+      'var ok = true;' +
+      'try { a &&= (function() { throw new Error("boom"); })(); } catch (e) { ok = false; }' +
+      'ok === true && a === 0;'
+    );
+    AssertTrue('&&= never runs a skipped throwing RHS', res.Success and res.BooleanValue);
+
+    // Member targets short-circuit the same way.
+    res := engine.Execute('var n = 0; var o = {a: 0}; o.a &&= (n = 1); n;');
+    AssertTrue('member &&= short-circuits', res.Success);
+    AssertEquals('member &&= does not evaluate the RHS', '0', res.StringValue);
+
+    res := engine.Execute('var n = 0; var o = {a: 1}; o.a ||= (n = 1); n;');
+    AssertTrue('member ||= short-circuits', res.Success);
+    AssertEquals('member ||= does not evaluate the RHS', '0', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestBigIntLiteralRejection();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // A BigInt suffix used to lex as the number followed by the identifier
+    // `n`. With no `n` in scope that was a ReferenceError by luck; once any
+    // `n` existed the literal silently evaluated to its value.
+    res := engine.Execute('var b = 10n;');
+    AssertFalse('BigInt literal is rejected', res.Success);
+
+    res := engine.Execute('var n = 0; var b = 10n;');
+    AssertFalse('BigInt literal is rejected even when n is defined', res.Success);
+    AssertTrue('BigInt rejection is a lexer error',
+      Pos('BigInt literals are not supported', res.ErrorMessage) > 0);
+
+    // Every radix form, and the decimal forms with a fraction or exponent.
+    res := engine.Execute('var b = 0x10n;');
+    AssertFalse('hex BigInt literal is rejected', res.Success);
+
+    res := engine.Execute('var b = 0b11n;');
+    AssertFalse('binary BigInt literal is rejected', res.Success);
+
+    res := engine.Execute('var b = 0o17n;');
+    AssertFalse('octal BigInt literal is rejected', res.Success);
+
+    res := engine.Execute('var b = 1.5n;');
+    AssertFalse('fractional BigInt literal is rejected', res.Success);
+
+    res := engine.Execute('var b = 1e3n;');
+    AssertFalse('exponent BigInt literal is rejected', res.Success);
+
+    // A plain `n` in identifier position is still ordinary.
+    res := engine.Execute('var n = 5; n;');
+    AssertTrue('a variable named n still works', res.Success);
+    AssertEquals('a variable named n keeps its value', '5', res.StringValue);
+
+    res := engine.Execute('var name = 1; name + 1;');
+    AssertTrue('an identifier starting with n still works', res.Success);
+    AssertEquals('identifiers starting with n are unaffected', '2', res.StringValue);
+
+    res := engine.Execute('var x = 10; x;');
+    AssertTrue('a number followed by a space is unaffected', res.Success);
+    AssertEquals('plain numbers still lex', '10', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -7547,6 +7825,7 @@ begin
   RegisterTest(TFloriaJSVMTest);
   RegisterTest(TFloriaJSPriority3Test);
   RegisterTest(TFloriaJSPriority1Test);
+  RegisterTest(TFloriaJSPriority2Test);
 
   Application := TTestRunner.Create(nil);
   try
