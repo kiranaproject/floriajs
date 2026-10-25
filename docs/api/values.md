@@ -295,6 +295,8 @@ property IsAsync: Boolean read FIsAsync;
 property IsArrow: Boolean read FIsArrow write FIsArrow;
 property SuppressPrototype: Boolean read FSuppressPrototype
   write FSuppressPrototype;
+property NotConstructable: Boolean read FNotConstructable
+  write FNotConstructable;
 property NativeProc: TFloriaJSNativeProc read FNativeProc;
 property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
 property ParamNames: TStringList read FParamNames;
@@ -332,6 +334,16 @@ TFloriaJSNativeMethod = function(const AArgs: array of TFloriaJSValue;
 - `toString` is provided as a placeholder: `function <name>() { [native code] }`.
 - `GetProperty('prototype')` is the safe way to obtain the constructor
   prototype for `instanceof` or host-side checks.
+
+`name` and `length` are exposed as **non-enumerable own properties**, created
+lazily on first read. `name` comes from the function's own name (an anonymous
+function assigned to an object property takes the property's name), and
+`length` from the bytecode's declared parameter count. Because they are created
+lazily, `HasOwnProperty` materialises them before answering, so
+`f.hasOwnProperty("name")` is `true` while `Object.keys(f)` stays empty.
+
+`NotConstructable` marks conversion functions such as `BigInt` that throw when
+called with `new`.
 
 ## `TFloriaJSBoundFunction`
 

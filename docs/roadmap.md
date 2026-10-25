@@ -14,12 +14,12 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **211 tests pass** with `pasbuild test`.
-- Gap scan: **168 probes OK / 7 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **213 tests pass** with `pasbuild test`.
+- Gap scan: **173 probes OK / 7 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
-- Documentation claims: **60 checked, 0 failing** with
+- Documentation claims: **64 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -54,6 +54,8 @@ currently untested because the existing tests assert only the happy path.
   iteration over generator objects.
 - BigInt: literals, arbitrary-precision arithmetic, comparison, and
   `BigInt()` conversion.
+- Function metadata: `fn.length`, `fn.name` with anonymous inference, and the
+  `Function(...)` constructor.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -1084,12 +1086,58 @@ conversion, string conversion, and `new BigInt()` being rejected. The
 arithmetic was validated separately against Python over 500 random cases with
 no differences, and the language-level semantics against Node over 40 cases.
 
-### [ ] P2-10 — Function constructor and function metadata
+### [x] P2-10 — Function constructor and function metadata
 
-`new Function(...)` is currently a native function with no implementation, and
-`fn.length`/`fn.name` are unavailable. Decide whether to implement the
-constructor (requires parsing/compiling generated source) and at minimum expose
-stable `length`/`name` properties.
+`new Function(...)` was registered as a native function with a nil procedure, so
+it returned `undefined`; `fn.length` and `fn.name` were unavailable.
+
+**Decision: implement both.** The constructor needs no new machinery — the
+lexer, parser, and compiler are already reachable from the standard library
+(`floria.js.compiler` does not depend on `floria.js.stdlib`, so the dependency
+direction is safe).
+
+**Files.** `src/main/pascal/floria.js.value.pas` (lazy `name`/`length`,
+`NotConstructable`, name inference), `src/main/pascal/floria.js.compiler.pas`
+(name inference for object properties), `src/main/pascal/floria.js.stdlib.pas`
+(`JSFunctionCtor`, shared heap).
+
+**Implementation.**
+
+- `name` and `length` are **non-enumerable own properties created lazily on
+  first read**, mirroring how `prototype` was already handled. `length` comes
+  from the bytecode's declared parameter count; `name` from the function's own
+  name. Because they are created lazily, `HasOwnProperty` was overridden to
+  materialise them first, so `f.hasOwnProperty("name")` is `true` while
+  `Object.keys(f)` stays empty.
+- An anonymous function assigned to an object property takes the property's
+  name (`{m: function(){}}` → `name === "m"`), applied at compile time where the
+  property key is known. An explicitly named function keeps its own name.
+- `Function(arg1, ..., argN, body)` joins the arguments into a function
+  expression, parses and compiles it, and returns the resulting function. All
+  but the last argument are parameter names. A malformed body throws a
+  `SyntaxError`; the body compiles in global scope, so it does not close over
+  the caller's locals.
+- Native callbacks receive a primitive receiver with no heap, so the standard
+  library now records the registration heap (`GSharedStdLibHeap`) for the few
+  natives that must allocate. This follows the existing
+  `GSharedCollectionsHeap` pattern.
+- `BigInt` and `Symbol` gained a `NotConstructable` flag so `new BigInt()`
+  throws, which ECMAScript requires.
+
+**Not done: `toString` parity.** Exact source reproduction would require
+retaining each function's original source text, which the compiler discards.
+`fn.toString()` therefore still reports
+`function <name>() { [native code] }` for user functions. This was already
+documented as a placeholder before P2-10 and is recorded as a remaining gap
+rather than silently differing.
+
+**Tests.** Declared and inferred names, `length` for declarations, expressions,
+and arrows, non-enumerability (`Object.keys`) versus own-property visibility
+(`hasOwnProperty`), `Function` with and without parameters, `new Function`,
+`typeof` of the result, bare `return` (valid — it returns `undefined`, verified
+against Node), a genuinely malformed body raising `SyntaxError`, independent
+constructed functions, and global rather than caller scope. Verified against
+Node over 22 cases: no differences.
 
 ### [ ] P2-11 — Library completeness audit
 

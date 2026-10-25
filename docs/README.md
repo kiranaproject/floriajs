@@ -48,6 +48,8 @@ Implemented and covered by the test suite:
   (`next`/`return`/`Symbol.iterator`).
 - BigInt: `123n` literals in decimal and every radix, arbitrary-precision
   arithmetic and comparison, and `BigInt()` conversion.
+- Function metadata: `fn.length`, `fn.name` (including inference for anonymous
+  functions assigned to properties), and the `Function(...)` constructor.
 - Functions: declarations, function expressions, arrow functions (including
   lexical `this`), closures, recursion, `async`/`await`, `new` and `this`,
   default/rest parameters, and destructured parameters.

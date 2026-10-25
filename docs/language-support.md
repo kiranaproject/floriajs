@@ -333,6 +333,21 @@ pump, delayed and repeating callbacks do not execute.
 - `NaN` and the infinities stringify as `"NaN"`, `"Infinity"`, and
   `"-Infinity"`; both zeros stringify as `"0"`.
 
+### Functions as values
+
+- `fn.length` is the declared parameter count; `fn.name` is the declared name.
+  Both are non-enumerable own properties.
+- An anonymous function assigned to an object property takes the property's
+  name: `{m: function(){}}` gives `o.m.name === "m"`. An explicitly named
+  function keeps its own name.
+- `Function(arg1, ..., argN, body)` compiles a function from source at run time,
+  and also works with `new`. All but the last argument are parameter names. A
+  malformed body throws a `SyntaxError`. The body is compiled in global scope,
+  so it does not close over the caller's locals.
+- `fn.toString()` is a placeholder: it always reports
+  `function <name>() { [native code] }`, including for user functions, because
+  the original source text is not retained.
+
 ### BigInt
 
 - Literals: `123n`, and the radix forms `0x1Fn`, `0b101n`, `0o17n`. A
@@ -435,7 +450,7 @@ are grouped by cause, because the three groups have different answers:
 | :--- | :--- | :--- |
 | `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
 | `for await` | `for await` is a parse error; async iteration is not implemented. | P2-07 |
-| Function metadata | `Function` constructor, `length`, `name`, and `toString` parity. | P2-10 |
+| Function `toString` | Returns `function <name>() { [native code] }` for user functions too; the original source is not retained. |
 | Library completeness | `Object.is`/`defineProperty`/`getOwnPropertyNames`/`freeze`/`seal`/`fromEntries`, `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`, `String.fromCharCode`/`fromCodePoint`, `String.prototype.localeCompare`/`normalize`, `Date` setters, `Intl`, `eval`, `alert`. | P2-11 |
 | Modules | `import`/`export` are not implemented; no module system. | — |
 
