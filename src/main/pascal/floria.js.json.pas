@@ -19,7 +19,8 @@ unit floria.js.json;
 interface
 
 uses
-  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env;
+  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
+  floria.js.number;
 
 type
   { Host Object for JSON Global }
@@ -418,10 +419,9 @@ begin
   begin
     if IsNaN(AVal.NumVal) or IsInfinite(AVal.NumVal) then
       Exit('null');
-    if (Frac(AVal.NumVal) = 0.0) and (Abs(AVal.NumVal) <= 9007199254740991.0) then
-      Exit(IntToStr(Trunc(AVal.NumVal)))
-    else
-      Exit(FloatToStr(AVal.NumVal, FFormatSettings));
+    { JSON has no Infinity/NaN, and ECMAScript serialises numbers with the
+      same shortest round-tripping form as String(). }
+    Exit(JSNumberToStr(AVal.NumVal));
   end;
 
   if AVal.IsString() then

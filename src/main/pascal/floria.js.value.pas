@@ -18,7 +18,7 @@ unit floria.js.value;
 interface
 
 uses
-  Classes, SysUtils, Math, floria.js.types;
+  Classes, SysUtils, Math, floria.js.types, floria.js.number;
 
 type
   { Forward Declarations }
@@ -515,6 +515,10 @@ var
   { Source of the unique identifiers that tell two heaps apart, even when the
     memory of a dead heap is reused by a new one. }
   GNextHeapId: Integer = 0;
+  { The heap that owns the shared Number.prototype. Native number methods are
+    called with a primitive receiver, which has no object to take a heap from,
+    so they raise through this one. }
+  GNumberPrototype: TFloriaJSObject = nil;
 
 { Reference Counting Helpers }
 
@@ -774,8 +778,9 @@ begin
           if code = 0 then Exit(Double(intVal));
         end;
       end;
-      Val(trimStr, d, code);
-      if code = 0 then
+      { Decimal numerals go through the correctly rounded parser; the host
+        parser is off by an ulp for some inputs. }
+      if JSTryStrToNumber(trimStr, d) then
         Result := d
       else
         Result := NaN;
@@ -802,16 +807,9 @@ begin
     fjstBoolean:
       if BoolVal then Result := 'true' else Result := 'false';
     fjstNumber:
-      if IsNaN(NumVal) then
-        Result := 'NaN'
-      else if IsInfinite(NumVal) then
-      begin
-        if NumVal > 0 then Result := 'Infinity' else Result := '-Infinity';
-      end
-      else if (Frac(NumVal) = 0.0) and (Abs(NumVal) <= 9007199254740991.0) then
-        Result := IntToStr(Int64(Trunc(NumVal)))
-      else
-        Result := FloatToStr(NumVal);
+      { ECMAScript Number::toString: shortest round-tripping decimal with the
+        standard fixed/scientific thresholds. }
+      Result := JSNumberToStr(NumVal);
     fjstString:
       Result := StrVal;
     fjstSymbol:
@@ -1649,13 +1647,23 @@ var
 begin
   if AThis.IsNumber() then
   begin
+    radix := 10;
     if (Length(AArgs) > 0) and (not AArgs[0].IsUndefined()) then
     begin
       radix := Trunc(AArgs[0].ToNumber());
+      { A primitive number has no object of its own, so the error is built from
+        Number.prototype's heap, which is the heap the value came from. }
       if (radix < 2) or (radix > 36) then
-        raise EFloriaJSThrow.Create(JSMakeObject(AThis.AsObject().Heap.NewError('RangeError', 'toString() radix must be between 2 and 36')));
+      begin
+        if AThis.IsObject() then
+          raise EFloriaJSThrow.Create(JSMakeObject(AThis.AsObject().Heap.NewError('RangeError', 'toString() radix must be between 2 and 36')))
+        else if GNumberPrototype <> nil then
+          raise EFloriaJSThrow.Create(JSMakeObject(GNumberPrototype.Heap.NewError('RangeError', 'toString() radix must be between 2 and 36')))
+        else
+          raise EConvertError.Create('toString() radix must be between 2 and 36');
+      end;
     end;
-    Result := JSMakeString(AThis.ToString());
+    Result := JSMakeString(JSNumberToRadixStr(AThis.NumVal, radix));
   end
   else
     Result := JSMakeString(AThis.ToString());
@@ -2465,6 +2473,7 @@ begin
     FNumberPrototype.SetProperty('toString', JSMakeFunction(NewNativeFunction('toString', @JSNumberToString)));
     FNumberPrototype.SetProperty('valueOf', JSMakeFunction(NewNativeFunction('valueOf', @JSNumberValueOf)));
   end;
+  GNumberPrototype := FNumberPrototype;
   Result := FNumberPrototype;
 end;
 
@@ -3114,6 +3123,7 @@ begin
     FArrayPrototype := nil;
     FStringPrototype := nil;
     FNumberPrototype := nil;
+    GNumberPrototype := nil;
     FFunctionPrototype := nil;
     FObjectPrototype := nil;
     FErrorPrototype := nil;

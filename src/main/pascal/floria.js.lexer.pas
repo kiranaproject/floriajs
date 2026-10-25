@@ -17,7 +17,7 @@ unit floria.js.lexer;
 interface
 
 uses
-  Classes, SysUtils;
+  Classes, SysUtils, Math, floria.js.number;
 
 type
   { Token Kinds }
@@ -386,7 +386,6 @@ var
   startPos, startCol, startLine: Integer;
   numStr: string;
   val: Double;
-  fs: TFormatSettings;
 begin
   startPos := FPos;
   startLine := FLine;
@@ -482,8 +481,9 @@ begin
   numStr := Copy(FSource, startPos, FPos - startPos);
   { Remove numeric separators }
   numStr := StringReplace(numStr, '_', '', [rfReplaceAll]);
-  fs.DecimalSeparator := '.';
-  if not TryStrToFloat(numStr, val, fs) then
+  { The host parser is off by an ulp for some literals (for example 1e126), so
+    literals go through the correctly rounded parser. }
+  if not JSTryStrToNumber(numStr, val) then
     val := 0.0;
 
   Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);

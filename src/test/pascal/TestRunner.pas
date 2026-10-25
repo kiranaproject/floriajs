@@ -316,6 +316,9 @@ type
     procedure TestArrayHolesAndLengthMutation();
     procedure TestNewOnBoundFunctions();
     procedure TestBoundFunctionConstructionLifetime();
+    procedure TestNumberFormattingParity();
+    procedure TestNumberParsingParity();
+    procedure TestNumberRadixToString();
   end;
 
 { TFloriaJSTypesTest }
@@ -7225,6 +7228,162 @@ begin
       ctx.Heap.GetEnvironmentCount = environments);
   finally
     ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestNumberFormattingParity();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. The three reported failures.
+    res := engine.Execute('String(1e20) === "100000000000000000000";');
+    AssertTrue('String(1e20) succeeds', res.Success);
+    AssertTrue('1e20 prints in fixed notation', res.BooleanValue);
+
+    res := engine.Execute('String(1e-7) === "1e-7";');
+    AssertTrue('String(1e-7) succeeds', res.Success);
+    AssertTrue('1e-7 uses lowercase exponent without a plus', res.BooleanValue);
+
+    res := engine.Execute('(0.1 + 0.2).toString() === "0.30000000000000004";');
+    AssertTrue('0.1 + 0.2 succeeds', res.Success);
+    AssertTrue('Shortest round-tripping digits are preserved', res.BooleanValue);
+
+    // 2. Exponent thresholds: fixed for 1e-6, scientific from 1e-7.
+    res := engine.Execute(
+      'String(1e-6) === "0.000001" && String(1e-7) === "1e-7" && ' +
+      'String(1e20) === "100000000000000000000" && String(1e21) === "1e+21";'
+    );
+    AssertTrue('Exponent thresholds succeed', res.Success);
+    AssertTrue('Fixed/scientific switch matches ECMAScript', res.BooleanValue);
+
+    // 3. Positive exponents carry an explicit plus sign.
+    res := engine.Execute('String(1e21) === "1e+21" && String(1.5e300).indexOf("e+300") > 0;');
+    AssertTrue('Positive exponent notation', res.Success and res.BooleanValue);
+
+    // 4. Integers below the safe range print without an exponent or a fraction.
+    res := engine.Execute(
+      'String(9007199254740991) === "9007199254740991" && ' +
+      'String(0) === "0" && String(-42) === "-42" && String(1.5) === "1.5";'
+    );
+    AssertTrue('Integers print exactly', res.Success and res.BooleanValue);
+
+    // 5. Zero, NaN, and the infinities.
+    res := engine.Execute(
+      'String(-0) === "0" && String(NaN) === "NaN" && ' +
+      'String(Infinity) === "Infinity" && String(-Infinity) === "-Infinity";'
+    );
+    AssertTrue('Special values print as ECMAScript specifies', res.Success and res.BooleanValue);
+
+    // 6. The extremes of the double range round-trip through their own text.
+    res := engine.Execute(
+      'String(5e-324) === "5e-324" && ' +
+      'String(1.7976931348623157e308) === "1.7976931348623157e+308";'
+    );
+    AssertTrue('Extreme doubles print shortest form', res.Success and res.BooleanValue);
+
+    // 7. A value whose shortest form needs all 17 digits.
+    res := engine.Execute('String(0.1 + 0.7) === "0.7999999999999999";');
+    AssertTrue('17 significant digits when required', res.Success and res.BooleanValue);
+
+    // 8. JSON uses the same number form.
+    res := engine.Execute(
+      'JSON.stringify(1e20) === "100000000000000000000" && ' +
+      'JSON.stringify([1e21, 1e-7]) === "[1e+21,1e-7]";'
+    );
+    AssertTrue('JSON number serialisation matches String()', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestNumberParsingParity();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. Round trip through String() for awkward values.
+    res := engine.Execute(
+      'var xs = [0.1 + 0.2, 1e20, 1e-7, 1 / 3, 5e-324, 1.7976931348623157e308];' +
+      'var ok = true;' +
+      'for (var i = 0; i < xs.length; i++) { if (Number(String(xs[i])) !== xs[i]) ok = false; }' +
+      'ok;'
+    );
+    AssertTrue('Number(String(x)) round trip succeeds', res.Success);
+    AssertTrue('Every value round-trips exactly', res.BooleanValue);
+
+    // 2. Values the host parser rounds incorrectly must still parse correctly.
+    res := engine.Execute(
+      'Number("1e126") === 1e126 && ' +
+      'Number("2.2250738585072014e-308") === 2.2250738585072014e-308;'
+    );
+    AssertTrue('Correctly rounded parsing', res.Success and res.BooleanValue);
+
+    // 3. Subnormal boundaries.
+    res := engine.Execute('Number("5e-324") === 5e-324 && Number("1e-400") === 0;');
+    AssertTrue('Subnormal and underflow parsing', res.Success and res.BooleanValue);
+
+    // 4. Overflow saturates to Infinity.
+    res := engine.Execute('Number("1e309") === Infinity;');
+    AssertTrue('Overflow saturates to Infinity', res.Success and res.BooleanValue);
+
+    // 5. Existing forms still work.
+    res := engine.Execute(
+      'Number("0x10") === 16 && Number("0b101") === 5 && Number("0o17") === 15 && ' +
+      'Number("  12  ") === 12 && Number("") === 0 && ' +
+      'isNaN(Number("abc")) && isNaN(Number("1e"));'
+    );
+    AssertTrue('Other Number() forms still parse', res.Success and res.BooleanValue);
+
+    // 6. Trailing junk is rejected, leading/trailing space is not.
+    res := engine.Execute('isNaN(Number("12px")) && Number(" 1.5 ") === 1.5;');
+    AssertTrue('Whitespace and junk handling', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestNumberRadixToString();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('(255).toString(16) === "ff" && (255).toString(2) === "11111111";');
+    AssertTrue('Integer radix conversion', res.Success and res.BooleanValue);
+
+    res := engine.Execute('(35).toString(36) === "z" && (0).toString(2) === "0";');
+    AssertTrue('Radix 36 and zero', res.Success and res.BooleanValue);
+
+    res := engine.Execute('(1.5).toString(2) === "1.1" && (0.5).toString(16) === "0.8";');
+    AssertTrue('Fractional radix conversion', res.Success and res.BooleanValue);
+
+    res := engine.Execute('(-255).toString(16) === "-ff";');
+    AssertTrue('Negative radix conversion', res.Success and res.BooleanValue);
+
+    res := engine.Execute('(255).toString() === "255" && (255).toString(10) === "255";');
+    AssertTrue('Default radix is ten', res.Success and res.BooleanValue);
+
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { (255).toString(1); } catch (e) { caught = e.name; }' +
+      'caught === "RangeError";'
+    );
+    AssertTrue('Out-of-range radix throws RangeError', res.Success and res.BooleanValue);
+
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { (255).toString(37); } catch (e) { caught = e.name; }' +
+      'caught === "RangeError";'
+    );
+    AssertTrue('Radix above 36 throws RangeError', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
   end;
 end;
 
