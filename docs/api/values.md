@@ -255,6 +255,8 @@ property Name: string read FName write FName;
 property IsNative: Boolean read FIsNative;
 property IsAsync: Boolean read FIsAsync;
 property IsArrow: Boolean read FIsArrow write FIsArrow;
+property SuppressPrototype: Boolean read FSuppressPrototype
+  write FSuppressPrototype;
 property NativeProc: TFloriaJSNativeProc read FNativeProc;
 property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
 property ParamNames: TStringList read FParamNames;
@@ -283,12 +285,51 @@ TFloriaJSNativeMethod = function(const AArgs: array of TFloriaJSValue;
   retains it. This is what `OP_CLOSURE` uses for nested functions.
 - `Bytecode` exposes the compiled chunk, or `nil` for native/AST-backed
   functions that have not been compiled yet.
-- `prototype` is created lazily on first access for non-arrow functions. It
-  deliberately has no `constructor` back-reference to avoid a reference cycle.
+- `prototype` is created lazily on first access for non-arrow functions. Its
+  `constructor` back-reference is a weak link: it is cleared when the function
+  is destroyed, and the prototype then delegates to `Object.prototype`.
 - Arrow functions have no `prototype` and are rejected by `new`.
+- `SuppressPrototype` keeps the lazy `prototype` from being created. Bound
+  functions set it, because ECMAScript gives them no own `prototype`.
 - `toString` is provided as a placeholder: `function <name>() { [native code] }`.
 - `GetProperty('prototype')` is the safe way to obtain the constructor
   prototype for `instanceof` or host-side checks.
+
+## `TFloriaJSBoundFunction`
+
+```pascal
+constructor CreateBound(const AName: string;
+  const ATarget, ABoundThis: TFloriaJSValue;
+  const ABoundArgs: TFloriaJSValueArray);
+destructor Destroy(); override;
+
+function CombineArguments(
+  const AArgs: TFloriaJSValueArray): TFloriaJSValueArray;
+function ConstructorTarget(): TFloriaJSFunction;
+
+property Target: TFloriaJSValue read FTarget;
+property BoundThis: TFloriaJSValue read FBoundThis;
+property BoundArgs: TFloriaJSValueArray read FBoundArgs;
+```
+
+`TFloriaJSBoundFunction` is the object `Function.prototype.bind` creates. It
+derives from `TFloriaJSFunction`, so it is a callable function object with the
+shared function prototype, but it owns the target, the bound `this`, and the
+bound arguments, retaining each of them. The heap frees it like any other
+tracked object, and its destructor releases the retained values unless the heap
+is being cleared.
+
+- `NewBoundFunction` is the heap factory. Use it instead of calling the
+  constructor directly so the object is tracked and gets the shared function
+  prototype.
+- Calls of a bound function ignore the receiver: the VM routes them through
+  the target with `BoundThis` and `CombineArguments`.
+- `new` on a bound function constructs the target with the combined arguments.
+  A bound function is constructable exactly when its target is, so a bound
+  arrow function is rejected.
+- `ConstructorTarget` follows a chain of bound functions to the underlying
+  function; `instanceof` and construction read the prototype from there.
+- Bound functions set `SuppressPrototype`, so `"prototype" in B` is `false`.
 
 ## `TFloriaJSError`
 
@@ -346,6 +387,9 @@ function  NewUserFunction(const AName: string; AParams: TStrings;
 function  NewBytecodeFunction(const AName: string; ABytecode: TObject;
   AClosure: Pointer; AIsArrow: Boolean = False;
   AIsAsync: Boolean = False): TFloriaJSFunction;
+function  NewBoundFunction(const AName: string;
+  const ATarget, ABoundThis: TFloriaJSValue;
+  const ABoundArgs: TFloriaJSValueArray): TFloriaJSBoundFunction;
 
 function  GetArrayPrototype(): TFloriaJSObject;
 function  GetStringPrototype(): TFloriaJSObject;
@@ -360,6 +404,15 @@ procedure OwnHelper(AHelper: TObject);
 procedure SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
 function  InvokeFunction(const AFuncVal: TFloriaJSValue;
   const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
+
+procedure SetConstructInvoker(AInvoker: TFloriaJSConstructInvoker);
+function  ConstructFunction(const AFuncVal: TFloriaJSValue;
+  const AArgs: TFloriaJSValueArray): TFloriaJSValue;
+function  ResolveConstructorTarget(
+  const AFuncVal: TFloriaJSValue): TFloriaJSFunction;
+function  GetConstructPrototype(
+  const AFuncVal: TFloriaJSValue): TFloriaJSObject;
+function  IsConstructable(const AFuncVal: TFloriaJSValue): Boolean;
 
 procedure SetJobRunner(ARunner: TFloriaJSJobRunner);
 procedure EnqueuePromiseJob(const AJob: TFloriaJSPromiseJob);
@@ -388,6 +441,9 @@ property Id: Integer read FId;
 - `NewArray` returns an array whose prototype is the shared array prototype.
 - `NewNativeFunction` / `NewNativeMethod` create callable objects. They do not
   add the function to any environment by themselves.
+- `NewBoundFunction` creates the object behind `Function.prototype.bind`. It
+  retains the target, the bound `this`, and the bound arguments, and it has no
+  own `prototype`.
 - `NewUserFunction` stores an AST-backed function; the VM compiles its body
   lazily on first call. The AST body must outlive the function; the function
   retains it unless ownership is transferred.
@@ -407,6 +463,13 @@ prototypes form the standard inheritance chain (`TypeError` → `Error` →
   that the heap frees on `Clear`.
 - `SetFunctionInvoker` is wired by the VM so heap-side native methods can
   call back into JavaScript. `InvokeFunction` is the wrapper built-ins use.
+- `SetConstructInvoker` is the same arrangement for `new`: it lets a bound
+  function construct its target without the value unit depending on the VM.
+  `ConstructFunction` is the wrapper. `IsConstructable`,
+  `ResolveConstructorTarget`, and `GetConstructPrototype` answer the questions
+  `new` and `instanceof` ask: whether a value can be constructed, which
+  underlying function owns the prototype, and what that prototype is. All three
+  look through bound functions, whose own `prototype` does not exist.
 - `SetJobRunner` / `RunPendingJobs` implement the promise microtask queue.
   `TFloriaJSContext.Evaluate` drains it after executing a script.
 

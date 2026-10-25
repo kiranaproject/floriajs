@@ -55,6 +55,7 @@ function f() { return
 | Rest parameters | Yes | `function f(...args)`; must be last. |
 | Destructured parameters | Yes | Object and array patterns, with defaults and rest. |
 | `arguments` | Yes | An array-like **array** of the call's arguments. Present even inside arrow functions (unlike JavaScript). |
+| `bind` and `new` | Yes | A bound function is constructable exactly when its target is; `new Bound(...)` ignores the bound `this` and uses the target's prototype. Bound functions have no own `prototype`. |
 | Closures / recursion | Yes | Environments are reference-counted and reclaimed when unreachable. |
 | `async` / `await` | Yes | Async functions return a promise; `await` drains pending jobs when needed. |
 | Generators / `yield` | No | Parse error. |
@@ -206,6 +207,21 @@ regex patterns. Not implemented: `localeCompare`, `normalize`,
 
 Function objects expose `prototype`, `toString`, `call`, `apply`, and `bind`.
 Constructors have lifetime-safe `prototype.constructor` back-references.
+
+A bound function is a function object of its own, as in ECMAScript:
+
+- `bind` curries arguments and fixes `this`; a call of the bound function
+  ignores the receiver it is called with and passes the bound arguments before
+  the call arguments.
+- `new Bound(...)` ignores the bound `this`, constructs the target with the
+  combined arguments, and gives the instance the target's prototype. A bound
+  function is constructable exactly when its target is, so `new` on a bound
+  arrow function throws `TypeError`.
+- `instanceof` resolves through the target's prototype chain, so an instance
+  created by `new Bound()` satisfies both `x instanceof Bound` and
+  `x instanceof Target`.
+- A bound function has no own `prototype`; `"prototype" in B` and
+  `B.hasOwnProperty("prototype")` are `false`.
 
 Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
 `freeze`/`seal`, `fromEntries`.

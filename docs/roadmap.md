@@ -14,8 +14,8 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **180 tests pass** with `pasbuild test`.
-- Gap scan: **112 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **182 tests pass** with `pasbuild test`.
+- Gap scan: **116 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 25 units.
@@ -32,8 +32,9 @@ currently untested because the existing tests assert only the happy path.
   basic function declaration hoisting.
 - `Array.prototype.toString`; array indices in `for…in`,
   `Object.keys/values/entries`; `hasOwnProperty`/`in` for present elements.
-- Basic `Function.prototype.call`/`apply`/`bind`, lexical `arguments` in
-  arrows, and `Foo.prototype.constructor === Foo`.
+- `Function.prototype.call`/`apply`/`bind` including construction and
+  `instanceof` through a bound function, lexical `arguments` in arrows, and
+  `Foo.prototype.constructor === Foo`.
 - `Number("0x10")`, `parseInt("010")`, and removal of the large-integer
   formatting overflow.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
@@ -526,7 +527,7 @@ callback method. A Pascal-level test covers the presence API directly, and a
 lifetime test checks that repeated length growth/truncation does not accumulate
 objects and that truncation releases the dropped elements.
 
-### [ ] P1-03 — Correct `new` on bound functions
+### [x] P1-03 — Correct `new` on bound functions
 
 **Failure.**
 
@@ -536,20 +537,40 @@ var B = C.bind(null, 7);
 (new B()).x;   // TypeError: Cannot set properties of null
 ```
 
+`bind` returned a *native* function whose only callback forwarded the call, so
+`new` constructed that wrapper, not the target. The wrapper had its own empty
+prototype, and the forwarded call ran the target with the bound `this` of
+`null`.
+
 **Files.** `src/main/pascal/floria.js.value.pas`
-(`TFloriaJSBoundFunction`, `JSFunctionBind`), `src/main/pascal/floria.js.vm.pas`
-(`ConstructObject`).
+(`TFloriaJSBoundFunction`, `JSFunctionBind`, `JSInstanceOf`),
+`src/main/pascal/floria.js.vm.pas` (`ConstructObject`, `CallFunction`,
+`opCall`, `opNew`).
 
 **Implementation.**
 
+- `TFloriaJSBoundFunction` is now a `TFloriaJSFunction` subclass rather than a
+  free-standing helper wrapped in a native method. It owns (and retains) the
+  target, the bound `this`, and the bound arguments, and the heap frees it like
+  any other tracked object.
 - Bound functions are constructable iff their target is constructable.
-- `new Bound(...)` ignores the bound `this`, constructs the target with the
+  `new Bound(...)` ignores the bound `this`, constructs the target with the
   combined bound + call arguments, and installs the target’s prototype.
-- `instanceof` must traverse the target’s prototype chain.
-- Bound functions must not expose an own `prototype` per ECMAScript.
+- `instanceof` traverses the target’s prototype chain: the heap resolves the
+  constructor target through a chain of bound functions.
+- Bound functions do not expose an own `prototype` (`SuppressPrototype`), while
+  remaining ordinary function objects for `typeof`, enumeration, and
+  `Function.prototype` methods.
+- Calls of a bound function ignore the receiver in every dispatch path:
+  `opCall`, `CallFunction` (used by `.call`/`.apply` and heap-side built-ins),
+  and construction. A new `TFloriaJSConstructInvoker` callback lets the value
+  unit construct the target without depending on the VM.
 
-**Tests.** Bound partial args, `new`, `instanceof`, arrow targets rejected,
-non-constructor targets rejected, and `.call`/`.apply` on bound functions.
+**Tests.** Bound partial args, `new`, `instanceof` for both the bound and the
+target name, arrow targets rejected, non-constructor targets rejected,
+`.call`/`.apply` on bound functions, chained binds, native constructors, and a
+lifetime test that repeated bind/construct does not accumulate objects or
+environments.
 
 ### [ ] P1-04 — Number formatting and conversion parity
 

@@ -300,11 +300,16 @@ property MaxCallDepth: Integer read FMaxCallDepth write FMaxCallDepth;
 - `Execute` reserves local slots, pushes a call frame, runs the chunk, then
   unwinds frames and stack entries it created.
 - `CallFunction` accepts native functions, bytecode functions, and AST-backed
-  user functions (which are compiled lazily).
-- `ConstructObject` implements `new`.
+  user functions (which are compiled lazily). A bound function is dispatched
+  first: the target runs with the bound `this` and the bound arguments in front
+  of the call arguments.
+- `ConstructObject` implements `new`. It resolves the constructor through any
+  bound-function chain, installs the target's prototype, and ignores the bound
+  `this`, so `new Bound(...)` produces a normal instance of the target.
 - `MaxCallDepth` defaults to 512.
-- The VM wires itself as the heap's function invoker, so array/string methods
-  can call JavaScript callbacks without depending on the VM unit.
+- The VM wires itself as the heap's function invoker and construct invoker, so
+  array/string methods can call JavaScript callbacks and a bound function can
+  construct its target without depending on the VM unit.
 - The VM is not re-entrant across threads; use one VM per context/thread.
 
 ## Standard-library registration
