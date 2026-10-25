@@ -323,7 +323,11 @@ begin
   end;
 
   if Match(tkNumber) then
+  begin
+    if FPrevious.IsBigInt then
+      Exit(TFloriaJSLiteralExpr.CreateBigInt(FPrevious.BigIntValue, tok.Line, tok.Column));
     Exit(TFloriaJSLiteralExpr.CreateNumber(tok.NumberValue, tok.Line, tok.Column));
+  end;
 
   if Match(tkString) or Match(tkTemplateString) then
     Exit(TFloriaJSLiteralExpr.CreateString(tok.Text, tok.Line, tok.Column));

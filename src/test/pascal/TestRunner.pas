@@ -331,6 +331,8 @@ type
     procedure TestLogicalAssignmentMembers();
     procedure TestLogicalAssignmentShortCircuit();
     procedure TestBigIntLiteralRejection();
+    procedure TestBigIntArithmetic();
+    procedure TestBigIntComparisonAndConversion();
     procedure TestPromiseConstructor();
     procedure TestPromiseCallbacksRun();
     procedure TestPromiseAwaitIntegration();
@@ -7784,34 +7786,33 @@ var
   engine: TFloriaJSEngine;
   res: TFloriaJSResult;
 begin
+  { P2-09 replaced the rejection with real BigInt support; these assertions
+    cover the literal forms that used to be refused. }
   engine := TFloriaJSEngine.Create();
   try
-    // A BigInt suffix used to lex as the number followed by the identifier
-    // `n`. With no `n` in scope that was a ReferenceError by luck; once any
-    // `n` existed the literal silently evaluated to its value.
-    res := engine.Execute('var b = 10n;');
-    AssertFalse('BigInt literal is rejected', res.Success);
+    res := engine.Execute('typeof 10n;');
+    AssertTrue('BigInt literal', res.Success);
+    AssertEquals('a suffixed literal is a bigint', 'bigint', res.StringValue);
 
-    res := engine.Execute('var n = 0; var b = 10n;');
-    AssertFalse('BigInt literal is rejected even when n is defined', res.Success);
-    AssertTrue('BigInt rejection is a lexer error',
-      Pos('BigInt literals are not supported', res.ErrorMessage) > 0);
+    res := engine.Execute('var n = 0; var b = 10n; b;');
+    AssertTrue('BigInt literal with an n in scope', res.Success);
+    AssertEquals('the suffix is not an identifier', '10', res.StringValue);
 
-    // Every radix form, and the decimal forms with a fraction or exponent.
-    res := engine.Execute('var b = 0x10n;');
-    AssertFalse('hex BigInt literal is rejected', res.Success);
+    res := engine.Execute('0x10n;');
+    AssertTrue('hex BigInt', res.Success);
+    AssertEquals('hex converts to decimal', '16', res.StringValue);
 
-    res := engine.Execute('var b = 0b11n;');
-    AssertFalse('binary BigInt literal is rejected', res.Success);
+    res := engine.Execute('0b101n;');
+    AssertTrue('binary BigInt', res.Success);
+    AssertEquals('binary converts to decimal', '5', res.StringValue);
 
-    res := engine.Execute('var b = 0o17n;');
-    AssertFalse('octal BigInt literal is rejected', res.Success);
+    res := engine.Execute('0o17n;');
+    AssertTrue('octal BigInt', res.Success);
+    AssertEquals('octal converts to decimal', '15', res.StringValue);
 
+    // A fractional or exponent BigInt literal is invalid.
     res := engine.Execute('var b = 1.5n;');
     AssertFalse('fractional BigInt literal is rejected', res.Success);
-
-    res := engine.Execute('var b = 1e3n;');
-    AssertFalse('exponent BigInt literal is rejected', res.Success);
 
     // A plain `n` in identifier position is still ordinary.
     res := engine.Execute('var n = 5; n;');
@@ -7821,10 +7822,140 @@ begin
     res := engine.Execute('var name = 1; name + 1;');
     AssertTrue('an identifier starting with n still works', res.Success);
     AssertEquals('identifiers starting with n are unaffected', '2', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
 
-    res := engine.Execute('var x = 10; x;');
-    AssertTrue('a number followed by a space is unaffected', res.Success);
-    AssertEquals('plain numbers still lex', '10', res.StringValue);
+procedure TFloriaJSPriority2Test.TestBigIntArithmetic();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('1n + 2n;');
+    AssertTrue('addition', res.Success);
+    AssertEquals('1n + 2n', '3', res.StringValue);
+
+    res := engine.Execute('10n - 3n;');
+    AssertTrue('subtraction', res.Success);
+    AssertEquals('10n - 3n', '7', res.StringValue);
+
+    res := engine.Execute('6n * 7n;');
+    AssertTrue('multiplication', res.Success);
+    AssertEquals('6n * 7n', '42', res.StringValue);
+
+    // Division truncates toward zero.
+    res := engine.Execute('100n / 7n;');
+    AssertTrue('division', res.Success);
+    AssertEquals('100n / 7n truncates', '14', res.StringValue);
+
+    res := engine.Execute('-7n / 2n;');
+    AssertTrue('negative division', res.Success);
+    AssertEquals('division truncates toward zero', '-3', res.StringValue);
+
+    // The remainder takes the dividend's sign.
+    res := engine.Execute('100n % 7n;');
+    AssertTrue('remainder', res.Success);
+    AssertEquals('100n % 7n', '2', res.StringValue);
+
+    res := engine.Execute('7n % -2n;');
+    AssertTrue('remainder sign', res.Success);
+    AssertEquals('the remainder keeps the dividend sign', '1', res.StringValue);
+
+    res := engine.Execute('5n ** 2n;');
+    AssertTrue('exponentiation', res.Success);
+    AssertEquals('5n ** 2n', '25', res.StringValue);
+
+    res := engine.Execute('-5n;');
+    AssertTrue('negation', res.Success);
+    AssertEquals('unary minus', '-5', res.StringValue);
+
+    // Precision is arbitrary: this exceeds a double's exact range.
+    res := engine.Execute('99999999999999999999n + 1n;');
+    AssertTrue('arbitrary precision', res.Success);
+    AssertEquals('large addition is exact', '100000000000000000000', res.StringValue);
+
+    res := engine.Execute('123456789012345678901234567890n * 2n;');
+    AssertTrue('large multiplication', res.Success);
+    AssertEquals('large multiplication is exact', '246913578024691357802469135780', res.StringValue);
+
+    // Division by zero is a RangeError.
+    res := engine.Execute('1n / 0n;');
+    AssertFalse('division by zero', res.Success);
+    AssertTrue('division by zero is a RangeError', Pos('RangeError', res.ErrorMessage) > 0);
+
+    // Mixing with a Number is a TypeError.
+    res := engine.Execute('1n + 1;');
+    AssertFalse('mixed arithmetic is rejected', res.Success);
+    AssertTrue('mixing is a TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestBigIntComparisonAndConversion();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('1n < 2n;');
+    AssertTrue('relational', res.Success and res.BooleanValue);
+
+    res := engine.Execute('2n < 1n;');
+    AssertTrue('relational false', res.Success);
+    AssertFalse('2n < 1n is false', res.BooleanValue);
+
+    res := engine.Execute('1n === 1n;');
+    AssertTrue('strict equality', res.Success and res.BooleanValue);
+
+    res := engine.Execute('1n === 1;');
+    AssertTrue('strict equality across kinds', res.Success);
+    AssertFalse('1n === 1 is false', res.BooleanValue);
+
+    // Loose equality coerces, so a BigInt equals an equal Number.
+    res := engine.Execute('1n == 1;');
+    AssertTrue('loose equality', res.Success and res.BooleanValue);
+
+    res := engine.Execute('2n == 2.5;');
+    AssertTrue('loose equality with a fraction', res.Success);
+    AssertFalse('2n == 2.5 is false', res.BooleanValue);
+
+    res := engine.Execute('1n == "1";');
+    AssertTrue('loose equality with a string', res.Success and res.BooleanValue);
+
+    // Conversion.
+    res := engine.Execute('BigInt(5);');
+    AssertTrue('BigInt from number', res.Success);
+    AssertEquals('BigInt(5)', '5', res.StringValue);
+
+    res := engine.Execute('BigInt("42");');
+    AssertTrue('BigInt from string', res.Success);
+    AssertEquals('BigInt("42")', '42', res.StringValue);
+
+    res := engine.Execute('BigInt(true);');
+    AssertTrue('BigInt from boolean', res.Success);
+    AssertEquals('BigInt(true)', '1', res.StringValue);
+
+    res := engine.Execute('BigInt(1.5);');
+    AssertFalse('BigInt from a fraction is rejected', res.Success);
+    AssertTrue('a fractional conversion is a RangeError', Pos('RangeError', res.ErrorMessage) > 0);
+
+    // String conversion prints the digits exactly.
+    res := engine.Execute('String(99999999999999999999n);');
+    AssertTrue('toString', res.Success);
+    AssertEquals('the digits are exact', '99999999999999999999', res.StringValue);
+
+    res := engine.Execute('"" + 1n;');
+    AssertTrue('string concatenation', res.Success);
+    AssertEquals('concatenation converts to digits', '1', res.StringValue);
+
+    // BigInt is a conversion function, not a constructor.
+    res := engine.Execute('new BigInt(5);');
+    AssertFalse('new BigInt is rejected', res.Success);
   finally
     engine.Free();
   end;

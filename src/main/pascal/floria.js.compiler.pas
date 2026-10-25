@@ -940,6 +940,8 @@ begin
         else
           FBytecode.Emit(opFalse, 0, ALit.Line);
       end;
+    fjstBigInt:
+      FBytecode.Emit(opConst, FBytecode.AddConstant(JSMakeBigInt(ALit.StringVal)), ALit.Line);
     fjstNumber:
       begin
         if ALit.NumberVal = 0.0 then

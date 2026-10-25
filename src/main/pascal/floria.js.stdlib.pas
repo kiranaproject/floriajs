@@ -20,6 +20,7 @@ uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
   floria.js.arrays, floria.js.strings, floria.js.objects, floria.js.json,
   floria.js.symbol, floria.js.date, floria.js.uri, floria.js.collections,
+  floria.js.number,
   floria.js.timers, floria.js.regexp;
 
 type
@@ -375,6 +376,66 @@ end;
 
 { Global Helper Functions }
 
+
+{ `BigInt(value)` — converts a number, string, or boolean to a BigInt.
+
+  A Number must be integral: converting 1.5 throws a RangeError, as ECMAScript
+  specifies, because silently truncating would lose data. }
+function JSBigIntCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  v: TFloriaJSValue;
+  text: string;
+  d: Double;
+  i, start: Integer;
+begin
+  if Length(AArgs) = 0 then
+    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError',
+      'Cannot convert undefined to a BigInt')));
+  v := AArgs[0];
+
+  if v.IsBigInt() then
+    Exit(v);
+
+  if v.IsBoolean() then
+  begin
+    if v.BoolVal then Exit(JSMakeBigInt('1')) else Exit(JSMakeBigInt('0'));
+  end;
+
+  if v.IsNumber() then
+  begin
+    d := v.NumVal;
+    if IsNaN(d) or IsInfinite(d) then
+      raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('RangeError',
+        'The number ' + JSNumberToStr(d) + ' cannot be converted to a BigInt because it is not an integer')));
+    if Frac(d) <> 0.0 then
+      raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('RangeError',
+        'The number ' + JSNumberToStr(d) + ' cannot be converted to a BigInt because it is not an integer')));
+    Exit(JSMakeBigInt(BigIntNormalize(FloatToStrF(d, ffFixed, 0, 0))));
+  end;
+
+  if v.IsString() then
+  begin
+    { Accept an optional sign followed by decimal digits; anything else is a
+      SyntaxError, as ECMAScript specifies. }
+    text := Trim(v.StrVal);
+    if text = '' then
+      Exit(JSMakeBigInt('0'));
+    i := 1;
+    if text[1] in ['+', '-'] then
+      Inc(i);
+    start := i;
+    while (i <= Length(text)) and (text[i] in ['0'..'9']) do
+      Inc(i);
+    if i = start then
+      raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('SyntaxError',
+        'Cannot convert ' + text + ' to a BigInt')));
+    Exit(JSMakeBigInt(BigIntNormalize(Copy(text, 1, i - 1))));
+  end;
+
+  raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError',
+    'Cannot convert ' + v.ToString() + ' to a BigInt')));
+end;
+
 function JSParseInt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   s: string;
@@ -539,7 +600,7 @@ end;
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
-  promiseCtor: TFloriaJSFunction;
+  promiseCtor, bigIntFn: TFloriaJSFunction;
   numberObj, stringObj, funcObj: TFloriaJSFunction;
   errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
 begin
@@ -674,6 +735,11 @@ begin
   numberObj.SetProperty('EPSILON', JSMakeNumber(2.220446049250313e-16));
   numberObj.SetProperty('prototype', JSMakeObject(AHeap.GetNumberPrototype()));
   AEnv.Define('Number', JSMakeFunction(numberObj));
+
+  { BigInt is a conversion function, not a constructor: `new BigInt()` throws. }
+  bigIntFn := AHeap.NewNativeFunction('BigInt', @JSBigIntCtor);
+  bigIntFn.NotConstructable := True;
+  AEnv.Define('BigInt', JSMakeFunction(bigIntFn));
 
   stringObj := AHeap.NewNativeFunction('String', @JSStringConst);
   { Publish the shared string prototype so String.prototype methods and

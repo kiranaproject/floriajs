@@ -44,7 +44,8 @@ type
     fjstArray,
     fjstFunction,
     fjstSymbol,
-    fjstError
+    fjstError,
+    fjstBigInt
   );
 
   { Execution Result Record }

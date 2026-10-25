@@ -148,6 +148,10 @@ type
     Kind: TFloriaJSTokenKind;
     Text: string;
     NumberValue: Double;
+    { Set when the literal carries a BigInt suffix (`123n`); Text then holds the
+      canonical decimal digits. }
+    IsBigInt: Boolean;
+    BigIntValue: string;
     Line: Integer;
     Column: Integer;
     StartPos: Integer;
@@ -362,6 +366,8 @@ begin
   Result.Kind := AKind;
   Result.Text := AText;
   Result.NumberValue := 0.0;
+  Result.IsBigInt := False;
+  Result.BigIntValue := '';
   Result.Line := AStartLine;
   Result.Column := AStartCol;
   Result.StartPos := AStartPos;
@@ -413,17 +419,17 @@ var
   startPos, startCol, startLine: Integer;
   numStr: string;
   val: Double;
+  hasFraction, hasExponent: Boolean;
 begin
+  hasFraction := False;
+  hasExponent := False;
   startPos := FPos;
   startLine := FLine;
   startCol := FColumn;
 
-  { A BigInt suffix would otherwise lex as the number followed by an
-    identifier, so `10n` silently became `10 n` and evaluated to the value of a
-    variable called `n`. Reject it rather than mis-parse it. This is checked
-    again after each radix form below, because those return early. }
-  if HasBigIntSuffix() then
-    Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
+  { A BigInt suffix is consumed as part of the literal, so `10n` cannot lex as
+    the number 10 followed by an identifier. The digit text is kept exactly,
+    since a BigInt has no floating-point limit. }
 
   { Check for Hex (0x), Binary (0b), Octal (0o) }
   if (PeekChar() = '0') and (PeekNextChar() in ['x', 'X']) then
@@ -432,9 +438,15 @@ begin
     AdvanceChar(); { x }
     while (not IsAtEnd()) and IsHexDigit(PeekChar()) do
       AdvanceChar();
-    if HasBigIntSuffix() then
-      Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
     numStr := Copy(FSource, startPos, FPos - startPos);
+    if HasBigIntSuffix() then
+    begin
+      AdvanceChar(); { consume 'n' }
+      Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
+      Result.IsBigInt := True;
+      Result.BigIntValue := BigIntFromRadix(Copy(numStr, 3, Length(numStr) - 2), 16);
+      Exit;
+    end;
     val := StrToInt64('$' + Copy(numStr, 3, Length(numStr) - 2));
     Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
     Result.NumberValue := val;
@@ -450,9 +462,15 @@ begin
     begin
       val := val * 2.0 + (Ord(AdvanceChar()) - Ord('0'));
     end;
-    if HasBigIntSuffix() then
-      Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
     numStr := Copy(FSource, startPos, FPos - startPos);
+    if HasBigIntSuffix() then
+    begin
+      AdvanceChar();
+      Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
+      Result.IsBigInt := True;
+      Result.BigIntValue := BigIntFromRadix(Copy(numStr, 3, Length(numStr) - 2), 2);
+      Exit;
+    end;
     Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
     Result.NumberValue := val;
     Exit;
@@ -467,9 +485,15 @@ begin
     begin
       val := val * 8.0 + (Ord(AdvanceChar()) - Ord('0'));
     end;
-    if HasBigIntSuffix() then
-      Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
     numStr := Copy(FSource, startPos, FPos - startPos);
+    if HasBigIntSuffix() then
+    begin
+      AdvanceChar();
+      Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
+      Result.IsBigInt := True;
+      Result.BigIntValue := BigIntFromRadix(Copy(numStr, 3, Length(numStr) - 2), 8);
+      Exit;
+    end;
     Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
     Result.NumberValue := val;
     Exit;
@@ -487,8 +511,10 @@ begin
   end;
 
   { Fractional part }
+  hasFraction := False;
   if (PeekChar() = '.') and IsDigit(PeekNextChar()) then
   begin
+    hasFraction := True;
     AdvanceChar(); { Consume '.' }
     while (not IsAtEnd()) do
     begin
@@ -504,6 +530,7 @@ begin
   { Scientific exponent: e or E }
   if PeekChar() in ['e', 'E'] then
   begin
+    hasExponent := True;
     AdvanceChar();
     if PeekChar() in ['+', '-'] then
       AdvanceChar();
@@ -518,12 +545,21 @@ begin
     end;
   end;
 
-  if HasBigIntSuffix() then
-    Exit(MakeError('BigInt literals are not supported', startLine, startCol, startPos));
-
   numStr := Copy(FSource, startPos, FPos - startPos);
   { Remove numeric separators }
   numStr := StringReplace(numStr, '_', '', [rfReplaceAll]);
+
+  if HasBigIntSuffix() then
+  begin
+    { A BigInt literal must be an integer: `1.5n` and `1e3n` are SyntaxErrors. }
+    if hasFraction or hasExponent then
+      Exit(MakeError('Invalid BigInt literal', startLine, startCol, startPos));
+    AdvanceChar(); { consume 'n' }
+    Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
+    Result.IsBigInt := True;
+    Result.BigIntValue := BigIntNormalize(numStr);
+    Exit;
+  end;
   { The host parser is off by an ulp for some literals (for example 1e126), so
     literals go through the correctly rounded parser. }
   if not JSTryStrToNumber(numStr, val) then

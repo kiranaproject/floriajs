@@ -72,6 +72,7 @@ type
     FBoolVal: Boolean;
   public
     constructor CreateNumber(ANum: Double; ALine, ACol: Integer);
+    constructor CreateBigInt(const ADigits: string; ALine, ACol: Integer);
     constructor CreateString(const AStr: string; ALine, ACol: Integer);
     constructor CreateBoolean(ABool: Boolean; ALine, ACol: Integer);
     constructor CreateNull(ALine, ACol: Integer);
@@ -854,6 +855,15 @@ begin
 end;
 
 { TFloriaJSLiteralExpr }
+
+constructor TFloriaJSLiteralExpr.CreateBigInt(const ADigits: string; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FValueType := fjstBigInt;
+  FStringVal := ADigits;
+  FNumberVal := 0;
+  FBoolVal := ADigits <> '0';
+end;
 
 constructor TFloriaJSLiteralExpr.CreateNumber(ANum: Double; ALine, ACol: Integer);
 begin

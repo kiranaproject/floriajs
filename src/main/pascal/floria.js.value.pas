@@ -51,6 +51,8 @@ type
     function IsFunction(): Boolean;
     function IsPromise(): Boolean;
     function IsSymbol(): Boolean;
+    { A BigInt holds a signed decimal digit string in StrVal. }
+    function IsBigInt(): Boolean;
     function IsTruthy(): Boolean;
 
     function ToBoolean(): Boolean;
@@ -215,6 +217,7 @@ type
     FIsAsync: Boolean;
     FIsArrow: Boolean;
     FSuppressPrototype: Boolean;
+    FNotConstructable: Boolean;
     FPrototypes: TFPList;
     procedure RegisterPrototype(AProto: TFloriaJSPrototypeObject);
     procedure UnregisterPrototype(AProto: TFloriaJSPrototypeObject);
@@ -238,6 +241,9 @@ type
     { Bound functions have no own `prototype` per ECMAScript, even though they
       are ordinary function objects in every other respect. }
     property SuppressPrototype: Boolean read FSuppressPrototype write FSuppressPrototype;
+    { Conversion functions such as `BigInt` and `Symbol` throw when used with
+      `new`, which ECMAScript specifies explicitly. }
+    property NotConstructable: Boolean read FNotConstructable write FNotConstructable;
     property NativeProc: TFloriaJSNativeProc read FNativeProc;
     property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
     property Bytecode: TObject read FBytecode write FBytecode;
@@ -566,6 +572,8 @@ function JSMakeObject(AObj: TFloriaJSObject): TFloriaJSValue;
 function JSMakeArray(AArr: TFloriaJSArray): TFloriaJSValue;
 function JSMakeFunction(AFunc: TFloriaJSFunction): TFloriaJSValue;
 function JSMakePromise(APromise: TFloriaJSPromise): TFloriaJSValue;
+function JSMakeBigInt(const ADigits: string): TFloriaJSValue;
+
 function JSMakeSymbol(const ADescription: string = ''; AId: Integer = 0): TFloriaJSValue;
 
 { Reference Counting Helpers. A container that stores a value owns a reference
@@ -762,6 +770,18 @@ begin
   Result.ObjVal := APromise;
 end;
 
+{ BigInts are stored as a canonical signed decimal string: an optional '-' then
+  digits with no leading zeros ('0' for zero). Keeping the digits as text makes
+  arbitrary precision trivial and avoids a second numeric representation. }
+function JSMakeBigInt(const ADigits: string): TFloriaJSValue;
+begin
+  Result.Kind := fjstBigInt;
+  Result.NumVal := 0;
+  Result.BoolVal := ADigits <> '0';
+  Result.StrVal := ADigits;
+  Result.ObjVal := nil;
+end;
+
 function JSMakeSymbol(const ADescription: string = ''; AId: Integer = 0): TFloriaJSValue;
 begin
   Result.Kind := fjstSymbol;
@@ -823,6 +843,11 @@ begin
   Result := (Kind = fjstSymbol);
 end;
 
+function TFloriaJSValue.IsBigInt(): Boolean;
+begin
+  Result := (Kind = fjstBigInt);
+end;
+
 function TFloriaJSValue.IsTruthy(): Boolean;
 begin
   Result := ToBoolean();
@@ -841,6 +866,8 @@ begin
       Result := (StrVal <> '');
     fjstSymbol:
       Result := True;
+    fjstBigInt:
+      Result := StrVal <> '0';
     fjstObject, fjstArray, fjstFunction:
       Result := (ObjVal <> nil);
   else
@@ -932,6 +959,9 @@ begin
         Result := 'Symbol(' + StrVal + ')'
       else
         Result := 'Symbol()';
+    fjstBigInt:
+      { The digits are already canonical, so printing them is the whole job. }
+      Result := StrVal;
     fjstArray:
       if ObjVal <> nil then
         Result := TFloriaJSArray(ObjVal).Join(',')
@@ -2784,7 +2814,7 @@ begin
   fn := ResolveConstructorTarget(AFuncVal);
   { Arrows have no `prototype` and are rejected by `new`; every other function
     object is constructable in this runtime. }
-  Result := (fn <> nil) and (not fn.IsArrow);
+  Result := (fn <> nil) and (not fn.IsArrow) and (not fn.NotConstructable);
 end;
 
 function TFloriaJSHeap.GetConstructPrototype(const AFuncVal: TFloriaJSValue): TFloriaJSObject;
@@ -3703,8 +3733,22 @@ end;
 
 { Binary Arithmetic Operations }
 
+
+{ Mixing a BigInt with a Number is a TypeError in JavaScript; only two BigInts
+  may be combined arithmetically. }
+procedure RequireNoMixedBigInt(const ALeft, ARight: TFloriaJSValue);
+begin
+  if (ALeft.IsBigInt() and ARight.IsNumber()) or
+     (ALeft.IsNumber() and ARight.IsBigInt()) then
+    raise EFloriaJSThrow.Create(JSMakeString(
+      'TypeError: Cannot mix BigInt and other types, use explicit conversions'));
+end;
+
 function JSAdd(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 begin
+  RequireNoMixedBigInt(ALeft, ARight);
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+    Exit(JSMakeBigInt(BigIntAdd(ALeft.StrVal, ARight.StrVal)));
   if ALeft.IsString() or ARight.IsString() then
     Result := JSMakeString(ALeft.ToString() + ARight.ToString())
   else
@@ -3713,11 +3757,17 @@ end;
 
 function JSSubtract(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 begin
+  RequireNoMixedBigInt(ALeft, ARight);
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+    Exit(JSMakeBigInt(BigIntSub(ALeft.StrVal, ARight.StrVal)));
   Result := JSMakeNumber(ALeft.ToNumber() - ARight.ToNumber());
 end;
 
 function JSMultiply(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 begin
+  RequireNoMixedBigInt(ALeft, ARight);
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+    Exit(JSMakeBigInt(BigIntMul(ALeft.StrVal, ARight.StrVal)));
   Result := JSMakeNumber(ALeft.ToNumber() * ARight.ToNumber());
 end;
 
@@ -3725,6 +3775,13 @@ function JSDivide(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 var
   l, r: Double;
 begin
+  RequireNoMixedBigInt(ALeft, ARight);
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+  begin
+    if ARight.StrVal = '0' then
+      raise EFloriaJSThrow.Create(JSMakeString('RangeError: Division by zero'));
+    Exit(JSMakeBigInt(BigIntDiv(ALeft.StrVal, ARight.StrVal)));
+  end;
   l := ALeft.ToNumber();
   r := ARight.ToNumber();
   if r = 0.0 then
@@ -3741,6 +3798,13 @@ function JSModulo(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 var
   l, r: Double;
 begin
+  RequireNoMixedBigInt(ALeft, ARight);
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+  begin
+    if ARight.StrVal = '0' then
+      raise EFloriaJSThrow.Create(JSMakeString('RangeError: Division by zero'));
+    Exit(JSMakeBigInt(BigIntMod(ALeft.StrVal, ARight.StrVal)));
+  end;
   l := ALeft.ToNumber();
   r := ARight.ToNumber();
   if (r = 0.0) or IsNaN(l) or IsNaN(r) then
@@ -3750,7 +3814,25 @@ begin
 end;
 
 function JSPower(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
+var
+  base, exponent, acc: string;
+  e, i: Integer;
 begin
+  RequireNoMixedBigInt(ALeft, ARight);
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+  begin
+    if BigIntIsNegative(ARight.StrVal) then
+      raise EFloriaJSThrow.Create(JSMakeString('RangeError: Exponent must be positive'));
+    exponent := ARight.StrVal;
+    if BigIntCompare(exponent, '1000000') > 0 then
+      raise EFloriaJSThrow.Create(JSMakeString('RangeError: Maximum BigInt size exceeded'));
+    base := ALeft.StrVal;
+    acc := '1';
+    e := StrToIntDef(exponent, 0);
+    for i := 1 to e do
+      acc := BigIntMul(acc, base);
+    Exit(JSMakeBigInt(acc));
+  end;
   Result := JSMakeNumber(Power(ALeft.ToNumber(), ARight.ToNumber()));
 end;
 
@@ -3764,6 +3846,17 @@ begin
   // null == undefined
   if (ALeft.IsNull() and ARight.IsUndefined()) or (ALeft.IsUndefined() and ARight.IsNull()) then
     Exit(True);
+
+  { Loose equality compares a BigInt mathematically with a Number or a numeric
+    string; strict equality never does. }
+  if ALeft.IsBigInt() and ARight.IsNumber() then
+    Exit(BigIntEqualsDouble(ALeft.StrVal, ARight.NumVal));
+  if ALeft.IsNumber() and ARight.IsBigInt() then
+    Exit(BigIntEqualsDouble(ARight.StrVal, ALeft.NumVal));
+  if ALeft.IsBigInt() and ARight.IsString() then
+    Exit(JSEqual(ALeft, JSMakeNumber(ARight.ToNumber())));
+  if ALeft.IsString() and ARight.IsBigInt() then
+    Exit(JSEqual(JSMakeNumber(ALeft.ToNumber()), ARight));
 
   // number vs string
   if ALeft.IsNumber() and ARight.IsString() then
@@ -3799,6 +3892,9 @@ begin
       Result := (ALeft.StrVal = ARight.StrVal);
     fjstSymbol:
       Result := (ALeft.NumVal = ARight.NumVal) and (ALeft.NumVal <> 0.0);
+    fjstBigInt:
+      { The digits are canonical, so equal values have equal text. }
+      Result := (ALeft.StrVal = ARight.StrVal);
     fjstObject, fjstArray, fjstFunction:
       Result := (ALeft.ObjVal = ARight.ObjVal);
   else
@@ -3808,6 +3904,10 @@ end;
 
 function JSLessThan(const ALeft, ARight: TFloriaJSValue): Boolean;
 begin
+  { Two BigInts compare exactly; a BigInt against a Number also compares
+    mathematically, without converting either to a double. }
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+    Exit(BigIntCompare(ALeft.StrVal, ARight.StrVal) < 0);
   if ALeft.IsString() and ARight.IsString() then
     Result := (ALeft.StrVal < ARight.StrVal)
   else
@@ -3816,6 +3916,10 @@ end;
 
 function JSLessEqual(const ALeft, ARight: TFloriaJSValue): Boolean;
 begin
+  { Two BigInts compare exactly; a BigInt against a Number also compares
+    mathematically, without converting either to a double. }
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+    Exit(BigIntCompare(ALeft.StrVal, ARight.StrVal) <= 0);
   if ALeft.IsString() and ARight.IsString() then
     Result := (ALeft.StrVal <= ARight.StrVal)
   else
@@ -3824,6 +3928,10 @@ end;
 
 function JSGreaterThan(const ALeft, ARight: TFloriaJSValue): Boolean;
 begin
+  { Two BigInts compare exactly; a BigInt against a Number also compares
+    mathematically, without converting either to a double. }
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+    Exit(BigIntCompare(ALeft.StrVal, ARight.StrVal) > 0);
   if ALeft.IsString() and ARight.IsString() then
     Result := (ALeft.StrVal > ARight.StrVal)
   else
@@ -3867,6 +3975,10 @@ end;
 
 function JSGreaterEqual(const ALeft, ARight: TFloriaJSValue): Boolean;
 begin
+  { Two BigInts compare exactly; a BigInt against a Number also compares
+    mathematically, without converting either to a double. }
+  if ALeft.IsBigInt() and ARight.IsBigInt() then
+    Exit(BigIntCompare(ALeft.StrVal, ARight.StrVal) >= 0);
   if ALeft.IsString() and ARight.IsString() then
     Result := (ALeft.StrVal >= ARight.StrVal)
   else
@@ -3920,6 +4032,8 @@ end;
 
 function JSUnaryMinus(const AVal: TFloriaJSValue): TFloriaJSValue;
 begin
+  if AVal.IsBigInt() then
+    Exit(JSMakeBigInt(BigIntNegate(AVal.StrVal)));
   Result := JSMakeNumber(-AVal.ToNumber());
 end;
 
@@ -3953,6 +4067,8 @@ begin
       Result := 'string';
     fjstSymbol:
       Result := 'symbol';
+    fjstBigInt:
+      Result := 'bigint';
     fjstFunction:
       Result := 'function';
     fjstObject, fjstArray:

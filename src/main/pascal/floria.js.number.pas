@@ -31,6 +31,31 @@ uses SysUtils, Math;
 { ECMAScript Number::toString. }
 function JSNumberToStr(const V: Double): string;
 
+{ ---------------- arbitrary-precision integers ----------------
+
+  BigInts are canonical signed decimal strings: an optional '-' followed by
+  digits with no leading zeros ('0' for zero). These helpers implement the
+  arithmetic the language needs; all of them are exact at any size. }
+
+{ Canonicalises a digit string: strips leading zeros and normalises "-0". }
+function BigIntNormalize(const ADigits: string): string;
+function BigIntAdd(const A, B: string): string;
+function BigIntSub(const A, B: string): string;
+function BigIntMul(const A, B: string): string;
+{ Truncating division. Raises EDivByZero when B is zero. }
+function BigIntDiv(const A, B: string): string;
+{ Remainder with the sign of the dividend, as JavaScript's % requires. }
+function BigIntMod(const A, B: string): string;
+function BigIntIsNegative(const A: string): Boolean;
+function BigIntCompare(const A, B: string): Integer;
+function BigIntNegate(const A: string): string;
+function BigIntToString(const A: string): string;
+{ Converts a digit string in ARadix (2, 8, or 16) to a canonical decimal string. }
+function BigIntFromRadix(const ADigits: string; ARadix: Integer): string;
+{ True when the BigInt equals the double exactly. The double is converted to an
+  integer first, so 2n == 2.0 holds while 2n == 2.5 does not. }
+function BigIntEqualsDouble(const ADigits: string; V: Double): Boolean;
+
 { Parses a JavaScript decimal numeral ("[+-]digits[.digits][e[+-]digits]") to
   the nearest double, ties to even. Returns False when the text is not a valid
   numeral. }
@@ -551,6 +576,325 @@ begin
   Result := True;
 end;
 
+
+
+{ ---------------- arbitrary-precision integers ---------------- }
+
+function BigIntNormalize(const ADigits: string): string;
+var
+  i: Integer;
+  neg: Boolean;
+begin
+  if ADigits = '' then Exit('0');
+  neg := ADigits[1] = '-';
+  if neg then
+    i := 2
+  else
+    i := 1;
+  while (i <= Length(ADigits)) and (ADigits[i] = '0') do
+    Inc(i);
+  if i > Length(ADigits) then
+    Exit('0');
+  Result := Copy(ADigits, i, Length(ADigits) - i + 1);
+  if neg then
+    Result := '-' + Result;
+end;
+
+function BigIntAbs(const ADigits: string): string;
+begin
+  if (ADigits <> '') and (ADigits[1] = '-') then
+    Result := Copy(ADigits, 2, Length(ADigits) - 1)
+  else
+    Result := ADigits;
+end;
+
+function BigIntIsNeg(const ADigits: string): Boolean;
+begin
+  Result := (ADigits <> '') and (ADigits[1] = '-');
+end;
+
+{ Adds two non-negative digit strings. }
+function BigIntAddAbs(const A, B: string): string;
+var
+  i, j, sum, carry: Integer;
+  digits: string;
+begin
+  digits := '';
+  carry := 0;
+  i := Length(A);
+  j := Length(B);
+  while (i >= 1) or (j >= 1) or (carry > 0) do
+  begin
+    sum := carry;
+    if i >= 1 then
+    begin
+      Inc(sum, Ord(A[i]) - Ord('0'));
+      Dec(i);
+    end;
+    if j >= 1 then
+    begin
+      Inc(sum, Ord(B[j]) - Ord('0'));
+      Dec(j);
+    end;
+    carry := sum div 10;
+    digits := Chr(Ord('0') + (sum mod 10)) + digits;
+  end;
+  if digits = '' then
+    digits := '0';
+  Result := digits;
+end;
+
+{ A - B for non-negative A >= B. }
+function BigIntSubAbs(const A, B: string): string;
+var
+  i, j, diff, borrow: Integer;
+  digits: string;
+begin
+  digits := '';
+  borrow := 0;
+  i := Length(A);
+  j := Length(B);
+  while i >= 1 do
+  begin
+    diff := (Ord(A[i]) - Ord('0')) - borrow;
+    if j >= 1 then
+    begin
+      Dec(diff, Ord(B[j]) - Ord('0'));
+      Dec(j);
+    end;
+    if diff < 0 then
+    begin
+      Inc(diff, 10);
+      borrow := 1;
+    end
+    else
+      borrow := 0;
+    digits := Chr(Ord('0') + diff) + digits;
+    Dec(i);
+  end;
+  Result := BigIntNormalize(digits);
+end;
+
+{ Compares two non-negative digit strings. }
+function BigIntCompareAbs(const A, B: string): Integer;
+begin
+  if Length(A) <> Length(B) then
+  begin
+    if Length(A) < Length(B) then
+      Exit(-1);
+    Exit(1);
+  end;
+  if A < B then
+    Exit(-1);
+  if A > B then
+    Exit(1);
+  Result := 0;
+end;
+
+function BigIntIsNegative(const A: string): Boolean;
+begin
+  Result := (A <> '') and (A[1] = '-') and (A <> '0');
+end;
+
+function BigIntCompare(const A, B: string): Integer;
+var
+  negA, negB: Boolean;
+begin
+  negA := BigIntIsNeg(A);
+  negB := BigIntIsNeg(B);
+  if negA <> negB then
+  begin
+    if negA then Exit(-1) else Exit(1);
+  end;
+  Result := BigIntCompareAbs(BigIntAbs(A), BigIntAbs(B));
+  if negA then
+    Result := -Result;
+end;
+
+function BigIntNegate(const A: string): string;
+begin
+  if A = '0' then
+    Exit('0');
+  if BigIntIsNeg(A) then
+    Result := Copy(A, 2, Length(A) - 1)
+  else
+    Result := '-' + A;
+end;
+
+function BigIntAdd(const A, B: string): string;
+var
+  negA, negB: Boolean;
+  absA, absB: string;
+  cmp: Integer;
+begin
+  negA := BigIntIsNeg(A);
+  negB := BigIntIsNeg(B);
+  absA := BigIntAbs(A);
+  absB := BigIntAbs(B);
+
+  if negA = negB then
+  begin
+    Result := BigIntAddAbs(absA, absB);
+    if negA then
+      Result := BigIntNormalize('-' + Result);
+    Exit;
+  end;
+
+  { Opposite signs: subtract the smaller magnitude from the larger. }
+  cmp := BigIntCompareAbs(absA, absB);
+  if cmp = 0 then
+    Exit('0');
+  if cmp > 0 then
+  begin
+    Result := BigIntSubAbs(absA, absB);
+    if negA then Result := BigIntNormalize('-' + Result);
+  end
+  else
+  begin
+    Result := BigIntSubAbs(absB, absA);
+    if negB then Result := BigIntNormalize('-' + Result);
+  end;
+end;
+
+function BigIntSub(const A, B: string): string;
+begin
+  Result := BigIntAdd(A, BigIntNegate(B));
+end;
+
+function BigIntMul(const A, B: string): string;
+var
+  absA, absB: string;
+  acc, product: string;
+  i, j, carry, d: Integer;
+  row: string;
+begin
+  absA := BigIntAbs(A);
+  absB := BigIntAbs(B);
+  if (absA = '0') or (absB = '0') then
+    Exit('0');
+
+  acc := '0';
+  for i := Length(absB) downto 1 do
+  begin
+    carry := 0;
+    row := '';
+    for j := Length(absA) downto 1 do
+    begin
+      d := (Ord(absA[j]) - Ord('0')) * (Ord(absB[i]) - Ord('0')) + carry;
+      carry := d div 10;
+      row := Chr(Ord('0') + (d mod 10)) + row;
+    end;
+    while carry > 0 do
+    begin
+      row := Chr(Ord('0') + (carry mod 10)) + row;
+      carry := carry div 10;
+    end;
+    { Shift by the number of digits already processed. }
+    product := row + StringOfChar('0', Length(absB) - i);
+    acc := BigIntAddAbs(acc, product);
+  end;
+
+  Result := BigIntNormalize(acc);
+  if BigIntIsNeg(A) <> BigIntIsNeg(B) then
+    Result := BigIntNegate(Result);
+end;
+
+{ Long division: returns the truncating quotient of non-negative operands. }
+function BigIntDivAbs(const A, B: string): string;
+var
+  quotient: string;
+  remainder: string;
+  i: Integer;
+  digit: Integer;
+  trial: string;
+begin
+  if B = '0' then
+    raise EDivByZero.Create('Division by zero');
+
+  quotient := '';
+  remainder := '0';
+  for i := 1 to Length(A) do
+  begin
+    if remainder = '0' then
+      remainder := A[i]
+    else
+      remainder := remainder + A[i];
+    remainder := BigIntNormalize(remainder);
+
+    digit := 0;
+    while BigIntCompareAbs(remainder, B) >= 0 do
+    begin
+      remainder := BigIntSubAbs(remainder, B);
+      Inc(digit);
+    end;
+    quotient := quotient + Chr(Ord('0') + digit);
+  end;
+
+  trial := BigIntNormalize(quotient);
+  Result := trial;
+end;
+
+function BigIntDiv(const A, B: string): string;
+begin
+  if BigIntAbs(B) = '0' then
+    raise EDivByZero.Create('Division by zero');
+  Result := BigIntDivAbs(BigIntAbs(A), BigIntAbs(B));
+  if BigIntIsNeg(A) <> BigIntIsNeg(B) then
+    Result := BigIntNegate(Result);
+end;
+
+function BigIntMod(const A, B: string): string;
+var
+  q, product: string;
+begin
+  if BigIntAbs(B) = '0' then
+    raise EDivByZero.Create('Division by zero');
+  q := BigIntDiv(A, B);
+  product := BigIntMul(q, B);
+  { The remainder takes the sign of the dividend. }
+  Result := BigIntSub(A, product);
+end;
+
+function BigIntToString(const A: string): string;
+begin
+  Result := BigIntNormalize(A);
+end;
+
+{ Converts a digit string in ARadix (2, 8, or 16) to a canonical decimal string. }
+function BigIntFromRadix(const ADigits: string; ARadix: Integer): string;
+var
+  acc: string;
+  i, d: Integer;
+begin
+  acc := '0';
+  for i := 1 to Length(ADigits) do
+  begin
+    if ADigits[i] in ['0'..'9'] then
+      d := Ord(ADigits[i]) - Ord('0')
+    else if ADigits[i] in ['a'..'f'] then
+      d := Ord(ADigits[i]) - Ord('a') + 10
+    else if ADigits[i] in ['A'..'F'] then
+      d := Ord(ADigits[i]) - Ord('A') + 10
+    else
+      Continue;
+    acc := BigIntAdd(BigIntMul(acc, IntToStr(ARadix)), IntToStr(d));
+  end;
+  Result := BigIntNormalize(acc);
+end;
+
+{ True when the BigInt equals the double exactly. The double is converted to an
+  integer first, so 2n == 2.0 holds while 2n == 2.5 does not. }
+function BigIntEqualsDouble(const ADigits: string; V: Double): Boolean;
+var
+  asInt: string;
+begin
+  if IsNaN(V) or IsInfinite(V) then
+    Exit(False);
+  if Frac(V) <> 0.0 then
+    Exit(False);
+  asInt := FloatToStrF(V, ffFixed, 0, 0);
+  Result := BigIntCompare(ADigits, BigIntNormalize(asInt)) = 0;
+end;
 
 { ---------------- correctly rounded string -> double ---------------- }
 
