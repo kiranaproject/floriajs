@@ -14,7 +14,7 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **219 tests pass** with `pasbuild test`.
+- Test suite: **221 tests pass** with `pasbuild test`.
 - Gap scan: **186 probes OK / 8 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
@@ -1193,6 +1193,48 @@ non-enumerability of `defineProperty` and symbol keys, `flat` depth by shape
 rather than `join` output, Date carry-over and exactness, and rejection of five
 kinds of non-reference target alongside the reference forms that must keep
 working. Verified against Node over 32 cases: no differences.
+
+---
+
+## Priority 1–2 review
+
+A post-completion audit of Priorities 1 and 2 found six defects that the task
+list did not mention. All are fixed.
+
+**Found by probing rather than by re-reading the roadmap.**
+
+1. **Non-ASCII characters were silently replaced by `?`.** Assigning a
+   `WideChar` above `0x7F` to a UTF-8 `string` yields `?` in FPC, so
+   `"\u00e9"` lexed to `?` and `String.fromCodePoint(0x1F600)` produced `?`
+   with `charCodeAt(0) === 63`. Both now encode UTF-8 explicitly via a shared
+   `AppendUTF8CodePoint` in `floria.js.number`. This was a P2-11 regression in
+   the `String` statics and a latent lexer bug that predated it.
+2. **`Math.round` used banker's rounding.** Pascal's `Round(2.5)` is 2;
+   JavaScript specifies 3. Now `Floor(x + 0.5)`.
+3. **`Number.prototype.toFixed`, `toPrecision`, and `toExponential` did not
+   exist.** Added, rounding the *exact binary value* via `DecFromDouble` so
+   `(1.005).toFixed(2)` is `"1.00"` as ECMAScript requires.
+4. **Sub-functions were not reference-counted.** `AddSubFunction` did not
+   retain, while the parent released on destroy, so a chunk held by a
+   generator could be freed underneath it.
+5. **`opYield` unwound every frame.** It popped down to `FFP = 0`, which
+   happened to work inside one script because the runner restored state, but it
+   discarded the caller's frames. A generator now records its own `FrameFP` and
+   unwinds only to there.
+6. **A generator object did not survive its script.** Still open — see below.
+
+**Still open: resuming a generator after its creating script ends.** The
+generator object is reclaimed with the script's environment, because nothing
+outside that environment holds a reference to it. Fixing it properly means
+deciding which host-visible objects are rooted across evaluations, which is a
+lifetime-policy question rather than a bug in the generator code. The failure is
+now a clean `TypeError` rather than an access violation, and it is documented as
+a limitation.
+
+**Verified correct while auditing, so left alone:** identifier case
+sensitivity (the 28 `TStringList` instances were checked; the six that hold
+identifiers or keys set `CaseSensitive := True`), and the deferred UTF-8
+`length` trade-off, which is deliberate and now documented with examples.
 
 ---
 

@@ -340,8 +340,12 @@ Available beyond the earlier sections:
 - `Object.is`, `Object.getOwnPropertyNames`, `Object.defineProperty`,
   `Object.freeze`/`seal`/`isFrozen`/`isSealed`.
 - `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, and `at`.
-- `String.fromCharCode` and `String.fromCodePoint` (astral code points become a
-  surrogate pair).
+- `String.fromCharCode` and `String.fromCodePoint`, both encoding to UTF-8
+  (an astral code point is one four-byte character here, not a surrogate pair).
+- `Number.prototype.toFixed`, `toPrecision`, and `toExponential`, all rounding
+  the true binary value, so `(1.005).toFixed(2)` is `"1.00"` and
+  `(0.1 + 0.2).toFixed(2)` is `"0.30"`.
+- `Math.round` rounds halves toward `+Infinity` (`2.5` → `3`, `-2.5` → `-2`).
 - Date component setters: `setFullYear`, `setMonth`, `setDate`, `setHours`,
   `setMinutes`, `setSeconds`, `setMilliseconds`. Out-of-range months and days
   carry into the next year or month, as ECMAScript specifies.
