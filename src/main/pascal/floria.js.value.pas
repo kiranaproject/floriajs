@@ -63,11 +63,20 @@ type
     function AsPromise(): TFloriaJSPromise;
   end;
 
+  { Argument list used by the call helpers and by the bound-function wrapper. }
+  TFloriaJSValueArray = array of TFloriaJSValue;
+
   { Callback Used by Heap-Side Built-ins to Invoke a JavaScript Function.
     The VM installs it, so native methods such as Array.map can call
     back into user code without depending on the VM unit. }
   TFloriaJSFunctionInvoker = function(const AFuncVal: TFloriaJSValue;
     const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue of object;
+
+  { Callback Used by Heap-Side Built-ins to Construct a JavaScript Object.
+    `new Bound(...)` has to construct the bound target with the combined
+    arguments, which only the VM can do, so it installs this as well. }
+  TFloriaJSConstructInvoker = function(const AFuncVal: TFloriaJSValue;
+    const AArgs: TFloriaJSValueArray): TFloriaJSValue of object;
 
   { Property Key-Value Entry }
   TFloriaJSPropertyPair = record
@@ -194,6 +203,7 @@ type
     FClosureEnv: Pointer; // Lexical environment TFloriaJSEnvironment
     FIsAsync: Boolean;
     FIsArrow: Boolean;
+    FSuppressPrototype: Boolean;
     FPrototypes: TFPList;
     procedure RegisterPrototype(AProto: TFloriaJSPrototypeObject);
     procedure UnregisterPrototype(AProto: TFloriaJSPrototypeObject);
@@ -214,6 +224,9 @@ type
     property IsNative: Boolean read FIsNative;
     property IsAsync: Boolean read FIsAsync;
     property IsArrow: Boolean read FIsArrow write FIsArrow;
+    { Bound functions have no own `prototype` per ECMAScript, even though they
+      are ordinary function objects in every other respect. }
+    property SuppressPrototype: Boolean read FSuppressPrototype write FSuppressPrototype;
     property NativeProc: TFloriaJSNativeProc read FNativeProc;
     property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
     property Bytecode: TObject read FBytecode write FBytecode;
@@ -234,17 +247,34 @@ type
     property OwnerFunction: TFloriaJSFunction read FOwnerFunction write SetOwnerFunction;
   end;
 
-  { Helper for Function.prototype.bind }
-  TFloriaJSBoundFunction = class
+  { Exotic Function Created by Function.prototype.bind.
+    ECMAScript models a bound function as a callable object of its own, not as a
+    native method that forwards the call. The distinction is observable: a bound
+    function is constructable exactly when its target is, `new` ignores the bound
+    `this`, `instanceof` traverses the target's prototype chain, and there is no
+    own `prototype` property. Owning the state on a function object keeps the
+    lifetime handling in one place: the target, the bound `this`, and every bound
+    argument are retained for as long as the bound function exists. }
+  TFloriaJSBoundFunction = class(TFloriaJSFunction)
   private
     FTarget: TFloriaJSValue;
     FBoundThis: TFloriaJSValue;
-    FBoundArgs: array of TFloriaJSValue;
-    FHeap: TFloriaJSHeap;
+    FBoundArgs: TFloriaJSValueArray;
   public
-    constructor Create(AHeap: TFloriaJSHeap; const ATarget, ABoundThis: TFloriaJSValue; const ABoundArgs: array of TFloriaJSValue);
+    constructor CreateBound(const AName: string; const ATarget, ABoundThis: TFloriaJSValue;
+      const ABoundArgs: TFloriaJSValueArray);
     destructor Destroy(); override;
-    function Invoke(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+
+    { Appends the bound arguments in front of the call arguments. }
+    function CombineArguments(const AArgs: TFloriaJSValueArray): TFloriaJSValueArray;
+    { The constructor whose prototype an instance must inherit, or nil when the
+      target cannot be constructed. Bound functions are transparent: the search
+      continues through the target chain. }
+    function ConstructorTarget(): TFloriaJSFunction;
+
+    property Target: TFloriaJSValue read FTarget;
+    property BoundThis: TFloriaJSValue read FBoundThis;
+    property BoundArgs: TFloriaJSValueArray read FBoundArgs;
   end;
 
   { Thrown JavaScript Value (used to propagate promise rejections) }
@@ -319,6 +349,7 @@ type
     FPromiseJobs: TFPList;
     FJobRunner: TFloriaJSJobRunner;
     FInvoker: TFloriaJSFunctionInvoker;
+    FConstructInvoker: TFloriaJSConstructInvoker;
     FArrayPrototype: TFloriaJSObject;
     FStringPrototype: TFloriaJSObject;
     FNumberPrototype: TFloriaJSObject;
@@ -346,6 +377,8 @@ type
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
     function  NewNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod): TFloriaJSFunction;
     function  NewBytecodeFunction(const AName: string; ABytecode: TObject; AClosure: Pointer; AIsArrow: Boolean = False; AIsAsync: Boolean = False): TFloriaJSFunction;
+    function  NewBoundFunction(const AName: string; const ATarget, ABoundThis: TFloriaJSValue;
+      const ABoundArgs: TFloriaJSValueArray): TFloriaJSBoundFunction;
 
     { The shared prototypes are created on first use and pinned, so they stay
       alive for as long as the heap does even when no value refers to them. }
@@ -369,6 +402,12 @@ type
     procedure SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
     function  InvokeFunction(const AFuncVal: TFloriaJSValue;
       const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
+    procedure SetConstructInvoker(AInvoker: TFloriaJSConstructInvoker);
+    function  ConstructFunction(const AFuncVal: TFloriaJSValue;
+      const AArgs: TFloriaJSValueArray): TFloriaJSValue;
+    function  ResolveConstructorTarget(const AFuncVal: TFloriaJSValue): TFloriaJSFunction;
+    function  GetConstructPrototype(const AFuncVal: TFloriaJSValue): TFloriaJSObject;
+    function  IsConstructable(const AFuncVal: TFloriaJSValue): Boolean;
 
     procedure SetJobRunner(ARunner: TFloriaJSJobRunner);
     procedure EnqueuePromiseJob(const AJob: TFloriaJSPromiseJob);
@@ -1545,6 +1584,7 @@ begin
   FClosureEnv := nil;
   FIsAsync := False;
   FIsArrow := False;
+  FSuppressPrototype := False;
   FPrototypes := nil;
 end;
 
@@ -1558,6 +1598,7 @@ begin
   FClosureEnv := nil;
   FIsAsync := False;
   FIsArrow := False;
+  FSuppressPrototype := False;
   FPrototypes := nil;
 end;
 
@@ -1574,6 +1615,7 @@ begin
   FClosureEnv := AClosure;
   FIsAsync := AIsAsync;
   FIsArrow := AIsArrow;
+  FSuppressPrototype := False;
   FPrototypes := nil;
 end;
 
@@ -1671,7 +1713,11 @@ function TFloriaJSFunction.GetPropertyWithReceiver(const AName: string; AReceive
 var
   protoObj: TFloriaJSObject;
 begin
-  if (AName = 'prototype') and (not FIsArrow) and (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
+  { A bound function is constructable through its target but must not expose an
+    own `prototype`: `new` reads the target's prototype directly, and
+    `Object.keys`/`hasOwnProperty` must not report one. }
+  if (AName = 'prototype') and (not FIsArrow) and (not FSuppressPrototype) and
+     (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
   begin
     protoObj := FHeap.Track(TFloriaJSPrototypeObject.Create(FHeap.GetObjectPrototype(), Self));
     SetProperty('prototype', JSMakeObject(protoObj));
@@ -1795,12 +1841,20 @@ end;
 
 { TFloriaJSBoundFunction }
 
-constructor TFloriaJSBoundFunction.Create(AHeap: TFloriaJSHeap; const ATarget, ABoundThis: TFloriaJSValue; const ABoundArgs: array of TFloriaJSValue);
+constructor TFloriaJSBoundFunction.CreateBound(const AName: string; const ATarget, ABoundThis: TFloriaJSValue;
+  const ABoundArgs: TFloriaJSValueArray);
 var
   i: Integer;
 begin
-  inherited Create();
-  FHeap := AHeap;
+  { A bound function is a function object of its own: it is callable through the
+    target, and it must be rejected by `new` exactly when the target is. It is
+    deliberately not native, so nothing mistakes it for a native callback; the
+    VM recognises the class and routes calls and construction through the
+    target. }
+  inherited CreateNative(AName, nil);
+  FIsNative := False;
+  FNativeProc := nil;
+  FSuppressPrototype := True;
   FTarget := ATarget;
   JSRetainValue(FTarget);
   FBoundThis := ABoundThis;
@@ -1817,31 +1871,39 @@ destructor TFloriaJSBoundFunction.Destroy();
 var
   i: Integer;
 begin
-  JSReleaseValue(FTarget);
-  JSReleaseValue(FBoundThis);
-  for i := 0 to High(FBoundArgs) do
-    JSReleaseValue(FBoundArgs[i]);
+  { The heap may be tearing down, in which case every object is released at
+    once and the bound values may already be gone. }
+  if (FHeap = nil) or (not FHeap.IsClearing) then
+  begin
+    JSReleaseValue(FTarget);
+    JSReleaseValue(FBoundThis);
+    for i := 0 to High(FBoundArgs) do
+      JSReleaseValue(FBoundArgs[i]);
+  end;
+  FTarget := JSMakeUndefined();
+  FBoundThis := JSMakeUndefined();
   SetLength(FBoundArgs, 0);
   inherited Destroy();
 end;
 
-function TFloriaJSBoundFunction.Invoke(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+function TFloriaJSBoundFunction.CombineArguments(const AArgs: TFloriaJSValueArray): TFloriaJSValueArray;
 var
-  combinedArgs: array of TFloriaJSValue;
   i, bCount, aCount: Integer;
 begin
   bCount := Length(FBoundArgs);
   aCount := Length(AArgs);
-  SetLength(combinedArgs, bCount + aCount);
+  SetLength(Result, bCount + aCount);
   for i := 0 to bCount - 1 do
-    combinedArgs[i] := FBoundArgs[i];
+    Result[i] := FBoundArgs[i];
   for i := 0 to aCount - 1 do
-    combinedArgs[bCount + i] := AArgs[i];
+    Result[bCount + i] := AArgs[i];
+end;
 
-  if FHeap <> nil then
-    Result := FHeap.InvokeFunction(FTarget, combinedArgs, FBoundThis)
-  else
-    Result := JSMakeUndefined();
+function TFloriaJSBoundFunction.ConstructorTarget(): TFloriaJSFunction;
+begin
+  Result := nil;
+  if FTarget.IsFunction() and (FHeap <> nil) then
+    Result := FHeap.ResolveConstructorTarget(FTarget);
 end;
 
 function JSFunctionCall(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -1931,8 +1993,7 @@ function JSFunctionBind(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSVa
 var
   fn: TFloriaJSFunction;
   boundThis: TFloriaJSValue;
-  boundArgs: array of TFloriaJSValue;
-  boundHelper: TFloriaJSBoundFunction;
+  boundArgs: TFloriaJSValueArray;
   boundFn: TFloriaJSFunction;
   i, count: Integer;
 begin
@@ -1955,9 +2016,12 @@ begin
   else
     SetLength(boundArgs, 0);
 
-  boundHelper := TFloriaJSBoundFunction.Create(fn.Heap, AThis, boundThis, boundArgs);
-  fn.Heap.OwnHelper(boundHelper);
-  boundFn := fn.Heap.NewNativeMethod(fn.Name, @boundHelper.Invoke);
+  { The bound function is a real function object: it is callable, it carries no
+    own `prototype`, and `new`/`instanceof` resolve through the target. }
+  if fn.Heap = nil then
+    Exit(JSMakeUndefined());
+
+  boundFn := fn.Heap.NewBoundFunction(fn.Name, AThis, boundThis, boundArgs);
   Result := JSMakeFunction(boundFn);
 end;
 
@@ -2223,6 +2287,7 @@ begin
   FPromiseJobs := TFPList.Create();
   FJobRunner := nil;
   FInvoker := nil;
+  FConstructInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
   FNumberPrototype := nil;
@@ -2278,6 +2343,7 @@ begin
   end;
   FJobRunner := nil;
   FInvoker := nil;
+  FConstructInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
   FNumberPrototype := nil;
@@ -2446,6 +2512,75 @@ end;
 procedure TFloriaJSHeap.SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
 begin
   FInvoker := AInvoker;
+end;
+
+procedure TFloriaJSHeap.SetConstructInvoker(AInvoker: TFloriaJSConstructInvoker);
+begin
+  FConstructInvoker := AInvoker;
+end;
+
+function TFloriaJSHeap.ConstructFunction(const AFuncVal: TFloriaJSValue;
+  const AArgs: TFloriaJSValueArray): TFloriaJSValue;
+begin
+  if Assigned(FConstructInvoker) then
+    Result := FConstructInvoker(AFuncVal, AArgs)
+  else
+    raise EFloriaJSThrow.Create(JSMakeObject(NewError('TypeError', 'Value is not a constructor')));
+end;
+
+function TFloriaJSHeap.ResolveConstructorTarget(const AFuncVal: TFloriaJSValue): TFloriaJSFunction;
+var
+  fn: TFloriaJSFunction;
+  target: TFloriaJSValue;
+  guard: Integer;
+begin
+  Result := nil;
+  if not AFuncVal.IsFunction() then Exit;
+
+  { Follows a chain of bound functions down to the function that really runs.
+    The guard bounds a pathological self-referential chain. }
+  target := AFuncVal;
+  guard := 0;
+  while target.IsFunction() and (guard < 1000) do
+  begin
+    fn := target.AsFunction();
+    if not (fn is TFloriaJSBoundFunction) then
+      Exit(fn);
+    target := TFloriaJSBoundFunction(fn).Target;
+    Inc(guard);
+  end;
+end;
+
+function TFloriaJSHeap.IsConstructable(const AFuncVal: TFloriaJSValue): Boolean;
+var
+  fn: TFloriaJSFunction;
+begin
+  Result := False;
+  if not AFuncVal.IsFunction() then Exit;
+  fn := ResolveConstructorTarget(AFuncVal);
+  { Arrows have no `prototype` and are rejected by `new`; every other function
+    object is constructable in this runtime. }
+  Result := (fn <> nil) and (not fn.IsArrow);
+end;
+
+function TFloriaJSHeap.GetConstructPrototype(const AFuncVal: TFloriaJSValue): TFloriaJSObject;
+var
+  fn: TFloriaJSFunction;
+  protoVal: TFloriaJSValue;
+begin
+  Result := nil;
+  if not IsConstructable(AFuncVal) then Exit;
+
+  { The prototype is always read from the underlying target, never from the
+    bound function, which has none of its own. }
+  fn := ResolveConstructorTarget(AFuncVal);
+  if fn = nil then Exit;
+
+  protoVal := fn.GetProperty('prototype');
+  if protoVal.IsObject() then
+    Result := protoVal.AsObject()
+  else
+    Result := GetObjectPrototype();
 end;
 
 procedure TFloriaJSHeap.OwnHelper(AHelper: TObject);
@@ -2814,6 +2949,13 @@ begin
   Result.Prototype := GetFunctionPrototype();
 end;
 
+function TFloriaJSHeap.NewBoundFunction(const AName: string; const ATarget, ABoundThis: TFloriaJSValue;
+  const ABoundArgs: TFloriaJSValueArray): TFloriaJSBoundFunction;
+begin
+  Result := TFloriaJSBoundFunction(Track(TFloriaJSBoundFunction.CreateBound(AName, ATarget, ABoundThis, ABoundArgs)));
+  Result.Prototype := GetFunctionPrototype();
+end;
+
 procedure TFloriaJSHeap.ReclaimOrphanedEnvironments();
 var
   i, j: Integer;
@@ -3154,12 +3296,28 @@ function JSInstanceOf(const ALeft, ARight: TFloriaJSValue): Boolean;
 var
   pproto: TFloriaJSObject;
   cproto: TFloriaJSValue;
+  heap: TFloriaJSHeap;
+  fn: TFloriaJSFunction;
 begin
   Result := False;
   if not ALeft.IsObject() then Exit;
   if not ARight.IsFunction() then Exit;
-  cproto := ARight.AsFunction().GetProperty('prototype');
+
+  { A bound function is transparent for `instanceof`: the check walks the
+    target's prototype chain, and the bound function itself has no prototype.
+    Unlike construction, there is no Object.prototype fallback here: a
+    constructor whose `prototype` is not an object matches nothing. }
+  heap := ARight.AsFunction().Heap;
+  if heap <> nil then
+  begin
+    fn := heap.ResolveConstructorTarget(ARight);
+    if fn = nil then Exit;
+    cproto := fn.GetProperty('prototype');
+  end
+  else
+    cproto := ARight.AsFunction().GetProperty('prototype');
   if not cproto.IsObject() then Exit;
+
   pproto := ALeft.AsObject().Prototype;
   while pproto <> nil do
   begin

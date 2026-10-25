@@ -314,6 +314,8 @@ type
     procedure TestConstructorBackReferencesLifetimeSafe();
     procedure TestDeclarationValidationAndSwitchHoisting();
     procedure TestArrayHolesAndLengthMutation();
+    procedure TestNewOnBoundFunctions();
+    procedure TestBoundFunctionConstructionLifetime();
   end;
 
 { TFloriaJSTypesTest }
@@ -7080,6 +7082,149 @@ begin
     AssertTrue('Holes render as empty text and null JSON', res.BooleanValue);
   finally
     engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestNewOnBoundFunctions();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. The reported failure: new on a partially applied bound function.
+    res := engine.Execute(
+      'function C(x) { this.x = x; }' +
+      'var B = C.bind(null, 7);' +
+      '(new B()).x === 7;'
+    );
+    AssertTrue('new on a bound function succeeds', res.Success);
+    AssertTrue('new ignores the bound this and passes the bound arguments', res.BooleanValue);
+
+    // 2. Bound arguments come before the call arguments.
+    res := engine.Execute(
+      'function Sum(a, b) { this.v = a + b; }' +
+      'var B = Sum.bind(null, 7);' +
+      '(new B(3)).v === 10;'
+    );
+    AssertTrue('bound arguments are combined with call arguments', res.Success and res.BooleanValue);
+
+    // 3. The instance inherits the target's prototype, not the bound function's.
+    res := engine.Execute(
+      'function C() {}' +
+      'C.prototype.kind = "target";' +
+      'var B = C.bind(null);' +
+      'var o = new B();' +
+      'o.kind === "target" && o.constructor === C;'
+    );
+    AssertTrue('new installs the target prototype', res.Success);
+    AssertTrue('The instance inherits from the target prototype', res.BooleanValue);
+
+    // 4. instanceof resolves through the target, for both names.
+    res := engine.Execute(
+      'function C(x) { this.x = x; }' +
+      'var B = C.bind(null, 1);' +
+      'var o = new B();' +
+      '(o instanceof C) && (o instanceof B) && (o instanceof Object);'
+    );
+    AssertTrue('instanceof traverses the target prototype chain', res.Success and res.BooleanValue);
+
+    // 5. Bound functions expose no own prototype, per ECMAScript.
+    res := engine.Execute(
+      'function C() {}' +
+      'var B = C.bind(null);' +
+      '!(B.hasOwnProperty("prototype")) && !("prototype" in B) &&' +
+      'typeof B === "function" && Object.keys(B).length === 0;'
+    );
+    AssertTrue('bound functions have no own prototype', res.Success and res.BooleanValue);
+
+    // 6. Calling a bound function still works, including through call/apply.
+    res := engine.Execute(
+      'function f(a, b) { return this.v + a + b; }' +
+      'var g = f.bind({ v: 10 }, 1);' +
+      '(g(2) === 13) && (g.call({ v: 100 }, 2) === 13) && (g.apply({ v: 100 }, [2]) === 13);'
+    );
+    AssertTrue('calls of bound functions ignore the receiver', res.Success and res.BooleanValue);
+
+    // 7. Chained binds keep the first bound this and prepend every argument set.
+    res := engine.Execute(
+      'function f(a, b, c) { return this.v + a + b + c; }' +
+      'var g = f.bind({ v: 1 }, 2).bind({ v: 100 }, 3);' +
+      'g(4) === 10;'
+    );
+    AssertTrue('chained binds compose', res.Success and res.BooleanValue);
+
+    // 8. An object returned by the target replaces the instance.
+    res := engine.Execute(
+      'function C() { return { z: 3 }; }' +
+      'var B = C.bind(null);' +
+      '(new B()).z === 3;'
+    );
+    AssertTrue('an object return value replaces the bound instance', res.Success and res.BooleanValue);
+
+    // 9. Native constructors can be bound too.
+    res := engine.Execute(
+      'var B = Array.bind(null);' +
+      'new B(3).length === 3;'
+    );
+    AssertTrue('native constructors can be bound', res.Success and res.BooleanValue);
+
+    // 10. Arrow targets are not constructable, so neither is the bound function.
+    res := engine.Execute(
+      'var B = (() => 1).bind(null);' +
+      'var caught = "";' +
+      'try { new B(); } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('an arrow target is not constructable', res.Success and res.BooleanValue);
+
+    // 11. Non-function values cannot be bound at all.
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { var B = (5).bind(null); } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('binding a non-function throws TypeError', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestBoundFunctionConstructionLifetime();
+var
+  ctx: TFloriaJSContext;
+  objects, environments, i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    { A bound function owns its target, the bound this, and every bound
+      argument, so repeated binding and construction must not accumulate
+      objects or environments. }
+    ctx.Evaluate(
+      'function C(x) { this.x = x; }' +
+      'var B = C.bind(null, 7);' +
+      'var o = new B();' +
+      'B = null; o = null; C = null;');
+    ctx.Evaluate('0;');
+    objects := ctx.Heap.GetObjectCount;
+    environments := ctx.Heap.GetEnvironmentCount;
+
+    for i := 1 to 200 do
+      ctx.Evaluate(
+        'function C(x) { this.x = x; }' +
+        'var B = C.bind(null, 7);' +
+        'var o = new B();' +
+        'B = null; o = null; C = null;');
+    ctx.Evaluate('0;');
+
+    AssertTrue('Bound functions must not accumulate objects (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objects);
+    AssertTrue('Bound construction must not accumulate environments (' +
+      IntToStr(environments) + ' -> ' + IntToStr(ctx.Heap.GetEnvironmentCount) + ')',
+      ctx.Heap.GetEnvironmentCount = environments);
+  finally
+    ctx.Free();
   end;
 end;
 

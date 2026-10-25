@@ -77,6 +77,7 @@ type
     function  GetMemberValue(const AObj: TFloriaJSValue; const APropName: string): TFloriaJSValue;
     procedure SetMemberValue(const AObj: TFloriaJSValue; const APropName: string; const AVal: TFloriaJSValue);
     function  HeapInvoker(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
+    function  HeapConstructor(const AFuncVal: TFloriaJSValue; const AArgs: TFloriaJSValueArray): TFloriaJSValue;
   public
     constructor Create(AHeap: TFloriaJSHeap = nil; AGlobalEnv: TFloriaJSEnvironment = nil);
     destructor Destroy(); override;
@@ -136,7 +137,10 @@ begin
   FTryCount := 0;
 
   if FHeap <> nil then
+  begin
     FHeap.SetFunctionInvoker(@HeapInvoker);
+    FHeap.SetConstructInvoker(@HeapConstructor);
+  end;
 end;
 
 function TFloriaJSVM.HeapInvoker(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
@@ -144,10 +148,18 @@ begin
   Result := CallFunction(AFuncVal, AArgs, AThis);
 end;
 
+function TFloriaJSVM.HeapConstructor(const AFuncVal: TFloriaJSValue; const AArgs: TFloriaJSValueArray): TFloriaJSValue;
+begin
+  Result := ConstructObject(AFuncVal, AArgs);
+end;
+
 destructor TFloriaJSVM.Destroy();
 begin
   if (FHeap <> nil) and not FOwnsHeap then
+  begin
     FHeap.SetFunctionInvoker(nil);
+    FHeap.SetConstructInvoker(nil);
+  end;
 
   SetLength(FStack, 0);
   SetLength(FFrames, 0);
@@ -1108,7 +1120,16 @@ begin
             if fn = nil then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a function')));
 
-            if fn.IsNative then
+            if fn is TFloriaJSBoundFunction then
+            begin
+              { A call of a bound function ignores the receiver it was called
+                with and runs the target with the bound this and the bound
+                arguments in front of the call arguments. }
+              Push(FHeap.InvokeFunction(TFloriaJSBoundFunction(fn).Target,
+                TFloriaJSBoundFunction(fn).CombineArguments(args),
+                TFloriaJSBoundFunction(fn).BoundThis));
+            end
+            else if fn.IsNative then
             begin
               if Assigned(fn.NativeMethod) then
                 resVal := fn.NativeMethod(args, thisVal)
@@ -1225,12 +1246,21 @@ begin
               calleeVal := Pop();
             end;
 
-            if not calleeVal.IsFunction() then
+            if not FHeap.IsConstructable(calleeVal) then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
 
+            { A bound function constructs its target with the bound arguments in
+              front of the call arguments and ignores the bound this. The target
+              resolves the prototype, so the instance is a normal instance of
+              the underlying constructor. }
+            if calleeVal.AsFunction() is TFloriaJSBoundFunction then
+            begin
+              Push(FHeap.ConstructFunction(TFloriaJSBoundFunction(calleeVal.AsFunction()).Target,
+                TFloriaJSBoundFunction(calleeVal.AsFunction()).CombineArguments(args)));
+              Continue;
+            end;
+
             fn := calleeVal.AsFunction();
-            if (fn = nil) or fn.IsArrow then
-              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
 
             propVal := fn.GetProperty('prototype');
             if propVal.IsObject() then
@@ -1431,6 +1461,7 @@ var
   arrObj: TFloriaJSArray;
   promise: TFloriaJSPromise;
   resVal: TFloriaJSValue;
+  callArgs: TFloriaJSValueArray;
   argc, i, initialFP, initialBaseBP: Integer;
 begin
   if not AFuncVal.IsFunction() then
@@ -1439,6 +1470,18 @@ begin
   fn := AFuncVal.AsFunction();
   if fn = nil then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a function')));
+
+  if fn is TFloriaJSBoundFunction then
+  begin
+    { Calls through .call/.apply and heap-side built-ins reach the target with
+      the bound this and the bound arguments in front of the call arguments. }
+    SetLength(callArgs, Length(AArgs));
+    for i := 0 to High(AArgs) do
+      callArgs[i] := AArgs[i];
+    Exit(CallFunction(TFloriaJSBoundFunction(fn).Target,
+      TFloriaJSBoundFunction(fn).CombineArguments(callArgs),
+      TFloriaJSBoundFunction(fn).BoundThis));
+  end;
 
   if fn.IsNative then
   begin
@@ -1530,29 +1573,40 @@ end;
 function TFloriaJSVM.ConstructObject(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
 var
   fn: TFloriaJSFunction;
-  protoVal: TFloriaJSValue;
   protoObj, newObj: TFloriaJSObject;
   retVal: TFloriaJSValue;
+  callArgs: TFloriaJSValueArray;
+  thisVal: TFloriaJSValue;
+  i: Integer;
 begin
-  if not AFuncVal.IsFunction() then
+  if not FHeap.IsConstructable(AFuncVal) then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
 
+  { `new Bound(...)` ignores the bound this: it constructs the target with the
+    combined bound and call arguments and installs the target's prototype. }
   fn := AFuncVal.AsFunction();
-  if (fn = nil) or fn.IsArrow then
-    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
+  SetLength(callArgs, Length(AArgs));
+  for i := 0 to High(AArgs) do
+    callArgs[i] := AArgs[i];
+  if fn is TFloriaJSBoundFunction then
+  begin
+    callArgs := TFloriaJSBoundFunction(fn).CombineArguments(callArgs);
+    fn := TFloriaJSBoundFunction(fn).ConstructorTarget();
+    if fn = nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
+  end;
 
-  protoVal := fn.GetProperty('prototype');
-  if protoVal.IsObject() then
-    protoObj := protoVal.AsObject()
-  else
+  protoObj := FHeap.GetConstructPrototype(JSMakeFunction(fn));
+  if protoObj = nil then
     protoObj := FHeap.GetObjectPrototype();
 
   newObj := FHeap.NewObject(protoObj);
-  retVal := CallFunction(AFuncVal, AArgs, JSMakeObject(newObj));
+  thisVal := JSMakeObject(newObj);
+  retVal := CallFunction(JSMakeFunction(fn), callArgs, thisVal);
   if retVal.IsObject() then
     Result := retVal
   else
-    Result := JSMakeObject(newObj);
+    Result := thisVal;
 end;
 
 end.
