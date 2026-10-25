@@ -441,6 +441,202 @@ end;
 
 { Callback-driven methods }
 
+
+{ `Array.prototype.flat(depth = 1)` — flattens nested arrays. }
+function JSArrayFlat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  depth: Integer;
+
+  procedure FlattenInto(const ASource: TFloriaJSArray; ALevel: Integer; ATarget: TFloriaJSArray);
+  var
+    i: Integer;
+    item: TFloriaJSValue;
+  begin
+    for i := 0 to ASource.Length() - 1 do
+    begin
+      if not ASource.HasElement(i) then
+        Continue;
+      item := ASource.GetElement(i);
+      if (ALevel > 0) and item.IsArray() then
+        FlattenInto(item.AsArray(), ALevel - 1, ATarget)
+      else
+        ATarget.Push(item);
+    end;
+  end;
+
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  depth := 1;
+  if (Length(AArgs) > 0) and not AArgs[0].IsUndefined() then
+    depth := Trunc(AArgs[0].ToNumber());
+  if depth < 0 then depth := 0;
+
+  Result := JSMakeArray(arr.Heap.NewArray());
+  FlattenInto(arr, depth, Result.AsArray());
+end;
+
+{ `Array.prototype.flatMap(cb)` — map, then flatten one level. }
+function JSArrayFlatMap(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  res: TFloriaJSArray;
+  callback: TFloriaJSValue;
+  i, j: Integer;
+  mapped: TFloriaJSValue;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(arr.Heap, callback, 'flatMap');
+
+  res := arr.Heap.NewArray();
+  for i := 0 to arr.Length() - 1 do
+  begin
+    if not arr.HasElement(i) then
+      Continue;
+    cbArgs[0] := arr.GetElement(i);
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := JSMakeArray(arr);
+    mapped := arr.Heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+    { One level of flattening, as specified. }
+    if mapped.IsArray() then
+    begin
+      for j := 0 to mapped.AsArray().Length() - 1 do
+        if mapped.AsArray().HasElement(j) then
+          res.Push(mapped.AsArray().GetElement(j));
+    end
+    else
+      res.Push(mapped);
+  end;
+  Result := JSMakeArray(res);
+end;
+
+{ `Array.prototype.fill(value, start = 0, end = length)` — fills in place. }
+function JSArrayFill(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  i, startIdx, endIdx, len: Integer;
+  value: TFloriaJSValue;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  value := JSMakeUndefined();
+  if Length(AArgs) > 0 then value := AArgs[0];
+
+  len := arr.Length();
+  startIdx := 0;
+  if (Length(AArgs) > 1) and not AArgs[1].IsUndefined() then
+  begin
+    startIdx := Trunc(AArgs[1].ToNumber());
+    if startIdx < 0 then
+    begin
+      Inc(startIdx, len);
+      if startIdx < 0 then startIdx := 0;
+    end;
+  end;
+
+  endIdx := len;
+  if (Length(AArgs) > 2) and not AArgs[2].IsUndefined() then
+  begin
+    endIdx := Trunc(AArgs[2].ToNumber());
+    if endIdx < 0 then
+    begin
+      Inc(endIdx, len);
+      if endIdx < 0 then endIdx := 0;
+    end;
+    if endIdx > len then endIdx := len;
+  end;
+
+  for i := startIdx to endIdx - 1 do
+    arr.SetElement(i, value);
+  Result := AThis;
+end;
+
+{ `Array.prototype.copyWithin(target, start = 0, end = length)` — in place. }
+function JSArrayCopyWithin(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  i, target, startIdx, endIdx, len: Integer;
+  temp: TFloriaJSValueArray;
+  count: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  len := arr.Length();
+  target := 0;
+  if (Length(AArgs) > 0) and not AArgs[0].IsUndefined() then
+  begin
+    target := Trunc(AArgs[0].ToNumber());
+    if target < 0 then
+    begin
+      Inc(target, len);
+      if target < 0 then target := 0;
+    end;
+  end;
+
+  startIdx := 0;
+  if (Length(AArgs) > 1) and not AArgs[1].IsUndefined() then
+  begin
+    startIdx := Trunc(AArgs[1].ToNumber());
+    if startIdx < 0 then
+    begin
+      Inc(startIdx, len);
+      if startIdx < 0 then startIdx := 0;
+    end;
+  end;
+
+  endIdx := len;
+  if (Length(AArgs) > 2) and not AArgs[2].IsUndefined() then
+  begin
+    endIdx := Trunc(AArgs[2].ToNumber());
+    if endIdx < 0 then
+    begin
+      Inc(endIdx, len);
+      if endIdx < 0 then endIdx := 0;
+    end;
+    if endIdx > len then endIdx := len;
+  end;
+
+  { Copy first: the ranges may overlap. }
+  count := endIdx - startIdx;
+  if count <= 0 then Exit(AThis);
+  if target + count > len then count := len - target;
+  if count <= 0 then Exit(AThis);
+
+  SetLength(temp, count);
+  for i := 0 to count - 1 do
+    temp[i] := arr.GetElement(startIdx + i);
+  for i := 0 to count - 1 do
+    arr.SetElement(target + i, temp[i]);
+
+  Result := AThis;
+end;
+
+{ `Array.prototype.at(i)` — supports negative indices. }
+function JSArrayAt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  arr: TFloriaJSArray;
+  idx: Integer;
+begin
+  arr := ThisArray(AThis);
+  if arr = nil then Exit(JSMakeUndefined());
+
+  idx := 0;
+  if Length(AArgs) > 0 then idx := Trunc(AArgs[0].ToNumber());
+  if idx < 0 then idx := arr.Length() + idx;
+  if (idx < 0) or (idx >= arr.Length()) then
+    Exit(JSMakeUndefined());
+  Result := arr.GetElement(idx);
+end;
+
 function JSArrayMap(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   arr: TFloriaJSArray;
@@ -876,6 +1072,11 @@ begin
   RegisterMethod(AHeap, proto, 'indexOf', @JSArrayIndexOf);
   RegisterMethod(AHeap, proto, 'lastIndexOf', @JSArrayLastIndexOf);
   RegisterMethod(AHeap, proto, 'includes', @JSArrayIncludes);
+  RegisterMethod(AHeap, proto, 'flat', @JSArrayFlat);
+  RegisterMethod(AHeap, proto, 'flatMap', @JSArrayFlatMap);
+  RegisterMethod(AHeap, proto, 'fill', @JSArrayFill);
+  RegisterMethod(AHeap, proto, 'copyWithin', @JSArrayCopyWithin);
+  RegisterMethod(AHeap, proto, 'at', @JSArrayAt);
   RegisterMethod(AHeap, proto, 'map', @JSArrayMap);
   RegisterMethod(AHeap, proto, 'filter', @JSArrayFilter);
   RegisterMethod(AHeap, proto, 'forEach', @JSArrayForEach);

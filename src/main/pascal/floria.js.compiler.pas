@@ -1506,7 +1506,12 @@ begin
     CompileExpr(AAssign.Value);
     FBytecode.Emit(opDup);
     CompileDestructuring(targetNode, tkAssign);
-  end;
+  end
+  else
+    { Anything else is not a reference. Without this the compiler emitted
+      nothing and the expression silently evaluated to undefined, so `1 += 2`
+      and `(a + b) = 1` looked like they succeeded. }
+    raise Exception.Create('SyntaxError: Invalid left-hand side in assignment');
 end;
 
 procedure TFloriaJSCompiler.CompileConditionalExpr(ACond: TFloriaJSConditionalExpr);

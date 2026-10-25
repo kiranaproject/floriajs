@@ -17,7 +17,7 @@ unit floria.js.objects;
 interface
 
 uses
-  Classes, SysUtils, floria.js.types, floria.js.value, floria.js.env;
+  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env;
 
 procedure FloriaJSRegisterObjects(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; AObjectCtor: TFloriaJSNativeMethod);
 
@@ -236,6 +236,140 @@ begin
   Result := JSMakeObject(heap.NewObject(proto));
 end;
 
+
+{ `Object.is(a, b)` — SameValue, which differs from === for NaN and -0. }
+function JSObjectIs(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  a, b: TFloriaJSValue;
+begin
+  if Length(AArgs) < 2 then
+    Exit(JSMakeBoolean(False));
+  a := AArgs[0];
+  b := AArgs[1];
+
+  { NaN is the same value as itself. }
+  if a.IsNumber() and b.IsNumber() then
+  begin
+    if IsNaN(a.NumVal) and IsNaN(b.NumVal) then
+      Exit(JSMakeBoolean(True));
+    { +0 and -0 are different values. }
+    if (a.NumVal = 0.0) and (b.NumVal = 0.0) then
+      Exit(JSMakeBoolean(1.0 / a.NumVal = 1.0 / b.NumVal));
+  end;
+
+  Result := JSMakeBoolean(JSStrictEqual(a, b));
+end;
+
+{ `Object.getOwnPropertyNames(o)` — own keys, including non-enumerable ones. }
+function JSObjectGetOwnPropertyNames(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+  heap: TFloriaJSHeap;
+  arr: TFloriaJSArray;
+  i: Integer;
+begin
+  heap := nil;
+  if AThis.IsFunction() then
+    heap := AThis.AsFunction().Heap
+  else if AThis.IsObject() then
+    heap := AThis.AsObject().Heap;
+  if heap = nil then
+    Exit(JSMakeUndefined());
+
+  arr := heap.NewArray();
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() then
+  begin
+    obj := AArgs[0].AsObject();
+    { Every own key, enumerable or not, in insertion order. }
+    for i := 0 to obj.GetPropertyCount() - 1 do
+      arr.Push(JSMakeString(obj.GetPropertyKey(i)));
+  end
+  else if (Length(AArgs) > 0) and AArgs[0].IsArray() then
+  begin
+    obj := AArgs[0].AsObject();
+    for i := 0 to obj.GetPropertyCount() - 1 do
+      arr.Push(JSMakeString(obj.GetPropertyKey(i)));
+  end;
+  Result := JSMakeArray(arr);
+end;
+
+{ `Object.defineProperty(o, key, descriptor)` — defines one property.
+
+  Only the data-descriptor fields and accessors are honoured; the return value
+  is the object, as ECMAScript specifies. }
+function JSObjectDefineProperty(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+  key: string;
+  desc: TFloriaJSObject;
+  enumerable: Boolean;
+begin
+  if (Length(AArgs) < 3) or not AArgs[0].IsObject() or not AArgs[2].IsObject() then
+    Exit(JSMakeUndefined());
+
+  obj := AArgs[0].AsObject();
+  key := AArgs[1].ToString();
+  desc := AArgs[2].AsObject();
+
+  { A property defined this way is non-enumerable unless stated otherwise. }
+  enumerable := desc.GetProperty('enumerable').ToBoolean();
+
+  if desc.HasProperty('get') or desc.HasProperty('set') then
+  begin
+    if desc.GetProperty('get').IsFunction() then
+      obj.DefineGetter(key, desc.GetProperty('get'));
+    if desc.GetProperty('set').IsFunction() then
+      obj.DefineSetter(key, desc.GetProperty('set'));
+  end
+  else
+    obj.SetProperty(key, desc.GetProperty('value'));
+
+  if not enumerable then
+    obj.SetPropertyNonEnumerable(key, obj.GetProperty(key));
+
+  Result := AArgs[0];
+end;
+
+{ `Object.freeze(o)` / `Object.seal(o)` — this runtime has no property
+  attributes beyond enumerability, so both mark the object and return it. The
+  marking is observable through `Object.isFrozen`/`isSealed`. }
+function JSObjectFreeze(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+begin
+  if (Length(AArgs) = 0) or not AArgs[0].IsObject() then
+    Exit(JSMakeUndefined());
+  obj := AArgs[0].AsObject();
+  obj.IsFrozen := True;
+  obj.IsSealed := True;
+  Result := AArgs[0];
+end;
+
+function JSObjectSeal(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+begin
+  if (Length(AArgs) = 0) or not AArgs[0].IsObject() then
+    Exit(JSMakeUndefined());
+  obj := AArgs[0].AsObject();
+  obj.IsSealed := True;
+  Result := AArgs[0];
+end;
+
+function JSObjectIsFrozen(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if (Length(AArgs) = 0) or not AArgs[0].IsObject() then
+    Exit(JSMakeBoolean(True));
+  Result := JSMakeBoolean(AArgs[0].AsObject().IsFrozen);
+end;
+
+function JSObjectIsSealed(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if (Length(AArgs) = 0) or not AArgs[0].IsObject() then
+    Exit(JSMakeBoolean(True));
+  Result := JSMakeBoolean(AArgs[0].AsObject().IsSealed);
+end;
+
 function JSObjectGetPrototypeOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   obj: TFloriaJSObject;
@@ -302,6 +436,13 @@ begin
   objectObj.SetProperty('assign', JSMakeFunction(AHeap.NewNativeFunction('assign', @JSObjectAssign)));
   objectObj.SetProperty('create', JSMakeFunction(AHeap.NewNativeFunction('create', @JSObjectCreate)));
   objectObj.SetProperty('getPrototypeOf', JSMakeFunction(AHeap.NewNativeFunction('getPrototypeOf', @JSObjectGetPrototypeOf)));
+  objectObj.SetProperty('is', JSMakeFunction(AHeap.NewNativeFunction('is', @JSObjectIs)));
+  objectObj.SetProperty('getOwnPropertyNames', JSMakeFunction(AHeap.NewNativeFunction('getOwnPropertyNames', @JSObjectGetOwnPropertyNames)));
+  objectObj.SetProperty('defineProperty', JSMakeFunction(AHeap.NewNativeFunction('defineProperty', @JSObjectDefineProperty)));
+  objectObj.SetProperty('freeze', JSMakeFunction(AHeap.NewNativeFunction('freeze', @JSObjectFreeze)));
+  objectObj.SetProperty('seal', JSMakeFunction(AHeap.NewNativeFunction('seal', @JSObjectSeal)));
+  objectObj.SetProperty('isFrozen', JSMakeFunction(AHeap.NewNativeFunction('isFrozen', @JSObjectIsFrozen)));
+  objectObj.SetProperty('isSealed', JSMakeFunction(AHeap.NewNativeFunction('isSealed', @JSObjectIsSealed)));
 
   if AEnv <> nil then
     AEnv.Define('Object', JSMakeFunction(objectObj));

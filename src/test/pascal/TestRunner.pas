@@ -352,6 +352,12 @@ type
     procedure TestYieldStar();
     procedure TestFunctionMetadata();
     procedure TestFunctionConstructor();
+    procedure TestObjectStaticMethods();
+    procedure TestArrayModernMethods();
+    procedure TestStringStaticMethods();
+    procedure TestDateComponentSetters();
+    procedure TestSymbolKeyedProperties();
+    procedure TestNonReferenceAssignmentTargets();
   end;
 
 { TFloriaJSTypesTest }
@@ -9016,6 +9022,277 @@ begin
     );
     AssertTrue('global scope', res.Success);
     AssertEquals('the body sees globals', '10', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestObjectStaticMethods();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Object.is is SameValue: NaN equals itself and +0 differs from -0.
+    res := engine.Execute('Object.is(1, 1);');
+    AssertTrue('Object.is equal', res.Success and res.BooleanValue);
+
+    res := engine.Execute('Object.is(NaN, NaN);');
+    AssertTrue('Object.is(NaN, NaN) is true', res.Success and res.BooleanValue);
+
+    res := engine.Execute('Object.is(0, -0);');
+    AssertTrue('Object.is(0, -0) is false', res.Success);
+    AssertFalse('positive and negative zero differ', res.BooleanValue);
+
+    res := engine.Execute('Object.is(1, "1");');
+    AssertTrue('Object.is does not coerce', res.Success);
+    AssertFalse('different kinds differ', res.BooleanValue);
+
+    res := engine.Execute('Object.getOwnPropertyNames({a: 1, b: 2}).join(",");');
+    AssertTrue('getOwnPropertyNames', res.Success);
+    AssertEquals('own names in order', 'a,b', res.StringValue);
+
+    res := engine.Execute('Object.isFrozen(Object.freeze({}));');
+    AssertTrue('freeze', res.Success and res.BooleanValue);
+
+    res := engine.Execute('Object.isSealed(Object.seal({}));');
+    AssertTrue('seal', res.Success and res.BooleanValue);
+
+    res := engine.Execute('var o = {}; Object.defineProperty(o, "x", {value: 5}); o.x;');
+    AssertTrue('defineProperty', res.Success);
+    AssertEquals('the defined value is readable', '5', res.StringValue);
+
+    // A property defined without `enumerable` stays out of enumeration.
+    res := engine.Execute('var o = {}; Object.defineProperty(o, "x", {value: 5}); Object.keys(o).length;');
+    AssertTrue('defineProperty non-enumerable', res.Success);
+    AssertEquals('a defined property is not enumerable', '0', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestArrayModernMethods();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('[1, [2, [3]]].flat().join(",");');
+    AssertTrue('flat one level', res.Success);
+    AssertEquals('one level deep', '1,2,3', res.StringValue);
+
+    res := engine.Execute('[1, [2, [3]]].flat(2).join(",");');
+    AssertTrue('flat two levels', res.Success);
+    AssertEquals('two levels deep', '1,2,3', res.StringValue);
+
+    // `join` stringifies nested arrays too, so depth is checked by shape.
+    res := engine.Execute('[1, [2, [3]]].flat(0).length;');
+    AssertTrue('flat zero levels', res.Success);
+    AssertEquals('zero levels keeps two top-level slots', '2', res.StringValue);
+
+    res := engine.Execute('Array.isArray([1, [2, [3]]].flat(0)[1]);');
+    AssertTrue('flat zero levels keeps nesting', res.Success and res.BooleanValue);
+
+    res := engine.Execute('[1, 2].flatMap(x => [x, x * 2]).join(",");');
+    AssertTrue('flatMap', res.Success);
+    AssertEquals('maps then flattens one level', '1,2,2,4', res.StringValue);
+
+    res := engine.Execute('[1, 2, 3].fill(0).join(",");');
+    AssertTrue('fill', res.Success);
+    AssertEquals('fills every slot', '0,0,0', res.StringValue);
+
+    res := engine.Execute('[1, 2, 3, 4, 5].copyWithin(0, 3).join(",");');
+    AssertTrue('copyWithin', res.Success);
+    AssertEquals('copies within', '4,5,3,4,5', res.StringValue);
+
+    res := engine.Execute('[1, 2, 3].at(-1);');
+    AssertTrue('at negative', res.Success);
+    AssertEquals('the last element', '3', res.StringValue);
+
+    res := engine.Execute('[1, 2, 3].at(0);');
+    AssertTrue('at zero', res.Success);
+    AssertEquals('the first element', '1', res.StringValue);
+
+    res := engine.Execute('[1, 2, 3].at(9);');
+    AssertTrue('at out of range', res.Success);
+    AssertEquals('out of range is undefined', 'undefined', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestStringStaticMethods();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('String.fromCharCode(65);');
+    AssertTrue('fromCharCode', res.Success);
+    AssertEquals('a single code unit', 'A', res.StringValue);
+
+    res := engine.Execute('String.fromCharCode(72, 105);');
+    AssertTrue('fromCharCode multiple', res.Success);
+    AssertEquals('several code units', 'Hi', res.StringValue);
+
+    res := engine.Execute('String.fromCodePoint(65);');
+    AssertTrue('fromCodePoint', res.Success);
+    AssertEquals('a BMP code point', 'A', res.StringValue);
+
+    // Above the BMP the result is a surrogate pair, so length is 2.
+    res := engine.Execute('String.fromCodePoint(0x1F600).length;');
+    AssertTrue('fromCodePoint astral', res.Success);
+    AssertEquals('an astral code point is two units', '2', res.StringValue);
+
+    res := engine.Execute('String.fromCodePoint(-1);');
+    AssertFalse('invalid code point is rejected', res.Success);
+    AssertTrue('a bad code point is a RangeError', Pos('RangeError', res.ErrorMessage) > 0);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestDateComponentSetters();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('var d = new Date(2020, 0, 15); d.setFullYear(2021); d.getFullYear();');
+    AssertTrue('setFullYear', res.Success);
+    AssertEquals('the year is replaced', '2021', res.StringValue);
+
+    res := engine.Execute('var d = new Date(2020, 0, 15); d.setMonth(5); d.getMonth();');
+    AssertTrue('setMonth', res.Success);
+    AssertEquals('the month is replaced', '5', res.StringValue);
+
+    res := engine.Execute('var d = new Date(2020, 0, 15); d.setDate(20); d.getDate();');
+    AssertTrue('setDate', res.Success);
+    AssertEquals('the day is replaced', '20', res.StringValue);
+
+    // A time-of-day setter must not drift by a millisecond.
+    res := engine.Execute('var d = new Date(2020, 0, 15); d.setHours(10); d.getHours();');
+    AssertTrue('setHours', res.Success);
+    AssertEquals('the hour is exact', '10', res.StringValue);
+
+    res := engine.Execute('var d = new Date(2020, 0, 15); d.setHours(10); d.getMinutes();');
+    AssertTrue('setHours keeps minutes', res.Success);
+    AssertEquals('minutes do not drift', '0', res.StringValue);
+
+    res := engine.Execute('var d = new Date(2020, 0, 15); d.setMinutes(30); d.getMinutes();');
+    AssertTrue('setMinutes', res.Success);
+    AssertEquals('the minute is replaced', '30', res.StringValue);
+
+    // An overflowing month carries into the year.
+    res := engine.Execute('var d = new Date(2020, 0, 15); d.setMonth(13); d.getFullYear() + ":" + d.getMonth();');
+    AssertTrue('month overflow', res.Success);
+    AssertEquals('an overflowing month carries', '2021:1', res.StringValue);
+
+    // An overflowing day carries into the next month.
+    res := engine.Execute('var d = new Date(2020, 0, 15); d.setDate(32); d.getMonth();');
+    AssertTrue('day overflow', res.Success);
+    AssertEquals('an overflowing day carries', '1', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestSymbolKeyedProperties();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('var s = Symbol("k"); var o = {}; o[s] = 1; o[s];');
+    AssertTrue('symbol key round trip', res.Success);
+    AssertEquals('the value is stored and read', '1', res.StringValue);
+
+    // A symbol key must not be enumerable.
+    res := engine.Execute('var s = Symbol("k"); var o = {}; o[s] = 1; Object.keys(o).length;');
+    AssertTrue('symbol keys are non-enumerable', res.Success);
+    AssertEquals('Object.keys ignores symbols', '0', res.StringValue);
+
+    res := engine.Execute('var s = Symbol("k"); var o = {a: 1}; o[s] = 2; Object.keys(o).length;');
+    AssertTrue('mixed keys', res.Success);
+    AssertEquals('only string keys enumerate', '1', res.StringValue);
+
+    res := engine.Execute('var s = Symbol("k"); var o = {}; o[s] = 1; JSON.stringify(o);');
+    AssertTrue('symbol keys are not serialised', res.Success);
+    AssertEquals('JSON skips symbols', '{}', res.StringValue);
+
+    // Two symbols with the same description are distinct keys.
+    res := engine.Execute(
+      'var a = Symbol("x"); var b = Symbol("x"); var o = {};' +
+      'o[a] = 1; o[b] = 2; o[a] + ":" + o[b];'
+    );
+    AssertTrue('distinct symbols', res.Success);
+    AssertEquals('same description, different keys', '1:2', res.StringValue);
+
+    // A symbol key does not collide with a string of its printed form.
+    res := engine.Execute('var s = Symbol("k"); var o = {}; o[s] = 1; o["Symbol(k)"];');
+    AssertTrue('no collision with the printed form', res.Success);
+    AssertEquals('the string key is separate', 'undefined', res.StringValue);
+
+    // Well-known symbols still resolve.
+    res := engine.Execute('typeof [1, 2][Symbol.iterator];');
+    AssertTrue('Symbol.iterator still resolves', res.Success);
+    AssertEquals('the array iterator is a function', 'function', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestNonReferenceAssignmentTargets();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // A non-reference target used to compile to nothing and evaluate to
+    // undefined, so these silently "succeeded".
+    res := engine.Execute('1 += 2;');
+    AssertFalse('numeric literal target', res.Success);
+    AssertTrue('is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var a = 1; var b = 2; (a + b) = 1;');
+    AssertFalse('binary expression target', res.Success);
+
+    res := engine.Execute('var a = 1; var b = 2; (a + b) += 1;');
+    AssertFalse('binary expression compound target', res.Success);
+
+    res := engine.Execute('f() &&= 1;');
+    AssertFalse('call target', res.Success);
+
+    res := engine.Execute('(1, 2) = 3;');
+    AssertFalse('sequence target', res.Success);
+
+    // Real references still work.
+    res := engine.Execute('var x = 1; x += 2; x;');
+    AssertTrue('identifier target', res.Success);
+    AssertEquals('compound assignment still works', '3', res.StringValue);
+
+    res := engine.Execute('var o = {}; o.a = 1; o.a;');
+    AssertTrue('member target', res.Success);
+    AssertEquals('member assignment still works', '1', res.StringValue);
+
+    res := engine.Execute('var arr = [1]; arr[0] = 5; arr[0];');
+    AssertTrue('computed member target', res.Success);
+    AssertEquals('computed assignment still works', '5', res.StringValue);
+
+    // A compound assignment to a missing property adds to undefined, so NaN.
+    res := engine.Execute('var o = {}; o.a += 2; o.a;');
+    AssertTrue('member compound target', res.Success);
+    AssertEquals('undefined plus a number is NaN', 'NaN', res.StringValue);
+
+    res := engine.Execute('var o = {a: 1}; o.a += 2; o.a;');
+    AssertTrue('member compound target with a value', res.Success);
+    AssertEquals('member compound assignment still works', '3', res.StringValue);
   finally
     engine.Free();
   end;

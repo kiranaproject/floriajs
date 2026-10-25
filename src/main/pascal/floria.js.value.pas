@@ -100,10 +100,16 @@ type
     FProperties: array of TFloriaJSPropertyPair;
     FPropCount: Integer;
     FRefCount: Integer;
+    { `Object.freeze`/`seal` marking. This runtime has no per-property
+      attributes, so the flags record the call and are observable through
+      `Object.isFrozen`/`isSealed`. }
+    FIsFrozen: Boolean;
+    FIsSealed: Boolean;
     FHeap: TFloriaJSHeap;
     FHeapOwned: Boolean;
     FPinned: Boolean;
     function FindPropertyIndex(const AName: string): Integer;
+    function FindWellKnownSymbolIndex(const AName: string): Integer;
     procedure SetPrototype(AProto: TFloriaJSObject);
   public
     constructor Create(AProto: TFloriaJSObject = nil);
@@ -130,6 +136,8 @@ type
     procedure DefineSetter(const AName: string; const ASetter: TFloriaJSValue); virtual;
     function  HasProperty(const AName: string): Boolean; virtual;
     function  DeleteProperty(const AName: string): Boolean; virtual;
+    property IsFrozen: Boolean read FIsFrozen write FIsFrozen;
+    property IsSealed: Boolean read FIsSealed write FIsSealed;
 
     function  GetOwnProperty(const AName: string): TFloriaJSValue;
     function  HasOwnProperty(const AName: string): Boolean; virtual;
@@ -619,6 +627,13 @@ function JSUnaryMinus(const AVal: TFloriaJSValue): TFloriaJSValue;
 function JSUnaryPlus(const AVal: TFloriaJSValue): TFloriaJSValue;
 function JSUnaryNot(const AVal: TFloriaJSValue): TFloriaJSValue;
 function JSUnaryBitNot(const AVal: TFloriaJSValue): TFloriaJSValue;
+{ The name a property is stored under. A symbol key gets a prefix that no real
+  string key can contain, so it never collides and never enumerates. }
+function JSPropertyKeyName(const AVal: TFloriaJSValue): string;
+{ True when AName is the property key for the well-known symbol whose
+  description is ADescription, e.g. 'Symbol.iterator'. Accepts the raw symbol
+  key form and the legacy string spellings. }
+function JSIsWellKnownSymbolKey(const AName, ADescription: string): Boolean;
 function JSTypeOf(const AVal: TFloriaJSValue): string;
 
 implementation
@@ -1120,6 +1135,14 @@ var
 begin
   if AReceiver <> nil then rec := AReceiver else rec := Self;
   idx := FindPropertyIndex(AName);
+  if idx < 0 then
+  begin
+    { A well-known symbol key carries a per-process id, so a property
+      registered under one spelling must still be found under another. Match on
+      the description in that case. }
+    if (Length(AName) > 0) and (AName[1] = #1) then
+      idx := FindWellKnownSymbolIndex(AName);
+  end;
   if idx >= 0 then
   begin
     if FProperties[idx].HasGetter and (FHeap <> nil) then
@@ -1132,6 +1155,46 @@ begin
     Exit(FPrototype.GetPropertyWithReceiver(AName, rec));
 
   Result := JSMakeUndefined();
+end;
+
+{ The description part of a symbol key ('#1sym:<id>:<description>'), or '' when
+  AName is not a symbol key. }
+function SymbolKeyDescription(const AName: string): string;
+var
+  i, colons: Integer;
+begin
+  Result := '';
+  if (Length(AName) = 0) or (AName[1] <> #1) then Exit;
+  colons := 0;
+  for i := 1 to Length(AName) do
+    if AName[i] = ':' then
+    begin
+      Inc(colons);
+      if colons = 2 then
+        Exit(Copy(AName, i + 1, Length(AName) - i));
+    end;
+end;
+
+{ Finds a property whose key is a symbol key with the same description as
+  AName, ignoring the numeric id. }
+function TFloriaJSObject.FindWellKnownSymbolIndex(const AName: string): Integer;
+var
+  i: Integer;
+  desc: string;
+begin
+  desc := SymbolKeyDescription(AName);
+  if desc = '' then
+    Exit(-1);
+  for i := 0 to FPropCount - 1 do
+  begin
+    if SymbolKeyDescription(FProperties[i].Key) = desc then
+      Exit(i);
+    { A well-known symbol may also have been registered under its legacy string
+      spelling, e.g. 'Symbol(Symbol.iterator)'. }
+    if FProperties[i].Key = 'Symbol(' + desc + ')' then
+      Exit(i);
+  end;
+  Result := -1;
 end;
 
 function TFloriaJSObject.GetProperty(const AName: string): TFloriaJSValue;
@@ -4086,6 +4149,31 @@ end;
 function JSUnaryBitNot(const AVal: TFloriaJSValue): TFloriaJSValue;
 begin
   Result := JSMakeNumber(not LongInt(Trunc(AVal.ToNumber())));
+end;
+
+{ The name a property is stored under. A symbol key gets a prefix that no real
+  string key can contain, so it never collides and never enumerates. }
+function JSPropertyKeyName(const AVal: TFloriaJSValue): string;
+begin
+  if AVal.IsSymbol() then
+    Result := #1'sym:' + IntToStr(Trunc(AVal.NumVal)) + ':' + AVal.StrVal
+  else
+    Result := AVal.ToString();
+end;
+
+function JSIsWellKnownSymbolKey(const AName, ADescription: string): Boolean;
+begin
+  { Canonical form: the '#1sym:<id>:<description>' key produced by
+    JSPropertyKeyName for a symbol. }
+  if (Length(AName) > 0) and (AName[1] = #1) then
+    Exit(Copy(AName, Length(AName) - Length(ADescription) + 1,
+      Length(ADescription)) = ADescription);
+  { Legacy spellings kept for values created before symbol keys were distinct. }
+  if AName = ADescription then Exit(True);
+  if AName = 'Symbol(' + ADescription + ')' then Exit(True);
+  if ADescription = 'Symbol.iterator' then
+    Exit((AName = '@@iterator') or (AName = 'Symbol(Symbol.iterator)'));
+  Result := False;
 end;
 
 function JSTypeOf(const AVal: TFloriaJSValue): string;

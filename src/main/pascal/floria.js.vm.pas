@@ -635,7 +635,14 @@ begin
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Cannot set properties of undefined (setting ''' + APropName + ''')')));
 
   if AObj.IsObject() then
-    AObj.AsObject().SetProperty(APropName, AVal);
+  begin
+    { A symbol-keyed property is not enumerable: it does not appear in
+      Object.keys, for...in, or JSON. The key prefix marks it. }
+    if (Length(APropName) > 0) and (APropName[1] = #1) then
+      AObj.AsObject().SetPropertyNonEnumerable(APropName, AVal)
+    else
+      AObj.AsObject().SetProperty(APropName, AVal);
+  end;
 end;
 
 function TFloriaJSVM.Execute(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment): TFloriaJSValue;
@@ -947,7 +954,7 @@ begin
           begin
             propVal := Pop();
             objVal := Pop();
-            Push(GetMemberValue(objVal, propVal.ToString()));
+            Push(GetMemberValue(objVal, JSPropertyKeyName(propVal)));
           end;
 
         opGetPropNamed:
@@ -962,7 +969,7 @@ begin
             val := Pop();
             propVal := Pop();
             objVal := Pop();
-            SetMemberValue(objVal, propVal.ToString(), val);
+            SetMemberValue(objVal, JSPropertyKeyName(propVal), val);
             Push(val);
           end;
 
@@ -982,7 +989,7 @@ begin
             if objVal.IsNull() or objVal.IsUndefined() then
               Push(JSMakeUndefined())
             else
-              Push(GetMemberValue(objVal, propVal.ToString()));
+              Push(GetMemberValue(objVal, JSPropertyKeyName(propVal)));
           end;
 
         opGetPropNamedOpt:

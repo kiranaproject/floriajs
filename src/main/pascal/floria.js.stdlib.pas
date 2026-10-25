@@ -516,6 +516,48 @@ begin
   end;
 end;
 
+
+{ `String.fromCharCode(...codes)` — builds a string from UTF-16 code units. }
+function JSStringFromCharCode(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  i, code: Integer;
+  sb: string;
+begin
+  sb := '';
+  for i := 0 to Length(AArgs) - 1 do
+  begin
+    code := Trunc(AArgs[i].ToNumber()) and $FFFF;
+    sb := sb + WideChar(code);
+  end;
+  Result := JSMakeString(sb);
+end;
+
+{ `String.fromCodePoint(...points)` — builds a string from Unicode code points,
+  encoding anything above the BMP as a surrogate pair. }
+function JSStringFromCodePoint(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  i: Integer;
+  cp: Int64;
+  sb: string;
+begin
+  sb := '';
+  for i := 0 to Length(AArgs) - 1 do
+  begin
+    cp := Trunc(AArgs[i].ToNumber());
+    if (cp < 0) or (cp > $10FFFF) then
+      raise EFloriaJSThrow.Create(JSMakeString('RangeError: Invalid code point ' + IntToStr(cp)));
+    if cp <= $FFFF then
+      sb := sb + WideChar(cp)
+    else
+    begin
+      Dec(cp, $10000);
+      sb := sb + WideChar($D800 + (cp shr 10));
+      sb := sb + WideChar($DC00 + (cp and $3FF));
+    end;
+  end;
+  Result := JSMakeString(sb);
+end;
+
 function JSParseInt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   s: string;
@@ -748,6 +790,8 @@ begin
   begin
     AHeap.GetArrayPrototype().SetProperty('values',
       JSMakeFunction(AHeap.NewNativeFunction('values', @JSArrayValues)));
+    { Symbol.iterator is also reachable by its description, so a computed
+      symbol key finds it however the id was allocated. }
     AHeap.GetArrayPrototype().SetProperty('Symbol(Symbol.iterator)',
       JSMakeFunction(AHeap.NewNativeFunction('[Symbol.iterator]', @JSArrayValues)));
   end;
@@ -826,6 +870,8 @@ begin
   { Publish the shared string prototype so String.prototype methods and
     prototype-chain checks see the same methods primitive strings use. }
   stringObj.SetProperty('prototype', JSMakeObject(AHeap.GetStringPrototype()));
+  stringObj.SetProperty('fromCharCode', JSMakeFunction(AHeap.NewNativeFunction('fromCharCode', @JSStringFromCharCode)));
+  stringObj.SetProperty('fromCodePoint', JSMakeFunction(AHeap.NewNativeFunction('fromCodePoint', @JSStringFromCodePoint)));
   AEnv.Define('String', JSMakeFunction(stringObj));
   AEnv.Define('Boolean', JSMakeFunction(AHeap.NewNativeFunction('Boolean', @JSBooleanConst)));
 

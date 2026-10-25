@@ -211,6 +211,106 @@ begin
   Result := JSMakeNumber(ms);
 end;
 
+
+{ Rebuilds a date from its local components, clamping an overflowing day the
+  way ECMAScript does (e.g. Jan 32 becomes Feb 1). }
+function MakeLocalDateMS(AYear, AMonth, ADay, AHour, AMin, ASec, AMSec: Integer): Double;
+var
+  dt: TDateTime;
+  normYear, normMonth: Integer;
+begin
+  { Normalise an out-of-range month, carrying into the year, so callers can
+    pass a zero-based month or an overflowing one. }
+  normYear := AYear + (AMonth div 12);
+  normMonth := AMonth mod 12;
+  if normMonth < 0 then
+  begin
+    Dec(normYear);
+    Inc(normMonth, 12);
+  end;
+  { Start at the first of the month and add whole days, so an overflowing day
+    carries into the next month instead of being clamped. }
+  dt := EncodeDate(normYear, normMonth + 1, 1);
+  dt := dt + (ADay - 1);
+  { The time of day is added as an exact number of milliseconds rather than as a
+    fraction of a day: a day fraction cannot represent every millisecond, and
+    10:00 would land at 09:59:59.999 and decode back as hour 9. }
+  Result := LocalDateTimeToEpochMS(dt) +
+    (AHour * 3600000.0 + AMin * 60000.0 + ASec * 1000.0 + AMSec);
+  Result := Round(Result);
+end;
+
+{ The component setters share this shape: keep the other fields, replace one. }
+function SetDateComponent(AThis: TFloriaJSValue; AArgs: array of TFloriaJSValue;
+  AWhich: Integer): TFloriaJSValue;
+var
+  ms: Double;
+  dt: TDateTime;
+  y, mo, d, h, mi, se, msec: Word;
+begin
+  ms := GetDateMS(AThis);
+  if IsNaN(ms) then Exit(JSMakeNumber(NaN));
+  dt := EpochMSToLocalDateTime(ms);
+  DecodeDate(dt, y, mo, d);
+  DecodeTime(dt, h, mi, se, msec);
+
+  case AWhich of
+    0: y := Trunc(AArgs[0].ToNumber());                                  { year }
+    1: mo := Trunc(AArgs[0].ToNumber()) + 1;                             { month }
+    2: d := Trunc(AArgs[0].ToNumber());                                  { date }
+    3: h := Trunc(AArgs[0].ToNumber());                                  { hours }
+    4: mi := Trunc(AArgs[0].ToNumber());                                 { minutes }
+    5: se := Trunc(AArgs[0].ToNumber());                                 { seconds }
+    6: msec := Trunc(AArgs[0].ToNumber());                               { milliseconds }
+  end;
+
+  ms := MakeLocalDateMS(y, mo - 1, d, h, mi, se, msec);
+  SetDateMS(AThis, ms);
+  Result := JSMakeNumber(ms);
+end;
+
+function JSDateSetFullYear(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := SetDateComponent(AThis, AArgs, 0);
+end;
+
+function JSDateSetMonth(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := SetDateComponent(AThis, AArgs, 1);
+end;
+
+function JSDateSetDate(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := SetDateComponent(AThis, AArgs, 2);
+end;
+
+function JSDateSetHours(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := SetDateComponent(AThis, AArgs, 3);
+end;
+
+function JSDateSetMinutes(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := SetDateComponent(AThis, AArgs, 4);
+end;
+
+function JSDateSetSeconds(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := SetDateComponent(AThis, AArgs, 5);
+end;
+
+function JSDateSetMilliseconds(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  Result := SetDateComponent(AThis, AArgs, 6);
+end;
+
 function JSDateGetFullYear(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   ms: Double;
@@ -443,6 +543,14 @@ begin
   dateProto.SetProperty('getMilliseconds', JSMakeFunction(AHeap.NewNativeFunction('getMilliseconds', @JSDateGetMilliseconds)));
   dateProto.SetProperty('getUTCMilliseconds', JSMakeFunction(AHeap.NewNativeFunction('getUTCMilliseconds', @JSDateGetUTCMilliseconds)));
   dateProto.SetProperty('getTimezoneOffset', JSMakeFunction(AHeap.NewNativeFunction('getTimezoneOffset', @JSDateGetTimezoneOffset)));
+
+  dateProto.SetProperty('setFullYear', JSMakeFunction(AHeap.NewNativeFunction('setFullYear', @JSDateSetFullYear)));
+  dateProto.SetProperty('setMonth', JSMakeFunction(AHeap.NewNativeFunction('setMonth', @JSDateSetMonth)));
+  dateProto.SetProperty('setDate', JSMakeFunction(AHeap.NewNativeFunction('setDate', @JSDateSetDate)));
+  dateProto.SetProperty('setHours', JSMakeFunction(AHeap.NewNativeFunction('setHours', @JSDateSetHours)));
+  dateProto.SetProperty('setMinutes', JSMakeFunction(AHeap.NewNativeFunction('setMinutes', @JSDateSetMinutes)));
+  dateProto.SetProperty('setSeconds', JSMakeFunction(AHeap.NewNativeFunction('setSeconds', @JSDateSetSeconds)));
+  dateProto.SetProperty('setMilliseconds', JSMakeFunction(AHeap.NewNativeFunction('setMilliseconds', @JSDateSetMilliseconds)));
 
   dateProto.SetProperty('toISOString', JSMakeFunction(AHeap.NewNativeFunction('toISOString', @JSDateToISOString)));
   dateProto.SetProperty('toUTCString', JSMakeFunction(AHeap.NewNativeFunction('toUTCString', @JSDateToISOString)));

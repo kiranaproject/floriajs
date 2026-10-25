@@ -828,9 +828,8 @@ begin
     Exit(JSMakeFunction(FNextFn));
   end;
 
-  { Symbol.iterator stores under its string form, so the well-known symbol's
-    description is what arrives here. }
-  if (AName = 'Symbol(Symbol.iterator)') or (AName = '@@iterator') then
+  { The well-known iterator symbol, in whichever key form it arrives. }
+  if JSIsWellKnownSymbolKey(AName, 'Symbol.iterator') then
   begin
     if (FSelfIteratorFn = nil) and (Heap <> nil) then
       FSelfIteratorFn := Heap.NewNativeMethod('[Symbol.iterator]', @Self.SelfIterator);
@@ -842,7 +841,7 @@ end;
 
 function TFloriaJSIterator.HasProperty(const AName: string): Boolean;
 begin
-  if (AName = 'next') or (AName = 'Symbol(Symbol.iterator)') or (AName = '@@iterator') then
+  if (AName = 'next') or JSIsWellKnownSymbolKey(AName, 'Symbol.iterator') then
     Exit(True);
   Result := inherited HasProperty(AName);
 end;
