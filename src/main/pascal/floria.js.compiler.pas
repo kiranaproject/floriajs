@@ -1853,6 +1853,11 @@ begin
         begin
           propName := AObj.GetPropertyKey(i);
           FBytecode.Emit(opDup); // Duplicate object reference
+          { An anonymous function assigned to a property takes the property's
+            name, as ECMAScript's named-evaluation rules require. }
+          if (AObj.GetPropertyValue(i) is TFloriaJSFunctionExpr) and
+             (TFloriaJSFunctionExpr(AObj.GetPropertyValue(i)).Name = '') then
+            TFloriaJSFunctionExpr(AObj.GetPropertyValue(i)).Name := propName;
           CompileExpr(AObj.GetPropertyValue(i));
           FBytecode.Emit(opSetPropNamed, FBytecode.AddStringConstant(propName));
           FBytecode.Emit(opPop); // Pop assigned value, keeping object on stack

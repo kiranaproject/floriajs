@@ -20,8 +20,15 @@ uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
   floria.js.arrays, floria.js.strings, floria.js.objects, floria.js.json,
   floria.js.symbol, floria.js.date, floria.js.uri, floria.js.collections,
-  floria.js.number,
+  floria.js.number, floria.js.lexer, floria.js.ast, floria.js.parser,
+  floria.js.bytecode, floria.js.compiler,
   floria.js.timers, floria.js.regexp;
+
+var
+  { The heap the standard library was registered against. Native functions are
+    called with a primitive receiver that carries no heap of its own, so the
+    few that must allocate (such as the `Function` constructor) use this. }
+  GSharedStdLibHeap: TFloriaJSHeap = nil;
 
 type
   { Output Logging Callback }
@@ -436,6 +443,79 @@ begin
     'Cannot convert ' + v.ToString() + ' to a BigInt')));
 end;
 
+
+{ `Function(arg1, ..., argN, body)` — builds a function from source text.
+
+  The body is compiled the same way any script is: the arguments and body are
+  joined into a function expression, parsed, and compiled into a fresh
+  bytecode chunk. A syntax error in the body surfaces as a SyntaxError. }
+function JSFunctionCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  params, body, source: string;
+  i: Integer;
+  lexer: TFloriaJSLexer;
+  parser: TFloriaJSParser;
+  prog: TFloriaJSProgram;
+  comp: TFloriaJSCompiler;
+  code: TFloriaJSBytecode;
+  heap: TFloriaJSHeap;
+  fn: TFloriaJSFunction;
+  subCode: TFloriaJSBytecode;
+begin
+  heap := GSharedStdLibHeap;
+  if heap = nil then
+    Exit(JSMakeUndefined());
+
+  { All but the last argument are parameter names; the last is the body. }
+  params := '';
+  body := '';
+  if Length(AArgs) > 0 then
+  begin
+    for i := 0 to Length(AArgs) - 2 do
+    begin
+      if i > 0 then
+        params := params + ',';
+      params := params + AArgs[i].ToString();
+    end;
+    body := AArgs[High(AArgs)].ToString();
+  end;
+
+  source := 'function anonymous(' + params + ') {' + #10 + body + #10 + '}';
+
+  lexer := TFloriaJSLexer.Create(source);
+  parser := TFloriaJSParser.Create(lexer);
+  comp := nil;
+  code := nil;
+  try
+    prog := parser.ParseProgram();
+    try
+      if parser.HasErrors() then
+        raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('SyntaxError',
+          parser.GetError(0))));
+
+      comp := TFloriaJSCompiler.Create();
+      code := comp.CompileProgram(prog);
+      try
+        { The chunk's first subfunction is the function expression itself. }
+        if code.GetSubFunctionCount() = 0 then
+          Exit(JSMakeUndefined());
+        subCode := code.GetSubFunction(0);
+        subCode.Retain();
+        fn := heap.NewBytecodeFunction('anonymous', subCode, nil, False, False);
+        Result := JSMakeFunction(fn);
+      finally
+        code.Release();
+      end;
+    finally
+      prog.Free();
+    end;
+  finally
+    comp.Free();
+    parser.Free();
+    lexer.Free();
+  end;
+end;
+
 function JSParseInt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   s: string;
@@ -607,6 +687,7 @@ begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
 
   GLogOutput := ALogOutput;
+  GSharedStdLibHeap := AHeap;
 
   // 0. Built-in prototypes and global objects
   FloriaJSRegisterArray(AEnv, AHeap);
@@ -704,7 +785,7 @@ begin
   AEnv.Define('SyntaxError', JSMakeFunction(syntaxErrCtor));
 
   // 4b. Function
-  funcObj := AHeap.NewNativeFunction('Function', nil);
+  funcObj := AHeap.NewNativeFunction('Function', @JSFunctionCtor);
   funcObj.SetProperty('prototype', JSMakeObject(AHeap.GetFunctionPrototype()));
   AHeap.GetFunctionPrototype().SetProperty('constructor', JSMakeFunction(funcObj));
   AEnv.Define('Function', JSMakeFunction(funcObj));

@@ -231,6 +231,9 @@ type
     function GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); override;
     function DeleteProperty(const AName: string): Boolean; override;
+    { `name` and `length` are created lazily, so the raw property store does not
+      know about them until they are read. }
+    function HasOwnProperty(const AName: string): Boolean; override;
     procedure DefineGetter(const AName: string; const AGetter: TFloriaJSValue); override;
     procedure DefineSetter(const AName: string; const ASetter: TFloriaJSValue); override;
 
@@ -1960,6 +1963,7 @@ end;
 function TFloriaJSFunction.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 var
   protoObj: TFloriaJSObject;
+  subCode: TFloriaJSBytecode;
 begin
   { A bound function is constructable through its target but must not expose an
     own `prototype`: `new` reads the target's prototype directly, and
@@ -1971,7 +1975,39 @@ begin
     SetProperty('prototype', JSMakeObject(protoObj));
   end;
 
+  { `name` and `length` are non-enumerable own properties of every function.
+    They are materialised on first read, from the function's own name and its
+    bytecode's declared parameter count. }
+  if (AName = 'name') and (FindPropertyIndex('name') < 0) then
+  begin
+    SetPropertyNonEnumerable('name', JSMakeString(FName));
+    Exit(inherited GetPropertyWithReceiver(AName, AReceiver));
+  end;
+
+  if (AName = 'length') and (FindPropertyIndex('length') < 0) then
+  begin
+    if FBytecode <> nil then
+      subCode := TFloriaJSBytecode(FBytecode)
+    else
+      subCode := nil;
+    if subCode <> nil then
+      SetPropertyNonEnumerable('length', JSMakeNumber(subCode.GetArgumentCount()))
+    else
+      SetPropertyNonEnumerable('length', JSMakeNumber(0));
+    Exit(inherited GetPropertyWithReceiver(AName, AReceiver));
+  end;
+
   Result := inherited GetPropertyWithReceiver(AName, AReceiver);
+end;
+
+function TFloriaJSFunction.HasOwnProperty(const AName: string): Boolean;
+begin
+  if (AName = 'name') or (AName = 'length') then
+  begin
+    { Materialise through the normal lookup so the value is consistent. }
+    GetPropertyWithReceiver(AName, Self);
+  end;
+  Result := inherited HasOwnProperty(AName);
 end;
 
 function TFloriaJSFunction.GetProperty(const AName: string): TFloriaJSValue;

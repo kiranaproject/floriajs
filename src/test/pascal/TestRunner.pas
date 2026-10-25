@@ -350,6 +350,8 @@ type
     procedure TestGeneratorSuspension();
     procedure TestGeneratorIteration();
     procedure TestYieldStar();
+    procedure TestFunctionMetadata();
+    procedure TestFunctionConstructor();
   end;
 
 { TFloriaJSTypesTest }
@@ -8895,6 +8897,125 @@ begin
     res := engine.Execute('function* g() { yield* []; } var it = g(); it.next().done;');
     AssertTrue('yield* over an empty iterable', res.Success);
     AssertTrue('delegating nothing is done immediately', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestFunctionMetadata();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // `length` is the declared parameter count.
+    res := engine.Execute('function f(a, b) {} f.length;');
+    AssertTrue('declared length', res.Success);
+    AssertEquals('two parameters', '2', res.StringValue);
+
+    res := engine.Execute('function f() {} f.length;');
+    AssertTrue('zero parameters', res.Success);
+    AssertEquals('no parameters is 0', '0', res.StringValue);
+
+    res := engine.Execute('var g = function(a) {}; g.length;');
+    AssertTrue('function expression length', res.Success);
+    AssertEquals('one parameter', '1', res.StringValue);
+
+    res := engine.Execute('var h = (a, b) => 1; h.length;');
+    AssertTrue('arrow length', res.Success);
+    AssertEquals('arrow parameters count', '2', res.StringValue);
+
+    // `name` is the declared name.
+    res := engine.Execute('function foo() {} foo.name;');
+    AssertTrue('declared name', res.Success);
+    AssertEquals('the function name', 'foo', res.StringValue);
+
+    res := engine.Execute('var g = function named() {}; g.name;');
+    AssertTrue('expression name', res.Success);
+    AssertEquals('the expression name', 'named', res.StringValue);
+
+    // An anonymous function takes the name of the property it is assigned to.
+    res := engine.Execute('var o = {m: function() {}}; o.m.name;');
+    AssertTrue('inferred name', res.Success);
+    AssertEquals('the property name is inferred', 'm', res.StringValue);
+
+    res := engine.Execute('var o = {m() {}}; o.m.name;');
+    AssertTrue('method name', res.Success);
+    AssertEquals('a shorthand method is named', 'm', res.StringValue);
+
+    // An explicit name is not overridden by the property.
+    res := engine.Execute('var o = {m: function named() {}}; o.m.name;');
+    AssertTrue('explicit name wins', res.Success);
+    AssertEquals('the declared name is kept', 'named', res.StringValue);
+
+    // Both are non-enumerable, so reflection does not see them.
+    res := engine.Execute('function f(a) {} Object.keys(f).length;');
+    AssertTrue('metadata is non-enumerable', res.Success);
+    AssertEquals('neither name nor length is an own key', '0', res.StringValue);
+
+    res := engine.Execute('function f(a) {} f.hasOwnProperty("name") && f.hasOwnProperty("length");');
+    AssertTrue('metadata is an own property', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestFunctionConstructor();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // The body is compiled at run time.
+    res := engine.Execute('Function("return 1")();');
+    AssertTrue('empty parameter list', res.Success);
+    AssertEquals('the body runs', '1', res.StringValue);
+
+    res := engine.Execute('var f = Function("a", "b", "return a + b"); f(2, 3);');
+    AssertTrue('named parameters', res.Success);
+    AssertEquals('parameters are bound', '5', res.StringValue);
+
+    res := engine.Execute('Function("a", "return a * 2")(21);');
+    AssertTrue('single parameter', res.Success);
+    AssertEquals('the argument is used', '42', res.StringValue);
+
+    res := engine.Execute('typeof Function("return 1");');
+    AssertTrue('produces a function', res.Success);
+    AssertEquals('the result is callable', 'function', res.StringValue);
+
+    // It works with `new` too, as ECMAScript allows.
+    res := engine.Execute('new Function("return 7")();');
+    AssertTrue('new Function', res.Success);
+    AssertEquals('construction also yields the function', '7', res.StringValue);
+
+    // A bare `return` is valid: it returns undefined.
+    res := engine.Execute('Function("return")();');
+    AssertTrue('bare return', res.Success);
+    AssertEquals('a bare return yields undefined', 'undefined', res.StringValue);
+
+    // A genuinely malformed body is a SyntaxError.
+    res := engine.Execute('Function("return 1 +");');
+    AssertFalse('syntax error in the body', res.Success);
+    AssertTrue('a bad body is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('Function("this is not javascript ((");');
+    AssertFalse('unparseable body is rejected', res.Success);
+
+    // Each call produces an independent function.
+    res := engine.Execute(
+      'var a = Function("return 1"); var b = Function("return 2"); a() + b();'
+    );
+    AssertTrue('independent functions', res.Success);
+    AssertEquals('two constructed functions', '3', res.StringValue);
+
+    // A constructed function closes over globals, not the caller's locals.
+    res := engine.Execute(
+      'var g = 10; function mk() { var local = 1; return Function("return g"); } mk()();'
+    );
+    AssertTrue('global scope', res.Success);
+    AssertEquals('the body sees globals', '10', res.StringValue);
   finally
     engine.Free();
   end;
