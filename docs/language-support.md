@@ -109,7 +109,7 @@ Notes:
 | Numeric separators | Yes | `1_000_000` (decimal forms) |
 | Strings | Yes | `\n`, `\r`, `\t`, `\b`, `\f`, `\v`, `\0`, `\\`, `\'`, `\"`, `\xNN`, `\uNNNN` |
 | Template literals | Yes | `` `v=${n + 1}` `` interpolation via string concatenation |
-| Tagged templates | No | The tag is **not called**. `tag\`x\`` parses as the expression `tag` followed by a template literal, and the whole thing evaluates to the template string, so `tag` is never invoked |
+| Tagged templates | Yes | `tag\`a${b}c\`` calls `tag` with the cooked strings array (which carries a `raw` array of the source text) followed by the substitution values |
 | Array literals | Yes | Holes/elisions (`[1, , 3]`), spread (`[...a]`), trailing commas. Holes are tracked separately from explicit `undefined`. |
 | Object literals | Yes | Shorthand, computed keys, spread, methods, getters/setters, trailing commas |
 | Spread in calls | Yes | `f(...args)` |
@@ -402,7 +402,6 @@ are grouped by cause, because the three groups have different answers:
 | :--- | :--- | :--- |
 | `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
 | Generators / `for await` | `function*` and `for await` are parse errors. | P2-07 |
-| Tagged templates | The tag is never called: `tag\`x\`` evaluates to the template string itself, so `function t(s){ return 1; } t\`x\`` is `"x"`, not `1`. | P2-08 |
 | `BigInt` | BigInt literals are rejected at lex time (`BigInt literals are not supported`) rather than being mis-parsed. | P2-09 |
 | Function metadata | `Function` constructor, `length`, `name`, and `toString` parity. | P2-10 |
 | Library completeness | `Object.is`/`defineProperty`/`getOwnPropertyNames`/`freeze`/`seal`/`fromEntries`, `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`, `String.fromCharCode`/`fromCodePoint`, `String.prototype.localeCompare`/`normalize`, `Date` setters, `Intl`, `eval`, `alert`. | P2-11 |

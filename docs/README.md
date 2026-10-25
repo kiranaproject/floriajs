@@ -52,9 +52,9 @@ Implemented and covered by the test suite:
   (`?.`, `?.[k]`, `?.()`), comma, and compound assignment including `**=`,
   `??=`, and the short-circuiting `&&=`/`||=`.
 - Literals: numbers (hex, octal, binary, exponent, numeric separators),
-  strings with escapes, template interpolation, array/object spread, array
-  holes, shorthand and computed properties, object methods, getters/setters,
-  and regular expression literals.
+  strings with escapes, template interpolation and tagged templates,
+  array/object spread, array holes, shorthand and computed properties, object
+  methods, getters/setters, and regular expression literals.
 - Standard library: `console`, `Math`, `Number`, `String`, `Boolean`,
   `parseInt`/`parseFloat`, `isNaN`/`isFinite`, the standard error constructors
   (including `SyntaxError` and `URIError`), `Object` utilities, Array and
@@ -67,7 +67,7 @@ Implemented and covered by the test suite:
 
 Not implemented yet (see the [roadmap](roadmap.md)):
 
-- Generators/`yield`, tagged templates, `for await`, and `import`/`export`.
+- Generators/`yield`, `for await`, and `import`/`export`.
 - `BigInt` (literals are rejected at lex time).
 - Convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
   and `Object.is`.
