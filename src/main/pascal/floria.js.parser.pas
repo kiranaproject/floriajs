@@ -76,6 +76,7 @@ type
     function  ParseMethodBody(const AName: string): TFloriaJSFunctionExpr;
     function  ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
     function  ParseClassDeclaration(): TFloriaJSStmtNode;
+    function  ParseTaggedTemplate(ATag: TFloriaJSExprNode): TFloriaJSExprNode;
     function  ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
     procedure ParseFormalParameters(AParams: TStringList);
     function  ExtractParameters(var AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
@@ -278,7 +279,8 @@ begin
       Result := PREC_EXPONENTIATION;
     tkPlusPlus, tkMinusMinus:
       Result := PREC_POSTFIX;
-    tkLParen, tkDot, tkLBracket, tkQuestionDot:
+    tkLParen, tkDot, tkLBracket, tkQuestionDot,
+    tkTemplateString, tkTemplateHead:
       Result := PREC_CALL;
   else
     Result := PREC_NONE;
@@ -566,6 +568,11 @@ begin
       Result := TFloriaJSMemberExpr.CreateComputed(Result, computedProp, op.Line, op.Column);
     end;
   end;
+
+  { A template literal directly after an expression is a tagged template, not a
+    separate expression: `tag`x`` calls tag. }
+  if FCurrent.Kind in [tkTemplateString, tkTemplateHead] then
+    Result := ParseTaggedTemplate(Result);
 end;
 
 function TFloriaJSParser.ParseNewExpression(ANewToken: TFloriaJSToken): TFloriaJSExprNode;
@@ -676,6 +683,42 @@ begin
   varStmt := TFloriaJSVarStmt.Create(tkLet, startLine, startCol);
   varStmt.AddDeclarator(cls.Name, cls);
   Result := varStmt;
+end;
+
+
+{ Parses the template part of a tagged template, keeping the cooked and raw
+  strings and the substitution expressions separate instead of flattening them
+  into a `+` chain. }
+function TFloriaJSParser.ParseTaggedTemplate(ATag: TFloriaJSExprNode): TFloriaJSExprNode;
+var
+  node: TFloriaJSTaggedTemplateExpr;
+  startLine, startCol: Integer;
+begin
+  startLine := FCurrent.Line;
+  startCol := FCurrent.Column;
+  node := TFloriaJSTaggedTemplateExpr.Create(ATag, startLine, startCol);
+
+  if Match(tkTemplateString) then
+  begin
+    { A template with no substitutions has one string and no expressions. }
+    node.AddPart(FPrevious.Text, FPrevious.Text);
+    Exit(node);
+  end;
+
+  Consume(tkTemplateHead, 'Expected a template literal after the tag');
+  node.AddPart(FPrevious.Text, FPrevious.Text);
+  node.AddExpression(ParseExpression());
+
+  while Match(tkTemplateMiddle) do
+  begin
+    node.AddPart(FPrevious.Text, FPrevious.Text);
+    node.AddExpression(ParseExpression());
+  end;
+
+  Consume(tkTemplateTail, 'Expected template literal tail');
+  node.AddPart(FPrevious.Text, FPrevious.Text);
+
+  Result := node;
 end;
 
 function TFloriaJSParser.ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
@@ -1144,6 +1187,14 @@ begin
     prec := GetInfixPrecedence(FCurrent.Kind);
     if prec < APrec then
       Break;
+
+    { A template literal after an expression is a tagged template; the token
+      is consumed by ParseTaggedTemplate. }
+    if FCurrent.Kind in [tkTemplateString, tkTemplateHead] then
+    begin
+      left := ParseTaggedTemplate(left);
+      Continue;
+    end;
 
     op := FCurrent;
     Advance();

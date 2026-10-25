@@ -343,6 +343,7 @@ type
     procedure TestClassInheritance();
     procedure TestClassSuper();
     procedure TestClassMemberEnumerability();
+    procedure TestTaggedTemplates();
   end;
 
 { TFloriaJSTypesTest }
@@ -8507,6 +8508,72 @@ begin
     );
     AssertTrue('JSON on an instance', res.Success);
     AssertEquals('JSON emits own enumerable fields only', '{"x":1}', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestTaggedTemplates();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // The tag is called, and receives an array of cooked strings.
+    res := engine.Execute('function t(s) { return typeof s; } t`x`;');
+    AssertTrue('tag is called', res.Success);
+    AssertEquals('the tag receives an object', 'object', res.StringValue);
+
+    res := engine.Execute('function t(s) { return Array.isArray(s); } t`x`;');
+    AssertTrue('the tag receives an array', res.Success and res.BooleanValue);
+
+    res := engine.Execute('function t(s) { return s[0]; } t`abc`;');
+    AssertTrue('cooked string', res.Success);
+    AssertEquals('the cooked string is passed', 'abc', res.StringValue);
+
+    // A template with no substitutions has exactly one string.
+    res := engine.Execute('function t(s) { return s.length; } t`x`;');
+    AssertTrue('single part', res.Success);
+    AssertEquals('one string, no expressions', '1', res.StringValue);
+
+    res := engine.Execute('function t(s) { return s.length; } t``;');
+    AssertTrue('empty template', res.Success);
+    AssertEquals('an empty template still has one part', '1', res.StringValue);
+
+    // Substitutions are passed as additional arguments, and split the strings.
+    res := engine.Execute('function t(s) { return s.length; } t`a${1}b${2}c`;');
+    AssertTrue('three parts', res.Success);
+    AssertEquals('n+1 strings for n substitutions', '3', res.StringValue);
+
+    res := engine.Execute(
+      'function t(s, a, b) { return s[0] + a + s[1] + b + s[2]; } t`x${1}y${2}z`;'
+    );
+    AssertTrue('interleaving', res.Success);
+    AssertEquals('strings and values interleave', 'x1y2z', res.StringValue);
+
+    res := engine.Execute('function t(s, v) { return s[0] + v + s[1]; } t`hi ${42}!`;');
+    AssertTrue('value substitution', res.Success);
+    AssertEquals('the substituted value is passed', 'hi 42!', res.StringValue);
+
+    // `raw` holds the unprocessed text.
+    res := engine.Execute('function t(s) { return s.raw[0]; } t`ab`;');
+    AssertTrue('raw property', res.Success);
+    AssertEquals('raw is available on the strings array', 'ab', res.StringValue);
+
+    res := engine.Execute('function t(s) { return s.raw.length; } t`a${1}b`;');
+    AssertTrue('raw has one entry per part', res.Success);
+    AssertEquals('raw is parallel to the cooked array', '2', res.StringValue);
+
+    // The tag is invoked once, and its return value is the expression value.
+    res := engine.Execute('var n = 0; function t(s) { n++; return "r"; } var v = t`x`; n + ":" + v;');
+    AssertTrue('tag return value', res.Success);
+    AssertEquals('the tag runs once and its value is used', '1:r', res.StringValue);
+
+    // A tagged template can be applied to a member expression.
+    res := engine.Execute('var o = { t: function(s) { return s[0]; } }; o.t`hi`;');
+    AssertTrue('member tag', res.Success);
+    AssertEquals('a member expression can be a tag', 'hi', res.StringValue);
   finally
     engine.Free();
   end;

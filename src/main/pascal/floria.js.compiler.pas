@@ -70,6 +70,7 @@ type
     procedure CompileArrayExpr(AArr: TFloriaJSArrayExpr);
     procedure CompileFunctionExpr(AFunc: TFloriaJSFunctionExpr);
     procedure CompileClassExpr(ACls: TFloriaJSClassNode);
+    procedure CompileTaggedTemplate(ATmpl: TFloriaJSTaggedTemplateExpr);
 
     procedure CompileVarStmt(AVar: TFloriaJSVarStmt);
     procedure CompileDestructuring(APattern: TFloriaJSExprNode; AKind: TFloriaJSTokenKind = tkVar);
@@ -914,6 +915,8 @@ begin
     CompileFunctionExpr(TFloriaJSFunctionExpr(AExpr))
   else if AExpr is TFloriaJSClassNode then
     CompileClassExpr(TFloriaJSClassNode(AExpr))
+  else if AExpr is TFloriaJSTaggedTemplateExpr then
+    CompileTaggedTemplate(TFloriaJSTaggedTemplateExpr(AExpr))
   else if AExpr is TFloriaJSSpreadExpr then
     CompileExpr(TFloriaJSSpreadExpr(AExpr).Expression)
   else if AExpr is TFloriaJSGroupExpr then
@@ -2014,6 +2017,45 @@ end;
   `super` is bound as a hidden local: the base constructor inside the derived
   constructor, and the base prototype inside instance methods. `super(...)` then
   compiles as an ordinary call through it. }
+
+{ `tag`a${b}c`` lowers to `tag(strings, b)`, where `strings` is an array of the
+  cooked parts carrying a `raw` array of the raw text. The tag is invoked with
+  `undefined` as the receiver, as ECMAScript specifies for a plain call. }
+procedure TFloriaJSCompiler.CompileTaggedTemplate(ATmpl: TFloriaJSTaggedTemplateExpr);
+var
+  i, count, rawLoc, strLoc: Integer;
+begin
+  { Build the strings array and its `raw` companion in locals so both survive
+    while the arguments are evaluated. }
+  rawLoc := FBytecode.AddNewLocal('$raw');
+  strLoc := FBytecode.AddNewLocal('$strings');
+
+  { raw = [...] — NEW_ARRAY takes the element count and pops that many values. }
+  for i := 0 to ATmpl.Raw.Count - 1 do
+    FBytecode.Emit(opConst, FBytecode.AddStringConstant(ATmpl.Raw[i]));
+  FBytecode.Emit(opNewArray, ATmpl.Raw.Count, ATmpl.Line);
+  FBytecode.Emit(opSetLoc, rawLoc);
+
+  { strings = [...] with a `raw` property }
+  for i := 0 to ATmpl.Cooked.Count - 1 do
+    FBytecode.Emit(opConst, FBytecode.AddStringConstant(ATmpl.Cooked[i]));
+  FBytecode.Emit(opNewArray, ATmpl.Cooked.Count, ATmpl.Line);
+  FBytecode.Emit(opDup);
+  FBytecode.Emit(opLoadLoc, rawLoc);
+  FBytecode.Emit(opSetPropNamed, FBytecode.AddStringConstant('raw'));
+  FBytecode.Emit(opPop);
+  FBytecode.Emit(opSetLoc, strLoc);
+
+  { tag(strings, ...exprs) }
+  CompileExpr(ATmpl.Tag);
+  FBytecode.Emit(opUndefined);   { receiver }
+  FBytecode.Emit(opLoadLoc, strLoc);
+  count := ATmpl.GetExpressionCount();
+  for i := 0 to count - 1 do
+    CompileExpr(ATmpl.GetExpression(i));
+  FBytecode.Emit(opCall, count + 1, ATmpl.Line);
+end;
+
 procedure TFloriaJSCompiler.CompileClassExpr(ACls: TFloriaJSClassNode);
 var
   i, clsLoc, protoLoc, superLoc, nameIdx, memberCount: Integer;

@@ -554,6 +554,32 @@ type
     property Expression: TFloriaJSExprNode read FExpression;
   end;
 
+  { Tagged template: tag`a${b}c`
+
+    The tag receives the cooked strings array (with a `raw` property holding the
+    raw text) followed by the substitution values. }
+  TFloriaJSTaggedTemplateExpr = class(TFloriaJSExprNode)
+  private
+    FTag: TFloriaJSExprNode;
+    FCooked: TStringList;
+    FRaw: TStringList;
+    FExprs: TList;
+  public
+    constructor Create(ATag: TFloriaJSExprNode; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddPart(const ACooked, ARaw: string);
+    procedure AddExpression(AExpr: TFloriaJSExprNode);
+    function  GetExpressionCount(): Integer;
+    function  GetExpression(AIndex: Integer): TFloriaJSExprNode;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Tag: TFloriaJSExprNode read FTag;
+    property Cooked: TStringList read FCooked;
+    property Raw: TStringList read FRaw;
+  end;
+
   { One member of a class body. }
   TFloriaJSClassMemberKind = (fjcmMethod, fjcmGetter, fjcmSetter, fjcmField);
 
@@ -779,6 +805,7 @@ type
     procedure VisitThrowStmt(ANode: TFloriaJSThrowStmt);
     procedure VisitDebuggerStmt(ANode: TFloriaJSDebuggerStmt);
     procedure VisitClass(ANode: TFloriaJSClassNode);
+    procedure VisitTaggedTemplate(ANode: TFloriaJSTaggedTemplateExpr);
     procedure VisitBreakStmt(ANode: TFloriaJSBreakStmt);
     procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
     procedure VisitLabeledStmt(ANode: TFloriaJSLabeledStmt);
@@ -1793,6 +1820,58 @@ begin
   if AVisitor <> nil then AVisitor.VisitThrowStmt(Self);
 end;
 
+
+
+{ TFloriaJSTaggedTemplateExpr }
+
+constructor TFloriaJSTaggedTemplateExpr.Create(ATag: TFloriaJSExprNode;
+  ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FTag := ATag;
+  FCooked := TStringList.Create();
+  FRaw := TStringList.Create();
+  FExprs := TList.Create();
+end;
+
+destructor TFloriaJSTaggedTemplateExpr.Destroy();
+var
+  i: Integer;
+begin
+  FreeAndNil(FTag);
+  FreeAndNil(FCooked);
+  FreeAndNil(FRaw);
+  for i := 0 to FExprs.Count - 1 do
+    TFloriaJSExprNode(FExprs[i]).Free();
+  FreeAndNil(FExprs);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSTaggedTemplateExpr.AddPart(const ACooked, ARaw: string);
+begin
+  FCooked.Add(ACooked);
+  FRaw.Add(ARaw);
+end;
+
+procedure TFloriaJSTaggedTemplateExpr.AddExpression(AExpr: TFloriaJSExprNode);
+begin
+  FExprs.Add(AExpr);
+end;
+
+function TFloriaJSTaggedTemplateExpr.GetExpressionCount(): Integer;
+begin
+  Result := FExprs.Count;
+end;
+
+function TFloriaJSTaggedTemplateExpr.GetExpression(AIndex: Integer): TFloriaJSExprNode;
+begin
+  Result := TFloriaJSExprNode(FExprs[AIndex]);
+end;
+
+procedure TFloriaJSTaggedTemplateExpr.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitTaggedTemplate(Self);
+end;
 
 { TFloriaJSClassMember }
 
