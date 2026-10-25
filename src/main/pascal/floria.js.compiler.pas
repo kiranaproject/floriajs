@@ -1519,6 +1519,8 @@ begin
         FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('concat'));
         FBytecode.Emit(opSwap);
         CompileExpr(TFloriaJSSpreadExpr(arg).Expression);
+        { Spread materialises an iterable into a dense array of items. }
+        FBytecode.Emit(opSpreadIterable);
         FBytecode.Emit(opCall, 1);
       end
       else
@@ -1852,6 +1854,11 @@ begin
     for i := 0 to count - 1 do
       CompileExpr(AArr.GetElement(i));
     FBytecode.Emit(opNewArray, count, AArr.Line);
+    { NEW_ARRAY creates a dense array. Elisions are compiled as undefined
+      placeholders, so turn each elided index into a real hole afterwards. }
+    for i := 0 to count - 1 do
+      if AArr.GetElement(i) = nil then
+        FBytecode.Emit(opArrayMarkHole, i, AArr.Line);
   end
   else
   begin
@@ -1861,12 +1868,7 @@ begin
       if AArr.GetElement(i) = nil then
       begin
         FBytecode.Emit(opDup);
-        FBytecode.Emit(opDup);
-        FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('push'));
-        FBytecode.Emit(opSwap);
-        FBytecode.Emit(opUndefined);
-        FBytecode.Emit(opCall, 1);
-        FBytecode.Emit(opPop);
+        FBytecode.Emit(opArrayPushHole);
       end
       else if AArr.GetElement(i) is TFloriaJSSpreadExpr then
       begin
@@ -1874,6 +1876,8 @@ begin
         FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('concat'));
         FBytecode.Emit(opSwap);
         CompileExpr(TFloriaJSSpreadExpr(AArr.GetElement(i)).Expression);
+        { Spread materialises an iterable into a dense array of items. }
+        FBytecode.Emit(opSpreadIterable);
         FBytecode.Emit(opCall, 1);
       end
       else

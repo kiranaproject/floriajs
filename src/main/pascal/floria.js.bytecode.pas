@@ -58,6 +58,9 @@ type
     // Objects & Arrays
     opNewObject,         // Push new empty object
     opNewArray,          // Push new array: Imm = element count
+    opArrayMarkHole,     // Peek array -> mark element as a hole: Imm = index
+    opArrayPushHole,     // Pop array -> append a hole to it (pushes nothing)
+    opSpreadIterable,    // Pop iterable -> push a dense array of its items
     opGetProp,           // Pop prop, pop obj -> push obj[prop]
     opGetPropNamed,      // Pop obj -> push obj[name]: Imm = const index (name)
     opSetProp,           // Pop val, pop prop, pop obj -> obj[prop] = val, push val
@@ -246,6 +249,9 @@ begin
     opPopEnv:           Result := 'POP_ENV';
     opNewObject:        Result := 'NEW_OBJECT';
     opNewArray:         Result := 'NEW_ARRAY';
+    opArrayMarkHole:    Result := 'ARRAY_MARK_HOLE';
+    opArrayPushHole:    Result := 'ARRAY_PUSH_HOLE';
+    opSpreadIterable:   Result := 'SPREAD_ITERABLE';
     opGetProp:          Result := 'GET_PROP';
     opGetPropNamed:     Result := 'GET_PROP_NAMED';
     opSetProp:          Result := 'SET_PROP';

@@ -165,7 +165,6 @@ function JSArrayReverse(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSVa
 var
   arr: TFloriaJSArray;
   i, j: Integer;
-  left, right: TFloriaJSValue;
 begin
   arr := ThisArray(AThis);
   if arr = nil then Exit(JSMakeUndefined());
@@ -174,10 +173,8 @@ begin
   j := arr.Length() - 1;
   while i < j do
   begin
-    left := arr.GetElement(i);
-    right := arr.GetElement(j);
-    arr.SetElement(i, right);
-    arr.SetElement(j, left);
+    { Swapping the slots keeps holes at the mirrored positions. }
+    arr.SwapElements(i, j);
     Inc(i);
     Dec(j);
   end;
@@ -190,18 +187,28 @@ var
   arr: TFloriaJSArray;
   comparator: TFloriaJSValue;
   values: array of TFloriaJSValue;
-  n, i, j: Integer;
+  n, present, count, i, j: Integer;
   key: TFloriaJSValue;
 begin
   arr := ThisArray(AThis);
   if arr = nil then Exit(JSMakeUndefined());
 
   n := arr.Length();
-  if n > 1 then
+  present := 0;
+  for i := 0 to n - 1 do
+    if arr.HasElement(i) then
+      Inc(present);
+
+  if present > 1 then
   begin
-    SetLength(values, n);
+    SetLength(values, present);
+    count := 0;
     for i := 0 to n - 1 do
-      values[i] := arr.GetElement(i);
+      if arr.HasElement(i) then
+      begin
+        values[count] := arr.GetElement(i);
+        Inc(count);
+      end;
 
     comparator := JSMakeUndefined();
     if Length(AArgs) > 0 then
@@ -209,7 +216,7 @@ begin
 
     { Insertion sort keeps the implementation simple and preserves the order
       of elements that compare equal. }
-    for i := 1 to n - 1 do
+    for i := 1 to present - 1 do
     begin
       key := values[i];
       j := i - 1;
@@ -221,8 +228,11 @@ begin
       values[j + 1] := key;
     end;
 
-    for i := 0 to n - 1 do
+    { The elements are written densely; ECMAScript sorts holes to the end. }
+    for i := 0 to present - 1 do
       arr.SetElement(i, values[i]);
+    for i := present to n - 1 do
+      arr.MarkHole(i);
   end;
 
   Result := AThis;
@@ -250,7 +260,11 @@ begin
   removed := arr.Heap.NewArray();
   for i := 1 to deleteCount do
   begin
-    removed.Push(arr.GetElement(start));
+    { splice preserves holes in the removed slice. }
+    if arr.HasElement(start) then
+      removed.Push(arr.GetElement(start))
+    else
+      removed.PushHole();
     arr.RemoveAt(start);
   end;
 
@@ -293,7 +307,13 @@ begin
 
   res := arr.Heap.NewArray();
   for i := 0 to arr.Length() - 1 do
-    res.Push(arr.GetElement(i));
+  begin
+    { concat preserves the holes of the source array. }
+    if arr.HasElement(i) then
+      res.Push(arr.GetElement(i))
+    else
+      res.PushHole();
+  end;
 
   for i := 0 to High(AArgs) do
   begin
@@ -302,7 +322,12 @@ begin
       other := AArgs[i].AsArray();
       if other <> nil then
         for k := 0 to other.Length() - 1 do
-          res.Push(other.GetElement(k));
+        begin
+          if other.HasElement(k) then
+            res.Push(other.GetElement(k))
+          else
+            res.PushHole();
+        end;
     end
     else
       res.Push(AArgs[i]);
@@ -324,7 +349,13 @@ begin
 
   res := arr.Heap.NewArray();
   for i := start to finish - 1 do
-    res.Push(arr.GetElement(i));
+  begin
+    { slice copies holes as holes. }
+    if arr.HasElement(i) then
+      res.Push(arr.GetElement(i))
+    else
+      res.PushHole();
+  end;
 
   Result := JSMakeArray(res);
 end;
@@ -349,7 +380,7 @@ begin
   end;
 
   for i := start to arr.Length() - 1 do
-    if JSStrictEqual(arr.GetElement(i), needle) then
+    if arr.HasElement(i) and JSStrictEqual(arr.GetElement(i), needle) then
       Exit(JSMakeNumber(i));
 
   Result := JSMakeNumber(-1);
@@ -373,8 +404,9 @@ begin
   else if start >= arr.Length() then
     start := arr.Length() - 1;
 
+  { indexOf/lastIndexOf skip holes: they are not own properties. }
   for i := start downto 0 do
-    if JSStrictEqual(arr.GetElement(i), needle) then
+    if arr.HasElement(i) and JSStrictEqual(arr.GetElement(i), needle) then
       Exit(JSMakeNumber(i));
 
   Result := JSMakeNumber(-1);
@@ -429,6 +461,12 @@ begin
   res := arr.Heap.NewArray();
   for i := 0 to arr.Length() - 1 do
   begin
+    if not arr.HasElement(i) then
+    begin
+      { map skips holes and leaves a hole at the same index in the result. }
+      res.PushHole();
+      Continue;
+    end;
     cbArgs[0] := arr.GetElement(i);
     cbArgs[1] := JSMakeNumber(i);
     cbArgs[2] := AThis;
@@ -459,6 +497,8 @@ begin
   res := arr.Heap.NewArray();
   for i := 0 to arr.Length() - 1 do
   begin
+    if not arr.HasElement(i) then
+      Continue;
     element := arr.GetElement(i);
     cbArgs[0] := element;
     cbArgs[1] := JSMakeNumber(i);
@@ -489,6 +529,8 @@ begin
 
   for i := 0 to arr.Length() - 1 do
   begin
+    if not arr.HasElement(i) then
+      Continue;
     cbArgs[0] := arr.GetElement(i);
     cbArgs[1] := JSMakeNumber(i);
     cbArgs[2] := AThis;
@@ -517,6 +559,8 @@ begin
 
   for i := 0 to arr.Length() - 1 do
   begin
+    if not arr.HasElement(i) then
+      Continue;
     cbArgs[0] := arr.GetElement(i);
     cbArgs[1] := JSMakeNumber(i);
     cbArgs[2] := AThis;
@@ -546,6 +590,8 @@ begin
 
   for i := 0 to arr.Length() - 1 do
   begin
+    if not arr.HasElement(i) then
+      Continue;
     cbArgs[0] := arr.GetElement(i);
     cbArgs[1] := JSMakeNumber(i);
     cbArgs[2] := AThis;
@@ -620,6 +666,7 @@ var
   arr: TFloriaJSArray;
   callback, accumulator: TFloriaJSValue;
   i: Integer;
+  hasAccumulator: Boolean;
   cbArgs: array[0..3] of TFloriaJSValue;
 begin
   arr := ThisArray(AThis);
@@ -629,28 +676,36 @@ begin
   if Length(AArgs) > 0 then callback := AArgs[0];
   RequireCallback(arr.Heap, callback, 'reduce');
 
-  if Length(AArgs) > 1 then
-  begin
+  hasAccumulator := Length(AArgs) > 1;
+  if hasAccumulator then
     accumulator := AArgs[1];
-    i := 0;
-  end
-  else
-  begin
-    if arr.Length() = 0 then
-      Exit(JSMakeUndefined());
-    accumulator := arr.GetElement(0);
-    i := 1;
-  end;
 
+  i := 0;
   while i < arr.Length() do
   begin
-    cbArgs[0] := accumulator;
-    cbArgs[1] := arr.GetElement(i);
-    cbArgs[2] := JSMakeNumber(i);
-    cbArgs[3] := AThis;
-    accumulator := arr.Heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+    { reduce skips holes. Without an initial value the first present element
+      becomes the accumulator and the callback starts at the next one. }
+    if arr.HasElement(i) then
+    begin
+      if not hasAccumulator then
+      begin
+        accumulator := arr.GetElement(i);
+        hasAccumulator := True;
+      end
+      else
+      begin
+        cbArgs[0] := accumulator;
+        cbArgs[1] := arr.GetElement(i);
+        cbArgs[2] := JSMakeNumber(i);
+        cbArgs[3] := AThis;
+        accumulator := arr.Heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+      end;
+    end;
     Inc(i);
   end;
+
+  if not hasAccumulator then
+    raise EFloriaJSThrow.Create(JSMakeObject(arr.Heap.NewError('TypeError', 'Reduce of empty array with no initial value')));
 
   Result := accumulator;
 end;
@@ -660,6 +715,7 @@ var
   arr: TFloriaJSArray;
   callback, accumulator: TFloriaJSValue;
   i: Integer;
+  hasAccumulator: Boolean;
   cbArgs: array[0..3] of TFloriaJSValue;
 begin
   arr := ThisArray(AThis);
@@ -669,28 +725,34 @@ begin
   if Length(AArgs) > 0 then callback := AArgs[0];
   RequireCallback(arr.Heap, callback, 'reduceRight');
 
-  if Length(AArgs) > 1 then
-  begin
+  hasAccumulator := Length(AArgs) > 1;
+  if hasAccumulator then
     accumulator := AArgs[1];
-    i := arr.Length() - 1;
-  end
-  else
-  begin
-    if arr.Length() = 0 then
-      Exit(JSMakeUndefined());
-    accumulator := arr.GetElement(arr.Length() - 1);
-    i := arr.Length() - 2;
-  end;
 
+  i := arr.Length() - 1;
   while i >= 0 do
   begin
-    cbArgs[0] := accumulator;
-    cbArgs[1] := arr.GetElement(i);
-    cbArgs[2] := JSMakeNumber(i);
-    cbArgs[3] := AThis;
-    accumulator := arr.Heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+    if arr.HasElement(i) then
+    begin
+      if not hasAccumulator then
+      begin
+        accumulator := arr.GetElement(i);
+        hasAccumulator := True;
+      end
+      else
+      begin
+        cbArgs[0] := accumulator;
+        cbArgs[1] := arr.GetElement(i);
+        cbArgs[2] := JSMakeNumber(i);
+        cbArgs[3] := AThis;
+        accumulator := arr.Heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+      end;
+    end;
     Dec(i);
   end;
+
+  if not hasAccumulator then
+    raise EFloriaJSThrow.Create(JSMakeObject(arr.Heap.NewError('TypeError', 'Reduce of empty array with no initial value')));
 
   Result := accumulator;
 end;

@@ -125,10 +125,17 @@ type
     property HeapOwned: Boolean read FHeapOwned write FHeapOwned;
   end;
 
-  { Heap-allocated JavaScript Array }
+  { Heap-allocated JavaScript Array.
+    The array is sparse-capable: FPresent marks which of the FCount slots hold
+    a real element. An absent slot is an ECMAScript "hole": reading it yields
+    undefined, but it is not an own property, so `in`, `hasOwnProperty`,
+    `Object.keys` and `for…in` skip it. Keeping the presence information
+    separate from the element value is what lets an explicit `undefined`
+    element stay distinguishable from a hole. }
   TFloriaJSArray = class(TFloriaJSObject)
   private
     FElements: array of TFloriaJSValue;
+    FPresent: array of Boolean;
     FCount: Integer;
     procedure GrowCapacity(AMinCapacity: Integer);
   public
@@ -137,18 +144,25 @@ type
 
     function  GetElement(AIndex: Integer): TFloriaJSValue;
     procedure SetElement(AIndex: Integer; const AValue: TFloriaJSValue);
+    function  HasElement(AIndex: Integer): Boolean;
     procedure Push(const AValue: TFloriaJSValue);
+    procedure PushHole();
     function  Pop(): TFloriaJSValue;
     function  Shift(): TFloriaJSValue;
     procedure Unshift(const AValue: TFloriaJSValue);
     procedure InsertAt(AIndex: Integer; const AValue: TFloriaJSValue);
     procedure RemoveAt(AIndex: Integer);
+    procedure MarkHole(AIndex: Integer);
+    function  DeleteElement(AIndex: Integer): Boolean;
+    procedure SetLengthTo(ANewLength: Integer);
+    procedure SwapElements(AIndex, BIndex: Integer);
     function  Join(const ASeparator: string = ','): string;
     function  Length(): Integer;
 
     function  GetProperty(const AName: string): TFloriaJSValue; override;
     function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); override;
+    function  DeleteProperty(const AName: string): Boolean; override;
     function  HasProperty(const AName: string): Boolean; override;
     function  HasOwnProperty(const AName: string): Boolean; override;
   end;
@@ -1138,6 +1152,7 @@ constructor TFloriaJSArray.Create();
 begin
   inherited Create(nil);
   SetLength(FElements, 0);
+  SetLength(FPresent, 0);
   FCount := 0;
 end;
 
@@ -1150,6 +1165,7 @@ begin
     for i := 0 to FCount - 1 do
       JSReleaseValue(FElements[i]);
   SetLength(FElements, 0);
+  SetLength(FPresent, 0);
   FCount := 0;
   inherited Destroy();
 end;
@@ -1168,14 +1184,23 @@ begin
     newCap := 8;
 
   SetLength(FElements, newCap);
+  { The newly allocated slots start out absent; the caller decides which of
+    them hold real elements and which stay holes. }
+  SetLength(FPresent, newCap);
 end;
 
 function TFloriaJSArray.GetElement(AIndex: Integer): TFloriaJSValue;
 begin
-  if (AIndex >= 0) and (AIndex < FCount) then
+  if (AIndex >= 0) and (AIndex < FCount) and FPresent[AIndex] then
     Result := FElements[AIndex]
   else
     Result := JSMakeUndefined();
+end;
+
+function TFloriaJSArray.HasElement(AIndex: Integer): Boolean;
+begin
+  { A hole reads as undefined, but it is not an own property. }
+  Result := (AIndex >= 0) and (AIndex < FCount) and FPresent[AIndex];
 end;
 
 procedure TFloriaJSArray.SetElement(AIndex: Integer; const AValue: TFloriaJSValue);
@@ -1187,8 +1212,12 @@ begin
   if AIndex >= FCount then
   begin
     GrowCapacity(AIndex + 1);
+    { Growing past the end fills the gap with holes, not elements. }
     for i := FCount to AIndex - 1 do
+    begin
       FElements[i] := JSMakeUndefined();
+      FPresent[i] := False;
+    end;
     FCount := AIndex + 1;
   end
   else
@@ -1198,6 +1227,7 @@ begin
   end;
 
   FElements[AIndex] := AValue;
+  FPresent[AIndex] := True;
   JSRetainValue(AValue);
 end;
 
@@ -1205,7 +1235,16 @@ procedure TFloriaJSArray.Push(const AValue: TFloriaJSValue);
 begin
   GrowCapacity(FCount + 1);
   FElements[FCount] := AValue;
+  FPresent[FCount] := True;
   JSRetainValue(AValue);
+  Inc(FCount);
+end;
+
+procedure TFloriaJSArray.PushHole();
+begin
+  GrowCapacity(FCount + 1);
+  FElements[FCount] := JSMakeUndefined();
+  FPresent[FCount] := False;
   Inc(FCount);
 end;
 
@@ -1215,7 +1254,11 @@ begin
     Exit(JSMakeUndefined());
 
   Dec(FCount);
-  Result := FElements[FCount];
+  if FPresent[FCount] then
+    Result := FElements[FCount]
+  else
+    Result := JSMakeUndefined();
+  FPresent[FCount] := False;
   FElements[FCount] := JSMakeUndefined();
   { The element that is removed gives up the reference it held. }
   JSReleaseValue(Result);
@@ -1228,11 +1271,15 @@ begin
   if FCount = 0 then
     Exit(JSMakeUndefined());
 
-  Result := FElements[0];
+  Result := GetElement(0);
   for i := 0 to FCount - 2 do
+  begin
     FElements[i] := FElements[i + 1];
+    FPresent[i] := FPresent[i + 1];
+  end;
 
   Dec(FCount);
+  FPresent[FCount] := False;
   { The element that is shifted out gives up the reference it held. }
   JSReleaseValue(FElements[FCount]);
   FElements[FCount] := JSMakeUndefined();
@@ -1244,9 +1291,13 @@ var
 begin
   GrowCapacity(FCount + 1);
   for i := FCount downto 1 do
+  begin
     FElements[i] := FElements[i - 1];
+    FPresent[i] := FPresent[i - 1];
+  end;
 
   FElements[0] := AValue;
+  FPresent[0] := True;
   JSRetainValue(AValue);
   Inc(FCount);
 end;
@@ -1260,9 +1311,13 @@ begin
 
   GrowCapacity(FCount + 1);
   for i := FCount downto AIndex + 1 do
+  begin
     FElements[i] := FElements[i - 1];
+    FPresent[i] := FPresent[i - 1];
+  end;
 
   FElements[AIndex] := AValue;
+  FPresent[AIndex] := True;
   JSRetainValue(AValue);
   Inc(FCount);
 end;
@@ -1276,10 +1331,80 @@ begin
   { The element that is removed gives up the reference it held. }
   JSReleaseValue(FElements[AIndex]);
   for i := AIndex to FCount - 2 do
+  begin
     FElements[i] := FElements[i + 1];
+    FPresent[i] := FPresent[i + 1];
+  end;
 
   Dec(FCount);
+  FPresent[FCount] := False;
   FElements[FCount] := JSMakeUndefined();
+end;
+
+procedure TFloriaJSArray.MarkHole(AIndex: Integer);
+begin
+  if (AIndex < 0) or (AIndex >= FCount) then Exit;
+  if not FPresent[AIndex] then Exit;
+
+  { Turning an element into a hole drops the reference it held. }
+  JSReleaseValue(FElements[AIndex]);
+  FElements[AIndex] := JSMakeUndefined();
+  FPresent[AIndex] := False;
+end;
+
+function TFloriaJSArray.DeleteElement(AIndex: Integer): Boolean;
+begin
+  { Like `delete arr[i]` in ECMAScript: the slot becomes a hole and the array
+    length is not changed. Deleting a non-existent index succeeds as well. }
+  MarkHole(AIndex);
+  Result := True;
+end;
+
+procedure TFloriaJSArray.SetLengthTo(ANewLength: Integer);
+var
+  i: Integer;
+begin
+  if ANewLength < 0 then ANewLength := 0;
+
+  if ANewLength < FCount then
+  begin
+    { Truncation drops the elements and the references they held. }
+    for i := FCount - 1 downto ANewLength do
+    begin
+      JSReleaseValue(FElements[i]);
+      FElements[i] := JSMakeUndefined();
+      FPresent[i] := False;
+    end;
+    FCount := ANewLength;
+  end
+  else if ANewLength > FCount then
+  begin
+    GrowCapacity(ANewLength);
+    { Extension creates holes; the new length is observable immediately. }
+    for i := FCount to ANewLength - 1 do
+    begin
+      FElements[i] := JSMakeUndefined();
+      FPresent[i] := False;
+    end;
+    FCount := ANewLength;
+  end;
+end;
+
+procedure TFloriaJSArray.SwapElements(AIndex, BIndex: Integer);
+var
+  tmpValue: TFloriaJSValue;
+  tmpPresent: Boolean;
+begin
+  if (AIndex < 0) or (AIndex >= FCount) or (BIndex < 0) or (BIndex >= FCount) then
+    Exit;
+
+  tmpValue := FElements[AIndex];
+  FElements[AIndex] := FElements[BIndex];
+  FElements[BIndex] := tmpValue;
+
+  tmpPresent := FPresent[AIndex];
+  FPresent[AIndex] := FPresent[BIndex];
+  FPresent[BIndex] := tmpPresent;
 end;
 
 function TFloriaJSArray.Join(const ASeparator: string): string;
@@ -1294,7 +1419,8 @@ begin
     for i := 0 to FCount - 1 do
     begin
       if i > 0 then sb.Append(ASeparator);
-      if not (FElements[i].IsUndefined() or FElements[i].IsNull()) then
+      { Holes and undefined/null elements render as an empty string. }
+      if FPresent[i] and not (FElements[i].IsUndefined() or FElements[i].IsNull()) then
         sb.Append(FElements[i].ToString());
     end;
     Result := sb.ToString();
@@ -1329,25 +1455,21 @@ end;
 procedure TFloriaJSArray.SetProperty(const AName: string; const AValue: TFloriaJSValue);
 var
   idx: Integer;
+  d: Double;
 begin
   if AName = 'length' then
   begin
-    idx := Trunc(AValue.ToNumber());
-    if idx >= 0 then
+    d := AValue.ToNumber();
+    { ECMAScript validates the requested length before applying it. The
+      engine's index type is a signed 32-bit integer, so lengths that would
+      not fit are rejected as well. }
+    if IsNaN(d) or (d < 0) or (d <> Int(d)) or (d > 2147483647.0) then
     begin
-      if idx < FCount then
-      begin
-        { The elements that are dropped give up the references they held. }
-        while FCount > idx do
-        begin
-          Dec(FCount);
-          JSReleaseValue(FElements[FCount]);
-          FElements[FCount] := JSMakeUndefined();
-        end;
-      end
-      else
-        GrowCapacity(idx);
+      if Heap <> nil then
+        raise EFloriaJSThrow.Create(JSMakeObject(Heap.NewError('RangeError', 'Invalid array length')));
+      Exit;
     end;
+    SetLengthTo(Trunc(d));
     Exit;
   end;
 
@@ -1360,13 +1482,27 @@ begin
   inherited SetProperty(AName, AValue);
 end;
 
+function TFloriaJSArray.DeleteProperty(const AName: string): Boolean;
+var
+  idx: Integer;
+begin
+  { `length` is not configurable. }
+  if AName = 'length' then
+    Exit(False);
+
+  if TryStrToInt(AName, idx) then
+    Exit(DeleteElement(idx));
+
+  Result := inherited DeleteProperty(AName);
+end;
+
 function TFloriaJSArray.HasProperty(const AName: string): Boolean;
 var
   idx: Integer;
 begin
   if AName = 'length' then Exit(True);
   if TryStrToInt(AName, idx) then
-    Exit((idx >= 0) and (idx < FCount) and not FElements[idx].IsUndefined());
+    Exit(HasElement(idx));
 
   Result := inherited HasProperty(AName);
 end;
@@ -1377,7 +1513,7 @@ var
 begin
   if AName = 'length' then Exit(True);
   if TryStrToInt(AName, idx) then
-    Exit((idx >= 0) and (idx < FCount) and not FElements[idx].IsUndefined());
+    Exit(HasElement(idx));
 
   Result := inherited HasOwnProperty(AName);
 end;
@@ -2283,17 +2419,19 @@ end;
 function TFloriaJSHeap.ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   arr: TFloriaJSArray;
-  n, i: Integer;
+  d: Double;
+  i: Integer;
 begin
   { A single numeric argument is the requested length; anything else is an
-    element of the new array. }
+    element of the new array. The length form creates a sparse array of holes,
+    not an array of explicit undefined elements. }
   if (Length(AArgs) = 1) and AArgs[0].IsNumber() then
   begin
+    d := AArgs[0].ToNumber();
+    if IsNaN(d) or (d < 0) or (d <> Int(d)) or (d > 2147483647.0) then
+      raise EFloriaJSThrow.Create(JSMakeObject(NewError('RangeError', 'Invalid array length')));
     arr := NewArray();
-    n := Trunc(AArgs[0].ToNumber());
-    if n < 0 then n := 0;
-    for i := 1 to n do
-      arr.Push(JSMakeUndefined());
+    arr.SetLengthTo(Trunc(d));
   end
   else
   begin

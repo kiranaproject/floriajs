@@ -654,6 +654,49 @@ begin
             Push(JSMakeObject(arrObj));
           end;
 
+        opArrayMarkHole:
+          begin
+            { Array literals push a placeholder for an elided element, then
+              mark the index as a hole. Peeking keeps the array on the stack. }
+            objVal := Peek();
+            if objVal.IsArray() then
+              objVal.AsArray().MarkHole(inst.Imm);
+          end;
+
+        opArrayPushHole:
+          begin
+            { Spread-built array literals append holes one element at a time. }
+            objVal := Pop();
+            if objVal.IsArray() then
+              objVal.AsArray().PushHole();
+          end;
+
+        opSpreadIterable:
+          begin
+            { Spread iterates the value and produces a dense array: holes in an
+              array source become explicit undefined elements. }
+            objVal := Pop();
+            if objVal.IsNull() or objVal.IsUndefined() then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
+
+            arrObj := FHeap.NewArray();
+            if objVal.IsArray() then
+            begin
+              for i := 0 to objVal.AsArray().Length() - 1 do
+                arrObj.Push(objVal.AsArray().GetElement(i));
+            end
+            else if objVal.IsString() then
+            begin
+              iterStr := objVal.StrVal;
+              for i := 1 to Length(iterStr) do
+                arrObj.Push(JSMakeString(iterStr[i]));
+            end
+            else
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
+
+            Push(JSMakeArray(arrObj));
+          end;
+
         opGetProp:
           begin
             propVal := Pop();
@@ -1296,7 +1339,7 @@ begin
             if objVal.IsArray() then
             begin
               for i := 0 to objVal.AsArray().Length() - 1 do
-                if not objVal.AsArray().GetElement(i).IsUndefined() then
+                if objVal.AsArray().HasElement(i) then
                   arrObj.Push(JSMakeString(IntToStr(i)));
               for i := 0 to objVal.AsObject().GetPropertyCount() - 1 do
                 arrObj.Push(JSMakeString(objVal.AsObject().GetPropertyKey(i)));

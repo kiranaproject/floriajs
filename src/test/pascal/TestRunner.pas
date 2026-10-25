@@ -99,6 +99,7 @@ type
     procedure TestTypeCoercion();
     procedure TestObjectProperties();
     procedure TestArrayOperations();
+    procedure TestArrayHolePresence();
     procedure TestBinaryAndUnaryOps();
   end;
 
@@ -263,6 +264,8 @@ type
     procedure TestForEachSomeEveryFind();
     procedure TestSortAndSplice();
     procedure TestArrayStatics();
+    procedure TestArrayMethodsOverHoles();
+    procedure TestArrayLengthMutationDoesNotLeak();
     procedure TestArrayCallbacksDoNotAccumulateObjects();
   end;
 
@@ -310,6 +313,7 @@ type
     procedure TestChainWideOptionalChaining();
     procedure TestConstructorBackReferencesLifetimeSafe();
     procedure TestDeclarationValidationAndSwitchHoisting();
+    procedure TestArrayHolesAndLengthMutation();
   end;
 
 { TFloriaJSTypesTest }
@@ -1613,6 +1617,48 @@ begin
     val := arr.Shift();
     AssertEquals('Shifted 5', 5.0, val.ToNumber(), 0.0001);
     AssertEquals('Length is 2 after shift', 2, arr.Length());
+  finally
+    arr.Free();
+  end;
+end;
+
+procedure TFloriaJSValueTest.TestArrayHolePresence();
+var
+  arr: TFloriaJSArray;
+begin
+  arr := TFloriaJSArray.Create();
+  try
+    arr.Push(JSMakeUndefined());
+    AssertTrue('Explicit undefined is a real element', arr.HasElement(0));
+    AssertEquals('Explicit undefined counts toward length', 1, arr.Length());
+
+    arr.PushHole();
+    AssertEquals('A hole extends the length', 2, arr.Length());
+    AssertFalse('A hole is not a present element', arr.HasElement(1));
+    AssertTrue('A hole reads as undefined', arr.GetElement(1).IsUndefined());
+
+    arr.SetElement(3, JSMakeNumber(7));
+    AssertEquals('Assigning past the end extends the length', 4, arr.Length());
+    AssertFalse('The skipped slot is a hole', arr.HasElement(2));
+    AssertTrue('The assigned slot is present', arr.HasElement(3));
+
+    arr.MarkHole(3);
+    AssertFalse('MarkHole removes the element', arr.HasElement(3));
+    AssertTrue('MarkHole leaves undefined behind', arr.GetElement(3).IsUndefined());
+    AssertEquals('MarkHole keeps the length', 4, arr.Length());
+
+    arr.SetLengthTo(6);
+    AssertEquals('SetLengthTo grows the length', 6, arr.Length());
+    AssertFalse('A grown slot is a hole', arr.HasElement(5));
+
+    arr.SetLengthTo(1);
+    AssertEquals('SetLengthTo truncates the length', 1, arr.Length());
+    AssertTrue('Truncation keeps the surviving element', arr.HasElement(0));
+
+    AssertTrue('Deleting a missing index succeeds', arr.DeleteElement(9));
+    arr.DeleteElement(0);
+    AssertFalse('DeleteElement turns the slot into a hole', arr.HasElement(0));
+    AssertEquals('DeleteElement keeps the length', 1, arr.Length());
   finally
     arr.Free();
   end;
@@ -5116,6 +5162,123 @@ begin
   end;
 end;
 
+procedure TFloriaJSArrayMethodsTest.TestArrayMethodsOverHoles();
+var
+  ctx: TFloriaJSContext;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    AssertEquals('new Array(n) must create holes, not elements', '0',
+      ctx.Evaluate('Object.keys(new Array(3)).length;').StringValue);
+    AssertEquals('new Array(n) keeps the requested length', '3',
+      ctx.Evaluate('(new Array(3)).length;').StringValue);
+
+    AssertEquals('forEach/map skip holes and map preserves them', 'true',
+      ctx.Evaluate(
+        'var a = [1, , 3];' +
+        'var seen = "";' +
+        'a.forEach(function (v, i) { seen += i; });' +
+        'var mapped = a.map(function (v) { return v * 2; });' +
+        'seen === "02" && mapped.length === 3 && Object.keys(mapped).join(",") === "0,2" && mapped[1] === undefined;'
+      ).StringValue);
+
+    AssertEquals('filter/reduce skip holes', 'true',
+      ctx.Evaluate(
+        'var a = [ , 1, , 3];' +
+        'var filtered = a.filter(function (v) { return v > 0; });' +
+        'var total = a.reduce(function (acc, v) { return acc + v; }, 0);' +
+        'var noInit = a.reduce(function (acc, v) { return acc + v; });' +
+        'filtered.join(",") === "1,3" && total === 4 && noInit === 4;'
+      ).StringValue);
+
+    AssertEquals('sort moves holes to the end', 'true',
+      ctx.Evaluate(
+        'var a = [3, , 1];' +
+        'a.sort();' +
+        'a.join(",") === "1,3," && Object.keys(a).join(",") === "0,1";'
+      ).StringValue);
+
+    AssertEquals('reverse keeps holes at the mirrored positions', 'true',
+      ctx.Evaluate(
+        'var a = [1, , 3];' +
+        'a.reverse();' +
+        'Object.keys(a).join(",") === "0,2" && a[1] === undefined && a[0] === 3;'
+      ).StringValue);
+
+    AssertEquals('slice/concat/splice preserve holes', 'true',
+      ctx.Evaluate(
+        'var a = [1, , 3];' +
+        'var sliced = a.slice(0);' +
+        'var concatenated = a.concat([4]);' +
+        'var removed = a.splice(0, 3);' +
+        'Object.keys(sliced).join(",") === "0,2" && ' +
+        'Object.keys(concatenated).join(",") === "0,2,3" && ' +
+        'Object.keys(removed).join(",") === "0,2";'
+      ).StringValue);
+
+    AssertEquals('indexOf skips holes while includes sees undefined', 'true',
+      ctx.Evaluate(
+        'var a = [1, , 3];' +
+        'a.indexOf(undefined) === -1 && a.includes(undefined) && a.lastIndexOf(undefined) === -1;'
+      ).StringValue);
+
+    AssertEquals('join/JSON/string conversion render holes as empty or null', 'true',
+      ctx.Evaluate(
+        'var a = [1, , 3];' +
+        'JSON.stringify(a) === "[1,null,3]" && String(a) === "1,,3" && a.join("-") === "1--3";'
+      ).StringValue);
+
+    AssertEquals('spread materialises holes as undefined elements', 'true',
+      ctx.Evaluate(
+        'var a = [1, , 3];' +
+        'var spread = [...a];' +
+        'Object.keys(spread).join(",") === "0,1,2" && spread[1] === undefined;'
+      ).StringValue);
+
+    AssertTrue('reduce over an empty array must throw',
+      Pos('TypeError', ctx.Evaluate('[,].reduce(function (acc, v) { return acc + v; });').ErrorMessage) > 0);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSArrayMethodsTest.TestArrayLengthMutationDoesNotLeak();
+var
+  ctx: TFloriaJSContext;
+  objectsBaseline, objectsWithElements, i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    ctx.Evaluate('var a = [1, 2, 3, 4];');
+    ctx.Evaluate('0;');
+    objectsBaseline := ctx.Heap.GetObjectCount;
+
+    { Repeated growth and truncation must not accumulate objects. }
+    for i := 1 to 200 do
+      ctx.Evaluate('a.length = 5; a.length = 1; a.length = 0; a.length = 3; a.length = 1;');
+    ctx.Evaluate('0;');
+
+    AssertTrue('Length mutation must not accumulate objects (' +
+      IntToStr(objectsBaseline) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount = objectsBaseline);
+
+    { Truncation releases the elements the array owned. }
+    ctx.Evaluate(
+      'var boxed = [];' +
+      'for (var i = 0; i < 10; i++) { boxed.push({ n: i }); }');
+    ctx.Evaluate('0;');
+    objectsWithElements := ctx.Heap.GetObjectCount;
+
+    ctx.Evaluate('boxed.length = 0;');
+    ctx.Evaluate('0;');
+    AssertTrue('Truncating length must release the dropped elements (' +
+      IntToStr(objectsWithElements) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount) + ')',
+      ctx.Heap.GetObjectCount < objectsWithElements);
+  finally
+    ctx.Free();
+  end;
+end;
+
 procedure TFloriaJSArrayMethodsTest.TestArrayCallbacksDoNotAccumulateObjects();
 var
   ctx: TFloriaJSContext;
@@ -6800,6 +6963,121 @@ begin
 
     res := engine.Execute('function f(a){ var a = 2; return a; } f(1) === 2;');
     AssertTrue('Parameter allows var of same name', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestArrayHolesAndLengthMutation();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. An explicit undefined element is an own numeric property.
+    res := engine.Execute(
+      'var a = [undefined];' +
+      'Object.keys(a).join(",") === "0" && a.hasOwnProperty(0) && (0 in a) && a[0] === undefined;'
+    );
+    AssertTrue('explicit undefined element', res.Success);
+    AssertTrue('Explicit undefined is enumerated and present', res.BooleanValue);
+
+    // 2. A hole is not an own property, even though it reads as undefined.
+    res := engine.Execute(
+      'var b = [1, , 3];' +
+      'b.length === 3 && !(1 in b) && !b.hasOwnProperty(1) && b[1] === undefined && ' +
+      'Object.keys(b).join(",") === "0,2";'
+    );
+    AssertTrue('array hole', res.Success);
+    AssertTrue('Holes are skipped while reading as undefined', res.BooleanValue);
+
+    // 3. A hole created by an array literal survives Object.values/entries.
+    res := engine.Execute(
+      'var c = [1, , 3];' +
+      'Object.values(c).join(",") === "1,3" && Object.entries(c).length === 2;'
+    );
+    AssertTrue('holes in Object.values/entries', res.Success);
+    AssertTrue('Object.values/entries skip holes', res.BooleanValue);
+
+    // 4. Growing length extends with holes; shrinking drops elements.
+    res := engine.Execute(
+      'var d = [1, 2];' +
+      'd.length = 5;' +
+      'd.length === 5 && !(2 in d) && d[4] === undefined && Object.keys(d).join(",") === "0,1";'
+    );
+    AssertTrue('length grow', res.Success);
+    AssertTrue('Extending length creates holes', res.BooleanValue);
+
+    res := engine.Execute(
+      'var e = [1, 2, 3];' +
+      'e.length = 1;' +
+      'e.length === 1 && e[1] === undefined && Object.keys(e).join(",") === "0";'
+    );
+    AssertTrue('length shrink', res.Success);
+    AssertTrue('Shrinking length drops elements', res.BooleanValue);
+
+    // 5. Assigning past the end creates holes in the gap.
+    res := engine.Execute(
+      'var f = [1];' +
+      'f[3] = 4;' +
+      'f.length === 4 && Object.keys(f).join(",") === "0,3";'
+    );
+    AssertTrue('index assignment past the end', res.Success);
+    AssertTrue('Intermediate indices are holes', res.BooleanValue);
+
+    // 6. delete leaves a hole and keeps the length.
+    res := engine.Execute(
+      'var g = [1, 2];' +
+      'delete g[0];' +
+      'g.length === 2 && !(0 in g) && Object.keys(g).join(",") === "1";'
+    );
+    AssertTrue('delete on an element', res.Success);
+    AssertTrue('delete creates a hole', res.BooleanValue);
+
+    // 7. for...in enumerates present indices only.
+    res := engine.Execute(
+      'var h = [1, , 3];' +
+      'var hk = [];' +
+      'for (var k in h) { hk.push(k); }' +
+      'hk.join(",") === "0,2";'
+    );
+    AssertTrue('for...in over holes', res.Success);
+    AssertTrue('for...in skips hole indices', res.BooleanValue);
+
+    res := engine.Execute(
+      'var i2 = [undefined];' +
+      'var ik = [];' +
+      'for (var k in i2) { ik.push(k); }' +
+      'ik.join(",") === "0";'
+    );
+    AssertTrue('for...in over explicit undefined', res.Success);
+    AssertTrue('for...in includes the explicit undefined index', res.BooleanValue);
+
+    // 8. The Array length constructor creates a sparse array.
+    res := engine.Execute(
+      'var j = new Array(3);' +
+      'j.length === 3 && Object.keys(j).length === 0 && !(0 in j);'
+    );
+    AssertTrue('new Array(n)', res.Success);
+    AssertTrue('new Array(n) creates holes', res.BooleanValue);
+
+    // 9. Invalid lengths are rejected the way ECMAScript does.
+    res := engine.Execute('var k = [1, 2]; k.length = 1.5;');
+    AssertFalse('fractional length', res.Success);
+    AssertTrue('Fractional length raises RangeError', Pos('RangeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var l = [1, 2]; l.length = -1;');
+    AssertFalse('negative length', res.Success);
+    AssertTrue('Negative length raises RangeError', Pos('RangeError', res.ErrorMessage) > 0);
+
+    // 10. Array.callbacks and JSON conversion over holes.
+    res := engine.Execute(
+      'var m = [1, , 3];' +
+      'JSON.stringify(m) === "[1,null,3]" && String(m) === "1,,3";'
+    );
+    AssertTrue('hole string conversion', res.Success);
+    AssertTrue('Holes render as empty text and null JSON', res.BooleanValue);
   finally
     engine.Free();
   end;

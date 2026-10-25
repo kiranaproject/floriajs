@@ -34,8 +34,10 @@ begin
 
   if AObj is TFloriaJSArray then
   begin
+    { Numeric indices are own properties only when they hold an element; a
+      hole is absent even though reading it yields undefined. }
     for i := 0 to TFloriaJSArray(AObj).Length() - 1 do
-      if not TFloriaJSArray(AObj).GetElement(i).IsUndefined() then
+      if TFloriaJSArray(AObj).HasElement(i) then
         arr.Push(JSMakeString(IntToStr(i)));
   end;
 
@@ -57,7 +59,7 @@ begin
   if AObj is TFloriaJSArray then
   begin
     for i := 0 to TFloriaJSArray(AObj).Length() - 1 do
-      if not TFloriaJSArray(AObj).GetElement(i).IsUndefined() then
+      if TFloriaJSArray(AObj).HasElement(i) then
         arr.Push(TFloriaJSArray(AObj).GetElement(i));
   end;
 
@@ -80,7 +82,7 @@ begin
   begin
     for i := 0 to TFloriaJSArray(AObj).Length() - 1 do
     begin
-      if not TFloriaJSArray(AObj).GetElement(i).IsUndefined() then
+      if TFloriaJSArray(AObj).HasElement(i) then
       begin
         pair := AHeap.NewArray();
         pair.Push(JSMakeString(IntToStr(i)));
