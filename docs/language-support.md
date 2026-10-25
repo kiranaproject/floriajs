@@ -20,7 +20,7 @@ them.
 | `if` / `else` | Yes | |
 | `while`, `do…while` | Yes | `break` / `continue`, including labels. |
 | Classic `for` | Yes | `var`/`let`/`const` initializers, multiple declarators, optional clauses. |
-| `for…of` | Yes | Arrays and strings. Non-iterables throw `TypeError`. `Map`/`Set` iterator protocol scheduled for P2-05. Target must be a plain identifier. |
+| `for…of` | Yes | Follows the iteration protocol: arrays, strings, `Map`, `Set`, and any iterator object. Non-iterables throw `TypeError`. The target may be a plain identifier or a destructuring pattern (`for (const [k, v] of map)`). |
 | `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates the present element indices; holes are skipped. Target must be a plain identifier. |
 | `switch` / `case` / `default` | Yes | Strict equality, fall-through, `break`. |
 | `try` / `catch` / `finally` | Yes | Catch binding is optional; `finally` always runs. |
@@ -262,9 +262,10 @@ Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
 - `Set`: `add`, `has`, `delete`, `clear`, `keys`, `values`, `entries`,
   `forEach`, and the `size` getter.
 - Keys use SameValueZero: `NaN` equals `NaN`, and `+0`/`-0` are the same key.
-- `keys`, `values`, and `entries` return **arrays**, not iterator objects.
-  `Map`/`Set` are not iterable themselves: `for…of` over one throws `TypeError`
-  (`5 is not iterable`-style), so iterate the returned arrays instead.
+- `keys`, `values`, and `entries` return **iterator objects** with `next()`,
+  not arrays. `Map` and `Set` are iterable themselves: `for…of` over a `Map`
+  yields `[key, value]` pairs and over a `Set` yields its values.
+- Lookup remains linear rather than hash-based.
 
 ### Date
 
@@ -374,7 +375,7 @@ are grouped by cause, because the three groups have different answers:
 | Timers | Require the host to call `FloriaJSProcessTimers`; no built-in event loop, and timer state is process-wide. | The host owns the main loop. |
 | Strings | Byte-oriented (UTF-8), including `length`, indexing, and `for…of`. | Avoids a UTF-16 representation in an embedded runtime. |
 | `globalThis` | A snapshot object, not a live binding to the global scope. | A live proxy would need a global object model. |
-| `Map`/`Set` storage | Lookup is linear rather than hash-based; `keys`/`values`/`entries` return arrays, not iterator objects. | Simplicity; the full iterator protocol is P2-05. |
+| `Map`/`Set` storage | Lookup is linear rather than hash-based. | Simplicity; hashing is P3 work. |
 | Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. | Reuses the FPC regex engine instead of shipping one. |
 | `Symbol` property keys | Symbols are primitives, but `obj[sym]` stores under the string form `Symbol(description)`; not real symbol-keyed properties. | Would require a separate symbol-keyed property table. |
 
@@ -401,7 +402,7 @@ are grouped by cause, because the three groups have different answers:
 | `with` | Unsupported: rejected at parse time rather than as a runtime `ReferenceError`. |
 | Loose equality | No object-to-primitive coercion: `[1] == 1` and `[] == false` are `false`, and a custom `toString`/`valueOf` is not consulted by `+` or `==`. |
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
-| `for…in`/`for…of` targets | Must be simple identifiers; destructuring targets are not parsed. |
+| `for…in` targets | Must be a simple identifier; destructuring targets are not parsed. `for…of` accepts both. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
 | `for…of` on non-iterables | Throws `TypeError`. |
 | Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |

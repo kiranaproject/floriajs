@@ -14,12 +14,12 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **197 tests pass** with `pasbuild test`.
-- Gap scan: **137 probes OK / 10 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **200 tests pass** with `pasbuild test`.
+- Gap scan: **143 probes OK / 10 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
-- Documentation claims: **44 checked, 0 failing** with
+- Documentation claims: **48 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -44,6 +44,9 @@ currently untested because the existing tests assert only the happy path.
 - `new Promise(executor)` and a working microtask queue: `.then`/`.catch`/
   `.finally` and `await` all execute, and `JSON` honours `toJSON`, the
   replacer, getters, and the reviver.
+- The iteration protocol: `Symbol.iterator`, iterator objects with `next()`,
+  `for…of` over arrays/strings/`Map`/`Set`/iterators (including destructuring
+  targets), and `Array.from`/spread over any iterable.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -221,9 +224,9 @@ plain objects like array-likes instead of checking for iterable values.
 
 1. Evaluate RHS once and duplicate on the stack for the expression result.
 2. For array destructuring, emit `opAssertIterable` before unpacking elements.
-   Reject non-array/string values (numbers, booleans, plain objects, Set without
-   iterator support) with `TypeError`. Full iterator protocol (`Symbol.iterator`)
-   for `Map`/`Set` destructuring is scheduled with P2-05.
+   Reject non-iterable values with `TypeError`. (P2-05 later widened this from
+   array/string only to the full iteration protocol, so `Map`/`Set`/iterators
+   destructure too.)
 3. For identifier targets in assignment destructuring, emit `opStoreEnv` (which
    throws `TypeError` on const bindings).
 4. For member targets, evaluate target and property, and store through `opSetProp`/
@@ -872,14 +875,49 @@ members omitted from objects but `null` in arrays, indentation with a replacer,
 the reviver transforming numbers, deleting properties, handling arrays, walking
 children before parents, and receiving the empty key for the root.
 
-### [ ] P2-05 — Map/Set iteration and iterators
+### [x] P2-05 — Map/Set iteration and iterators
 
-- Implement the iterator protocol (`next`, `done`, `value`).
-- Make `for…of` iterate `Map` and `Set` directly.
-- Make `keys`/`values`/`entries` return iterators, not arrays.
-- Preserve the current array-returning helpers only if needed for compatibility;
-  otherwise migrate tests and docs.
-- Add destructuring `[key, value]` in `for…of`.
+`for…of` did not use the iteration protocol at all: `opForOfInit` copied arrays
+and strings into a temporary array and threw for everything else, so `Map` and
+`Set` were not iterable. `keys`/`values`/`entries` returned arrays, and
+`Symbol.iterator` existed as a well-known symbol that nothing consumed.
+
+**Files.** `src/main/pascal/floria.js.collections.pas`
+(`TFloriaJSIterator`, `JSGetIterator`, `JSIteratorNext`, `JSIteratorToArray`,
+`JSArrayValues`, `JSSet.GetItem`), `src/main/pascal/floria.js.vm.pas`
+(`opForOfInit`, `opForOfNext`, `opSpreadIterable`),
+`src/main/pascal/floria.js.bytecode.pas`, `src/main/pascal/floria.js.compiler.pas`
+(`CompileForOfStmt`), `src/main/pascal/floria.js.ast.pas` /
+`floria.js.parser.pas` (for-of patterns), `src/main/pascal/floria.js.arrays.pas`
+(`Array.from`), `src/main/pascal/floria.js.stdlib.pas` (array iterator methods).
+
+**Implementation.**
+
+- `TFloriaJSIterator` is a native iterator object holding a source and a cursor.
+  It implements `next()` returning `{value, done}` and `[Symbol.iterator]`
+  returning itself, which is what makes an iterator usable directly in `for…of`
+  and spread. It walks lazily instead of copying, so a large source costs
+  nothing up front.
+- `for…of` now wraps the iterable in an iterator (`opForOfInit`) and steps it
+  each iteration (`opForOfNext`), which jumps past the loop when done. `for…in`
+  keeps its existing array-of-keys shape, since it enumerates property names.
+- `Map.prototype.keys/values/entries` and `Set.prototype.values/entries` return
+  iterators. Set `entries` yields `[value, value]` as ECMAScript specifies.
+- Arrays gained `values()` and `[Symbol.iterator]`.
+- `Array.from` and spread consume any iterable, so `[...map.keys()]` and
+  `Array.from(new Set(...))` work.
+- `for (const [k, v] of map)` is supported: the loop target may be a
+  destructuring pattern, compiled through the existing `CompileDestructuring`.
+- Two tests that asserted the old array-returning behaviour were migrated to
+  iterate instead, as the task anticipated.
+
+**Tests.** `Symbol.iterator` and `values()` on arrays, `next()` producing
+values then `done`, empty iterators, iterators being iterable, `for…of` over an
+iterator, Map/Set helpers returning iterators (including Set `entries`
+duplicating the value), `Array.from` and spread over iterators, `for…of` over
+`Map`/`Set`/arrays/strings, `break`/`continue` in an iterator loop,
+non-iterables still throwing, and destructuring in `for…of` for Map, arrays,
+and a three-element pattern.
 
 ### [ ] P2-06 — Classes
 
