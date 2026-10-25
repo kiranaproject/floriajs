@@ -25,7 +25,7 @@ the quick-start example live in the top-level [README](../README.md).
 | Document | Covers |
 | :--- | :--- |
 | [Engine and context](api/engine.md) | `TFloriaJSEngine`, `TFloriaJSContext`, results, contexts, console capture, lifetime. |
-| [Values and heap](api/values.md) | `TFloriaJSValue`, objects, arrays, functions, errors, promises, the heap, and coercion helpers. |
+| [Values and heap](api/values.md) | `TFloriaJSValue`, objects, arrays, functions, errors, promises, the heap, coercion helpers, and ECMAScript-exact number formatting/parsing. |
 | [Language pipeline](api/language-pipeline.md) | Lexer, parser, AST, bytecode compiler, VM, and standard-library registration. |
 | [FTML API](api/ftml.md) | `TFloriaFTMLEngine`, item classes, bindings, signals, and host integration. |
 

@@ -79,7 +79,7 @@ undefined behaviour at the Pascal level.
 | `null` | `0` |
 | boolean | `1` / `0` |
 | number | the value |
-| string | trimmed empty string → `0`; Pascal numeric parse → the number; otherwise `NaN` |
+| string | trimmed empty string → `0`; `0x`/`0b`/`0o` prefixes and `Infinity` → the number; otherwise the correctly rounded decimal parse, or `NaN` |
 | array with exactly one element | number conversion of that element |
 | array with zero or several elements | `NaN` |
 | symbol | `NaN` |
@@ -92,7 +92,7 @@ undefined behaviour at the Pascal level.
 | `undefined` | `undefined` |
 | `null` | `null` |
 | boolean | `true` / `false` |
-| number | `NaN`, `Infinity`, `-Infinity`, or the shortest available decimal form; integral values print without a fractional part |
+| number | ECMAScript `Number::toString`: `NaN`, `Infinity`, `-Infinity`, or the shortest decimal that round-trips, in fixed notation for `1e-6 <= \|x\| < 1e21` and scientific notation outside it |
 | string | the string itself |
 | symbol | `Symbol(description)` (or `Symbol()`) |
 | array | elements joined with `,` |
@@ -100,8 +100,10 @@ undefined behaviour at the Pascal level.
 | error | `Name: message` |
 | other object | `[object Object]` |
 
-These differ from ECMAScript in a few corners (for example an empty array
-converts to `NaN`, not `0`). Do not rely on full spec coercion in host code.
+Number-to-string and string-to-number conversion are ECMAScript-exact; see
+[`floria.js.number`](#floriajsnumber). Other coercions still differ from the
+spec in a few corners (for example an empty array converts to `NaN`, not `0`),
+so do not rely on full spec coercion in host code.
 
 ## Value factories
 
@@ -546,3 +548,43 @@ retains the AST body. On first call, the VM compiles the body into a bytecode
 chunk and stores it on the function; subsequent calls reuse the chunk. The AST
 declaration that owns the body releases its own reference when it is freed, so
 a closure can outlive the script that declared it without dangling pointers.
+
+## `floria.js.number`
+
+```pascal
+function JSNumberToStr(const V: Double): string;
+function JSTryStrToNumber(const S: string; out V: Double): Boolean;
+function JSNumberToRadixStr(const V: Double; ARadix: Integer): string;
+```
+
+JavaScript numbers are doubles, and both directions of conversion are visible
+from a script, so both must match ECMAScript. The host formatter and parser are
+not correctly rounded for every value (`FloatToStr` truncates, and
+`StrToFloat("1e126")` is one ulp off), so this unit converts through **exact
+decimal digit strings** instead.
+
+- `JSNumberToStr` returns the shortest decimal that parses back to the same
+  double, in the notation ECMAScript specifies: fixed for
+  `1e-6 <= |x| < 1e21`, scientific otherwise, with `e+`/`e-` and no zero
+  padding. `NaN`, the infinities, and both zeros (`"0"`) follow the spec.
+- `JSTryStrToNumber` parses `[+-]digits[.digits][e[+-]digits]` and returns the
+  nearest double, ties to even. It seeds from the host parser and then walks
+  the double grid against the exact rounding interval, which corrects the
+  host's rounding. Overflow saturates to `Infinity`; underflow becomes `0`.
+  It returns `False` only when the text is not a decimal numeral.
+- `JSNumberToRadixStr` implements `toString(radix)` for radix 2..36, including
+  the fractional part. Radix 10 delegates to `JSNumberToStr`.
+
+### How it works
+
+Every finite double is `m * 2^e` with a 53-bit `m`, so it has an exact finite
+decimal expansion; for negative `e` the unit multiplies by `5^k` and shifts the
+point by `10^k`. The decimals that round to a given double are the closed
+interval between the midpoints to its neighbours, where an endpoint is included
+only when the mantissa is even. Formatting searches digit counts from one
+upward and returns the first decimal inside that interval, which is by
+construction the shortest representation. Nothing is approximated.
+
+The conversion is intentionally isolated in its own unit so the value unit, the
+JSON writer, and the lexer all share one implementation. `TFloriaJSValue`
+`ToString`/`ToNumber`, `JSON.stringify`, and numeric literals delegate here.

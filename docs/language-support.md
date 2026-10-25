@@ -120,7 +120,7 @@ code units. Non-ASCII characters count as multiple units.
 | :--- | :--- |
 | `undefined`, `NaN`, `Infinity` | Standard values. |
 | `parseInt`, `parseFloat`, `isNaN`, `isFinite` | `parseInt` honours the radix and `0x` prefixes; `parseFloat` accepts a numeric prefix. |
-| `Number`, `String`, `Boolean` | Conversion functions (called with or without `new`). |
+| `Number`, `String`, `Boolean` | Conversion functions (called with or without `new`). Number conversion and formatting are ECMAScript-exact: `String(x)` produces the shortest decimal that round-trips, and `Number(s)` produces the nearest double. |
 | `Number.isNaN`, `isFinite`, `isInteger`, `parseInt`, `parseFloat` | Plus `NaN`, `POSITIVE_INFINITY`, `NEGATIVE_INFINITY`, `MAX_VALUE`, `MIN_VALUE`, `MAX_SAFE_INTEGER`, `MIN_SAFE_INTEGER`, `EPSILON`. |
 | `Array` | Constructor plus `isArray`, `from`, `of`. |
 | `Object` | Constructor plus `keys`, `values`, `entries`, `assign`, `create`, `getPrototypeOf`. `Object.prototype` has `hasOwnProperty` and `toString`. |
@@ -301,6 +301,22 @@ available, along with `URIError`. Invalid percent-encoding raises a catchable
 callbacks in a process-wide queue. The runtime has no wall-clock event loop:
 the host must call `FloriaJSProcessTimers(Heap)` periodically. Without that
 pump, delayed and repeating callbacks do not execute.
+
+### Numbers
+
+- `String(x)`, `` `${x}` ``, `x.toString()`, and `JSON.stringify` all produce the
+  same ECMAScript form: the shortest decimal that parses back to the same
+  double, with fixed notation for `1e-6 <= |x| < 1e21` and scientific notation
+  outside that range (`1e-7`, `1e+21`). So `String(1e20)` is
+  `"100000000000000000000"` and `(0.1 + 0.2).toString()` is
+  `"0.30000000000000004"`.
+- `Number(text)`, numeric literals, and `parseFloat` are correctly rounded:
+  they produce the nearest double, ties to even. `Number("1e309")` is
+  `Infinity`, and values below the subnormal range become `0`.
+- `Number.prototype.toString(radix)` supports radix 2 through 36, including the
+  fractional part, and throws `RangeError` outside that range.
+- `NaN` and the infinities stringify as `"NaN"`, `"Infinity"`, and
+  `"-Infinity"`; both zeros stringify as `"0"`.
 
 ### Errors and promises
 

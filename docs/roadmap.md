@@ -14,11 +14,11 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **182 tests pass** with `pasbuild test`.
-- Gap scan: **116 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **185 tests pass** with `pasbuild test`.
+- Gap scan: **121 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
-- Unit count: 25 units.
+- Unit count: 26 units.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
 currently untested because the existing tests assert only the happy path.
@@ -35,8 +35,8 @@ currently untested because the existing tests assert only the happy path.
 - `Function.prototype.call`/`apply`/`bind` including construction and
   `instanceof` through a bound function, lexical `arguments` in arrows, and
   `Foo.prototype.constructor === Foo`.
-- `Number("0x10")`, `parseInt("010")`, and removal of the large-integer
-  formatting overflow.
+- `Number("0x10")`, `parseInt("010")`, and ECMAScript-exact number formatting
+  and parsing (`floria.js.number`), including `toString(radix)`.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -572,7 +572,7 @@ target name, arrow targets rejected, non-constructor targets rejected,
 lifetime test that repeated bind/construct does not accumulate objects or
 environments.
 
-### [ ] P1-04 — Number formatting and conversion parity
+### [x] P1-04 — Number formatting and conversion parity
 
 **Failure.**
 
@@ -582,25 +582,57 @@ String(1e-7);              // "1E-7"        expected "1e-7"
 (0.1 + 0.2).toString();    // "0.3"         expected "0.30000000000000004"
 ```
 
-`ToNumber` hex/binary/octal parsing is fixed, and the integer overflow path is
-gone, but `ToString` uses host formatting (`FloatToStr`) and truncates
-precision. The existing `1e20` test only checks the first character; that is
-not enough.
+`ToString` used host formatting (`FloatToStr`), which both truncated precision
+and used its own exponent style. The existing `1e20` test only checked the
+first character, so it did not notice.
 
-**Files.** `src/main/pascal/floria.js.value.pas` (`ToString`,
-`TFloriaJSValue.ToNumber`), `src/main/pascal/floria.js.stdlib.pas`
-(`JSNumberToString`), `src/main/pascal/floria.js.value.pas` tests.
+While fixing this it turned out the host *parser* is not correctly rounded
+either: `StrToFloat("1e126")` returns a value one ulp above the true nearest
+double. That affected `Number(...)`, numeric literals, and `parseFloat`, so
+both directions were replaced.
+
+**Files.** New `src/main/pascal/floria.js.number.pas`; wired into
+`src/main/pascal/floria.js.value.pas` (`ToString`, `ToNumber`,
+`JSNumberToString`), `src/main/pascal/floria.js.json.pas`,
+`src/main/pascal/floria.js.lexer.pas`.
 
 **Implementation.**
 
-- Implement a shortest-round-trip decimal formatter (or a carefully tested
-  approximation) for doubles.
-- Match JavaScript exponent thresholds and `e+`/`e-` notation.
-- Preserve integer display below the safe-integer range.
-- Update `Number("...")` edge cases at the same time.
+- Added `floria.js.number`, which does all conversion on **exact decimal digit
+  strings** rather than through the host float routines:
+  - Doubles are decomposed exactly (`m * 2^e`, expanded as `m * 5^k / 10^k`
+    for negative exponents), so no precision is lost.
+  - The rounding interval of a double is computed from the exact midpoints to
+    its neighbours, with an inclusive endpoint only for an even mantissa
+    (round-half-even). A decimal is accepted when it falls inside that
+    interval.
+  - `JSNumberToStr` searches digit counts from 1 upward and returns the first
+    decimal that round-trips, so it is the shortest representation. It uses
+    fixed notation for `1e-6 <= |x| < 1e21` and scientific notation outside,
+    with `e+`/`e-` and no zero padding.
+  - `JSTryStrToNumber` seeds from the host parser, then walks the double grid
+    against the exact interval, which corrects the host's rounding. Overflow
+    saturates to `Infinity`; underflow becomes `0`.
+  - `JSNumberToRadixStr` implements `toString(radix)` for radix 2..36,
+    including the fractional part.
+- `ToString`, `ToNumber`, JSON number serialisation, and lexer literals now
+  delegate to the new unit.
+- `Number.prototype.toString(radix)` honours its argument (it previously
+  ignored the radix and printed base 10) and throws a catchable `RangeError`
+  outside 2..36.
+- Negative zero prints as `"0"`, matching ECMAScript.
 
-**Tests.** `0.1 + 0.2`, `1e20`, `1e21`, `1e-7`, `-0`, `NaN`, `Infinity`,
-safe integers, and round trips through `Number(String(x))`.
+**Tests.** The three reported cases, exponent thresholds (`1e-6` fixed,
+`1e-7` scientific, `1e20` fixed, `1e21` scientific), `e+` notation, exact
+integers, `-0`/`NaN`/`Infinity`, both double extremes, a value needing all 17
+digits, JSON number output, `Number(String(x))` round trips, correctly rounded
+parsing (`1e126`, the smallest normal), subnormal and overflow boundaries, the
+existing `Number` forms, and radix conversion including `RangeError`.
+
+**Verification.** Beyond the unit tests, both directions were diffed against
+Node.js over **41,626 bit patterns** (random doubles plus every decade
+boundary and the extremes): zero differences. The same comparison over 8,037
+decimal strings found no difference in the numeric core.
 
 ### [ ] P1-05 — Fix `delete` and `debugger` semantics
 
