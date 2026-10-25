@@ -360,6 +360,7 @@ type
     procedure TestNonReferenceAssignmentTargets();
     procedure TestNumberFormatting();
     procedure TestUnicodeEncoding();
+    procedure TestGeneratorLifetime();
   end;
 
 { TFloriaJSTypesTest }
@@ -9409,6 +9410,108 @@ begin
     res := engine.Execute('String.fromCodePoint(0xE9).charCodeAt(0) === 63;');
     AssertTrue('not a replacement', res.Success);
     AssertFalse('a non-ASCII character is not replaced by ?', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestGeneratorLifetime();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+  steadyObjects: Integer;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // A lazily created `next` must stay alive while the generator does. It used
+    // to be reclaimed at the next collection because nothing held a reference.
+    res := engine.Execute('function* g() { yield 1; } var it = g(); var f = it.next; typeof f;');
+    AssertTrue('next can be bound', res.Success);
+    AssertEquals('next is a function', 'function', res.StringValue);
+
+    res := engine.Execute('function* g() { yield 1; yield 2; } var it = g(); var f = it.next; f().value;');
+    AssertTrue('a bound next still steps', res.Success);
+    AssertEquals('the first value', '1', res.StringValue);
+
+    res := engine.Execute('function* g() { yield 1; yield 2; } var it = g(); var f = it.next; f(); f().value;');
+    AssertTrue('a bound next steps twice', res.Success);
+    AssertEquals('the second value', '2', res.StringValue);
+
+    // The generator survives its creating script, so it can be resumed later.
+    res := engine.Execute('function* g() { yield 1; yield 2; } var it = g(); it.next().value;');
+    AssertTrue('create in one script', res.Success);
+    AssertEquals('first value', '1', res.StringValue);
+
+    res := engine.Execute('it.next().value;');
+    AssertTrue('resume in a later script', res.Success);
+    AssertEquals('the generator survived', '2', res.StringValue);
+
+    res := engine.Execute('it.next().done;');
+    AssertTrue('finish in a third script', res.Success);
+    AssertTrue('it is done', res.BooleanValue);
+
+    // A generator holding parameters and locals keeps them across scripts.
+    res := engine.Execute(
+      'function* g(a) { var n = a * 2; yield n; yield n + 1; }' +
+      'var it = g(5); it.next().value;'
+    );
+    AssertTrue('locals in one script', res.Success);
+    AssertEquals('the first value', '10', res.StringValue);
+
+    res := engine.Execute('it.next().value;');
+    AssertTrue('locals survive the script', res.Success);
+    AssertEquals('the local is intact', '11', res.StringValue);
+
+    // Collection must not break a live generator.
+    res := engine.Execute(
+      'function* g() { yield 1; yield 2; yield 3; } var it = g(); it.next().value;'
+    );
+    AssertTrue('before collection', res.Success);
+
+    res := engine.Execute('it.next().value;');
+    AssertTrue('still alive after a collection', res.Success);
+    AssertEquals('the generator was not reclaimed', '2', res.StringValue);
+
+    // Several generators must each keep their own state. A generator with a
+    // single yield is done after one step, so a second next() yields undefined.
+    res := engine.Execute(
+      'function* g(i) { yield i; yield i + 10; } var gs = [];' +
+      'for (var i = 0; i < 5; i++) { gs.push(g(i)); }' +
+      'var total = 0; for (var k = 0; k < 5; k++) { total += gs[k].next().value; }' +
+      'total;'
+    );
+    AssertTrue('several generators', res.Success);
+    AssertEquals('all of them advanced independently', '10', res.StringValue);
+
+    res := engine.Execute(
+      'function* g(i) { yield i; yield i + 10; } var gs = [];' +
+      'for (var i = 0; i < 5; i++) { gs.push(g(i)); }' +
+      'for (var j = 0; j < 5; j++) { gs[j].next(); }' +
+      'var total = 0; for (var k = 0; k < 5; k++) { total += gs[k].next().value; }' +
+      'total;'
+    );
+    AssertTrue('several generators stepped twice', res.Success);
+    AssertEquals('each keeps its own second value', '60', res.StringValue);
+
+    // A dropped generator must release the environment it was holding. Before
+    // this was fixed every generator left one behind, so the heap grew by one
+    // object per generator and never shrank.
+    res := engine.Execute(
+      'function* g() { yield 1; } for (var i = 0; i < 200; i++) { g().next(); } "d";'
+    );
+    AssertTrue('churn', res.Success);
+    res := engine.Execute('"collect";');
+    AssertTrue('collect', res.Success);
+    steadyObjects := engine.DefaultContext.Heap.GetObjectCount();
+
+    res := engine.Execute(
+      'function* g() { yield 1; } for (var i = 0; i < 200; i++) { g().next(); } "d";'
+    );
+    AssertTrue('churn again', res.Success);
+    res := engine.Execute('"collect";');
+    AssertTrue('collect again', res.Success);
+    AssertEquals('the heap does not grow with generator churn',
+      IntToStr(steadyObjects), IntToStr(engine.DefaultContext.Heap.GetObjectCount()));
   finally
     engine.Free();
   end;

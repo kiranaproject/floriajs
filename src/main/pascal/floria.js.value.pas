@@ -412,6 +412,12 @@ type
     FReturnFn: TFloriaJSFunction;
     FSelfIteratorFn: TFloriaJSFunction;
     FRunner: TFloriaJSGeneratorRunner;
+    { The lazily created methods are owned by the generator. `Track` only
+      registers an object with the heap; it does not keep it alive, so without
+      an explicit reference the method was reclaimed at the next collection and
+      the cached pointer dangled. }
+    procedure OwnMethod(var AField: TFloriaJSFunction; const AName: string;
+      AMethod: TFloriaJSNativeMethod);
     procedure SetBytecode(ABytecode: TObject);
     procedure SetArgs(const AArgs: TFloriaJSValueArray);
     procedure SetThisVal(const AValue: TFloriaJSValue);
@@ -567,6 +573,7 @@ type
       use any more, such as the start of a program execution. }
     procedure ReclaimOrphanedEnvironments();
     procedure Collect();
+    procedure SweepObjects();
 
     procedure Clear();
     function  GetObjectCount(): Integer;
@@ -3230,6 +3237,24 @@ destructor TFloriaJSGenerator.Destroy();
 var
   i: Integer;
 begin
+  { Give up the references this generator holds, so the methods it created can
+    be reclaimed once nothing else uses them. }
+  if FNextFn <> nil then
+  begin
+    FNextFn.Release();
+    FNextFn := nil;
+  end;
+  if FReturnFn <> nil then
+  begin
+    FReturnFn.Release();
+    FReturnFn := nil;
+  end;
+  if FSelfIteratorFn <> nil then
+  begin
+    FSelfIteratorFn.Release();
+    FSelfIteratorFn := nil;
+  end;
+
   for i := 0 to FStackCount - 1 do
     JSReleaseValue(FStack[i]);
   SetLength(FStack, 0);
@@ -3241,7 +3266,27 @@ begin
     TFloriaJSBytecode(FBytecode).Release();
     FBytecode := nil;
   end;
+  { The generator kept its activation environment alive for as long as it could
+    resume. Detaching it lets the heap reclaim it once nothing else refers to
+    it; without this every generator left an environment behind. During a full
+    clear the environments are already gone, so the pointer must not be
+    touched. }
+  if FEnv <> nil then
+  begin
+    if (Heap = nil) or (not Heap.IsClearing) then
+      TFloriaJSEnvironment(FEnv).Detach();
+    FEnv := nil;
+  end;
   inherited Destroy();
+end;
+
+procedure TFloriaJSGenerator.OwnMethod(var AField: TFloriaJSFunction;
+  const AName: string; AMethod: TFloriaJSNativeMethod);
+begin
+  if (AField <> nil) or (Heap = nil) then Exit;
+  AField := Heap.NewNativeMethod(AName, AMethod);
+  if AField <> nil then
+    AField.Retain();
 end;
 
 procedure TFloriaJSGenerator.SetBytecode(ABytecode: TObject);
@@ -3385,22 +3430,19 @@ function TFloriaJSGenerator.GetPropertyWithReceiver(const AName: string;
 begin
   if AName = 'next' then
   begin
-    if (FNextFn = nil) and (Heap <> nil) then
-      FNextFn := Heap.NewNativeMethod('next', @Self.Next);
+    OwnMethod(FNextFn, 'next', @Self.Next);
     Exit(JSMakeFunction(FNextFn));
   end;
 
   if AName = 'return' then
   begin
-    if (FReturnFn = nil) and (Heap <> nil) then
-      FReturnFn := Heap.NewNativeMethod('return', @Self.Return_);
+    OwnMethod(FReturnFn, 'return', @Self.Return_);
     Exit(JSMakeFunction(FReturnFn));
   end;
 
   if (AName = 'Symbol(Symbol.iterator)') or (AName = '@@iterator') then
   begin
-    if (FSelfIteratorFn = nil) and (Heap <> nil) then
-      FSelfIteratorFn := Heap.NewNativeMethod('[Symbol.iterator]', @Self.SelfIterator);
+    OwnMethod(FSelfIteratorFn, '[Symbol.iterator]', @Self.SelfIterator);
     Exit(JSMakeFunction(FSelfIteratorFn));
   end;
 
@@ -3737,17 +3779,15 @@ begin
   end;
 end;
 
-procedure TFloriaJSHeap.Collect();
+{ Sweeps the objects that no container refers to any more. Reclaiming an object
+  gives up the references it holds, which can make other objects unreachable as
+  well, so the sweep repeats until nothing changes. }
+procedure TFloriaJSHeap.SweepObjects();
 var
   i: Integer;
   obj: TFloriaJSObject;
   freed: Boolean;
 begin
-  ReclaimOrphanedEnvironments();
-
-  { Reclaims the objects that no container refers to any more. Reclaiming an
-    object gives up the references it holds, which can make other objects
-    unreachable as well, so the sweep repeats until nothing changes. }
   repeat
     freed := False;
     if FObjects = nil then
@@ -3768,6 +3808,19 @@ begin
       end;
     end;
   until not freed;
+end;
+
+procedure TFloriaJSHeap.Collect();
+begin
+  { The order matters. Sweeping first releases the objects that can be
+    reclaimed, and freeing a generator detaches the environment it was keeping
+    alive. Reclaiming the environments afterwards therefore collects those in
+    the same pass; doing it the other way round left every generator's
+    environment to be reclaimed only at the *next* collection. The final sweep
+    then drops the objects those environments were holding. }
+  SweepObjects();
+  ReclaimOrphanedEnvironments();
+  SweepObjects();
 end;
 
 procedure TFloriaJSHeap.Clear();
