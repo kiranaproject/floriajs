@@ -14,12 +14,12 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **192 tests pass** with `pasbuild test`.
-- Gap scan: **131 probes OK / 10 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **197 tests pass** with `pasbuild test`.
+- Gap scan: **137 probes OK / 10 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
-- Documentation claims: **40 checked, 0 failing** with
+- Documentation claims: **44 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -41,6 +41,9 @@ currently untested because the existing tests assert only the happy path.
   and parsing (`floria.js.number`), including `toString(radix)`.
 - The `void` operator and the short-circuiting logical assignments `&&=` and
   `||=`, for identifiers and member targets.
+- `new Promise(executor)` and a working microtask queue: `.then`/`.catch`/
+  `.finally` and `await` all execute, and `JSON` honours `toJSON`, the
+  replacer, getters, and the reviver.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -805,20 +808,69 @@ with a throwing function.
   compound assignment and predates this work, so it is recorded under P2-11
   rather than fixed here.
 
-### [ ] P2-03 — Promise constructor
+### [x] P2-03 — Promise constructor
 
-Implement `new Promise(executor)` with native `resolve`/`reject` callbacks,
-settled-state transitions, and microtask integration. Keep `Promise.resolve`,
-`reject`, `all`, and `race` working. Add unhandled-rejection and await tests.
+`Promise` was a plain object, so `new Promise(executor)` raised
+`TypeError: Value is not a constructor`. Adding the constructor exposed a much
+larger bug: **`SetJobRunner` was never called**, so the microtask queue was
+never drained and no `.then`, `.catch`, or `.finally` callback had ever run —
+`await` was broken in the same way. The existing tests only checked that the
+promise *object* existed, never that a callback fired.
 
-### [ ] P2-04 — JSON parity
+**Files.** `src/main/pascal/floria.js.value.pas`
+(`TFloriaJSPromiseResolver`, `PromiseConstructor`, `NewPromise`,
+`Attach` made public), `src/main/pascal/floria.js.vm.pas`
+(`HeapJobRunner`), `src/main/pascal/floria.js.stdlib.pas` (registration).
 
-- Call `toJSON()` when present.
-- Honour the `replacer` function and key array.
-- Implement the `reviver` argument to `JSON.parse`.
-- Invoke getters and `toJSON` according to ECMAScript property-access
-  semantics, while keeping circular detection and indentation behaviour.
-- Add hole/`undefined`/function serialization tests.
+**Implementation.**
+
+- `TFloriaJSPromiseResolver` owns the per-promise `resolve`/`reject` pair and an
+  already-settled flag, so the first call wins and later ones are ignored. A
+  `of object` native method carries that state, which a bare function pointer
+  could not.
+- `PromiseConstructor` validates the executor, creates the promise, runs the
+  executor synchronously, and rejects the promise if it throws. Resolving with
+  the promise itself is a `TypeError` cycle.
+- `Promise` is now a constructor function; the statics hang off the same
+  object, so `Promise.resolve` still works.
+- `TFloriaJSVM.HeapJobRunner` runs one reaction: it picks `finally`/reject/
+  fulfill, passes the settlement through when no handler is supplied, calls the
+  handler, rejects the child on a throw, adopts a returned promise, and lets
+  `finally` forward the original settlement. The VM installs it through
+  `SetJobRunner` and clears it on destruction, matching the existing
+  invoker/constructor wiring.
+- Promises now inherit from `Object.prototype` (`NewPromise` passed no
+  prototype), so `p instanceof Object` holds.
+
+**Tests.** Constructor identity and `typeof`, the executor running
+synchronously with two function arguments, a non-callable executor being a
+`TypeError`, statics still present, `then`/`catch`/`finally` actually running,
+a throwing executor rejecting, first-settlement-wins, chaining, pass-through
+for a missing handler, promise adoption, a throw inside a handler rejecting the
+child, and `await` on resolve, on a constructed promise, and on a rejection.
+
+### [x] P2-04 — JSON parity
+
+`JSON.stringify` ignored the `replacer`, read stored property values instead of
+running getters, and never called `toJSON`; `JSON.parse` had no reviver.
+
+**Files.** `src/main/pascal/floria.js.json.pas`.
+
+**Implementation.** `Serialize` now runs every value through `PrepareValue`
+(`toJSON` first, then the replacer function) before type dispatch, and carries
+the current property key so `toJSON(key)` and the replacer receive it. Object
+members are read with `GetProperty`, so getters execute. A key-array replacer
+filters object keys. `JSON.parse` walks the parsed tree depth-first through a
+synthetic root holder, calling the reviver on every member and deleting
+properties whose reviver returns `undefined`. Circular detection and
+indentation are unchanged.
+
+**Tests.** Getters invoked, `toJSON` on the root and receiving the key, `toJSON`
+returning a structure or `undefined`, function replacer on objects and arrays,
+a replacer dropping members, the key-array replacer, `undefined`/function
+members omitted from objects but `null` in arrays, indentation with a replacer,
+the reviver transforming numbers, deleting properties, handling arrays, walking
+children before parents, and receiving the empty key for the root.
 
 ### [ ] P2-05 — Map/Set iteration and iterators
 

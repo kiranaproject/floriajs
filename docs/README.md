@@ -68,7 +68,6 @@ Not implemented yet (see the [roadmap](roadmap.md)):
 - `class`, `super`, and `extends`.
 - Generators/`yield`, tagged templates, `for await`, and `import`/`export`.
 - `BigInt` (literals are rejected at lex time).
-- A promise constructor (`new Promise(executor)`).
 - Convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
   and `Object.is`.
 - A JIT/AOT compiler, hidden classes/inline caches, and persistent bytecode

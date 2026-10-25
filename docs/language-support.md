@@ -134,7 +134,7 @@ code units. Non-ASCII characters count as multiple units.
 | `Object` | Constructor plus `keys`, `values`, `entries`, `assign`, `create`, `getPrototypeOf`. `Object.prototype` has `hasOwnProperty` and `toString`. |
 | `JSON` | `stringify` and `parse` (see below). |
 | `Math` | See below. |
-| `Promise` | Object with `resolve`, `reject`, `all`, `race`. It is not a constructor: `new Promise(...)` is not supported. |
+| `Promise` | Constructor: `new Promise(executor)` runs the executor synchronously with `resolve`/`reject` callbacks (first settlement wins; a throw rejects). Plus `resolve`, `reject`, `all`, `race`. |
 | `Error`, `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError` | Constructors returning error objects with standard prototype chains, `name`, `message`, and `toString()`. |
 | `console` | `log`, `warn`, `error`. Output is captured per context. |
 | `globalThis` | A snapshot object containing references to the globals above. It is **not** a live global proxy: `var x = 1; globalThis.x` is `undefined`. |
@@ -238,15 +238,20 @@ Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
 
 - `JSON.stringify(value[, replacer[, space]])` supports primitives, arrays,
   nested objects, indentation via a numeric or string `space`, and circular
-  reference detection (throws a `TypeError` error object). The `replacer`
-  argument is ignored. Functions and `undefined` are omitted from objects and
-  become `null` inside arrays; top-level `undefined`/function yields
-  `undefined`.
-- `JSON.parse(text)` parses RFC 8259-style JSON and throws a `SyntaxError`
-  error object with a position on invalid input. A reviver argument is not
-  supported.
-- Getters are not invoked by `JSON.stringify`; it serialises stored property
-  values.
+  reference detection (throws a `TypeError` error object).
+- The `replacer` is honoured: a **function** is called with `(key, value)` for
+  the root (empty key) and every member, and its result is serialised; an
+  **array** restricts which object keys are emitted.
+- `toJSON(key)` is called when a value defines it, before the replacer, so
+  `Date` and user types can choose their own representation.
+- Property values are read **through the property**, so getters run.
+- Functions and `undefined` are omitted from objects and become `null` inside
+  arrays; a top-level `undefined`/function yields `undefined`.
+- `JSON.parse(text[, reviver])` parses RFC 8259-style JSON and throws a
+  `SyntaxError` error object with a position on invalid input. With a
+  `reviver`, the tree is walked depth-first (children before parents) and the
+  reviver is called with `(key, value)` for the root and every member; a
+  returned `undefined` deletes the property.
 
 ### Map and Set
 
@@ -339,9 +344,10 @@ pump, delayed and repeating callbacks do not execute.
   the call-depth limit.
 - `throw` can throw any value. `catch (e)` receives it.
 - `async` functions return promises; `.then`, `.catch`, and `.finally` are
-  available on promises. `Promise.resolve/reject/all/race` are supported, but
-  there is no promise constructor or host event loop. Microtasks are drained
-  after a script runs.
+  available on promises and run as microtasks, drained after a script
+  completes. `new Promise(executor)` is supported, as are
+  `Promise.resolve`/`reject`/`all`/`race`. There is no host event loop, so
+  timer-based work still needs `FloriaJSProcessTimers`.
 
 ## FTML expressions
 
@@ -376,8 +382,6 @@ are grouped by cause, because the three groups have different answers:
 
 | Area | Current behaviour | Task |
 | :--- | :--- | :--- |
-| Promise construction | `new Promise(executor)` is not supported (`TypeError: Value is not a constructor`); use `Promise.resolve`/`reject`/`all`/`race`. | P2-03 |
-| `JSON` parity | `JSON.stringify` ignores the replacer, does not invoke getters, and does not call `toJSON`; `JSON.parse` has no reviver. | P2-04 |
 | `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
 | `class` | Not a keyword: every form (`class A {}`, `class {}`, `extends`) parses as the identifier `class` and throws `ReferenceError: class is not defined`. | P2-06 |
 | Generators / `for await` | `function*` and `for await` are parse errors. | P2-07 |
