@@ -60,6 +60,13 @@ type
     FFrameCapacity: Integer;
     FMaxCallDepth: Integer;
 
+    { The generator whose body is currently executing, and the value it last
+      yielded. Set while RunLoop runs a generator frame so opYield can suspend
+      by unwinding to the generator runner. }
+    FActiveGenerator: TFloriaJSGenerator;
+    FYieldedValue: TFloriaJSValue;
+    FIsSuspending: Boolean;
+
     { Try/Catch Exception Stack }
     FTryHandlers: array of TFloriaJSTryEntry;
     FTryCount: Integer;
@@ -79,6 +86,10 @@ type
     function  HeapInvoker(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
     function  HeapConstructor(const AFuncVal: TFloriaJSValue; const AArgs: TFloriaJSValueArray): TFloriaJSValue;
     procedure HeapJobRunner(const AJob: TFloriaJSPromiseJob);
+    function  RunGenerator(AGen: TFloriaJSGenerator; const ASent: TFloriaJSValue;
+      out AValue: TFloriaJSValue; out ADone: Boolean): Boolean;
+    function  MakeGenerator(AFn: TFloriaJSFunction; const AArgs: array of TFloriaJSValue;
+      const AThisVal: TFloriaJSValue; AParentEnv: TFloriaJSEnvironment): TFloriaJSGenerator;
   public
     constructor Create(AHeap: TFloriaJSHeap = nil; AGlobalEnv: TFloriaJSEnvironment = nil);
     destructor Destroy(); override;
@@ -137,6 +148,10 @@ begin
   SetLength(FTryHandlers, FTryCapacity);
   FTryCount := 0;
 
+  FActiveGenerator := nil;
+  FYieldedValue := JSMakeUndefined();
+  FIsSuspending := False;
+
   if FHeap <> nil then
   begin
     FHeap.SetFunctionInvoker(@HeapInvoker);
@@ -159,6 +174,55 @@ end;
 
 { Runs one settled-promise reaction. The handler receives the settled value; its
   return value settles the child promise. A throw rejects the child instead. }
+
+
+
+{ Creates a suspended generator for AFn, binding its parameters into a fresh
+  activation environment exactly as a normal call does. All three call paths
+  (opCall, opCallOpt, and CallFunction) use this so they cannot diverge. }
+function TFloriaJSVM.MakeGenerator(AFn: TFloriaJSFunction;
+  const AArgs: array of TFloriaJSValue; const AThisVal: TFloriaJSValue;
+  AParentEnv: TFloriaJSEnvironment): TFloriaJSGenerator;
+var
+  subCode: TFloriaJSBytecode;
+  callEnv: TFloriaJSEnvironment;
+  argsArr: TFloriaJSArray;
+  i: Integer;
+begin
+  subCode := TFloriaJSBytecode(AFn.Bytecode);
+
+  if AFn.ClosureEnv <> nil then
+    callEnv := TFloriaJSEnvironment.Create(TFloriaJSEnvironment(AFn.ClosureEnv), FHeap)
+  else
+    callEnv := TFloriaJSEnvironment.Create(AParentEnv, FHeap);
+  FHeap.TrackEnvironment(callEnv);
+
+  for i := 0 to subCode.GetArgumentCount() - 1 do
+  begin
+    if i < Length(AArgs) then
+      callEnv.Define(subCode.GetArgumentName(i), AArgs[i], False)
+    else
+      callEnv.Define(subCode.GetArgumentName(i), JSMakeUndefined(), False);
+  end;
+  if not AFn.IsArrow then
+  begin
+    callEnv.Define('this', AThisVal);
+    if FHeap <> nil then
+    begin
+      argsArr := FHeap.NewArray();
+      for i := 0 to High(AArgs) do
+        argsArr.Push(AArgs[i]);
+      callEnv.Define('arguments', JSMakeObject(argsArr));
+    end;
+  end;
+
+  Result := TFloriaJSGenerator(FHeap.Track(TFloriaJSGenerator.Create(FHeap)));
+  Result.Bytecode := subCode;
+  Result.SetEnv(callEnv);
+  Result.ThisVal := AThisVal;
+  Result.Runner := @RunGenerator;
+end;
+
 procedure TFloriaJSVM.HeapJobRunner(const AJob: TFloriaJSPromiseJob);
 var
   handler, arg, resultValue: TFloriaJSValue;
@@ -215,6 +279,118 @@ begin
   end
   else
     AJob.Child.Fulfill(resultValue);
+end;
+
+{ Starts or resumes a generator body.
+
+  On the first call the frame is created from the generator's stored bytecode,
+  environment and arguments. On later calls the saved IP and operand stack are
+  restored instead, so execution continues just past the `yield` that
+  suspended it. The body runs until it yields again (AValue is the yielded
+  value, ADone is False) or returns (AValue is the return value, ADone is True).
+  A throw completes the generator and propagates. }
+function TFloriaJSVM.RunGenerator(AGen: TFloriaJSGenerator;
+  const ASent: TFloriaJSValue; out AValue: TFloriaJSValue;
+  out ADone: Boolean): Boolean;
+var
+  subCode: TFloriaJSBytecode;
+  genEnv: TFloriaJSEnvironment;
+  baseBP, i, initialFP: Integer;
+  savedStack: TFloriaJSValueArray;
+  savedCount: Integer;
+  isResume: Boolean;
+  prevGenerator: TFloriaJSGenerator;
+  prevSuspending: Boolean;
+  prevYielded: TFloriaJSValue;
+begin
+  Result := False;
+  AValue := JSMakeUndefined();
+  ADone := True;
+
+  subCode := TFloriaJSBytecode(AGen.Bytecode);
+  if subCode = nil then
+    Exit;
+
+  genEnv := TFloriaJSEnvironment(AGen.Env);
+  { A top-level generator has no closure environment; fall back to the global
+    one so the frame still has a scope to resolve names in. }
+  if genEnv = nil then
+    genEnv := FGlobalEnv;
+  isResume := (AGen.State = fjgsSuspendedYield);
+
+  baseBP := FSP;
+  initialFP := FFP;
+
+  { Restore or seed the frame's local slots. }
+  if isResume then
+  begin
+    { The snapshot holds the stack from this frame's base up to the yield.
+      Restoring it recreates the frame exactly; the sent value is then pushed
+      as the result of the `yield` expression. }
+    savedCount := AGen.StackCount;
+    SetLength(savedStack, savedCount);
+    for i := 0 to savedCount - 1 do
+      savedStack[i] := AGen.SnapshotValue(i);
+    for i := 0 to savedCount - 1 do
+      Push(savedStack[i]);
+    AGen.ClearSnapshot();
+  end
+  else
+  begin
+    { The parameter prologue reads its arguments from the local slots, so the
+      first run seeds them from the captured arguments. }
+    for i := 0 to subCode.GetLocalCount() - 1 do
+    begin
+      if i < Length(AGen.Args) then
+        Push(AGen.Args[i])
+      else
+        Push(JSMakeUndefined());
+    end;
+  end;
+
+  prevGenerator := FActiveGenerator;
+  prevSuspending := FIsSuspending;
+  prevYielded := FYieldedValue;
+  FActiveGenerator := AGen;
+  FIsSuspending := False;
+  FYieldedValue := JSMakeUndefined();
+
+  PushFrame(subCode, genEnv, AGen.ThisVal, baseBP, False, nil, False);
+  if isResume then
+    FFrames[FFP].IP := AGen.IP;
+
+  try
+    AGen.State := fjgsRunning;
+    { The sent value becomes the result of the `yield` expression: the compiler
+      leaves it on the stack where the yielded value was consumed. }
+    if isResume then
+      Push(ASent);
+
+    { RunLoop leaves the frame's result on the stack. It also unwinds the frame
+      itself on return, so the value sits above the frame's base. }
+    AValue := RunLoop(initialFP, baseBP);
+
+    if FIsSuspending then
+    begin
+      AValue := FYieldedValue;
+      ADone := False;
+      AGen.State := fjgsSuspendedYield;
+    end
+    else
+    begin
+      ADone := True;
+      AGen.State := fjgsCompleted;
+    end;
+    Result := True;
+  finally
+    while FFP > initialFP do
+      PopFrame();
+    while FSP > baseBP do
+      Pop();
+    FActiveGenerator := prevGenerator;
+    FIsSuspending := prevSuspending;
+    FYieldedValue := prevYielded;
+  end;
 end;
 
 destructor TFloriaJSVM.Destroy();
@@ -510,6 +686,7 @@ var
   keysList: TStringList;
   promise: TFloriaJSPromise;
   iterObj: TFloriaJSIterator;
+  genObj: TFloriaJSGenerator;
   targetIP: Integer;
 begin
   while FFP > AInitialFP do
@@ -1264,6 +1441,17 @@ begin
             else if fn.Bytecode <> nil then
             begin
               subCode := TFloriaJSBytecode(fn.Bytecode);
+
+              { A generator function returns a suspended generator instead of
+                running its body. This mirrors the same branch in CallFunction:
+                the inline call path here does not go through it. }
+              if subCode.IsGenerator then
+              begin
+                genObj := MakeGenerator(fn, args, thisVal, curFrame^.Env);
+                Push(JSMakeObject(genObj));
+                Continue;
+              end;
+
               if fn.ClosureEnv <> nil then
                 callEnv := TFloriaJSEnvironment.Create(TFloriaJSEnvironment(fn.ClosureEnv), FHeap)
               else
@@ -1409,6 +1597,17 @@ begin
             else if fn.Bytecode <> nil then
             begin
               subCode := TFloriaJSBytecode(fn.Bytecode);
+
+              { A generator function returns a suspended generator instead of
+                running its body. This mirrors the same branch in CallFunction:
+                the inline call path here does not go through it. }
+              if subCode.IsGenerator then
+              begin
+                genObj := MakeGenerator(fn, args, thisVal, curFrame^.Env);
+                Push(JSMakeObject(genObj));
+                Continue;
+              end;
+
               if fn.ClosureEnv <> nil then
                 callEnv := TFloriaJSEnvironment.Create(TFloriaJSEnvironment(fn.ClosureEnv), FHeap)
               else
@@ -1443,6 +1642,45 @@ begin
 
               PushFrame(subCode, callEnv, objVal, callBaseBP, True, objVal.AsObject(), True);
             end;
+          end;
+
+        opYield:
+          begin
+            { Suspend: record where to resume and the operand stack above this
+              frame's base, then unwind so the generator runner returns. }
+            val := Pop();
+            if FActiveGenerator <> nil then
+            begin
+              FActiveGenerator.IP := curFrame^.IP;
+              { The activation environment recorded at creation is kept: it
+                holds the parameters and locals the body resolves against, and
+                the generator retains it. The frame's current env may be a child
+                scope pushed for a block, which is not valid on resume. }
+              FActiveGenerator.ThisVal := curFrame^.ThisVal;
+              FActiveGenerator.BaseBP := curFrame^.BaseBP;
+              FActiveGenerator.ClearSnapshot();
+              { Snapshot everything from the frame's stack base upward: the
+                local slots were pushed before the frame, so they live in
+                [BaseBP, ...) together with the operand stack. The yielded value
+                was already popped, so it is not included. }
+              for i := curFrame^.BaseBP to FSP - 1 do
+                FActiveGenerator.PushSnapshotValue(FStack[i]);
+              FActiveGenerator.StackCount := FSP - curFrame^.BaseBP;
+              FYieldedValue := val;
+              FIsSuspending := True;
+              { Unwind only this generator's frames and stack slots. Popping to
+                zero would also destroy the *caller's* frame and stack, which is
+                what made a generator usable exactly once inside a loop. The
+                runner restores the rest of its own state afterwards. }
+              while FFP > 0 do
+                PopFrame();
+              while FSP > curFrame^.BaseBP do
+                Pop();
+              Break;
+            end
+            else
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('SyntaxError',
+                'yield outside a generator')));
           end;
 
         opReturn:
@@ -1531,9 +1769,16 @@ begin
             if objVal.IsNull() or objVal.IsUndefined() then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not iterable')));
 
-            if not JSGetIterator(FHeap, objVal, iterObj) then
-              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
-            Push(JSMakeObject(iterObj));
+            { A generator is iterable but is not one of the collection
+              iterators, so it is stepped through its own next(). }
+            if objVal.IsObject() and (objVal.ObjVal is TFloriaJSGenerator) then
+              Push(objVal)
+            else
+            begin
+              if not JSGetIterator(FHeap, objVal, iterObj) then
+                raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
+              Push(JSMakeObject(iterObj));
+            end;
           end;
 
         opForOfNext:
@@ -1541,7 +1786,31 @@ begin
             { Pop the iterator, push the next value, or jump past the loop when
               the iterator is exhausted. The value is pushed as the loop binding. }
             objVal := Peek();
-            if objVal.IsObject() and (objVal.ObjVal is TFloriaJSIterator) then
+            if objVal.IsObject() and (objVal.ObjVal is TFloriaJSGenerator) then
+            begin
+              { Step the generator. This re-enters RunLoop, which may grow
+                FFrames and invalidate `curFrame`, so the frame pointer is
+                re-fetched before it is used again. }
+              { `inst` and `curFrame` are locals captured before the nested
+                RunLoop, which may reallocate FFrames. Re-read both after. }
+              resVal := TFloriaJSGenerator(objVal.ObjVal).Next([], JSMakeUndefined());
+              val := resVal.AsObject().GetProperty('value');
+              if resVal.AsObject().GetProperty('done').ToBoolean() then
+              begin
+                Pop();
+                curFrame := @FFrames[FFP];
+                curFrame^.IP := inst.Imm;
+              end
+              else
+              begin
+                Push(val);
+                { The nested RunLoop restores FFP, so this frame is current
+                  again; re-read the pointer because FFrames may have moved. }
+                curFrame := @FFrames[FFP];
+                inst := curFrame^.Bytecode.GetInstruction(curFrame^.IP - 1);
+              end;
+            end
+            else if objVal.IsObject() and (objVal.ObjVal is TFloriaJSIterator) then
             begin
               if JSIteratorNext(TFloriaJSIterator(objVal.ObjVal), val) then
                 Push(val)
@@ -1608,6 +1877,7 @@ var
   promise: TFloriaJSPromise;
   resVal: TFloriaJSValue;
   callArgs: TFloriaJSValueArray;
+  genObj: TFloriaJSGenerator;
   argc, i, initialFP, initialBaseBP: Integer;
 begin
   if not AFuncVal.IsFunction() then
@@ -1642,6 +1912,15 @@ begin
   if fn.Bytecode <> nil then
   begin
     subCode := TFloriaJSBytecode(fn.Bytecode);
+
+    { Calling a generator function does not run its body: it captures the
+      arguments and environment and returns a suspended generator. }
+    if subCode.IsGenerator then
+    begin
+      genObj := MakeGenerator(fn, AArgs, AThisVal, FGlobalEnv);
+      Exit(JSMakeObject(genObj));
+    end;
+
     if fn.ClosureEnv <> nil then
       callEnv := TFloriaJSEnvironment.Create(TFloriaJSEnvironment(fn.ClosureEnv))
     else

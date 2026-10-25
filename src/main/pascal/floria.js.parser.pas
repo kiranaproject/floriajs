@@ -85,7 +85,7 @@ type
     function  ParseStatement(): TFloriaJSStmtNode;
     function  ParseDeclaration(): TFloriaJSStmtNode;
     function  ParseVarDeclaration(AKind: TFloriaJSTokenKind): TFloriaJSVarStmt;
-    function  ParseFunctionDeclaration(AIsAsync: Boolean = False): TFloriaJSFunctionDecl;
+    function  ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False): TFloriaJSFunctionDecl;
     function  ParseIfStatement(): TFloriaJSIfStmt;
     function  ParseWhileStatement(): TFloriaJSWhileStmt;
     function  ParseDoWhileStatement(): TFloriaJSWhileStmt;
@@ -373,6 +373,21 @@ begin
   if Match(tkThis) then
     Exit(TFloriaJSIdentifierExpr.Create('this', tok.Line, tok.Column));
 
+  { yield — only meaningful inside a generator body. }
+  if Match(tkYield) then
+  begin
+    { `yield* expr` delegates to another iterable; the compiler lowers it to a
+      loop that re-yields each value. A second unary node marks the delegation. }
+    if Match(tkMultiply) then
+      Exit(TFloriaJSUnaryExpr.Create(tkYield,
+        TFloriaJSUnaryExpr.Create(tkMultiply, ParseAssignmentExpression(), True, tok.Line, tok.Column),
+        True, tok.Line, tok.Column));
+    if Check(tkSemicolon) or Check(tkRParen) or Check(tkRBrace) or
+       Check(tkRBracket) or Check(tkComma) or Check(tkColon) or IsAtEnd() then
+      Exit(TFloriaJSUnaryExpr.Create(tkYield, TFloriaJSLiteralExpr.CreateUndefined(tok.Line, tok.Column), True, tok.Line, tok.Column));
+    Exit(TFloriaJSUnaryExpr.Create(tkYield, ParseAssignmentExpression(), True, tok.Line, tok.Column));
+  end;
+
   { super — bound like `this`, to the parent constructor inside a derived class.
     `super(...)` and `super.m()` are handled by the compiler through it. }
   if Match(tkSuper) then
@@ -459,7 +474,16 @@ begin
 
   { Function Expression }
   if Match(tkFunction) then
+  begin
+    if Match(tkMultiply) then
+    begin
+      expr := ParseFunctionExpr();
+      if expr is TFloriaJSFunctionExpr then
+        TFloriaJSFunctionExpr(expr).IsGenerator := True;
+      Exit(expr);
+    end;
     Exit(ParseFunctionExpr());
+  end;
 
   { Parenthesized Grouping or Arrow function }
   if Match(tkLParen) then
@@ -1364,7 +1388,12 @@ begin
     Result := ParseFunctionDeclaration(True);
   end
   else if Match(tkFunction) then
-    Result := ParseFunctionDeclaration()
+  begin
+    if Match(tkMultiply) then
+      Result := ParseFunctionDeclaration(False, True)
+    else
+      Result := ParseFunctionDeclaration();
+  end
   else if Check(tkClass) then
     Result := ParseClassDeclaration()
   else
@@ -1414,7 +1443,7 @@ begin
   Result := varStmt;
 end;
 
-function TFloriaJSParser.ParseFunctionDeclaration(AIsAsync: Boolean = False): TFloriaJSFunctionDecl;
+function TFloriaJSParser.ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False): TFloriaJSFunctionDecl;
 var
   fnName: string;
   fnDecl: TFloriaJSFunctionDecl;
@@ -1433,6 +1462,7 @@ begin
   end;
 
   fnDecl := TFloriaJSFunctionDecl.Create(fnName, startLine, startCol, AIsAsync);
+  fnDecl.IsGenerator := AIsGenerator;
   ParseFormalParameters(fnDecl.Parameters);
   bodyBlock := ParseBlockStatement();
   fnDecl.SetBody(bodyBlock);

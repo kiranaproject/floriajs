@@ -111,6 +111,7 @@ type
     opNot,               // !a
     opTypeOf,            // typeof a
     opVoid,              // void a -> push undefined
+    opYield,             // Suspend the generator, yielding the value on top
     opAwait,             // await a -> resolve/await promise
 
     // Jumps & Control Flow
@@ -168,6 +169,7 @@ type
     FSubFunctions: TFPList;
     FIsArrow: Boolean;
     FIsAsync: Boolean;
+    FIsGenerator: Boolean;
     FRefCount: Integer;
 
     procedure EnsureCodeCapacity();
@@ -218,6 +220,8 @@ type
     property Name: string read FName write FName;
     property IsArrow: Boolean read FIsArrow write FIsArrow;
     property IsAsync: Boolean read FIsAsync write FIsAsync;
+    { A generator body runs on demand and suspends at `yield`. }
+    property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
   end;
 
 function FloriaJSOpcodeToString(AOp: TFloriaJSOpcode): string;
@@ -302,6 +306,7 @@ begin
     opNot:              Result := 'NOT';
     opTypeOf:           Result := 'TYPEOF';
     opVoid:             Result := 'VOID';
+    opYield:            Result := 'YIELD';
     opAwait:            Result := 'AWAIT';
     opJump:             Result := 'JUMP';
     opJumpIfFalse:      Result := 'JUMP_IF_FALSE';

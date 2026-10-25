@@ -303,6 +303,7 @@ type
     FBody: TFloriaJSStmtNode;
     FIsArrow: Boolean;
     FIsAsync: Boolean;
+    FIsGenerator: Boolean;
   public
     constructor Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer; AIsAsync: Boolean = False);
     destructor Destroy(); override;
@@ -318,6 +319,7 @@ type
     property Body: TFloriaJSStmtNode read FBody;
     property IsArrow: Boolean read FIsArrow;
     property IsAsync: Boolean read FIsAsync;
+    property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
   end;
 
   { ────────────────────────────────────────────────────────────────────────── }
@@ -684,6 +686,7 @@ type
     FParameters: TStringList;
     FBody: TFloriaJSBlockStmt;
     FIsAsync: Boolean;
+    FIsGenerator: Boolean;
   public
     constructor Create(const AName: string; ALine, ACol: Integer; AIsAsync: Boolean = False);
     destructor Destroy(); override;
@@ -698,6 +701,7 @@ type
     property Parameters: TStringList read FParameters;
     property Body: TFloriaJSBlockStmt read FBody;
     property IsAsync: Boolean read FIsAsync;
+    property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
   end;
 
   { Program / Script Root: Collection of top-level statements }
@@ -1343,6 +1347,7 @@ begin
   FName := AName;
   FIsArrow := AIsArrow;
   FIsAsync := AIsAsync;
+  FIsGenerator := False;
   FParameters := TStringList.Create();
   FBody := nil;
 end;
@@ -2007,6 +2012,7 @@ begin
   inherited Create(ALine, ACol);
   FName := AName;
   FIsAsync := AIsAsync;
+  FIsGenerator := False;
   FParameters := TStringList.Create();
   FBody := nil;
 end;

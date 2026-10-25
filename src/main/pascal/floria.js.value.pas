@@ -352,6 +352,82 @@ type
     property ResultValue: TFloriaJSValue read FResult;
   end;
 
+  { A suspended generator.
+
+    A generator body is ordinary bytecode that suspends at `yield`. The frame
+    snapshot is exactly the state RunLoop needs to resume:
+
+      - Bytecode and IP: where execution continues (just past the yield).
+      - BaseBP: the stack base of this frame's locals.
+      - Env: the activation environment, so bindings survive suspension.
+      - Stack: the operand stack contents from BaseBP up to the yield point.
+
+    Nothing else is live across a yield: try handlers belong to the enclosing
+    call and are rejected as unsupported inside generators, and the call frames
+    above this one are unwound by the suspension itself. }
+  TFloriaJSGenerator = class;
+
+  { Runs or resumes a generator, returning its next value or completion.
+    Installed by the VM, which owns the execution stack. }
+  TFloriaJSGeneratorRunner = function(AGen: TFloriaJSGenerator;
+    const ASent: TFloriaJSValue; out AValue: TFloriaJSValue;
+    out ADone: Boolean): Boolean of object;
+
+  TFloriaJSGeneratorState = (fjgsSuspendedStart, fjgsSuspendedYield,
+    fjgsRunning, fjgsCompleted);
+
+  TFloriaJSGenerator = class(TFloriaJSObject)
+  private
+    FBytecode: TObject;
+    FEnv: Pointer;
+    FThisVal: TFloriaJSValue;
+    FArgs: TFloriaJSValueArray;
+    FIP: Integer;
+    FBaseBP: Integer;
+    FStack: TFloriaJSValueArray;
+    FStackCount: Integer;
+    FState: TFloriaJSGeneratorState;
+    FReturnValue: TFloriaJSValue;
+    FNextFn: TFloriaJSFunction;
+    FReturnFn: TFloriaJSFunction;
+    FSelfIteratorFn: TFloriaJSFunction;
+    FRunner: TFloriaJSGeneratorRunner;
+    procedure SetBytecode(ABytecode: TObject);
+    procedure SetArgs(const AArgs: TFloriaJSValueArray);
+    procedure SetThisVal(const AValue: TFloriaJSValue);
+  public
+    constructor Create(AHeap: TFloriaJSHeap);
+    destructor Destroy(); override;
+
+    function  GetPropertyWithReceiver(const AName: string;
+      AReceiver: TFloriaJSObject): TFloriaJSValue; override;
+    function  HasProperty(const AName: string): Boolean; override;
+
+    function  Next(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  Return_(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  SelfIterator(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+
+    procedure PushSnapshotValue(const AValue: TFloriaJSValue);
+    procedure ClearSnapshot();
+
+    { Retains the bytecode: a suspended generator can outlive the script that
+      created it, and the compiler releases the chunk when execution ends. }
+    property Bytecode: TObject read FBytecode write SetBytecode;
+    { Retains the environment: a suspended generator can outlive the call that
+      created it, and resuming needs the bindings intact. }
+    procedure SetEnv(AEnv: Pointer);
+    property Env: Pointer read FEnv write SetEnv;
+    property ThisVal: TFloriaJSValue read FThisVal write SetThisVal;
+    property Args: TFloriaJSValueArray read FArgs write SetArgs;
+    property IP: Integer read FIP write FIP;
+    property BaseBP: Integer read FBaseBP write FBaseBP;
+    property StackCount: Integer read FStackCount write FStackCount;
+    function  SnapshotValue(AIndex: Integer): TFloriaJSValue;
+    property State: TFloriaJSGeneratorState read FState write FState;
+    property ReturnValue: TFloriaJSValue read FReturnValue write FReturnValue;
+    property Runner: TFloriaJSGeneratorRunner read FRunner write FRunner;
+  end;
+
   { The resolve/reject pair handed to a `new Promise(executor)` call.
 
     ECMAScript specifies these as a fresh pair of functions per promise, both
@@ -2952,6 +3028,221 @@ begin
     if job.Child <> nil then
       job.Child.Release;
   end;
+end;
+
+
+{ TFloriaJSGenerator }
+
+constructor TFloriaJSGenerator.Create(AHeap: TFloriaJSHeap);
+begin
+  if AHeap <> nil then
+    inherited Create(AHeap.GetObjectPrototype())
+  else
+    inherited Create(nil);
+  Heap := AHeap;
+  FBytecode := nil;
+  FEnv := nil;
+  FThisVal := JSMakeUndefined();
+  SetLength(FArgs, 0);
+  FIP := 0;
+  FBaseBP := 0;
+  SetLength(FStack, 0);
+  FStackCount := 0;
+  FState := fjgsSuspendedStart;
+  FReturnValue := JSMakeUndefined();
+  FNextFn := nil;
+  FReturnFn := nil;
+  FSelfIteratorFn := nil;
+  FRunner := nil;
+end;
+
+destructor TFloriaJSGenerator.Destroy();
+var
+  i: Integer;
+begin
+  for i := 0 to FStackCount - 1 do
+    JSReleaseValue(FStack[i]);
+  SetLength(FStack, 0);
+  SetLength(FArgs, 0);
+  JSReleaseValue(FThisVal);
+  JSReleaseValue(FReturnValue);
+  if FBytecode <> nil then
+  begin
+    TFloriaJSBytecode(FBytecode).Release();
+    FBytecode := nil;
+  end;
+  inherited Destroy();
+end;
+
+procedure TFloriaJSGenerator.SetBytecode(ABytecode: TObject);
+var
+  old: TFloriaJSBytecode;
+begin
+  old := TFloriaJSBytecode(FBytecode);
+  FBytecode := ABytecode;
+  if (ABytecode <> nil) and (TFloriaJSBytecode(ABytecode) <> old) then
+    TFloriaJSBytecode(ABytecode).Retain();
+  if (old <> nil) and (old <> TFloriaJSBytecode(ABytecode)) then
+    old.Release();
+end;
+
+procedure TFloriaJSGenerator.SetArgs(const AArgs: TFloriaJSValueArray);
+var
+  i: Integer;
+begin
+  for i := 0 to High(FArgs) do
+    JSReleaseValue(FArgs[i]);
+  SetLength(FArgs, Length(AArgs));
+  for i := 0 to High(AArgs) do
+  begin
+    FArgs[i] := AArgs[i];
+    JSRetainValue(FArgs[i]);
+  end;
+end;
+
+procedure TFloriaJSGenerator.SetThisVal(const AValue: TFloriaJSValue);
+begin
+  if FThisVal.Kind <> fjstUndefined then
+    JSReleaseValue(FThisVal);
+  FThisVal := AValue;
+  JSRetainValue(FThisVal);
+end;
+
+procedure TFloriaJSGenerator.SetEnv(AEnv: Pointer);
+var
+  oldEnv: TFloriaJSEnvironment;
+begin
+  oldEnv := TFloriaJSEnvironment(FEnv);
+  FEnv := AEnv;
+  if (FEnv <> nil) and (TFloriaJSEnvironment(FEnv) <> oldEnv) then
+    TFloriaJSEnvironment(FEnv).MarkCaptured();
+end;
+
+procedure TFloriaJSGenerator.PushSnapshotValue(const AValue: TFloriaJSValue);
+begin
+  if FStackCount >= Length(FStack) then
+  begin
+    if Length(FStack) = 0 then
+      SetLength(FStack, 8)
+    else
+      SetLength(FStack, Length(FStack) * 2);
+  end;
+  FStack[FStackCount] := AValue;
+  JSRetainValue(AValue);
+  Inc(FStackCount);
+end;
+
+procedure TFloriaJSGenerator.ClearSnapshot();
+var
+  i: Integer;
+begin
+  for i := 0 to FStackCount - 1 do
+    JSReleaseValue(FStack[i]);
+  FStackCount := 0;
+end;
+
+function TFloriaJSGenerator.SnapshotValue(AIndex: Integer): TFloriaJSValue;
+begin
+  if (AIndex >= 0) and (AIndex < FStackCount) then
+    Result := FStack[AIndex]
+  else
+    Result := JSMakeUndefined();
+end;
+
+function TFloriaJSGenerator.Next(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  resultObj: TFloriaJSObject;
+  sent, value: TFloriaJSValue;
+  done: Boolean;
+begin
+  resultObj := Heap.NewObject(Heap.GetObjectPrototype());
+
+  if FState = fjgsCompleted then
+  begin
+    resultObj.SetProperty('value', FReturnValue);
+    resultObj.SetProperty('done', JSMakeBoolean(True));
+    Exit(JSMakeObject(resultObj));
+  end;
+
+  if Length(AArgs) > 0 then
+    sent := AArgs[0]
+  else
+    sent := JSMakeUndefined();
+
+  done := True;
+  value := JSMakeUndefined();
+  if Assigned(FRunner) then
+    FRunner(Self, sent, value, done);
+
+  if done then
+  begin
+    FState := fjgsCompleted;
+    FReturnValue := value;
+  end;
+
+  resultObj.SetProperty('value', value);
+  resultObj.SetProperty('done', JSMakeBoolean(done));
+  Result := JSMakeObject(resultObj);
+end;
+
+function TFloriaJSGenerator.Return_(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  resultObj: TFloriaJSObject;
+  value: TFloriaJSValue;
+begin
+  if Length(AArgs) > 0 then
+    value := AArgs[0]
+  else
+    value := JSMakeUndefined();
+
+  ClearSnapshot();
+  FState := fjgsCompleted;
+  FReturnValue := value;
+
+  resultObj := Heap.NewObject(Heap.GetObjectPrototype());
+  resultObj.SetProperty('value', value);
+  resultObj.SetProperty('done', JSMakeBoolean(True));
+  Result := JSMakeObject(resultObj);
+end;
+
+function TFloriaJSGenerator.SelfIterator(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := JSMakeObject(Self);
+end;
+
+function TFloriaJSGenerator.GetPropertyWithReceiver(const AName: string;
+  AReceiver: TFloriaJSObject): TFloriaJSValue;
+begin
+  if AName = 'next' then
+  begin
+    if (FNextFn = nil) and (Heap <> nil) then
+      FNextFn := Heap.NewNativeMethod('next', @Self.Next);
+    Exit(JSMakeFunction(FNextFn));
+  end;
+
+  if AName = 'return' then
+  begin
+    if (FReturnFn = nil) and (Heap <> nil) then
+      FReturnFn := Heap.NewNativeMethod('return', @Self.Return_);
+    Exit(JSMakeFunction(FReturnFn));
+  end;
+
+  if (AName = 'Symbol(Symbol.iterator)') or (AName = '@@iterator') then
+  begin
+    if (FSelfIteratorFn = nil) and (Heap <> nil) then
+      FSelfIteratorFn := Heap.NewNativeMethod('[Symbol.iterator]', @Self.SelfIterator);
+    Exit(JSMakeFunction(FSelfIteratorFn));
+  end;
+
+  Result := inherited GetPropertyWithReceiver(AName, AReceiver);
+end;
+
+function TFloriaJSGenerator.HasProperty(const AName: string): Boolean;
+begin
+  if (AName = 'next') or (AName = 'return') or
+     (AName = 'Symbol(Symbol.iterator)') or (AName = '@@iterator') then
+    Exit(True);
+  Result := inherited HasProperty(AName);
 end;
 
 { TFloriaJSPromiseResolver }

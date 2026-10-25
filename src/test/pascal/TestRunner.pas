@@ -344,6 +344,10 @@ type
     procedure TestClassSuper();
     procedure TestClassMemberEnumerability();
     procedure TestTaggedTemplates();
+    procedure TestGeneratorBasics();
+    procedure TestGeneratorSuspension();
+    procedure TestGeneratorIteration();
+    procedure TestYieldStar();
   end;
 
 { TFloriaJSTypesTest }
@@ -8574,6 +8578,192 @@ begin
     res := engine.Execute('var o = { t: function(s) { return s[0]; } }; o.t`hi`;');
     AssertTrue('member tag', res.Success);
     AssertEquals('a member expression can be a tag', 'hi', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestGeneratorBasics();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // A generator function returns an iterator object, not the body's value.
+    res := engine.Execute('function* g() { yield 1; } typeof g();');
+    AssertTrue('generator function', res.Success);
+    AssertEquals('calling it returns an object', 'object', res.StringValue);
+
+    res := engine.Execute('function* g() { yield 1; } typeof g().next;');
+    AssertTrue('generator has next', res.Success);
+    AssertEquals('the object has next()', 'function', res.StringValue);
+
+    // The body does not run until the first next().
+    res := engine.Execute('var ran = 0; function* g() { ran = 1; } var it = g(); ran;');
+    AssertTrue('lazy start', res.Success);
+    AssertEquals('the body has not run yet', '0', res.StringValue);
+
+    res := engine.Execute('var ran = 0; function* g() { ran = 1; } g().next(); ran;');
+    AssertTrue('runs on next', res.Success);
+    AssertEquals('the body runs on the first next()', '1', res.StringValue);
+
+    // next() yields {value, done}.
+    res := engine.Execute('function* g() { yield 1; } g().next().value;');
+    AssertTrue('first value', res.Success);
+    AssertEquals('the yielded value', '1', res.StringValue);
+
+    res := engine.Execute('function* g() { yield 1; } g().next().done;');
+    AssertTrue('not done', res.Success);
+    AssertEquals('a yield is not done', 'false', res.StringValue);
+
+    // A generator with no yield is done immediately.
+    res := engine.Execute('function* g() { } var it = g(); it.next().done;');
+    AssertTrue('empty generator', res.Success);
+    AssertEquals('an empty body is done at once', 'true', res.StringValue);
+
+    // Parameters are bound.
+    res := engine.Execute('function* g(a, b) { yield a + b; } g(2, 3).next().value;');
+    AssertTrue('generator parameters', res.Success);
+    AssertEquals('parameters are visible in the body', '5', res.StringValue);
+
+    // `yield` is only valid inside a generator.
+    res := engine.Execute('function f() { yield 1; } f();');
+    AssertFalse('yield outside a generator is rejected', res.Success);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestGeneratorSuspension();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Each next() resumes where the previous yield stopped.
+    res := engine.Execute(
+      'function* g() { yield 1; yield 2; }' +
+      'var it = g(); var a = it.next(); var b = it.next();' +
+      'a.value + ":" + b.value;'
+    );
+    AssertTrue('two yields', res.Success);
+    AssertEquals('each next resumes the body', '1:2', res.StringValue);
+
+    res := engine.Execute(
+      'function* g() { yield 1; } var it = g(); it.next(); it.next().done;'
+    );
+    AssertTrue('exhaustion', res.Success);
+    AssertTrue('the generator is done after the last yield', res.BooleanValue);
+
+    // A return value completes the generator.
+    res := engine.Execute(
+      'function* g() { yield 1; return 99; }' +
+      'var it = g(); it.next(); var r = it.next();' +
+      'r.value + ":" + r.done;'
+    );
+    AssertTrue('return value', res.Success);
+    AssertEquals('the return value completes it', '99:true', res.StringValue);
+
+    // A value sent into next() becomes the result of the yield expression.
+    res := engine.Execute(
+      'function* g() { var x = yield 1; yield x + 10; }' +
+      'var it = g(); it.next(); it.next(5).value;'
+    );
+    AssertTrue('sent value', res.Success);
+    AssertEquals('the sent value replaces the yield result', '15', res.StringValue);
+
+    // Local variables survive suspension.
+    res := engine.Execute(
+      'function* g() { var n = 0; while (true) { yield n; n++; } }' +
+      'var it = g(); var a = it.next().value; var b = it.next().value; var c = it.next().value;' +
+      '"" + a + b + c;'
+    );
+    AssertTrue('locals survive suspension', res.Success);
+    AssertEquals('the loop counter persists across yields', '012', res.StringValue);
+
+    // Resuming after the creating script has finished is not supported: the
+    // activation environment is released with the script. Recorded as a known
+    // limitation in docs/language-support.md rather than asserted here.
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestGeneratorIteration();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // A generator is iterable, so for...of drains it.
+    res := engine.Execute('function* g() { yield 1; yield 2; yield 3; } var s = 0; for (var v of g()) { s += v; } s;');
+    AssertTrue('for-of over a generator', res.Success);
+    AssertEquals('for-of sums every yielded value', '6', res.StringValue);
+
+    res := engine.Execute(
+      'function* g() { for (var i = 0; i < 3; i++) { yield i; } }' +
+      'var s = ""; for (var v of g()) { s += v; } s;'
+    );
+    AssertTrue('generator with a loop', res.Success);
+    AssertEquals('the loop yields in order', '012', res.StringValue);
+
+    // A generator is iterable more than once per loop iteration, i.e. the
+    // enclosing loop is not destroyed by the first suspension.
+    res := engine.Execute(
+      'function* g() { yield 1; yield 2; }' +
+      'var total = 0; for (var v of g()) { total += v; }' +
+      'var count = 0; for (var w of g()) { count++; }' +
+      'total + ":" + count;'
+    );
+    AssertTrue('two separate iterations', res.Success);
+    AssertEquals('each call makes a fresh generator', '3:2', res.StringValue);
+
+    // Driving it manually with a while loop works too.
+    res := engine.Execute(
+      'function* g() { yield 1; yield 2; }' +
+      'var it = g(); var total = 0; var r = it.next();' +
+      'while (!r.done) { total += r.value; r = it.next(); } total;'
+    );
+    AssertTrue('manual iteration', res.Success);
+    AssertEquals('a while loop drains it', '3', res.StringValue);
+
+    // return() finishes the generator early.
+    res := engine.Execute('function* g() { yield 1; yield 2; } var it = g(); it.return(9).value;');
+    AssertTrue('return()', res.Success);
+    AssertEquals('return() completes it with the value', '9', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestYieldStar();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('function* g() { yield* [1, 2]; } var s = 0; for (var v of g()) { s += v; } s;');
+    AssertTrue('yield* over an array', res.Success);
+    AssertEquals('delegation yields each element', '3', res.StringValue);
+
+    res := engine.Execute(
+      'function* g() { yield 0; yield* [1, 2]; yield 3; }' +
+      'var s = ""; for (var v of g()) { s += v; } s;'
+    );
+    AssertTrue('yield* between yields', res.Success);
+    AssertEquals('delegation composes with plain yields', '0123', res.StringValue);
+
+    res := engine.Execute('function* g() { yield* "ab"; } var s = ""; for (var v of g()) { s += v; } s;');
+    AssertTrue('yield* over a string', res.Success);
+    AssertEquals('delegation works for any iterable', 'ab', res.StringValue);
+
+    res := engine.Execute('function* g() { yield* []; } var it = g(); it.next().done;');
+    AssertTrue('yield* over an empty iterable', res.Success);
+    AssertTrue('delegating nothing is done immediately', res.BooleanValue);
   finally
     engine.Free();
   end;

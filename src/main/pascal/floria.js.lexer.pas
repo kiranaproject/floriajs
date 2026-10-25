@@ -44,6 +44,7 @@ type
     tkFunction,
     tkAsync,
     tkAwait,
+    tkYield,
     tkReturn,
     tkIf,
     tkElse,
@@ -206,6 +207,7 @@ begin
     'function':   Result := tkFunction;
     'async':      Result := tkAsync;
     'await':      Result := tkAwait;
+    'yield':      Result := tkYield;
     'return':     Result := tkReturn;
     'if':         Result := tkIf;
     'else':       Result := tkElse;
@@ -1043,6 +1045,7 @@ begin
     tkFunction:       Result := 'function';
     tkAsync:          Result := 'async';
     tkAwait:          Result := 'await';
+    tkYield:          Result := 'yield';
     tkReturn:         Result := 'return';
     tkIf:             Result := 'if';
     tkElse:           Result := 'else';

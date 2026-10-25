@@ -71,6 +71,7 @@ type
     procedure CompileFunctionExpr(AFunc: TFloriaJSFunctionExpr);
     procedure CompileClassExpr(ACls: TFloriaJSClassNode);
     procedure CompileTaggedTemplate(ATmpl: TFloriaJSTaggedTemplateExpr);
+    procedure CompileYieldStar(AIterable: TFloriaJSExprNode; ALine: Integer);
 
     procedure CompileVarStmt(AVar: TFloriaJSVarStmt);
     procedure CompileDestructuring(APattern: TFloriaJSExprNode; AKind: TFloriaJSTokenKind = tkVar);
@@ -1034,6 +1035,23 @@ begin
         else
           CompileExpr(AUnary.Operand);
         FBytecode.Emit(opTypeOf, 0, AUnary.Line);
+      end;
+    tkYield:
+      begin
+        { `yield* iterable` delegates: iterate the operand and re-yield each
+          value. The inner node is the marker produced by the parser. }
+        if (AUnary.Operand is TFloriaJSUnaryExpr) and
+           (TFloriaJSUnaryExpr(AUnary.Operand).Op = tkMultiply) then
+        begin
+          CompileYieldStar(TFloriaJSUnaryExpr(AUnary.Operand).Operand, AUnary.Line);
+        end
+        else
+        begin
+          { The yielded value is popped by opYield; the sent value is pushed
+            back in its place when the generator resumes. }
+          CompileExpr(AUnary.Operand);
+          FBytecode.Emit(opYield, 0, AUnary.Line);
+        end;
       end;
     tkVoid:
       begin
@@ -2021,6 +2039,33 @@ end;
 { `tag`a${b}c`` lowers to `tag(strings, b)`, where `strings` is an array of the
   cooked parts carrying a `raw` array of the raw text. The tag is invoked with
   `undefined` as the receiver, as ECMAScript specifies for a plain call. }
+
+{ `yield* iterable` — iterate the operand and yield each value in turn, so the
+  delegation is observationally the same as yielding them one by one. }
+procedure TFloriaJSCompiler.CompileYieldStar(AIterable: TFloriaJSExprNode; ALine: Integer);
+var
+  iterLoc, loopStart, exitJump: Integer;
+begin
+  iterLoc := FBytecode.AddNewLocal('$yieldstar');
+
+  CompileExpr(AIterable);
+  FBytecode.Emit(opForOfInit);
+  FBytecode.Emit(opSetLoc, iterLoc);
+
+  loopStart := FBytecode.CurrentIP();
+  FBytecode.Emit(opLoadLoc, iterLoc);
+  exitJump := FBytecode.Emit(opForOfNext, 0, ALine);
+
+  FBytecode.Emit(opYield, 0, ALine);
+  FBytecode.Emit(opPop);
+
+  FBytecode.Emit(opJump, loopStart);
+  FBytecode.PatchJump(exitJump, FBytecode.CurrentIP());
+
+  { The delegation result is undefined. }
+  FBytecode.Emit(opUndefined);
+end;
+
 procedure TFloriaJSCompiler.CompileTaggedTemplate(ATmpl: TFloriaJSTaggedTemplateExpr);
 var
   i, count, rawLoc, strLoc: Integer;
@@ -2207,6 +2252,7 @@ var
   fnIdx: Integer;
 begin
   subCode := CompileFunctionBody(AFunc.Name, AFunc.Parameters, AFunc.Body, AFunc.IsAsync, AFunc.IsArrow);
+  subCode.IsGenerator := AFunc.IsGenerator;
   fnIdx := FBytecode.AddSubFunction(subCode);
   FBytecode.Emit(opClosure, fnIdx, AFunc.Line);
 end;
@@ -3115,6 +3161,7 @@ var
   fnIdx, nameIdx: Integer;
 begin
   subCode := CompileFunctionBody(AFuncDecl.Name, AFuncDecl.Parameters, AFuncDecl.Body, AFuncDecl.IsAsync, False);
+  subCode.IsGenerator := AFuncDecl.IsGenerator;
   fnIdx := FBytecode.AddSubFunction(subCode);
   nameIdx := FBytecode.AddStringConstant(AFuncDecl.Name);
   FBytecode.Emit(opClosure, fnIdx, AFuncDecl.Line);
