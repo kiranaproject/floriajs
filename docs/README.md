@@ -44,6 +44,8 @@ Implemented and covered by the test suite:
   `try`/`catch`/`finally`, `throw`, labeled `break`/`continue`.
 - Classes: declarations and expressions, `constructor`, methods, `get`/`set`,
   `static`, `extends`, and `super`. Methods are non-enumerable.
+- Generators: `function*`, `yield`, `yield*`, and the generator object
+  (`next`/`return`/`Symbol.iterator`).
 - Functions: declarations, function expressions, arrow functions (including
   lexical `this`), closures, recursion, `async`/`await`, `new` and `this`,
   default/rest parameters, and destructured parameters.
@@ -67,7 +69,7 @@ Implemented and covered by the test suite:
 
 Not implemented yet (see the [roadmap](roadmap.md)):
 
-- Generators/`yield`, `for await`, and `import`/`export`.
+- `for await`, and `import`/`export`.
 - `BigInt` (literals are rejected at lex time).
 - Convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
   and `Object.is`.

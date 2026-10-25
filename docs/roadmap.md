@@ -14,12 +14,12 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **205 tests pass** with `pasbuild test`.
-- Gap scan: **154 probes OK / 9 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **209 tests pass** with `pasbuild test`.
+- Gap scan: **162 probes OK / 7 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
-- Documentation claims: **53 checked, 0 failing** with
+- Documentation claims: **57 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -50,6 +50,8 @@ currently untested because the existing tests assert only the happy path.
 - Classes: declarations and expressions, constructors, methods, accessors,
   statics, `extends`, `super`, and non-enumerable prototype members.
 - Tagged templates, with the cooked strings array, `raw`, and substitutions.
+- Generators: `function*`, `yield`, `yield*`, suspension/resumption, and
+  iteration over generator objects.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -982,35 +984,60 @@ both directions, inherited and overridden methods, static inheritance,
 constructor, `super` being undefined in a base class, and non-enumerability
 through `Object.keys`, `for…in`, and `JSON.stringify`.
 
-### [ ] P2-07 — Generators and `for await`
+### [x] P2-07 — Generators and `for await`
 
-Implement `function*`, `yield`, `yield*`, generator objects, and async
-iteration. This requires VM suspension/resumption state; define the frame
-snapshot format before coding.
+`function*` and `yield` were parse errors; there was no way to suspend and
+resume bytecode.
 
-### [x] P2-08 — Tagged templates
+**Frame snapshot format.** The task asked for this to be defined first. A
+generator stores exactly the state `RunLoop` needs to resume:
 
-The tag was never called: `tag\`x\`` parsed as the expression `tag` followed by
-an independent template literal, and the whole thing evaluated to the template
-string. Nothing carried the cooked/raw parts or the substitutions to a call.
+- `Bytecode` and `IP` — where to continue, just past the `yield`.
+- `Env` — the activation environment, so parameters and locals survive.
+- `BaseBP` — the frame's stack base.
+- The operand stack from `BaseBP` up to the yield point, retained.
 
-**Files.** `src/main/pascal/floria.js.ast.pas`
-(`TFloriaJSTaggedTemplateExpr`), `src/main/pascal/floria.js.parser.pas`
-(`ParseTaggedTemplate`, template kinds added to `PREC_CALL`),
-`src/main/pascal/floria.js.compiler.pas` (`CompileTaggedTemplate`).
+Nothing else is live across a yield: try handlers belong to the enclosing call
+and are not supported inside generators, and the frames above are unwound by
+the suspension itself.
 
-**Implementation.** A template literal following an expression is now parsed as
-a postfix operation at call precedence, producing a tagged-template node that
-keeps the cooked strings, the raw strings, and the substitution expressions
-separately instead of flattening them into a `+` chain. The compiler builds the
-cooked array, attaches a `raw` array to it, and invokes the tag with
-`undefined` as the receiver followed by the substitutions.
+**Files.** `src/main/pascal/floria.js.lexer.pas` (`tkYield`),
+`src/main/pascal/floria.js.ast.pas` (generator flags),
+`src/main/pascal/floria.js.parser.pas` (`function*`, `yield`, `yield*`),
+`src/main/pascal/floria.js.compiler.pas` (`opYield`, `CompileYieldStar`),
+`src/main/pascal/floria.js.bytecode.pas` (`opYield`, `IsGenerator`),
+`src/main/pascal/floria.js.value.pas` (`TFloriaJSGenerator`),
+`src/main/pascal/floria.js.vm.pas` (`opYield`, `RunGenerator`, `MakeGenerator`).
 
-**Tests.** The tag being called and receiving an array, cooked strings, the
-one-part rule for templates without substitutions (including an empty
-template), `n+1` parts for `n` substitutions, interleaved strings and values,
-`raw` being parallel to the cooked array, the tag running once with its return
-value used, and a member expression as the tag. Verified against Node over 10
+**Implementation.**
+
+- `TFloriaJSGenerator` holds the snapshot and implements `next()`, `return()`,
+  and `Symbol.iterator`. It retains its bytecode, environment, arguments, and
+  saved stack values, because a suspended generator outlives the call that
+  created it.
+- Calling a generator function builds an activation environment (binding
+  parameters, `this`, and `arguments` exactly as a normal call does) and
+  returns a suspended generator instead of running the body.
+  `MakeGenerator` is shared by all three call paths so they cannot diverge.
+- `opYield` snapshots the frame and unwinds **only the generator's own frames
+  and stack slots**, then ends the nested `RunLoop`. Unwinding to stack zero
+  also destroyed the caller's frame, which made a generator usable exactly once
+  inside a loop — the bug that took longest to find.
+- `RunGenerator` seeds locals on the first run and restores the snapshot on
+  later ones, pushing the sent value as the result of the `yield` expression.
+- `for…of` steps a generator through its own `next()`, and `yield*` lowers to
+  an iterate-and-yield loop over the delegated iterable.
+
+**Known limitation.** A generator cannot be resumed after the script that
+created it ends; the activation environment is released with the script. This
+is documented rather than silently failing.
+
+**Tests.** Laziness, `next()` shape and values, parameters, `yield` outside a
+generator, resumption across yields, completion via `return`, sent values
+becoming the `yield` result, locals surviving suspension, `for…of` over a
+generator (including a generator containing a loop), two independent
+iterations, manual `while` draining, `return()` early completion, and `yield*`
+over arrays, strings, and the empty iterable. Verified against Node over 16
 cases: no differences.
 
 ### [ ] P2-09 — BigInt

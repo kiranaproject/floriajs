@@ -31,7 +31,7 @@ them.
 | `with` | No | Rejected at parse time with a clear error; it never runs as an undeclared name. |
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
 | `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, and `super`. Methods are non-enumerable. Class fields are not supported. |
-| Generators (`function*`, `yield`) | No | Parse error. |
+| Generators (`function*`, `yield`) | Yes | `function*` bodies run lazily and suspend at `yield`; `yield*` delegates. Generator objects implement `next()`, `return()`, and `Symbol.iterator`. A generator created by one script cannot be resumed after that script ends. |
 | `for await` | No | Parse error. |
 
 There is no automatic semicolon insertion in the ECMAScript sense. Semicolons
@@ -58,7 +58,7 @@ function f() { return
 | `bind` and `new` | Yes | A bound function is constructable exactly when its target is; `new Bound(...)` ignores the bound `this` and uses the target's prototype. Bound functions have no own `prototype`. |
 | Closures / recursion | Yes | Environments are reference-counted and reclaimed when unreachable. |
 | `async` / `await` | Yes | Async functions return a promise; `await` drains pending jobs when needed. |
-| Generators / `yield` | No | Parse error. |
+| Generators / `yield` | Yes | See the Generators section. |
 
 ## Operators
 
@@ -332,6 +332,22 @@ pump, delayed and repeating callbacks do not execute.
 - `NaN` and the infinities stringify as `"NaN"`, `"Infinity"`, and
   `"-Infinity"`; both zeros stringify as `"0"`.
 
+### Generators
+
+- `function* g() { ... }` declares a generator. Calling it does not run the
+  body; it returns a generator object.
+- The body runs on the first `next()` and suspends at each `yield`, resuming
+  where it stopped. `next(v)` makes `v` the result of the suspended `yield`
+  expression. Local variables and parameters survive across suspensions.
+- `next()` returns `{ value, done }`; a `return` statement completes the
+  generator with that value, and `return(v)` completes it early.
+- `yield* iterable` delegates, yielding each value of another iterable.
+- Generators are iterable, so `for…of g()` drains one, and `yield*` composes
+  with it.
+- **Limitation:** a generator must be driven by the script that created it.
+  Resuming after that script ends is not supported, because the activation
+  environment is released with the script.
+
 ### Classes
 
 - `class A { ... }` declarations and `var B = class { ... }` expressions.
@@ -401,7 +417,7 @@ are grouped by cause, because the three groups have different answers:
 | Area | Current behaviour | Task |
 | :--- | :--- | :--- |
 | `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
-| Generators / `for await` | `function*` and `for await` are parse errors. | P2-07 |
+| `for await` | `for await` is a parse error; async iteration is not implemented. | P2-07 |
 | `BigInt` | BigInt literals are rejected at lex time (`BigInt literals are not supported`) rather than being mis-parsed. | P2-09 |
 | Function metadata | `Function` constructor, `length`, `name`, and `toString` parity. | P2-10 |
 | Library completeness | `Object.is`/`defineProperty`/`getOwnPropertyNames`/`freeze`/`seal`/`fromEntries`, `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`, `String.fromCharCode`/`fromCodePoint`, `String.prototype.localeCompare`/`normalize`, `Date` setters, `Intl`, `eval`, `alert`. | P2-11 |
