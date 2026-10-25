@@ -135,7 +135,7 @@ dispatch signals.
 - **Recursive descent** for statements and declarations: blocks, `if`,
   classic `for`, `for…in`, `for…of`, `while`, `do…while`, `switch`, `try`,
   declarations (including destructuring patterns), functions (default, rest,
-  and destructured parameters), and expression statements.
+  and destructured parameters), classes, and expression statements.
 - **Literal parsing** supports array/object spread, holes, shorthand
   properties, computed keys, methods, getters/setters, and regex literals.
 - A separate recursive-descent entry point for FTML (`ParseFTMLComponent`).

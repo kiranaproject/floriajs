@@ -30,7 +30,7 @@ them.
 | Empty statement (`;`) | Yes | Treated as an empty block. |
 | `with` | No | Rejected at parse time with a clear error; it never runs as an undeclared name. |
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
-| `class` | No | Not a keyword: every form (`class A {}`, `class {}`, `extends`) parses as the identifier `class` and throws `ReferenceError: class is not defined`. Scheduled as P2-06. |
+| `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, and `super`. Methods are non-enumerable. Class fields are not supported. |
 | Generators (`function*`, `yield`) | No | Parse error. |
 | `for await` | No | Parse error. |
 
@@ -332,6 +332,23 @@ pump, delayed and repeating callbacks do not execute.
 - `NaN` and the infinities stringify as `"NaN"`, `"Infinity"`, and
   `"-Infinity"`; both zeros stringify as `"0"`.
 
+### Classes
+
+- `class A { ... }` declarations and `var B = class { ... }` expressions.
+- `constructor(...)`; methods; `get`/`set` accessors; `static` methods.
+- `extends Base` sets `B.prototype`'s prototype to `Base.prototype` and the
+  class function's own prototype to `Base`, so instances inherit methods and
+  statics are inherited too. `instanceof` works for both the class and the base.
+- `super(...)` runs the base constructor with the current receiver;
+  `super.method()` calls the base implementation. A derived class without a
+  constructor gets an implicit one, which does **not** forward arguments — write
+  an explicit constructor when the base needs them.
+- Methods and accessors are installed as **non-enumerable** properties, so
+  `Object.keys`, `for…in`, and `JSON.stringify` see only the instance's own
+  fields.
+- Class fields (`class A { x = 1 }`) are **not** supported and are rejected at
+  parse time; assign in the constructor instead.
+
 ### Errors and promises
 
 - `new Error(msg)`, `new TypeError(msg)`, `new RangeError(msg)`,
@@ -384,7 +401,6 @@ are grouped by cause, because the three groups have different answers:
 | Area | Current behaviour | Task |
 | :--- | :--- | :--- |
 | `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
-| `class` | Not a keyword: every form (`class A {}`, `class {}`, `extends`) parses as the identifier `class` and throws `ReferenceError: class is not defined`. | P2-06 |
 | Generators / `for await` | `function*` and `for await` are parse errors. | P2-07 |
 | Tagged templates | The tag is never called: `tag\`x\`` evaluates to the template string itself, so `function t(s){ return 1; } t\`x\`` is `"x"`, not `1`. | P2-08 |
 | `BigInt` | BigInt literals are rejected at lex time (`BigInt literals are not supported`) rather than being mis-parsed. | P2-09 |

@@ -14,12 +14,12 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **200 tests pass** with `pasbuild test`.
-- Gap scan: **143 probes OK / 10 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **204 tests pass** with `pasbuild test`.
+- Gap scan: **150 probes OK / 9 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
-- Documentation claims: **48 checked, 0 failing** with
+- Documentation claims: **51 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -47,6 +47,8 @@ currently untested because the existing tests assert only the happy path.
 - The iteration protocol: `Symbol.iterator`, iterator objects with `next()`,
   `for…of` over arrays/strings/`Map`/`Set`/iterators (including destructuring
   targets), and `Array.from`/spread over any iterable.
+- Classes: declarations and expressions, constructors, methods, accessors,
+  statics, `extends`, `super`, and non-enumerable prototype members.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -919,11 +921,65 @@ duplicating the value), `Array.from` and spread over iterators, `for…of` over
 non-iterables still throwing, and destructuring in `for…of` for Map, arrays,
 and a three-element pattern.
 
-### [ ] P2-06 — Classes
+### [x] P2-06 — Classes
 
-Parse `class`, constructor/methods/static methods, `extends`, `super`, and
-non-enumerable prototype methods. Lower to constructor functions and prototype
-wiring. Add construction, inheritance, `instanceof`, and `super` tests.
+`class` was not a keyword, so every form parsed as an identifier and threw
+`ReferenceError: class is not defined`. Nothing about classes existed: no
+tokens, no AST node, no lowering, and properties had no enumerability concept,
+so non-enumerable prototype methods were not even representable.
+
+**Files.** `src/main/pascal/floria.js.lexer.pas` (`tkClass`, `tkExtends`,
+`tkSuper`, `tkStatic`), `src/main/pascal/floria.js.ast.pas`
+(`TFloriaJSClassNode`, `TFloriaJSClassMember`),
+`src/main/pascal/floria.js.parser.pas` (`ParseClassExpr`,
+`ParseClassDeclaration`, `super` as a primary),
+`src/main/pascal/floria.js.compiler.pas` (`CompileClassExpr`),
+`src/main/pascal/floria.js.bytecode.pas` / `floria.js.vm.pas` (`opSetProto`,
+`opDefineHidden`, `opDefineGetterHidden`, `opDefineSetterHidden`),
+`src/main/pascal/floria.js.value.pas` (property enumerability).
+
+**Implementation.**
+
+- Classes lower to a constructor function plus prototype wiring, which is what
+  ECMAScript's class semantics are defined in terms of. A class declaration
+  becomes a `let` declaration whose initializer is the class expression.
+- `extends Base` creates a **fresh** prototype object whose prototype is
+  `Base.prototype` (sharing the base object would overwrite its methods), and
+  sets the class function's own prototype to `Base`, so static members are
+  inherited.
+- Properties gained an `Enumerable` flag with `SetPropertyNonEnumerable`,
+  `SetEnumerable`, `GetEnumerablePropertyCount`, and
+  `GetEnumerablePropertyKey`. `Object.keys`, `for…in`, and `JSON.stringify` now
+  use the enumerable variants, so class methods stay out of reflection.
+  Accessors created by `DefineGetter`/`DefineSetter` remain enumerable by
+  default, matching object-literal syntax.
+- `super` is bound as an ordinary name in a scope wrapped around each member's
+  closure — to the base constructor inside a constructor, to the base prototype
+  inside a method, and to the base class inside a static method. That makes
+  `super(...)` and `super.m()` plain calls needing no special handling.
+  `super(...)` passes the current `this`, so the base initialises the same
+  object rather than a new one.
+- `SetProperty` now walks the prototype chain looking for a setter before
+  creating an own property, which is what makes an inherited class setter work.
+- The class name is installed as `name`, so `A.name` works.
+- Class fields (`class A { x = 1 }`) are rejected at parse time rather than
+  silently ignored.
+
+**Also fixed while working P2-06:** the declaration scope used
+`TStringList`, which is **case-insensitive by default**, so `let A = 1; var a =
+2;` was a spurious `SyntaxError: Identifier 'a' has already been declared`.
+JavaScript identifiers are case-sensitive; the scope lists are now created with
+`CaseSensitive := True`. This made any class whose name differed only in case
+from another binding unusable.
+
+**Tests.** Class identity (`typeof`, `name`), construction, implicit
+constructors, methods on the prototype and shared, methods not being own
+properties, statics and their absence on instances, class expressions,
+getters, setters, chaining through `this`, field rejection, `instanceof` in
+both directions, inherited and overridden methods, static inheritance,
+`super()` with and without arguments, `super.method()`, an implicit derived
+constructor, `super` being undefined in a base class, and non-enumerability
+through `Object.keys`, `for…in`, and `JSON.stringify`.
 
 ### [ ] P2-07 — Generators and `for await`
 

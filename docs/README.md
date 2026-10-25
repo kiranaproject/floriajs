@@ -42,6 +42,8 @@ Implemented and covered by the test suite:
 - Core statements: declarations (including destructuring), blocks, `if`,
   classic `for`, `for…in`, `for…of`, `while`, `do…while`, `switch`,
   `try`/`catch`/`finally`, `throw`, labeled `break`/`continue`.
+- Classes: declarations and expressions, `constructor`, methods, `get`/`set`,
+  `static`, `extends`, and `super`. Methods are non-enumerable.
 - Functions: declarations, function expressions, arrow functions (including
   lexical `this`), closures, recursion, `async`/`await`, `new` and `this`,
   default/rest parameters, and destructured parameters.
@@ -65,7 +67,6 @@ Implemented and covered by the test suite:
 
 Not implemented yet (see the [roadmap](roadmap.md)):
 
-- `class`, `super`, and `extends`.
 - Generators/`yield`, tagged templates, `for await`, and `import`/`export`.
 - `BigInt` (literals are rejected at lex time).
 - Convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,

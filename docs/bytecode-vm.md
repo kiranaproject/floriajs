@@ -114,7 +114,8 @@ Coverage:
 - **Statements**: declarations and destructuring, blocks, `if`, classic
   `for`, `for…in`/`for…of`, `while`/`do…while`, `switch`, `try`/`catch`/
   `finally`, `throw`, `return`, `break`/`continue`, labeled statements,
-  function declarations.
+  function declarations, and classes (lowered to constructor functions plus
+  prototype wiring via `SET_PROTO` and `DEFINE_HIDDEN`).
 - **Scopes**: block-scoped `let`/`const` emit `PUSH_ENV`/`POP_ENV`; `var`
   declarations bind in the enclosing function/top-level environment. Classic
   `for` headers with `let`/`const` get an outer loop environment and a fresh
