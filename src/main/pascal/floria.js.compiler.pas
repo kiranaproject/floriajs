@@ -836,6 +836,11 @@ begin
     CompileTryStmt(TFloriaJSTryStmt(AStmt))
   else if AStmt is TFloriaJSThrowStmt then
     CompileThrowStmt(TFloriaJSThrowStmt(AStmt))
+  else if AStmt is TFloriaJSDebuggerStmt then
+  begin
+    { `debugger` is a no-op in an embedded runtime: there is no host debugger
+      to break into, and it must not be treated as an identifier. }
+  end
   else if AStmt is TFloriaJSBreakStmt then
     CompileBreakStmt(TFloriaJSBreakStmt(AStmt))
   else if AStmt is TFloriaJSContinueStmt then
@@ -1019,8 +1024,16 @@ begin
             FBytecode.Emit(opConst, FBytecode.AddStringConstant(member.PropertyName));
           FBytecode.Emit(opDeleteProp, 0, AUnary.Line);
         end
+        else if targetNode is TFloriaJSIdentifierExpr then
+          { A bare identifier is a binding, not a property: it must not be read,
+            because an undeclared name is not an error here. Declared bindings
+            are non-deletable (false) and unknown names answer true. }
+          FBytecode.Emit(opDeleteEnv,
+            FBytecode.AddStringConstant(TFloriaJSIdentifierExpr(targetNode).Name),
+            AUnary.Line)
         else
         begin
+          { `delete <non-reference>` evaluates the operand and is always true. }
           CompileExpr(targetNode);
           FBytecode.Emit(opPop);
           FBytecode.Emit(opTrue, 0, AUnary.Line);

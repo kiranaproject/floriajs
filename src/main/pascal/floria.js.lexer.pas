@@ -70,6 +70,8 @@ type
     tkFalse,
     tkNull,
     tkUndefined,
+    tkDebugger,
+    tkWith,
 
     { Delimiters }
     tkLParen,         // (
@@ -222,6 +224,8 @@ begin
     'false':      Result := tkFalse;
     'null':       Result := tkNull;
     'undefined':  Result := tkUndefined;
+    'debugger':   Result := tkDebugger;
+    'with':       Result := tkWith;
   else
     Result := tkIdentifier;
   end;
@@ -1020,6 +1024,8 @@ begin
     tkFalse:          Result := 'false';
     tkNull:           Result := 'null';
     tkUndefined:      Result := 'undefined';
+    tkDebugger:       Result := 'debugger';
+    tkWith:           Result := 'with';
     tkLParen:         Result := '(';
     tkRParen:         Result := ')';
     tkLBrace:         Result := '{';

@@ -90,6 +90,7 @@ type
     function  ParseReturnStatement(): TFloriaJSReturnStmt;
     function  ParseBreakStatement(): TFloriaJSBreakStmt;
     function  ParseContinueStatement(): TFloriaJSContinueStmt;
+    function  ParseDebuggerStatement(): TFloriaJSDebuggerStmt;
     function  ParseExpressionStatement(): TFloriaJSExprStmt;
     procedure ParseFTMLBody(AComp: TFloriaFTMLComponent);
 
@@ -1292,6 +1293,16 @@ begin
     Result := ParseBreakStatement()
   else if Match(tkContinue) then
     Result := ParseContinueStatement()
+  else if Match(tkDebugger) then
+    Result := ParseDebuggerStatement()
+  else if Check(tkWith) then
+  begin
+    { Unsupported syntax fails at parse time rather than surfacing as an
+      undeclared-name ReferenceError at run time. }
+    ErrorAtCurrent('''with'' statements are not supported');
+    Advance();
+    Result := TFloriaJSBlockStmt.Create(FPrevious.Line, FPrevious.Column);
+  end
   else if Check(tkLBrace) then
     Result := ParseBlockStatement()
   else
@@ -1608,6 +1619,18 @@ begin
 
   Match(tkSemicolon);
   Result := TFloriaJSReturnStmt.Create(arg, startLine, startCol);
+end;
+
+function TFloriaJSParser.ParseDebuggerStatement(): TFloriaJSDebuggerStmt;
+var
+  startLine, startCol: Integer;
+begin
+  { A no-op statement. Recognising it here means the undeclared-read check
+    never sees `debugger` as an identifier. }
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+  Match(tkSemicolon);
+  Result := TFloriaJSDebuggerStmt.Create(startLine, startCol);
 end;
 
 function TFloriaJSParser.ParseBreakStatement(): TFloriaJSBreakStmt;

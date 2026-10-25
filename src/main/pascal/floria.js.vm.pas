@@ -809,11 +809,32 @@ begin
             end;
           end;
 
+        opDeleteEnv:
+          begin
+            { `delete identifier` never reads the binding. A declared variable is
+              non-deletable, so the answer is false and the binding stays; an
+              unknown name answers true without creating anything. }
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            if ((curFrame^.Env <> nil) and curFrame^.Env.Has(varName)) or
+               ((FGlobalEnv <> nil) and FGlobalEnv.Has(varName)) then
+              Push(JSMakeBoolean(False))
+            else
+              Push(JSMakeBoolean(True));
+          end;
+
         opDeleteProp:
           begin
             propVal := Pop();
             objVal := Pop();
-            if objVal.IsObject() then
+            { A member expression on null or undefined fails while it is being
+              evaluated, so `delete null.x` throws rather than answering true. }
+            if objVal.IsNull() then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+                'Cannot convert undefined or null to object')))
+            else if objVal.IsUndefined() then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+                'Cannot convert undefined or null to object')))
+            else if objVal.IsObject() then
               Push(JSMakeBoolean(objVal.AsObject().DeleteProperty(propVal.ToString())))
             else
               Push(JSMakeBoolean(True));

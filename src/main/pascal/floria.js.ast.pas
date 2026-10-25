@@ -550,6 +550,15 @@ type
     property Expression: TFloriaJSExprNode read FExpression;
   end;
 
+  { Debugger Statement: debugger;
+    A no-op marker. Recognising it as a statement keeps the undeclared-read
+    check from turning it into a ReferenceError. }
+  TFloriaJSDebuggerStmt = class(TFloriaJSStmtNode)
+  public
+    constructor Create(ALine, ACol: Integer);
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+  end;
+
   { Break Statement: break; }
   TFloriaJSBreakStmt = class(TFloriaJSStmtNode)
   private
@@ -711,6 +720,7 @@ type
     procedure VisitSwitchStmt(ANode: TFloriaJSSwitchStmt);
     procedure VisitTryStmt(ANode: TFloriaJSTryStmt);
     procedure VisitThrowStmt(ANode: TFloriaJSThrowStmt);
+    procedure VisitDebuggerStmt(ANode: TFloriaJSDebuggerStmt);
     procedure VisitBreakStmt(ANode: TFloriaJSBreakStmt);
     procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
     procedure VisitLabeledStmt(ANode: TFloriaJSLabeledStmt);
@@ -1721,6 +1731,18 @@ end;
 procedure TFloriaJSThrowStmt.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
   if AVisitor <> nil then AVisitor.VisitThrowStmt(Self);
+end;
+
+{ TFloriaJSDebuggerStmt }
+
+constructor TFloriaJSDebuggerStmt.Create(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+end;
+
+procedure TFloriaJSDebuggerStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  AVisitor.VisitDebuggerStmt(Self);
 end;
 
 { TFloriaJSBreakStmt }

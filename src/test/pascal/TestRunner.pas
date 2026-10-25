@@ -319,6 +319,8 @@ type
     procedure TestNumberFormattingParity();
     procedure TestNumberParsingParity();
     procedure TestNumberRadixToString();
+    procedure TestDeleteSemantics();
+    procedure TestDebuggerAndWith();
   end;
 
 { TFloriaJSTypesTest }
@@ -7382,6 +7384,137 @@ begin
       'caught === "RangeError";'
     );
     AssertTrue('Radix above 36 throws RangeError', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestDeleteSemantics();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. The reported failure: deleting an undeclared name is not an error.
+    res := engine.Execute('delete undeclaredName;');
+    AssertTrue('delete of an undeclared name succeeds', res.Success);
+    AssertTrue('delete of an undeclared name is true', res.BooleanValue);
+
+    // 2. It must not create a binding either.
+    res := engine.Execute(
+      'delete undeclaredName;' +
+      'typeof undeclaredName === "undefined";'
+    );
+    AssertTrue('delete does not create a binding', res.Success and res.BooleanValue);
+
+    // 3. A declared var is non-deletable: false, and the binding survives.
+    res := engine.Execute(
+      'var x = 1;' +
+      'var r = delete x;' +
+      'r === false && x === 1;'
+    );
+    AssertTrue('delete of a declared var is false and keeps it', res.Success and res.BooleanValue);
+
+    // 4. let and const bindings behave the same way.
+    res := engine.Execute(
+      'let a = 1; const b = 2;' +
+      '(delete a) === false && (delete b) === false && a === 1 && b === 2;'
+    );
+    AssertTrue('delete of let/const is false and keeps them', res.Success and res.BooleanValue);
+
+    // 5. Function parameters are declared bindings too.
+    res := engine.Execute('function f(p) { return delete p; } f(1) === false;');
+    AssertTrue('delete of a parameter is false', res.Success and res.BooleanValue);
+
+    // 6. A local variable inside a function.
+    res := engine.Execute(
+      'function f() { var y = 1; return (delete y) === false && y === 1; } f();'
+    );
+    AssertTrue('delete of a function local is false', res.Success and res.BooleanValue);
+
+    // 7. Grouping does not change the target.
+    res := engine.Execute(
+      'var g = 1; (delete (g)) === false && (delete (undeclaredOther)) === true;'
+    );
+    AssertTrue('grouped delete targets the same binding', res.Success and res.BooleanValue);
+
+    // 8. Non-reference operands are evaluated and yield true.
+    res := engine.Execute('(delete 1) === true && (delete "s") === true && (delete null) === true;');
+    AssertTrue('delete of a non-reference is true', res.Success and res.BooleanValue);
+
+    // 9. Object and array properties still delete.
+    res := engine.Execute(
+      'var o = { a: 1 };' +
+      'var d = delete o.a;' +
+      'd === true && !("a" in o) && o.a === undefined;'
+    );
+    AssertTrue('delete removes an own property', res.Success and res.BooleanValue);
+
+    res := engine.Execute(
+      'var arr = [1, 2, 3];' +
+      'var d = delete arr[1];' +
+      'd === true && arr.length === 3 && !(1 in arr) && arr[1] === undefined;'
+    );
+    AssertTrue('delete leaves an array hole', res.Success and res.BooleanValue);
+
+    // 10. Deleting a missing property is true.
+    res := engine.Execute('var o = {}; (delete o.missing) === true;');
+    AssertTrue('delete of a missing property is true', res.Success and res.BooleanValue);
+
+    // 11. A member expression on null/undefined fails while being evaluated.
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { delete null.x; } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('delete on null throws TypeError', res.Success and res.BooleanValue);
+
+    res := engine.Execute(
+      'var caught = "";' +
+      'try { delete undefined.x; } catch (e) { caught = e.name; }' +
+      'caught === "TypeError";'
+    );
+    AssertTrue('delete on undefined throws TypeError', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority1Test.TestDebuggerAndWith();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // 1. The reported failure: `debugger` must not be an undeclared read.
+    res := engine.Execute('debugger;');
+    AssertTrue('debugger is accepted', res.Success);
+
+    // 2. It is a no-op that does not disturb the surrounding program.
+    res := engine.Execute('debugger; 1;');
+    AssertTrue('debugger is a no-op', res.Success);
+    AssertEquals('Execution continues after debugger', '1', res.StringValue);
+
+    res := engine.Execute('function g() { debugger; return 5; } g();');
+    AssertTrue('debugger inside a function', res.Success);
+    AssertEquals('debugger does not change the result', '5', res.StringValue);
+
+    res := engine.Execute('{ debugger; } 1;');
+    AssertTrue('debugger inside a block', res.Success);
+
+    // 3. It is a statement, not an identifier, so it cannot be used as one.
+    res := engine.Execute('var debugger = 1;');
+    AssertFalse('debugger is a reserved word', res.Success);
+
+    // 4. `with` is unsupported and must fail at parse time, not at run time as
+    //    an undeclared name.
+    res := engine.Execute('with ({}) { }');
+    AssertFalse('with is rejected', res.Success);
+    AssertTrue('with fails as a parse error, not a ReferenceError',
+      (Pos('not supported', res.ErrorMessage) > 0) and
+      (Pos('ReferenceError', res.ErrorMessage) = 0));
   finally
     engine.Free();
   end;

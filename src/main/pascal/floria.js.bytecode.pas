@@ -71,6 +71,8 @@ type
     opDefineSetter,      // Pop setter, peek obj -> define setter: Imm = const index (or -1 if key on stack)
     opObjectRest,        // Pop N keys, pop obj -> push rest object: Imm = key count
     opDeleteProp,        // Pop prop, pop obj -> push delete obj[prop]
+    opDeleteEnv,         // Push false when the named binding exists, else true
+                         // (Imm = const index). Never reads the binding.
     opIn,                // Pop obj, pop prop -> push prop in obj
     opInstanceOf,        // Pop ctor, pop obj -> push obj instanceof ctor
 
@@ -262,6 +264,7 @@ begin
     opDefineSetter:     Result := 'DEFINE_SETTER';
     opObjectRest:       Result := 'OBJECT_REST';
     opDeleteProp:       Result := 'DELETE_PROP';
+    opDeleteEnv:        Result := 'DELETE_ENV';
     opIn:               Result := 'IN';
     opInstanceOf:       Result := 'INSTANCEOF';
     opAdd:              Result := 'ADD';
@@ -577,7 +580,7 @@ begin
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opLoadLoc, opStoreLoc, opSetLoc:
       comment := '; ' + GetLocalName(inst.Imm);
-    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt:
+    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opDeleteEnv:
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
       comment := Format('-> %04d', [inst.Imm]);
