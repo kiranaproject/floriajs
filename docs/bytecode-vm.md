@@ -192,7 +192,7 @@ The opcode enum lives in `floria.js.bytecode`. The main groups are:
 | Constants | `CONST`, `UNDEFINED`, `NULL`, `TRUE`, `FALSE`, `ZERO`, `ONE` |
 | Locals | `LOAD_LOC`, `STORE_LOC`, `SET_LOC` |
 | Globals/environments | `LOAD_GLOBAL`, `STORE_GLOBAL`, `SET_GLOBAL`, `LOAD_ENV`, `STORE_ENV`, `DEFINE_ENV`, `PUSH_ENV`, `POP_ENV` |
-| Objects | `NEW_OBJECT`, `GET_PROP`, `GET_PROP_NAMED`, `SET_PROP`, `SET_PROP_NAMED`, `GET_PROP_OPT`, `GET_PROP_NAMED_OPT`, `DEFINE_GETTER`, `DEFINE_SETTER`, `OBJECT_REST`, `DELETE_PROP`, `IN`, `INSTANCEOF` |
+| Objects | `NEW_OBJECT`, `GET_PROP`, `GET_PROP_NAMED`, `SET_PROP`, `SET_PROP_NAMED`, `GET_PROP_OPT`, `GET_PROP_NAMED_OPT`, `DEFINE_GETTER`, `DEFINE_SETTER`, `OBJECT_REST`, `DELETE_PROP`, `DELETE_ENV`, `IN`, `INSTANCEOF` |
 | Arrays | `NEW_ARRAY`, `ARRAY_MARK_HOLE`, `ARRAY_PUSH_HOLE`, `SPREAD_ITERABLE` |
 | Arithmetic | `ADD`, `SUB`, `MUL`, `DIV`, `MOD`, `POWER`, `NEG`, `POS`, `BIT_NOT`, `BIT_AND`, `BIT_OR`, `BIT_XOR`, `SHL`, `SHR`, `SAR` |
 | Comparison | `EQ`, `STRICT_EQ`, `NOT_EQ`, `STRICT_NOT_EQ`, `LT`, `LE`, `GT`, `GE` |

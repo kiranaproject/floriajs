@@ -28,8 +28,8 @@ them.
 | `break` / `continue` with labels | Yes | Labels work on `for`, `for…in`, `for…of`, `while`, and labeled statements. |
 | `return` | Yes | Not allowed outside a function (raises). |
 | Empty statement (`;`) | Yes | Treated as an empty block. |
-| `with` | No | Parsed as an identifier; normally fails at runtime with `TypeError` because the name is undefined. |
-| `debugger` | No | Parsed as an identifier; no effect. |
+| `with` | No | Rejected at parse time with a clear error; it never runs as an undeclared name. |
+| `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
 | `class` | No | Some forms are silently ignored, others fail to parse. |
 | Generators (`function*`, `yield`) | No | Parse error. |
 | `for await` | No | Parse error. |
@@ -85,9 +85,17 @@ Notes:
 - `in` requires an object on the right; otherwise it returns `false`.
 - `instanceof` walks the prototype chain through the constructor's
   `prototype`; arrow functions return `false`.
-- `delete` removes object properties and turns array elements into holes (the
-  array length is unchanged). Deleting a variable returns `true` but does not
-  remove the binding, and it returns `true` for missing properties.
+- `delete` follows ECMAScript:
+  - `delete obj.p` / `delete obj[k]` removes the property (or turns an array
+    element into a hole, leaving `length` unchanged) and returns `true`.
+    Deleting a missing property is `true`. A member expression on
+    `null`/`undefined` throws `TypeError` while it is being evaluated.
+  - `delete identifier` never reads the binding. A declared binding (`var`,
+    `let`, `const`, parameter, function local) is non-deletable, so it returns
+    `false` and the binding keeps its value. An undeclared name returns `true`
+    and creates nothing.
+  - Any other operand (`delete 1`, `delete f()`) is evaluated and yields
+    `true`.
 - Optional chaining short-circuits the full chain across member accesses and calls (`a?.b.c` and `a?.b()` return `undefined` on nullish `a`). Grouping boundaries `(a?.b).c` terminate the optional chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets such as `(a?.b)++`, are rejected as syntax errors.
 - `==` handles `null == undefined`, number/string, and boolean conversions.
   Object-to-primitive coercion is not implemented (`[1] == 1` is `false`).
@@ -353,7 +361,8 @@ These are the differences most likely to surprise a JavaScript developer:
 | Logical assignment | `&&=` and `\|\|=` are not implemented. |
 | Tagged templates | Not implemented; often silently treated as two expressions. |
 | `class` | Not implemented; some forms fail, some are ignored. |
-| `with` / `debugger` | Parsed as identifiers; `with` usually fails at runtime, `debugger` is a no-op. |
+| `with` | Unsupported: rejected at parse time rather than as a runtime `ReferenceError`. |
+| `debugger` | A no-op statement. Recognised as a keyword, so it is reserved. |
 | `globalThis` | Snapshot, not a live binding to the global scope. |
 | Strings | Byte-oriented (UTF-8), including `length`, indexing, and `for…of`. |
 | Loose equality | No object-to-primitive coercion: `[1] == 1` and `[] == false` are `false`, and a custom `toString`/`valueOf` is not consulted by `+` or `==`. |

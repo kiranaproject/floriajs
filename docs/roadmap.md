@@ -14,8 +14,8 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **185 tests pass** with `pasbuild test`.
-- Gap scan: **121 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **187 tests pass** with `pasbuild test`.
+- Gap scan: **125 probes OK / 11 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
@@ -634,7 +634,7 @@ Node.js over **41,626 bit patterns** (random doubles plus every decade
 boundary and the extremes): zero differences. The same comparison over 8,037
 decimal strings found no difference in the numeric core.
 
-### [ ] P1-05 — Fix `delete` and `debugger` semantics
+### [x] P1-05 — Fix `delete` and `debugger` semantics
 
 **Failures.**
 
@@ -644,18 +644,43 @@ var x = 1; delete x;     // true, x remains; ECMAScript non-strict: false
 debugger;                // ReferenceError; roadmap previously said no-op
 ```
 
-**Files.** `src/main/pascal/floria.js.compiler.pas` (`tkDelete`),
-`src/main/pascal/floria.js.lexer.pas`/`parser.pas` for `debugger`,
-`src/main/pascal/floria.js.vm.pas` for delete opcode.
+`CompileAssignExpr`'s sibling unary path compiled `delete <identifier>` as an
+ordinary expression read followed by `POP` and a literal `true`. Reading the
+identifier is what produced the `ReferenceError`, and the unconditional `true`
+ignored whether the binding is deletable. `debugger` was not a keyword at all,
+so it fell through to an identifier read.
+
+**Files.** `src/main/pascal/floria.js.lexer.pas` (`tkDebugger`, `tkWith`),
+`src/main/pascal/floria.js.ast.pas` (`TFloriaJSDebuggerStmt`),
+`src/main/pascal/floria.js.parser.pas` (`ParseDebuggerStatement`),
+`src/main/pascal/floria.js.compiler.pas` (`tkDelete`, statement dispatch),
+`src/main/pascal/floria.js.bytecode.pas` (`opDeleteEnv`),
+`src/main/pascal/floria.js.vm.pas` (`opDeleteEnv`, `opDeleteProp`).
 
 **Implementation.**
 
-- `delete identifier` must not perform an undeclared read.
-- Declared variables are non-deletable: return `false` and leave the binding.
-- Unknown identifiers return `true` without creating a binding.
-- Either recognize `debugger` as a no-op keyword or reject it at parse time;
-  do not let undeclared-read strictness turn it into `ReferenceError`.
-- Update the deferred-semantics section accordingly.
+- Added `opDeleteEnv`: it answers `Has(name)` without reading the binding.
+  A declared binding is non-deletable, so `delete x` is `false` and `x` keeps
+  its value; an undeclared name is `true` and no binding is created.
+- `delete <member>` keeps using `opDeleteProp`, which now throws `TypeError`
+  when the base is `null`/`undefined`, matching the reference evaluation that
+  ECMAScript performs first.
+- `delete <non-reference>` still evaluates the operand and yields `true`.
+- `debugger` is now a keyword, parsed into `TFloriaJSDebuggerStmt`, and
+  compiled to nothing. Because it is a keyword it is also reserved, so
+  `var debugger = 1` is a syntax error as in ECMAScript.
+- `with` is now a keyword and is **rejected at parse time** with
+  `'with' statements are not supported`, instead of surfacing later as an
+  undeclared-name `ReferenceError`.
+- The deferred-semantics section now separates `with` (unsupported, parse-time
+  rejection) from `debugger` (supported no-op).
+
+**Tests.** `delete` of an undeclared name (and that it creates no binding), of
+`var`/`let`/`const`/parameter/function-local bindings, grouped targets,
+non-reference operands, own properties, array holes, missing properties, and
+`TypeError` for `delete null.x` / `delete undefined.x`; `debugger` at top
+level, in a function, and in a block, plus its reserved-word status; and `with`
+being a parse error rather than a `ReferenceError`.
 
 ---
 
@@ -663,12 +688,12 @@ debugger;                // ReferenceError; roadmap previously said no-op
 
 Several docs still describe the pre-P1 runtime:
 
-- `docs/language-support.md` says `const` reassignment is allowed, function
-  declarations are not hoisted, `Function.prototype.call/apply/bind` are
-  missing, and `debugger` is a no-op.
+- `docs/language-support.md` must stay consistent with the P0/P1 fixes; the
+  `const` reassignment, hoisting, `Function.prototype`, `delete`, `debugger`,
+  and number-formatting statements have all been rewritten already, so re-read
+  the page for anything left over.
 - `docs/README.md` still lists `Function.prototype` methods as unimplemented.
-- `docs/api/values.md` needs the new `TFloriaJSPrototypeObject`,
-  `TFloriaJSBoundFunction`, and number-prototype behaviour documented.
+- `docs/api/values.md` needs the remaining new types documented as they land.
 - `docs/getting-started.md` still mentions the old “prototype deliberately has
   no constructor back-reference” design.
 
@@ -838,9 +863,9 @@ than “fixing” them accidentally:
 6. **Full ECMAScript conformance** is not a goal; the target is a practical
    embedded UI runtime.
 
-`debugger` is **not** in this list: it currently throws an undeclared-name
-`ReferenceError`. P1-05 must either make it a real no-op keyword or reject it at
-parse time.
+`with` is rejected at parse time rather than at run time, so unsupported syntax
+fails loudly as the policy above requires. `debugger` is a supported no-op
+keyword, so it is not deferred.
 
 ---
 
@@ -856,9 +881,8 @@ parse time.
   `OK` without checking the value is not sufficient.
 - Add a lifetime test when a change creates objects, functions, environments,
   prototypes, or bytecode chunks.
-- Update `docs/language-support.md` as part of the same commit. Several
-  current statements are stale: `const` reassignment, function hoisting,
-  `Function.prototype` support, and `debugger` are already implemented
-  differently from what that page still says.
+- Update `docs/language-support.md` as part of the same commit. Re-read the
+  page for statements the change just invalidated; several were stale before
+  the P0/P1 work and have been corrected one task at a time.
 - Update the API pages when public signatures/behaviour change.
 - Tick a checkbox only after the tests and docs are in place.
