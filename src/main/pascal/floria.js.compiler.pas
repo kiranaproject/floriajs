@@ -77,6 +77,7 @@ type
     procedure CompileWhileStmt(AWhile: TFloriaJSWhileStmt);
     procedure CompileForStmt(AFor: TFloriaJSForStmt);
     procedure CompileForInOfStmt(AForInOf: TFloriaJSForInOfStmt);
+    procedure CompileForOfStmt(AForInOf: TFloriaJSForInOfStmt; AIterLoc: Integer);
     procedure CompileSwitchStmt(ASwitch: TFloriaJSSwitchStmt);
     procedure CompileLabeledStmt(ALabeled: TFloriaJSLabeledStmt);
     procedure CompileReturnStmt(ARet: TFloriaJSReturnStmt);
@@ -2423,6 +2424,90 @@ begin
   end;
 end;
 
+
+{ `for…of` over the iteration protocol.
+
+  Shape: the iterator lives in a local slot. Each iteration peeks it and asks
+  for the next value; when exhausted the opcode jumps past the loop. The value
+  is left on the stack as the loop binding, so a `let`/`const` binding can be
+  defined from it and a `var` binding stored from it. }
+procedure TFloriaJSCompiler.CompileForOfStmt(AForInOf: TFloriaJSForInOfStmt; AIterLoc: Integer);
+var
+  i, nameIdx, loopStart, exitJump, contTarget: Integer;
+  isBlockScoped: Boolean;
+begin
+  CompileExpr(AForInOf.Iterable);
+  FBytecode.Emit(opForOfInit);
+  FBytecode.Emit(opSetLoc, AIterLoc);
+
+  loopStart := FBytecode.CurrentIP();
+  PushLoopContext(AForInOf.LabelName);
+
+  { Pushes the next value, or jumps past the loop when done. }
+  FBytecode.Emit(opLoadLoc, AIterLoc);
+  exitJump := FBytecode.Emit(opForOfNext, 0, AForInOf.Line);
+  AddBreakJump(exitJump, AForInOf.LabelName);
+
+  isBlockScoped := AForInOf.VarKind in [tkLet, tkConst];
+  if isBlockScoped then
+  begin
+    Inc(FEnvDepth);
+    FBytecode.Emit(opPushEnv);
+  end;
+
+  { A destructuring target consumes the value from the stack and binds every
+    name in the pattern. }
+  if AForInOf.Pattern <> nil then
+  begin
+    CompileDestructuring(AForInOf.Pattern, AForInOf.VarKind);
+    CompileStmt(AForInOf.Body);
+    if isBlockScoped then
+    begin
+      Dec(FEnvDepth);
+      FBytecode.Emit(opPopEnv);
+    end;
+
+    contTarget := FBytecode.CurrentIP();
+    FLoopStack[FLoopDepth - 1].ContinueTarget := contTarget;
+    for i := 0 to High(FLoopStack[FLoopDepth - 1].ContinueJumps) do
+      FBytecode.PatchJump(FLoopStack[FLoopDepth - 1].ContinueJumps[i], contTarget);
+    SetLength(FLoopStack[FLoopDepth - 1].ContinueJumps, 0);
+
+    FBytecode.Emit(opJump, loopStart);
+    PopLoopContext(FBytecode.CurrentIP());
+    Exit;
+  end;
+
+  nameIdx := FBytecode.AddStringConstant(AForInOf.VarName);
+  if AForInOf.VarKind = tkConst then
+    FBytecode.Emit(opDefineConst, nameIdx, AForInOf.Line)
+  else if AForInOf.VarKind = tkLet then
+    FBytecode.Emit(opDefineLet, nameIdx, AForInOf.Line)
+  else
+  begin
+    { The value is on the stack; store it and drop it. }
+    FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
+    FBytecode.Emit(opPop);
+  end;
+
+  CompileStmt(AForInOf.Body);
+
+  if isBlockScoped then
+  begin
+    Dec(FEnvDepth);
+    FBytecode.Emit(opPopEnv);
+  end;
+
+  contTarget := FBytecode.CurrentIP();
+  FLoopStack[FLoopDepth - 1].ContinueTarget := contTarget;
+  for i := 0 to High(FLoopStack[FLoopDepth - 1].ContinueJumps) do
+    FBytecode.PatchJump(FLoopStack[FLoopDepth - 1].ContinueJumps[i], contTarget);
+  SetLength(FLoopStack[FLoopDepth - 1].ContinueJumps, 0);
+
+  FBytecode.Emit(opJump, loopStart);
+  PopLoopContext(FBytecode.CurrentIP());
+end;
+
 procedure TFloriaJSCompiler.CompileForInOfStmt(AForInOf: TFloriaJSForInOfStmt);
 var
   i, iterLoc, idxLoc, lenLoc, varLoc, nameIdx: Integer;
@@ -2433,13 +2518,17 @@ begin
   idxLoc := FBytecode.AddNewLocal('$idx');
   lenLoc := FBytecode.AddNewLocal('$len');
 
+  { `for…of` walks the iteration protocol; `for…in` keeps the array-of-keys
+    shape below because it enumerates property names. }
+  if AForInOf.IsOf then
+  begin
+    CompileForOfStmt(AForInOf, iterLoc);
+    Exit;
+  end;
+
   // Evaluate iterable
   CompileExpr(AForInOf.Iterable);
-  if AForInOf.IsOf then
-    FBytecode.Emit(opForOfInit)
-  else
-    FBytecode.Emit(opForInInit);
-
+  FBytecode.Emit(opForInInit);
   FBytecode.Emit(opSetLoc, iterLoc);
 
   // Initialize index to 0

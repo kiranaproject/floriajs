@@ -19,7 +19,8 @@ unit floria.js.arrays;
 interface
 
 uses
-  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env;
+  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
+  floria.js.collections;
 
 procedure FloriaJSRegisterArray(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
 
@@ -779,11 +780,11 @@ end;
 function JSArrayFrom(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   heap: TFloriaJSHeap;
-  res, src: TFloriaJSArray;
+  res: TFloriaJSArray;
   source, mapFn, mapThis, item: TFloriaJSValue;
   i, len: Integer;
-  s: string;
   obj: TFloriaJSObject;
+  iter: TFloriaJSIterator;
 begin
   { Static methods are called through the Array object, whose heap owns the
     new array. }
@@ -803,17 +804,16 @@ begin
   mapThis := JSMakeUndefined();
   if Length(AArgs) > 2 then mapThis := AArgs[2];
 
-  if source.IsArray() then
+  { An iterator (including Map/Set) is consumed through the iteration protocol
+    first; plain array-likes keep using `length`. }
+  if JSGetIterator(heap, source, iter) then
   begin
-    src := source.AsArray();
-    for i := 0 to src.Length() - 1 do
-      res.Push(MaybeMap(heap, mapFn, mapThis, src.GetElement(i), i));
-  end
-  else if source.IsString() then
-  begin
-    s := source.StrVal;
-    for i := 1 to Length(s) do
-      res.Push(MaybeMap(heap, mapFn, mapThis, JSMakeString(Copy(s, i, 1)), i - 1));
+    i := 0;
+    while JSIteratorNext(iter, item) do
+    begin
+      res.Push(MaybeMap(heap, mapFn, mapThis, item, i));
+      Inc(i);
+    end;
   end
   else if source.IsObject() then
   begin

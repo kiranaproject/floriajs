@@ -462,6 +462,9 @@ type
     FIterable: TFloriaJSExprNode;
     FBody: TFloriaJSStmtNode;
     FLabel: string;
+    { A destructuring pattern, when the loop binds more than one name:
+      `for (const [k, v] of map)`. VarName is empty in that case. }
+    FPattern: TFloriaJSExprNode;
   public
     constructor Create(AVarKind: TFloriaJSTokenKind; const AVarName: string; AIsOf: Boolean; AIterable: TFloriaJSExprNode; ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
     destructor Destroy(); override;
@@ -470,6 +473,7 @@ type
 
     property VarKind: TFloriaJSTokenKind read FVarKind;
     property VarName: string read FVarName;
+    property Pattern: TFloriaJSExprNode read FPattern write FPattern;
     property IsOf: Boolean read FIsOf;
     property Iterable: TFloriaJSExprNode read FIterable;
     property Body: TFloriaJSStmtNode read FBody;
@@ -1561,12 +1565,14 @@ begin
   FIsOf := AIsOf;
   FIterable := AIterable;
   FBody := ABody;
+  FPattern := nil;
 end;
 
 destructor TFloriaJSForInOfStmt.Destroy();
 begin
   FreeAndNil(FIterable);
   FreeAndNil(FBody);
+  FreeAndNil(FPattern);
   inherited Destroy();
 end;
 

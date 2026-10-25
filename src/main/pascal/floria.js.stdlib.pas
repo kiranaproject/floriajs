@@ -599,6 +599,17 @@ begin
   mathObj.SetProperty('clz32', JSMakeFunction(AHeap.NewNativeFunction('clz32', @JSMathClz32)));
   AEnv.Define('Math', JSMakeObject(mathObj));
 
+  { Array iteration: `values` and `[Symbol.iterator]` both return an iterator
+    over the receiver, which is what `for…of` and spread consume. The symbol
+    stores under its string form, so that is the key. }
+  if AHeap.GetArrayPrototype() <> nil then
+  begin
+    AHeap.GetArrayPrototype().SetProperty('values',
+      JSMakeFunction(AHeap.NewNativeFunction('values', @JSArrayValues)));
+    AHeap.GetArrayPrototype().SetProperty('Symbol(Symbol.iterator)',
+      JSMakeFunction(AHeap.NewNativeFunction('[Symbol.iterator]', @JSArrayValues)));
+  end;
+
   // 3. Promise
   { `Promise` is a constructor: `new Promise(executor)` builds a promise and
     returns it, while the statics hang off the same function object. }

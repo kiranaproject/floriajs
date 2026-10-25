@@ -336,6 +336,9 @@ type
     procedure TestPromiseAwaitIntegration();
     procedure TestJSONStringifyParity();
     procedure TestJSONParseReviver();
+    procedure TestIteratorProtocol();
+    procedure TestForOfOverCollections();
+    procedure TestForOfDestructuring();
   end;
 
 { TFloriaJSTypesTest }
@@ -5700,7 +5703,10 @@ begin
       'm.set("x", 10); m.set("y", 20);' +
       'let sum = 0;' +
       'm.forEach((val, key) => { sum = sum + val; });' +
-      'sum === 30 && m.keys().length === 2 && m.values().length === 2;'
+      'let keys = 0, vals = 0;' +
+      'for (const k of m.keys()) { keys = keys + 1; }' +
+      'for (const v of m.values()) { vals = vals + v; }' +
+      'sum === 30 && keys === 2 && vals === 30;'
     );
     AssertTrue('Map forEach and keys/values iteration', res.BooleanValue);
   finally
@@ -5737,7 +5743,9 @@ begin
       's.add(1); s.add(2); s.add(3);' +
       'let total = 0;' +
       's.forEach((v) => { total = total + v; });' +
-      'total === 6 && s.values().length === 3;'
+      'let seen = 0;' +
+      'for (const v of s.values()) { seen = seen + 1; }' +
+      'total === 6 && seen === 3;'
     );
     AssertTrue('Set forEach iteration', res.BooleanValue);
   finally
@@ -6425,13 +6433,23 @@ begin
     );
     AssertTrue('[a] = {0:7, length:1} must throw TypeError', res.Success and res.BooleanValue);
 
-    // [a] = new Set([1]) throws TypeError (until P2-05 iterators)
+    // P2-05 added the iteration protocol, so a Set can now be destructured.
+    res := engine.Execute('var a; [a] = new Set([1]); a;');
+    AssertTrue('[a] = new Set([1]) succeeds', res.Success);
+    AssertEquals('a Set destructures through its iterator', '1', res.StringValue);
+
+    // A Map entry destructures to its [key, value] pair.
+    res := engine.Execute('var a; [a] = new Map([[1, 2]]); a[0] + ":" + a[1];');
+    AssertTrue('[a] = new Map(...) succeeds', res.Success);
+    AssertEquals('a Map entry destructures to a pair', '1:2', res.StringValue);
+
+    // A non-iterable is still rejected.
     res := engine.Execute(
       'var caught = "";' +
-      'try { var a; [a] = new Set([1]); } catch (e) { caught = e.name; }' +
+      'try { var b; [b] = 5; } catch (e) { caught = e.name; }' +
       'caught === "TypeError";'
     );
-    AssertTrue('[a] = new Set([1]) must throw TypeError without iterator support', res.Success and res.BooleanValue);
+    AssertTrue('[b] = 5 must throw TypeError', res.Success and res.BooleanValue);
 
     // [x, y] = "ab" assigns x="a", y="b"
     res := engine.Execute(
@@ -8107,6 +8125,164 @@ begin
     res := engine.Execute('JSON.parse(''{"a": 1}'').a;');
     AssertTrue('parse without reviver', res.Success);
     AssertEquals('no reviver leaves the value alone', '1', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestIteratorProtocol();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Arrays expose Symbol.iterator and values(), both returning an iterator.
+    res := engine.Execute('typeof [1, 2][Symbol.iterator];');
+    AssertTrue('arrays have Symbol.iterator', res.Success);
+    AssertEquals('Symbol.iterator is a function', 'function', res.StringValue);
+
+    res := engine.Execute('typeof [1, 2].values().next;');
+    AssertTrue('values() returns an iterator', res.Success);
+    AssertEquals('the iterator has next()', 'function', res.StringValue);
+
+    // next() yields {value, done}.
+    res := engine.Execute('var it = [7, 8].values(); it.next().value;');
+    AssertTrue('first step', res.Success);
+    AssertEquals('the first value', '7', res.StringValue);
+
+    res := engine.Execute('var it = [7, 8].values(); it.next(); it.next().value;');
+    AssertTrue('second step', res.Success);
+    AssertEquals('the second value', '8', res.StringValue);
+
+    res := engine.Execute('var it = [1].values(); it.next(); it.next().done;');
+    AssertTrue('exhausted', res.Success);
+    AssertEquals('done is true when exhausted', 'true', res.StringValue);
+
+    res := engine.Execute('var it = [].values(); it.next().done;');
+    AssertTrue('empty iterator', res.Success);
+    AssertEquals('an empty iterator is done immediately', 'true', res.StringValue);
+
+    // An iterator is itself iterable.
+    res := engine.Execute('var it = [1, 2].values(); typeof it[Symbol.iterator];');
+    AssertTrue('iterators are iterable', res.Success);
+    AssertEquals('an iterator has Symbol.iterator', 'function', res.StringValue);
+
+    res := engine.Execute('var r = ""; for (var x of [1, 2].values()) { r += x; } r;');
+    AssertTrue('for-of over an iterator', res.Success);
+    AssertEquals('an iterator can be iterated directly', '12', res.StringValue);
+
+    // Collection helpers return iterators, not arrays.
+    res := engine.Execute('Array.isArray(new Map([[1, 2]]).keys());');
+    AssertTrue('Map keys()', res.Success);
+    AssertEquals('Map keys() is not an array', 'false', res.StringValue);
+
+    res := engine.Execute('var it = new Map([[1, "a"]]).entries(); it.next().value[1];');
+    AssertTrue('Map entries()', res.Success);
+    AssertEquals('entries() yields a pair', 'a', res.StringValue);
+
+    res := engine.Execute('var it = new Set([5]).keys(); it.next().value;');
+    AssertTrue('Set keys()', res.Success);
+    AssertEquals('Set keys() yields the value', '5', res.StringValue);
+
+    // Set entries() yields [value, value].
+    res := engine.Execute('var e = new Set([5]).entries().next().value; e[0] + ":" + e[1];');
+    AssertTrue('Set entries()', res.Success);
+    AssertEquals('Set entries duplicates the value', '5:5', res.StringValue);
+
+    // Array.from and spread consume iterators.
+    res := engine.Execute('Array.from(new Set([1, 2])).join(",");');
+    AssertTrue('Array.from over a Set', res.Success);
+    AssertEquals('Array.from consumes the iterator', '1,2', res.StringValue);
+
+    res := engine.Execute('[...new Map([[1, 2]]).keys()].join(",");');
+    AssertTrue('spread over an iterator', res.Success);
+    AssertEquals('spread consumes the iterator', '1', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestForOfOverCollections();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Map and Set used to throw TypeError; they are now iterable directly.
+    res := engine.Execute('var r = ""; for (var v of new Set([1, 2, 3])) { r += v; } r;');
+    AssertTrue('for-of over a Set', res.Success);
+    AssertEquals('a Set iterates its values', '123', res.StringValue);
+
+    res := engine.Execute(
+      'var r = "";' +
+      'for (var pair of new Map([[1, "a"], [2, "b"]])) { r += pair[0] + pair[1]; }' +
+      'r;'
+    );
+    AssertTrue('for-of over a Map', res.Success);
+    AssertEquals('a Map iterates [key, value] pairs', '1a2b', res.StringValue);
+
+    // Arrays and strings still iterate, and in order.
+    res := engine.Execute('var r = ""; for (var x of [3, 1, 2]) { r += x; } r;');
+    AssertTrue('for-of over an array', res.Success);
+    AssertEquals('an array iterates in index order', '312', res.StringValue);
+
+    res := engine.Execute('var r = ""; for (var c of "abc") { r += c; } r;');
+    AssertTrue('for-of over a string', res.Success);
+    AssertEquals('a string iterates by character', 'abc', res.StringValue);
+
+    // break and continue still work with the iterator loop.
+    res := engine.Execute('var r = ""; for (var x of [1, 2, 3]) { if (x === 2) break; r += x; } r;');
+    AssertTrue('break in for-of', res.Success);
+    AssertEquals('break stops the loop', '1', res.StringValue);
+
+    res := engine.Execute('var r = ""; for (var x of [1, 2, 3]) { if (x === 2) continue; r += x; } r;');
+    AssertTrue('continue in for-of', res.Success);
+    AssertEquals('continue skips one iteration', '13', res.StringValue);
+
+    // A non-iterable still throws.
+    res := engine.Execute('for (var x of 5) { }');
+    AssertFalse('non-iterable is rejected', res.Success);
+    AssertTrue('non-iterable is a TypeError', Pos('not iterable', res.ErrorMessage) > 0);
+
+    res := engine.Execute('for (var x of null) { }');
+    AssertFalse('null is not iterable', res.Success);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestForOfDestructuring();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var r = "";' +
+      'for (const [k, v] of new Map([[1, "a"], [2, "b"]])) { r += k + v; }' +
+      'r;'
+    );
+    AssertTrue('destructuring a Map in for-of', res.Success);
+    AssertEquals('keys and values are bound', '1a2b', res.StringValue);
+
+    res := engine.Execute(
+      'var r = ""; for (var [a, b] of [[1, 2], [3, 4]]) { r += a + b; } r;'
+    );
+    AssertTrue('destructuring an array of arrays', res.Success);
+    AssertEquals('both elements are bound', '37', res.StringValue);
+
+    res := engine.Execute(
+      'var r = ""; for (var [a, b, c] of [[1, 2, 3]]) { r += a + b + c; } r;'
+    );
+    AssertTrue('three-element pattern', res.Success);
+    AssertEquals('three names are bound', '6', res.StringValue);
+
+    // A Set of primitives cannot be destructured, as in ECMAScript.
+    res := engine.Execute('for (var [x] of new Set([9])) { }');
+    AssertFalse('destructuring a primitive element is rejected', res.Success);
   finally
     engine.Free();
   end;

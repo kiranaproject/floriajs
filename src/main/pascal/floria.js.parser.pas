@@ -1389,6 +1389,8 @@ var
   isOf: Boolean;
   varStmt: TFloriaJSVarStmt;
   declInit: TFloriaJSExprNode;
+  pattern: TFloriaJSExprNode;
+  forInOf: TFloriaJSForInOfStmt;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -1396,10 +1398,35 @@ begin
   Consume(tkLParen, 'Expected ''('' after ''for''');
 
   // 1. Check for 'var', 'let', 'const'
-  if (FCurrent.Kind in [tkVar, tkLet, tkConst]) and (FLexer.PeekToken().Kind = tkIdentifier) then
+  if (FCurrent.Kind in [tkVar, tkLet, tkConst]) and
+     (FLexer.PeekToken().Kind in [tkIdentifier, tkLBracket, tkLBrace]) then
   begin
     varKind := FCurrent.Kind;
     Advance(); // consume var / let / const
+
+    { A destructuring target: `for (const [k, v] of map)`. The pattern is parsed
+      as an expression and bound by the compiler. }
+    if FCurrent.Kind in [tkLBracket, tkLBrace] then
+    begin
+      pattern := ParsePrimary();
+      if (FCurrent.Kind = tkIn) or (FCurrent.Kind = tkOf) then
+      begin
+        isOf := (FCurrent.Kind = tkOf);
+        Advance();
+        iterable := ParseExpression();
+        Consume(tkRParen, 'Expected '')'' after for loop iterable');
+        body := ParseStatement();
+        forInOf := TFloriaJSForInOfStmt.Create(varKind, '', isOf, iterable, body, startLine, startCol);
+        forInOf.Pattern := pattern;
+        Exit(forInOf);
+      end;
+      { Not a for-in/of target after all: report it rather than mis-parsing. }
+      ErrorAtCurrent('Expected ''in'' or ''of'' after destructuring target');
+      pattern.Free();
+      Exit(TFloriaJSForInOfStmt.Create(varKind, '', False,
+        TFloriaJSLiteralExpr.CreateUndefined(startLine, startCol), nil, startLine, startCol));
+    end;
+
     Advance(); // consume identifier
     varName := FPrevious.Text;
 

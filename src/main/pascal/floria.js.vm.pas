@@ -18,7 +18,7 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value,
-  floria.js.env, floria.js.bytecode;
+  floria.js.env, floria.js.bytecode, floria.js.collections;
 
 type
   { Call Stack Frame }
@@ -499,7 +499,7 @@ var
   curFrame: ^TFloriaJSCallFrame;
   inst: TFloriaJSInstruction;
   a, b, val, retVal, propVal, objVal, calleeVal, thisVal, resVal: TFloriaJSValue;
-  propName, varName, iterStr, propKeyStr, pName, restName: string;
+  propName, varName, propKeyStr, pName, restName: string;
   argc, i, j, callBaseBP, asyncInitialFP: Integer;
   args: array of TFloriaJSValue;
   fn: TFloriaJSFunction;
@@ -509,6 +509,7 @@ var
   fnObj, protoObj, currObj: TFloriaJSObject;
   keysList: TStringList;
   promise: TFloriaJSPromise;
+  iterObj: TFloriaJSIterator;
   targetIP: Integer;
 begin
   while FFP > AInitialFP do
@@ -756,20 +757,11 @@ begin
             if objVal.IsNull() or objVal.IsUndefined() then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
 
-            arrObj := FHeap.NewArray();
-            if objVal.IsArray() then
-            begin
-              for i := 0 to objVal.AsArray().Length() - 1 do
-                arrObj.Push(objVal.AsArray().GetElement(i));
-            end
-            else if objVal.IsString() then
-            begin
-              iterStr := objVal.StrVal;
-              for i := 1 to Length(iterStr) do
-                arrObj.Push(JSMakeString(iterStr[i]));
-            end
-            else
+            { The source is consumed through the iteration protocol, so Map,
+              Set, and iterator objects spread as well as arrays and strings. }
+            if not JSGetIterator(FHeap, objVal, iterObj) then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
+            arrObj := JSIteratorToArray(iterObj);
 
             Push(JSMakeArray(arrObj));
           end;
@@ -1486,34 +1478,56 @@ begin
 
         opForOfInit:
           begin
+            { The iterable is wrapped in an iterator object rather than copied
+              into a temporary array, so the source is walked lazily and Map/Set
+              (which have no `length`) can be iterated at all. }
             objVal := Pop();
             if objVal.IsNull() or objVal.IsUndefined() then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not iterable')));
 
-            arrObj := FHeap.NewArray();
-            if objVal.IsArray() then
+            if not JSGetIterator(FHeap, objVal, iterObj) then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
+            Push(JSMakeObject(iterObj));
+          end;
+
+        opForOfNext:
+          begin
+            { Pop the iterator, push the next value, or jump past the loop when
+              the iterator is exhausted. The value is pushed as the loop binding. }
+            objVal := Peek();
+            if objVal.IsObject() and (objVal.ObjVal is TFloriaJSIterator) then
             begin
-              for i := 0 to objVal.AsArray().Length - 1 do
-                arrObj.Push(objVal.AsArray().GetElement(i));
-            end
-            else if objVal.IsString() then
-            begin
-              iterStr := objVal.StrVal;
-              for i := 1 to Length(iterStr) do
-                arrObj.Push(JSMakeString(iterStr[i]));
+              if JSIteratorNext(TFloriaJSIterator(objVal.ObjVal), val) then
+                Push(val)
+              else
+              begin
+                Pop();
+                curFrame^.IP := inst.Imm;
+              end;
             end
             else
-              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
-            Push(JSMakeObject(arrObj));
+            begin
+              Pop();
+              curFrame^.IP := inst.Imm;
+            end;
           end;
 
         opAssertIterable:
           begin
+            { Destructuring consumes an iterable. Anything the protocol accepts
+              is materialised into an array here, which both validates the value
+              and gives the index-based unpacking below a uniform source (Map
+              and Set have no `length`). }
             objVal := Peek();
             if objVal.IsNull() or objVal.IsUndefined() then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Cannot destructure non-iterable: value is null or undefined')));
             if not (objVal.IsArray() or objVal.IsString()) then
-              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
+            begin
+              if not JSGetIterator(FHeap, objVal, iterObj) then
+                raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
+              Pop();
+              Push(JSMakeArray(JSIteratorToArray(iterObj)));
+            end;
           end;
 
         opHalt:

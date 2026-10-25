@@ -134,7 +134,8 @@ type
 
     // Iteration Helpers
     opForInInit,         // Pop obj -> Push array of enumerable keys
-    opForOfInit,         // Pop iterable -> Push array of items
+    opForOfInit,         // Pop iterable -> push iterator
+    opForOfNext,         // Peek iterator; push next value, or jump to Imm when done
     opAssertIterable,    // Peek iterable -> throw TypeError if not array/string
 
     // Loop & VM Control
@@ -313,6 +314,7 @@ begin
     opPopTry:           Result := 'POP_TRY';
     opForInInit:        Result := 'FOR_IN_INIT';
     opForOfInit:        Result := 'FOR_OF_INIT';
+    opForOfNext:        Result := 'FOR_OF_NEXT';
     opAssertIterable:   Result := 'ASSERT_ITERABLE';
     opHalt:             Result := 'HALT';
   else
