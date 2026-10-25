@@ -69,6 +69,7 @@ type
     procedure CompileObjectExpr(AObj: TFloriaJSObjectExpr);
     procedure CompileArrayExpr(AArr: TFloriaJSArrayExpr);
     procedure CompileFunctionExpr(AFunc: TFloriaJSFunctionExpr);
+    procedure CompileClassExpr(ACls: TFloriaJSClassNode);
 
     procedure CompileVarStmt(AVar: TFloriaJSVarStmt);
     procedure CompileDestructuring(APattern: TFloriaJSExprNode; AKind: TFloriaJSTokenKind = tkVar);
@@ -403,8 +404,13 @@ begin
   inherited Create();
   FParent := AParent;
   FKind := AKind;
+  { JavaScript identifiers are case-sensitive, so `A` and `a` are different
+    names. TStringList defaults to case-insensitive matching, which made
+    `let A = 1; var a = 2;` a spurious redeclaration error. }
   FLexicalNames := TStringList.Create();
+  FLexicalNames.CaseSensitive := True;
   FAllSubtreeVars := TStringList.Create();
+  FAllSubtreeVars.CaseSensitive := True;
   FParamNames := AParamNames;
   FCatchParam := ACatchParam;
 end;
@@ -514,6 +520,7 @@ begin
   begin
     varStmt := TFloriaJSVarStmt(AStmt);
     declNames := TStringList.Create();
+    declNames.CaseSensitive := True;
     try
       for j := 0 to varStmt.GetDeclaratorCount() - 1 do
       begin
@@ -665,6 +672,7 @@ begin
   end;
 
   fnNames := TStringList.Create();
+  fnNames.CaseSensitive := True;
   try
     for i := 0 to count - 1 do
       if AProgram.GetStatement(i) is TFloriaJSFunctionDecl then
@@ -904,6 +912,8 @@ begin
     CompileArrayExpr(TFloriaJSArrayExpr(AExpr))
   else if AExpr is TFloriaJSFunctionExpr then
     CompileFunctionExpr(TFloriaJSFunctionExpr(AExpr))
+  else if AExpr is TFloriaJSClassNode then
+    CompileClassExpr(TFloriaJSClassNode(AExpr))
   else if AExpr is TFloriaJSSpreadExpr then
     CompileExpr(TFloriaJSSpreadExpr(AExpr).Expression)
   else if AExpr is TFloriaJSGroupExpr then
@@ -1612,6 +1622,14 @@ begin
   begin
     CompileExpr(ACall.Callee);
   end
+  else if (ACall.Callee is TFloriaJSIdentifierExpr) and
+          (TFloriaJSIdentifierExpr(ACall.Callee).Name = 'super') then
+  begin
+    { `super(...)` runs the base constructor with the *current* receiver, so
+      the base initialises the same object rather than a new one. }
+    CompileExpr(ACall.Callee);
+    CompileIdentifierExpr(TFloriaJSIdentifierExpr.Create('this', ACall.Line, ACall.Column));
+  end
   else
   begin
     CompileExpr(ACall.Callee);
@@ -1976,6 +1994,169 @@ begin
         CompileDestructuring(paramObj);
     end;
   end;
+end;
+
+
+{ `class Name [extends Base] { ... }`
+
+  Lowered to an ordinary constructor function plus prototype wiring, which is
+  exactly what ECMAScript's class semantics are defined in terms of:
+
+    - The constructor function is the class. Without a `constructor` method an
+      implicit one forwards to the base (or does nothing).
+    - Instance methods are installed on `Name.prototype` as **non-enumerable**
+      properties, so `for…in` and `Object.keys` skip them.
+    - `static` members are installed on the function itself.
+    - `extends Base` sets `Name.prototype`'s prototype to `Base.prototype` and
+      the function's own prototype to `Base`, which is what makes `instanceof`
+      work for both the instance and the class.
+
+  `super` is bound as a hidden local: the base constructor inside the derived
+  constructor, and the base prototype inside instance methods. `super(...)` then
+  compiles as an ordinary call through it. }
+procedure TFloriaJSCompiler.CompileClassExpr(ACls: TFloriaJSClassNode);
+var
+  i, clsLoc, protoLoc, superLoc, nameIdx, memberCount: Integer;
+  member: TFloriaJSClassMember;
+  ctorFn: TFloriaJSFunctionExpr;
+  isDerived: Boolean;
+begin
+  memberCount := ACls.GetMemberCount();
+  isDerived := ACls.SuperClass <> nil;
+
+  { `super` is an ordinary name in this runtime, resolved through the
+    environment chain like `this`. Each member is compiled inside a scope that
+    binds it — to the base constructor in a constructor (so `super(...)` is a
+    plain call) and to the base prototype in a method (so `super.m()` is a
+    plain method call on that prototype). The closure captures the binding. }
+  clsLoc := FBytecode.AddNewLocal('$class');
+  protoLoc := FBytecode.AddNewLocal('$proto');
+  superLoc := FBytecode.AddNewLocal('$super');
+
+  { 1. Bind the base. }
+  if isDerived then
+  begin
+    CompileExpr(ACls.SuperClass);
+    FBytecode.Emit(opSetLoc, superLoc);
+  end
+  else
+  begin
+    FBytecode.Emit(opUndefined);
+    FBytecode.Emit(opSetLoc, superLoc);
+  end;
+
+  { 2. The prototype object. It is always a *fresh* object; for a derived class
+        its prototype is the base prototype. Sharing the base object instead
+        would overwrite the base's methods. }
+  FBytecode.Emit(opNewObject);
+  if isDerived then
+  begin
+    FBytecode.Emit(opDup);
+    FBytecode.Emit(opLoadLoc, superLoc);
+    FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('prototype'));
+    FBytecode.Emit(opSetProto, 0, ACls.Line);
+  end;
+  FBytecode.Emit(opSetLoc, protoLoc);
+
+  { 3. The constructor. A derived class without an explicit one forwards its
+        arguments to the base, which is what an implicit
+        `constructor(...args) { super(...args) }` does. }
+  ctorFn := nil;
+  for i := 0 to memberCount - 1 do
+  begin
+    member := ACls.GetMember(i);
+    if (not member.IsStatic) and (member.Name = 'constructor') and
+       (member.Kind = fjcmMethod) then
+      ctorFn := member.Function_;
+  end;
+
+  { Compile the constructor inside a scope binding `super` to the base
+    constructor, or to undefined for a base class. }
+  FBytecode.Emit(opPushEnv);
+  if isDerived then
+    FBytecode.Emit(opLoadLoc, superLoc)
+  else
+    FBytecode.Emit(opUndefined);
+  FBytecode.Emit(opDefineEnv, FBytecode.AddStringConstant('super'), ACls.Line);
+
+  if ctorFn = nil then
+  begin
+    ctorFn := TFloriaJSFunctionExpr.Create(ACls.Name, False, ACls.Line, ACls.Column);
+    try
+      ctorFn.SetBody(TFloriaJSBlockStmt.Create(ACls.Line, ACls.Column));
+      CompileFunctionExpr(ctorFn);
+    finally
+      ctorFn.Free();
+    end;
+  end
+  else
+    CompileFunctionExpr(ctorFn);
+  FBytecode.Emit(opSetLoc, clsLoc);
+  FBytecode.Emit(opPopEnv);
+
+  { 4. Link the class to its prototype and, for a derived class, to the base
+        function so statics are inherited too. Both are non-enumerable. The
+        class name is installed as `name`, which is what `A.name` reads. }
+  FBytecode.Emit(opLoadLoc, clsLoc);
+  FBytecode.Emit(opLoadLoc, protoLoc);
+  FBytecode.Emit(opDefineHidden, FBytecode.AddStringConstant('prototype'), ACls.Line);
+
+  if ACls.Name <> '' then
+  begin
+    FBytecode.Emit(opLoadLoc, clsLoc);
+    FBytecode.Emit(opConst, FBytecode.AddStringConstant(ACls.Name));
+    FBytecode.Emit(opDefineHidden, FBytecode.AddStringConstant('name'), ACls.Line);
+  end;
+
+  if isDerived then
+  begin
+    FBytecode.Emit(opLoadLoc, clsLoc);
+    FBytecode.Emit(opLoadLoc, superLoc);
+    FBytecode.Emit(opSetProto, 0, ACls.Line);
+  end;
+
+  { 5. Install the remaining members as non-enumerable properties, each inside
+        a scope that binds `super` appropriately. }
+  for i := 0 to memberCount - 1 do
+  begin
+    member := ACls.GetMember(i);
+    if (not member.IsStatic) and (member.Name = 'constructor') and
+       (member.Kind = fjcmMethod) then
+      Continue;
+
+    FBytecode.Emit(opPushEnv);
+    if isDerived then
+    begin
+      if member.IsStatic then
+        { A static method's `super` is the base class itself. }
+        FBytecode.Emit(opLoadLoc, superLoc)
+      else
+      begin
+        FBytecode.Emit(opLoadLoc, superLoc);
+        FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('prototype'));
+      end;
+    end
+    else
+      FBytecode.Emit(opUndefined);
+    FBytecode.Emit(opDefineEnv, FBytecode.AddStringConstant('super'), member.Line);
+
+    if member.IsStatic then
+      FBytecode.Emit(opLoadLoc, clsLoc)
+    else
+      FBytecode.Emit(opLoadLoc, protoLoc);
+    CompileFunctionExpr(member.Function_);
+    nameIdx := FBytecode.AddStringConstant(member.Name);
+    { A getter/setter installs an accessor; a method installs a data property. }
+    case member.Kind of
+      fjcmGetter: FBytecode.Emit(opDefineGetterHidden, nameIdx, member.Line);
+      fjcmSetter: FBytecode.Emit(opDefineSetterHidden, nameIdx, member.Line);
+    else
+      FBytecode.Emit(opDefineHidden, nameIdx, member.Line);
+    end;
+    FBytecode.Emit(opPopEnv);
+  end;
+
+  FBytecode.Emit(opLoadLoc, clsLoc);
 end;
 
 procedure TFloriaJSCompiler.CompileFunctionExpr(AFunc: TFloriaJSFunctionExpr);

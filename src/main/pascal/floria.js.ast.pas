@@ -554,6 +554,59 @@ type
     property Expression: TFloriaJSExprNode read FExpression;
   end;
 
+  { One member of a class body. }
+  TFloriaJSClassMemberKind = (fjcmMethod, fjcmGetter, fjcmSetter, fjcmField);
+
+  TFloriaJSClassMember = class
+  private
+    FName: string;
+    FKind: TFloriaJSClassMemberKind;
+    FIsStatic: Boolean;
+    FComputed: Boolean;
+    FNameExpr: TFloriaJSExprNode;
+    FFunction: TFloriaJSFunctionExpr;
+    FInitializer: TFloriaJSExprNode;
+    FLine: Integer;
+    FColumn: Integer;
+  public
+    constructor Create(const AName: string; AKind: TFloriaJSClassMemberKind;
+      AIsStatic: Boolean; AFunc: TFloriaJSFunctionExpr; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    property Name: string read FName;
+    property Kind: TFloriaJSClassMemberKind read FKind;
+    property IsStatic: Boolean read FIsStatic;
+    property Computed: Boolean read FComputed write FComputed;
+    property NameExpr: TFloriaJSExprNode read FNameExpr write FNameExpr;
+    property Function_: TFloriaJSFunctionExpr read FFunction;
+    property Initializer: TFloriaJSExprNode read FInitializer write FInitializer;
+    property Line: Integer read FLine write FLine;
+    property Column: Integer read FColumn write FColumn;
+  end;
+
+  { Class declaration or expression: class Name extends Base { ... } }
+  TFloriaJSClassNode = class(TFloriaJSExprNode)
+  private
+    FName: string;
+    FSuperClass: TFloriaJSExprNode;
+    FMembers: TList;
+    FIsDeclaration: Boolean;
+  public
+    constructor Create(const AName: string; ASuperClass: TFloriaJSExprNode;
+      ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddMember(AMember: TFloriaJSClassMember);
+    function  GetMemberCount(): Integer;
+    function  GetMember(AIndex: Integer): TFloriaJSClassMember;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Name: string read FName;
+    property SuperClass: TFloriaJSExprNode read FSuperClass;
+    property IsDeclaration: Boolean read FIsDeclaration write FIsDeclaration;
+  end;
+
   { Debugger Statement: debugger;
     A no-op marker. Recognising it as a statement keeps the undeclared-read
     check from turning it into a ReferenceError. }
@@ -725,6 +778,7 @@ type
     procedure VisitTryStmt(ANode: TFloriaJSTryStmt);
     procedure VisitThrowStmt(ANode: TFloriaJSThrowStmt);
     procedure VisitDebuggerStmt(ANode: TFloriaJSDebuggerStmt);
+    procedure VisitClass(ANode: TFloriaJSClassNode);
     procedure VisitBreakStmt(ANode: TFloriaJSBreakStmt);
     procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
     procedure VisitLabeledStmt(ANode: TFloriaJSLabeledStmt);
@@ -1737,6 +1791,76 @@ end;
 procedure TFloriaJSThrowStmt.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
   if AVisitor <> nil then AVisitor.VisitThrowStmt(Self);
+end;
+
+
+{ TFloriaJSClassMember }
+
+constructor TFloriaJSClassMember.Create(const AName: string;
+  AKind: TFloriaJSClassMemberKind; AIsStatic: Boolean;
+  AFunc: TFloriaJSFunctionExpr; ALine, ACol: Integer);
+begin
+  inherited Create();
+  FName := AName;
+  FKind := AKind;
+  FIsStatic := AIsStatic;
+  FFunction := AFunc;
+  FComputed := False;
+  FNameExpr := nil;
+  FInitializer := nil;
+  FLine := ALine;
+  FColumn := ACol;
+end;
+
+destructor TFloriaJSClassMember.Destroy();
+begin
+  FreeAndNil(FFunction);
+  FreeAndNil(FNameExpr);
+  FreeAndNil(FInitializer);
+  inherited Destroy();
+end;
+
+{ TFloriaJSClassNode }
+
+constructor TFloriaJSClassNode.Create(const AName: string;
+  ASuperClass: TFloriaJSExprNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FName := AName;
+  FSuperClass := ASuperClass;
+  FMembers := TList.Create();
+  FIsDeclaration := False;
+end;
+
+destructor TFloriaJSClassNode.Destroy();
+var
+  i: Integer;
+begin
+  for i := 0 to FMembers.Count - 1 do
+    TFloriaJSClassMember(FMembers[i]).Free();
+  FreeAndNil(FMembers);
+  FreeAndNil(FSuperClass);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSClassNode.AddMember(AMember: TFloriaJSClassMember);
+begin
+  FMembers.Add(AMember);
+end;
+
+function TFloriaJSClassNode.GetMemberCount(): Integer;
+begin
+  Result := FMembers.Count;
+end;
+
+function TFloriaJSClassNode.GetMember(AIndex: Integer): TFloriaJSClassMember;
+begin
+  Result := TFloriaJSClassMember(FMembers[AIndex]);
+end;
+
+procedure TFloriaJSClassNode.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitClass(Self);
 end;
 
 { TFloriaJSDebuggerStmt }

@@ -73,6 +73,10 @@ type
     tkDebugger,
     tkVoid,
     tkWith,
+    tkClass,
+    tkExtends,
+    tkSuper,
+    tkStatic,
 
     { Delimiters }
     tkLParen,         // (
@@ -231,6 +235,10 @@ begin
     'debugger':   Result := tkDebugger;
     'void':       Result := tkVoid;
     'with':       Result := tkWith;
+    'class':      Result := tkClass;
+    'extends':    Result := tkExtends;
+    'super':      Result := tkSuper;
+    'static':     Result := tkStatic;
   else
     Result := tkIdentifier;
   end;
@@ -1064,6 +1072,10 @@ begin
     tkDebugger:       Result := 'debugger';
     tkVoid:           Result := 'void';
     tkWith:           Result := 'with';
+    tkClass:          Result := 'class';
+    tkExtends:        Result := 'extends';
+    tkSuper:          Result := 'super';
+    tkStatic:         Result := 'static';
     tkLParen:         Result := '(';
     tkRParen:         Result := ')';
     tkLBrace:         Result := '{';

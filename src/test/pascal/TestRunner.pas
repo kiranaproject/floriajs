@@ -339,6 +339,10 @@ type
     procedure TestIteratorProtocol();
     procedure TestForOfOverCollections();
     procedure TestForOfDestructuring();
+    procedure TestClassBasics();
+    procedure TestClassInheritance();
+    procedure TestClassSuper();
+    procedure TestClassMemberEnumerability();
   end;
 
 { TFloriaJSTypesTest }
@@ -8283,6 +8287,226 @@ begin
     // A Set of primitives cannot be destructured, as in ECMAScript.
     res := engine.Execute('for (var [x] of new Set([9])) { }');
     AssertFalse('destructuring a primitive element is rejected', res.Success);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestClassBasics();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // A class is a constructor function.
+    res := engine.Execute('class A {} typeof A;');
+    AssertTrue('class declaration', res.Success);
+    AssertEquals('a class is a function', 'function', res.StringValue);
+
+    res := engine.Execute('class A {} A.name;');
+    AssertTrue('class name', res.Success);
+    AssertEquals('the class name is set', 'A', res.StringValue);
+
+    res := engine.Execute('class A {} new A() instanceof A;');
+    AssertTrue('instanceof own class', res.Success and res.BooleanValue);
+
+    // The constructor runs on construction.
+    res := engine.Execute('class A { constructor(x) { this.x = x; } } new A(5).x;');
+    AssertTrue('constructor runs', res.Success);
+    AssertEquals('constructor sets a field', '5', res.StringValue);
+
+    // An implicit constructor leaves the instance empty but constructable.
+    res := engine.Execute('class A {} typeof new A();');
+    AssertTrue('implicit constructor', res.Success);
+    AssertEquals('an instance is an object', 'object', res.StringValue);
+
+    // Methods live on the prototype and are shared.
+    res := engine.Execute('class A { m() { return 5; } } new A().m();');
+    AssertTrue('method call', res.Success);
+    AssertEquals('a method returns its value', '5', res.StringValue);
+
+    res := engine.Execute('class A { m() { return 1; } } A.prototype.m === new A().m;');
+    AssertTrue('methods are on the prototype', res.Success and res.BooleanValue);
+
+    // Methods are not own properties of the instance.
+    res := engine.Execute('class A { m() { return 1; } } new A().hasOwnProperty("m");');
+    AssertTrue('method ownership', res.Success);
+    AssertEquals('a method is not an own property', 'false', res.StringValue);
+
+    // Static members live on the class.
+    res := engine.Execute('class A { static s() { return 9; } } A.s();');
+    AssertTrue('static method', res.Success);
+    AssertEquals('a static method is called on the class', '9', res.StringValue);
+
+    res := engine.Execute('class A { static s() { return 9; } } new A().s;');
+    AssertTrue('statics are not on instances', res.Success);
+    AssertEquals('an instance does not see statics', 'undefined', res.StringValue);
+
+    // A class expression assigns like any expression.
+    res := engine.Execute('var B = class { m() { return 2; } }; new B().m();');
+    AssertTrue('class expression', res.Success);
+    AssertEquals('a class expression is constructable', '2', res.StringValue);
+
+    // Accessors.
+    res := engine.Execute('class A { get v() { return 42; } } new A().v;');
+    AssertTrue('getter', res.Success);
+    AssertEquals('a getter is read as a property', '42', res.StringValue);
+
+    res := engine.Execute(
+      'class A { get v() { return this._v; } set v(x) { this._v = x * 2; } }' +
+      'var a = new A(); a.v = 3; a.v;'
+    );
+    AssertTrue('setter', res.Success);
+    AssertEquals('a setter runs on assignment', '6', res.StringValue);
+
+    // Methods can be chained through `this`.
+    res := engine.Execute(
+      'class A { constructor() { this.n = 0; } inc() { this.n = this.n + 1; return this; } }' +
+      'new A().inc().inc().n;'
+    );
+    AssertTrue('this in methods', res.Success);
+    AssertEquals('methods chain through this', '2', res.StringValue);
+
+    // Class fields are rejected rather than silently ignored.
+    res := engine.Execute('class A { x = 1; }');
+    AssertFalse('class fields are rejected', res.Success);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestClassInheritance();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('class A {} class B extends A {} (new B()) instanceof A;');
+    AssertTrue('instanceof base', res.Success and res.BooleanValue);
+
+    res := engine.Execute('class A {} class B extends A {} (new B()) instanceof B;');
+    AssertTrue('instanceof derived', res.Success and res.BooleanValue);
+
+    res := engine.Execute('class A {} class B extends A {} (new A()) instanceof B;');
+    AssertTrue('base is not an instance of derived', res.Success);
+    AssertEquals('the relation is one-way', 'false', res.StringValue);
+
+    // Inherited methods resolve through the chain.
+    res := engine.Execute('class A { m() { return 1; } } class B extends A {} new B().m();');
+    AssertTrue('inherited method', res.Success);
+    AssertEquals('a derived class inherits methods', '1', res.StringValue);
+
+    // Overriding replaces the method without touching the base.
+    res := engine.Execute(
+      'class A { m() { return 1; } }' +
+      'class B extends A { m() { return 2; } }' +
+      'new A().m() + ":" + new B().m();'
+    );
+    AssertTrue('override', res.Success);
+    AssertEquals('an override leaves the base alone', '1:2', res.StringValue);
+
+    // Statics are inherited through the function prototype chain.
+    res := engine.Execute('class A { static s() { return 9; } } class B extends A {} B.s();');
+    AssertTrue('static inheritance', res.Success);
+    AssertEquals('statics are inherited', '9', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestClassSuper();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // super(...) runs the base constructor against the same receiver.
+    res := engine.Execute(
+      'class A { constructor() { this.x = 1; } }' +
+      'class B extends A { constructor() { super(); } }' +
+      'new B().x;'
+    );
+    AssertTrue('super() runs the base constructor', res.Success);
+    AssertEquals('the base initialises the instance', '1', res.StringValue);
+
+    res := engine.Execute(
+      'class A { constructor(x) { this.x = x; } }' +
+      'class B extends A { constructor(x) { super(x); } }' +
+      'new B(7).x;'
+    );
+    AssertTrue('super(args)', res.Success);
+    AssertEquals('arguments are forwarded to the base', '7', res.StringValue);
+
+    // super.m() calls the base implementation.
+    res := engine.Execute(
+      'class A { m() { return 1; } }' +
+      'class B extends A { m() { return super.m() + 1; } }' +
+      'new B().m();'
+    );
+    AssertTrue('super.method()', res.Success);
+    AssertEquals('super calls the base method', '2', res.StringValue);
+
+    // A derived class with no constructor inherits the base behaviour.
+    res := engine.Execute(
+      'class A { constructor(x) { this.x = x; } }' +
+      'class B extends A {}' +
+      'new B(3).x;'
+    );
+    AssertTrue('implicit derived constructor', res.Success);
+    AssertEquals('an implicit constructor leaves the base to initialise', 'undefined', res.StringValue);
+
+    // super resolves to undefined in a base class rather than throwing.
+    res := engine.Execute('class A { m() { return typeof super; } } new A().m();');
+    AssertTrue('super in a base class', res.Success);
+    AssertEquals('super is undefined without a base', 'undefined', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestClassMemberEnumerability();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Class methods are non-enumerable, so they do not leak into reflection.
+    res := engine.Execute('class A { m() { return 1; } } Object.keys(new A()).length;');
+    AssertTrue('Object.keys on an instance', res.Success);
+    AssertEquals('methods are not enumerable own keys', '0', res.StringValue);
+
+    res := engine.Execute(
+      'class A { constructor() { this.x = 1; } m() { return 1; } }' +
+      'Object.keys(new A()).join(",");'
+    );
+    AssertTrue('only own fields are keys', res.Success);
+    AssertEquals('the constructor field is the only key', 'x', res.StringValue);
+
+    res := engine.Execute(
+      'class A { m() { return 1; } }' +
+      'var a = new A(); var k = []; for (var p in a) { k.push(p); } k.length;'
+    );
+    AssertTrue('for-in over an instance', res.Success);
+    AssertEquals('for-in skips prototype methods', '0', res.StringValue);
+
+    res := engine.Execute(
+      'class A { constructor() { this.x = 1; } m() { return 1; } }' +
+      'var a = new A(); var k = []; for (var p in a) { k.push(p); } k.join(",");'
+    );
+    AssertTrue('for-in with a field', res.Success);
+    AssertEquals('for-in sees the own field only', 'x', res.StringValue);
+
+    // JSON serialisation follows the same rule.
+    res := engine.Execute(
+      'class A { constructor() { this.x = 1; } m() { return 1; } }' +
+      'JSON.stringify(new A());'
+    );
+    AssertTrue('JSON on an instance', res.Success);
+    AssertEquals('JSON emits own enumerable fields only', '{"x":1}', res.StringValue);
   finally
     engine.Free();
   end;

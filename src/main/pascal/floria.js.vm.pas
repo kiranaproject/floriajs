@@ -866,6 +866,50 @@ begin
             end;
           end;
 
+        opSetProto:
+          begin
+            propVal := Pop();   { the new prototype }
+            objVal := Pop();    { the object to link }
+            if objVal.IsObject() and (objVal.ObjVal <> nil) then
+              objVal.AsObject().Prototype := propVal.AsObject();
+          end;
+
+        opDefineHidden:
+          begin
+            { Pop value, pop object, define a non-enumerable property. Class
+              methods and `prototype` are installed this way. }
+            val := Pop();
+            objVal := Pop();
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            if objVal.IsObject() and (objVal.ObjVal <> nil) then
+              objVal.AsObject().SetPropertyNonEnumerable(varName, val);
+          end;
+
+        opDefineGetterHidden:
+          begin
+            { Class accessors are non-enumerable, like class methods. }
+            val := Pop();
+            objVal := Pop();
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            if objVal.IsObject() and (objVal.ObjVal <> nil) then
+            begin
+              objVal.AsObject().DefineGetter(varName, val);
+              objVal.AsObject().SetEnumerable(varName, False);
+            end;
+          end;
+
+        opDefineSetterHidden:
+          begin
+            val := Pop();
+            objVal := Pop();
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            if objVal.IsObject() and (objVal.ObjVal <> nil) then
+            begin
+              objVal.AsObject().DefineSetter(varName, val);
+              objVal.AsObject().SetEnumerable(varName, False);
+            end;
+          end;
+
         opDeleteEnv:
           begin
             { `delete identifier` never reads the binding. A declared variable is
@@ -1459,9 +1503,11 @@ begin
                 currObj := objVal.AsObject();
                 while (currObj <> nil) and (currObj <> FHeap.GetObjectPrototype()) and (currObj <> FHeap.GetArrayPrototype()) do
                 begin
-                  for i := 0 to currObj.GetPropertyCount() - 1 do
+                  { Only enumerable own properties are visited; a class method is
+                    non-enumerable and must not appear. }
+                  for i := 0 to currObj.GetEnumerablePropertyCount() - 1 do
                   begin
-                    propKeyStr := currObj.GetPropertyKey(i);
+                    propKeyStr := currObj.GetEnumerablePropertyKey(i);
                     if keysList.IndexOf(propKeyStr) < 0 then
                       keysList.Add(propKeyStr);
                   end;

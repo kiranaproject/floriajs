@@ -41,8 +41,8 @@ begin
         arr.Push(JSMakeString(IntToStr(i)));
   end;
 
-  for i := 0 to AObj.GetPropertyCount() - 1 do
-    arr.Push(JSMakeString(AObj.GetPropertyKey(i)));
+  for i := 0 to AObj.GetEnumerablePropertyCount() - 1 do
+    arr.Push(JSMakeString(AObj.GetEnumerablePropertyKey(i)));
 
   Result := arr;
 end;

@@ -86,6 +86,9 @@ type
     Setter: TFloriaJSValue;
     HasGetter: Boolean;
     HasSetter: Boolean;
+    { Class methods and `prototype` are non-enumerable: they exist on the
+      object but `for…in` and `Object.keys` skip them, as in ECMAScript. }
+    Enumerable: Boolean;
   end;
 
   { Heap-allocated Base JavaScript Object }
@@ -115,6 +118,12 @@ type
     function  GetProperty(const AName: string): TFloriaJSValue; virtual;
     function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; virtual;
     procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); virtual;
+    procedure SetPropertyNonEnumerable(const AName: string; const AValue: TFloriaJSValue);
+    procedure SetEnumerable(const AName: string; AEnumerable: Boolean);
+    function  IsEnumerable(const AName: string): Boolean;
+    { Accessors used when a setter lives on a prototype. }
+    function  PropHasSetter(AIndex: Integer): Boolean;
+    function  PropSetter(AIndex: Integer): TFloriaJSValue;
     procedure DefineGetter(const AName: string; const AGetter: TFloriaJSValue); virtual;
     procedure DefineSetter(const AName: string; const ASetter: TFloriaJSValue); virtual;
     function  HasProperty(const AName: string): Boolean; virtual;
@@ -123,6 +132,8 @@ type
     function  GetOwnProperty(const AName: string): TFloriaJSValue;
     function  HasOwnProperty(const AName: string): Boolean; virtual;
     function  GetPropertyCount(): Integer;
+    function  GetEnumerablePropertyCount(): Integer;
+    function  GetEnumerablePropertyKey(AIndex: Integer): string;
     function  GetPropertyKey(AIndex: Integer): string;
     function  GetPropertyValue(AIndex: Integer): TFloriaJSValue;
     procedure GetKeys(AOutKeys: TStrings);
@@ -1022,6 +1033,7 @@ end;
 procedure TFloriaJSObject.SetProperty(const AName: string; const AValue: TFloriaJSValue);
 var
   idx: Integer;
+  owner: TFloriaJSObject;
 begin
   idx := FindPropertyIndex(AName);
   if idx >= 0 then
@@ -1039,6 +1051,25 @@ begin
     Exit;
   end;
 
+  { An inherited accessor with a setter handles the assignment instead of
+    creating an own data property, which is what makes a class setter work on
+    an instance. }
+  owner := FPrototype;
+  while owner <> nil do
+  begin
+    idx := owner.FindPropertyIndex(AName);
+    if idx >= 0 then
+    begin
+      if owner.PropHasSetter(idx) and (FHeap <> nil) then
+      begin
+        FHeap.InvokeFunction(owner.PropSetter(idx), [AValue], JSMakeObject(Self));
+        Exit;
+      end;
+      Break;
+    end;
+    owner := owner.Prototype;
+  end;
+
   if FPropCount >= Length(FProperties) then
   begin
     if Length(FProperties) = 0 then
@@ -1053,8 +1084,52 @@ begin
   FProperties[FPropCount].Setter := JSMakeUndefined();
   FProperties[FPropCount].HasGetter := False;
   FProperties[FPropCount].HasSetter := False;
+  FProperties[FPropCount].Enumerable := True;
   JSRetainValue(AValue);
   Inc(FPropCount);
+end;
+
+{ Defines a non-enumerable data property, used for class methods and the
+  `prototype` link, which must not appear in `for…in` or `Object.keys`. }
+procedure TFloriaJSObject.SetPropertyNonEnumerable(const AName: string;
+  const AValue: TFloriaJSValue);
+begin
+  SetProperty(AName, AValue);
+  if FPropCount > 0 then
+    FProperties[FindPropertyIndex(AName)].Enumerable := False;
+end;
+
+{ Changes an existing property's enumerability, leaving its value or accessor
+  alone. Used for class accessors, which are created then marked hidden. }
+procedure TFloriaJSObject.SetEnumerable(const AName: string; AEnumerable: Boolean);
+var
+  idx: Integer;
+begin
+  idx := FindPropertyIndex(AName);
+  if idx >= 0 then
+    FProperties[idx].Enumerable := AEnumerable;
+end;
+
+function TFloriaJSObject.PropHasSetter(AIndex: Integer): Boolean;
+begin
+  Result := (AIndex >= 0) and (AIndex < FPropCount) and FProperties[AIndex].HasSetter;
+end;
+
+function TFloriaJSObject.PropSetter(AIndex: Integer): TFloriaJSValue;
+begin
+  if (AIndex >= 0) and (AIndex < FPropCount) then
+    Result := FProperties[AIndex].Setter
+  else
+    Result := JSMakeUndefined();
+end;
+
+{ True when the property exists and is enumerable. }
+function TFloriaJSObject.IsEnumerable(const AName: string): Boolean;
+var
+  idx: Integer;
+begin
+  idx := FindPropertyIndex(AName);
+  Result := (idx >= 0) and FProperties[idx].Enumerable;
 end;
 
 procedure TFloriaJSObject.DefineGetter(const AName: string; const AGetter: TFloriaJSValue);
@@ -1086,6 +1161,7 @@ begin
   FProperties[FPropCount].Setter := JSMakeUndefined();
   FProperties[FPropCount].HasGetter := True;
   FProperties[FPropCount].HasSetter := False;
+  FProperties[FPropCount].Enumerable := True;
   JSRetainValue(AGetter);
   Inc(FPropCount);
 end;
@@ -1119,6 +1195,7 @@ begin
   FProperties[FPropCount].Setter := ASetter;
   FProperties[FPropCount].HasGetter := False;
   FProperties[FPropCount].HasSetter := True;
+  FProperties[FPropCount].Enumerable := True;
   JSRetainValue(ASetter);
   Inc(FPropCount);
 end;
@@ -1173,6 +1250,34 @@ begin
   Result := FPropCount;
 end;
 
+{ The number of enumerable own properties, which is what `Object.keys`,
+  `for…in`, and JSON serialisation observe. }
+function TFloriaJSObject.GetEnumerablePropertyCount(): Integer;
+var
+  i: Integer;
+begin
+  Result := 0;
+  for i := 0 to FPropCount - 1 do
+    if FProperties[i].Enumerable then
+      Inc(Result);
+end;
+
+{ The key of the AIndex-th enumerable own property, in insertion order. }
+function TFloriaJSObject.GetEnumerablePropertyKey(AIndex: Integer): string;
+var
+  i, seen: Integer;
+begin
+  Result := '';
+  seen := 0;
+  for i := 0 to FPropCount - 1 do
+    if FProperties[i].Enumerable then
+    begin
+      if seen = AIndex then
+        Exit(FProperties[i].Key);
+      Inc(seen);
+    end;
+end;
+
 function TFloriaJSObject.GetPropertyKey(AIndex: Integer): string;
 begin
   if (AIndex >= 0) and (AIndex < FPropCount) then
@@ -1195,7 +1300,8 @@ var
 begin
   if AOutKeys = nil then Exit;
   for i := 0 to FPropCount - 1 do
-    AOutKeys.Add(FProperties[i].Key);
+    if FProperties[i].Enumerable then
+      AOutKeys.Add(FProperties[i].Key);
 end;
 
 { TFloriaJSError }

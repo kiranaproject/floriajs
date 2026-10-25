@@ -74,6 +74,8 @@ type
     function  ParseArrayLiteral(): TFloriaJSExprNode;
     function  ParseObjectLiteral(): TFloriaJSExprNode;
     function  ParseMethodBody(const AName: string): TFloriaJSFunctionExpr;
+    function  ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
+    function  ParseClassDeclaration(): TFloriaJSStmtNode;
     function  ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
     procedure ParseFormalParameters(AParams: TStringList);
     function  ExtractParameters(var AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
@@ -237,7 +239,7 @@ function TFloriaJSParser.IsKeywordToken(AKind: TFloriaJSTokenKind): Boolean;
 begin
   { The keyword block is contiguous in the enum; keep the upper bound on the
     last keyword so a newly added keyword is covered automatically. }
-  Result := (AKind >= tkLet) and (AKind <= tkWith);
+  Result := (AKind >= tkLet) and (AKind <= tkStatic);
 end;
 
 function TFloriaJSParser.GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
@@ -368,6 +370,15 @@ begin
     ordinary name in the activation scope of the call. }
   if Match(tkThis) then
     Exit(TFloriaJSIdentifierExpr.Create('this', tok.Line, tok.Column));
+
+  { super — bound like `this`, to the parent constructor inside a derived class.
+    `super(...)` and `super.m()` are handled by the compiler through it. }
+  if Match(tkSuper) then
+    Exit(TFloriaJSIdentifierExpr.Create('super', tok.Line, tok.Column));
+
+  { class expression }
+  if Match(tkClass) then
+    Exit(ParseClassExpr(False));
 
   { Array Literal }
   if Match(tkLBracket) then
@@ -630,6 +641,125 @@ begin
 
   Consume(tkRBracket, 'Expected '']'' after array elements');
   Result := arr;
+end;
+
+
+{ `class [Name] [extends Base] { members }`
+
+  Members are methods, `get`/`set` accessors, and `static` variants. Fields are
+  not supported (they are a later proposal); the parser rejects them rather than
+  silently ignoring the initializer. }
+
+{ `class Name ... { }` as a statement.
+
+  Lowered to a `let` declaration whose initializer is the class expression, so
+  the class binding is block-scoped and behaves like any other declaration. }
+function TFloriaJSParser.ParseClassDeclaration(): TFloriaJSStmtNode;
+var
+  cls: TFloriaJSClassNode;
+  varStmt: TFloriaJSVarStmt;
+  startLine, startCol: Integer;
+begin
+  startLine := FCurrent.Line;
+  startCol := FCurrent.Column;
+  Advance(); { consume `class` }
+
+  cls := ParseClassExpr(True);
+  if cls.Name = '' then
+  begin
+    ErrorAtCurrent('A class declaration needs a name');
+    cls.Free();
+    Exit(TFloriaJSBlockStmt.Create(startLine, startCol));
+  end;
+
+  Match(tkSemicolon);
+  varStmt := TFloriaJSVarStmt.Create(tkLet, startLine, startCol);
+  varStmt.AddDeclarator(cls.Name, cls);
+  Result := varStmt;
+end;
+
+function TFloriaJSParser.ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
+var
+  cls: TFloriaJSClassNode;
+  startLine, startCol: Integer;
+  clsName, memberName: string;
+  superClass: TFloriaJSExprNode;
+  isStatic: Boolean;
+  kind: TFloriaJSClassMemberKind;
+  fnExpr: TFloriaJSFunctionExpr;
+begin
+  startLine := FPrevious.Line;
+  startCol := FPrevious.Column;
+
+  clsName := '';
+  if Match(tkIdentifier) then
+    clsName := FPrevious.Text;
+
+  superClass := nil;
+  if Match(tkExtends) then
+    superClass := ParsePrimary();
+
+  cls := TFloriaJSClassNode.Create(clsName, superClass, startLine, startCol);
+  cls.IsDeclaration := AIsDeclaration;
+
+  Consume(tkLBrace, 'Expected ''{'' at start of class body');
+
+  while (not Check(tkRBrace)) and (not IsAtEnd()) do
+  begin
+    if Match(tkSemicolon) then
+      Continue;
+
+    isStatic := False;
+    if Check(tkStatic) and (FLexer.PeekToken().Kind <> tkLParen) then
+    begin
+      Advance();
+      isStatic := True;
+    end;
+
+    kind := fjcmMethod;
+
+    { get/set accessors, when not used as a plain method name. }
+    if (FCurrent.Kind = tkIdentifier) and
+       ((FCurrent.Text = 'get') or (FCurrent.Text = 'set')) and
+       (FLexer.PeekToken().Kind <> tkLParen) then
+    begin
+      if FCurrent.Text = 'get' then kind := fjcmGetter else kind := fjcmSetter;
+      Advance();
+    end;
+
+    memberName := '';
+    if Match(tkIdentifier) then
+      memberName := FPrevious.Text
+    else if IsKeywordToken(FCurrent.Kind) then
+    begin
+      { Keywords are legal member names: `class A { delete() {} }`. }
+      memberName := FCurrent.Text;
+      Advance();
+    end
+    else if Match(tkString) then
+      memberName := FPrevious.Text
+    else if Match(tkNumber) then
+      memberName := FPrevious.Text
+    else
+    begin
+      ErrorAtCurrent('Expected a method name in class body');
+      Break;
+    end;
+
+    if not Check(tkLParen) then
+    begin
+      { A field declaration, which this runtime does not support. }
+      ErrorAtCurrent('Class fields are not supported; use a constructor assignment');
+      Break;
+    end;
+
+    fnExpr := ParseMethodBody(memberName);
+    cls.AddMember(TFloriaJSClassMember.Create(memberName, kind, isStatic,
+      fnExpr, startLine, startCol));
+  end;
+
+  Consume(tkRBrace, 'Expected ''}'' at end of class body');
+  Result := cls;
 end;
 
 function TFloriaJSParser.ParseMethodBody(const AName: string): TFloriaJSFunctionExpr;
@@ -1184,6 +1314,8 @@ begin
   end
   else if Match(tkFunction) then
     Result := ParseFunctionDeclaration()
+  else if Check(tkClass) then
+    Result := ParseClassDeclaration()
   else
     Result := ParseStatement();
 end;

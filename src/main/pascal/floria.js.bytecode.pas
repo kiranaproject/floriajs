@@ -71,6 +71,10 @@ type
     opDefineSetter,      // Pop setter, peek obj -> define setter: Imm = const index (or -1 if key on stack)
     opObjectRest,        // Pop N keys, pop obj -> push rest object: Imm = key count
     opDeleteProp,        // Pop prop, pop obj -> push delete obj[prop]
+    opSetProto,          // Pop proto, pop obj -> set obj's prototype (class wiring)
+    opDefineHidden,      // Pop value, pop obj -> define non-enumerable prop: Imm = name
+    opDefineGetterHidden,// Pop getter, pop obj -> define non-enumerable getter: Imm = name
+    opDefineSetterHidden,// Pop setter, pop obj -> define non-enumerable setter: Imm = name
     opDeleteEnv,         // Push false when the named binding exists, else true
                          // (Imm = const index). Never reads the binding.
     opIn,                // Pop obj, pop prop -> push prop in obj
@@ -265,6 +269,10 @@ begin
     opDefineSetter:     Result := 'DEFINE_SETTER';
     opObjectRest:       Result := 'OBJECT_REST';
     opDeleteProp:       Result := 'DELETE_PROP';
+    opSetProto:         Result := 'SET_PROTO';
+    opDefineHidden:     Result := 'DEFINE_HIDDEN';
+    opDefineGetterHidden: Result := 'DEFINE_GETTER_HIDDEN';
+    opDefineSetterHidden: Result := 'DEFINE_SETTER_HIDDEN';
     opDeleteEnv:        Result := 'DELETE_ENV';
     opIn:               Result := 'IN';
     opInstanceOf:       Result := 'INSTANCEOF';
@@ -582,7 +590,7 @@ begin
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opLoadLoc, opStoreLoc, opSetLoc:
       comment := '; ' + GetLocalName(inst.Imm);
-    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opDeleteEnv:
+    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opDefineHidden, opDefineGetterHidden, opDefineSetterHidden, opDeleteEnv:
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
       comment := Format('-> %04d', [inst.Imm]);

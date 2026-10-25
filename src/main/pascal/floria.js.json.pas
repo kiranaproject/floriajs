@@ -620,7 +620,7 @@ begin
       raise EFloriaJSThrow.Create(JSMakeObject(Heap.NewError('TypeError', 'Converting circular structure to JSON')));
     AVisited.Add(obj);
     try
-      count := obj.GetPropertyCount();
+      count := obj.GetEnumerablePropertyCount();
       if count = 0 then
         Exit('{}');
 
@@ -637,7 +637,7 @@ begin
         hasWritten := False;
         for i := 0 to count - 1 do
         begin
-          propKey := obj.GetPropertyKey(i);
+          propKey := obj.GetEnumerablePropertyKey(i);
 
           { A key-array replacer restricts which keys are emitted. }
           if FHasReplacerKeys and (FReplacerKeys.IndexOf(propKey) < 0) then
