@@ -539,6 +539,7 @@ end;
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
+  promiseCtor: TFloriaJSFunction;
   numberObj, stringObj, funcObj: TFloriaJSFunction;
   errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
 begin
@@ -599,12 +600,15 @@ begin
   AEnv.Define('Math', JSMakeObject(mathObj));
 
   // 3. Promise
-  promiseObj := AHeap.NewObject();
+  { `Promise` is a constructor: `new Promise(executor)` builds a promise and
+    returns it, while the statics hang off the same function object. }
+  promiseCtor := AHeap.NewNativeMethod('Promise', @AHeap.PromiseConstructor);
+  promiseObj := promiseCtor;
   promiseObj.SetProperty('resolve', JSMakeFunction(AHeap.NewNativeMethod('resolve', @AHeap.PromiseResolve)));
   promiseObj.SetProperty('reject', JSMakeFunction(AHeap.NewNativeMethod('reject', @AHeap.PromiseReject)));
   promiseObj.SetProperty('all', JSMakeFunction(AHeap.NewNativeMethod('all', @AHeap.PromiseAll)));
   promiseObj.SetProperty('race', JSMakeFunction(AHeap.NewNativeMethod('race', @AHeap.PromiseRace)));
-  AEnv.Define('Promise', JSMakeObject(promiseObj));
+  AEnv.Define('Promise', JSMakeFunction(promiseCtor));
 
   // 4. Error
   errCtor := AHeap.NewNativeMethod('Error', @AHeap.ErrorCtor);
@@ -690,7 +694,7 @@ begin
   globalObj.SetProperty('String', AEnv.GetDefault('String', JSMakeUndefined()));
   globalObj.SetProperty('Boolean', AEnv.GetDefault('Boolean', JSMakeUndefined()));
   globalObj.SetProperty('JSON', AEnv.GetDefault('JSON', JSMakeUndefined()));
-  globalObj.SetProperty('Promise', JSMakeObject(promiseObj));
+  globalObj.SetProperty('Promise', JSMakeFunction(promiseCtor));
   globalObj.SetProperty('Error', JSMakeFunction(errCtor));
   globalObj.SetProperty('TypeError', JSMakeFunction(typeErrCtor));
   globalObj.SetProperty('RangeError', JSMakeFunction(rangeErrCtor));

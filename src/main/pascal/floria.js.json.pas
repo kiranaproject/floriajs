@@ -27,10 +27,25 @@ type
   TFloriaJSJSONObject = class(TFloriaJSObject)
   private
     FFormatSettings: TFormatSettings;
+    { JSON serialisation context: the replacer (function or key list) applied to
+      every value. ECMAScript passes the property key to `toJSON` and to the
+      replacer, so the key travels with the recursive call. }
+    FReplacerFn: TFloriaJSValue;
+    FReplacerKeys: TStringList;
+    FHasReplacerKeys: Boolean;
+    FReviverFn: TFloriaJSValue;
+
     function EscapeString(const S: string): string;
-    function Serialize(const AVal: TFloriaJSValue; AVisited: TFPList; const AIndent: string; const AGap: string): string;
+    { Walks the parsed tree bottom-up, calling the reviver with (key, value) on
+      every member, as ECMAScript specifies. }
+    function ApplyReviver(const AHolder: TFloriaJSObject; const AKey: string): TFloriaJSValue;
+    function ApplyToJSON(const AVal: TFloriaJSValue; const AKey: string): TFloriaJSValue;
+    function ApplyReplacer(const AVal: TFloriaJSValue; const AKey: string): TFloriaJSValue;
+    function PrepareValue(const AVal: TFloriaJSValue; const AKey: string): TFloriaJSValue;
+    function Serialize(const AVal: TFloriaJSValue; AVisited: TFPList; const AIndent: string; const AGap: string; const AKey: string): string;
   public
     constructor Create(AHeap: TFloriaJSHeap);
+    destructor Destroy(); override;
     function Stringify(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function Parse(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
   end;
@@ -356,10 +371,22 @@ end;
 
 constructor TFloriaJSJSONObject.Create(AHeap: TFloriaJSHeap);
 begin
-  inherited Create(nil);
+  inherited Create(AHeap.GetObjectPrototype());
   Heap := AHeap;
+  FReplacerKeys := TStringList.Create();
+  FReplacerKeys.CaseSensitive := True;
+  FReplacerKeys.Sorted := False;
+  FReplacerFn := JSMakeUndefined();
+  FHasReplacerKeys := False;
+  FReviverFn := JSMakeUndefined();
   FFormatSettings := DefaultFormatSettings;
   FFormatSettings.DecimalSeparator := '.';
+end;
+
+destructor TFloriaJSJSONObject.Destroy();
+begin
+  FreeAndNil(FReplacerKeys);
+  inherited Destroy();
 end;
 
 function TFloriaJSJSONObject.EscapeString(const S: string): string;
@@ -395,7 +422,91 @@ begin
   end;
 end;
 
-function TFloriaJSJSONObject.Serialize(const AVal: TFloriaJSValue; AVisited: TFPList; const AIndent: string; const AGap: string): string;
+
+{ Calls `value.toJSON(key)` when the value has one. ECMAScript looks the method
+  up on the value itself (including inherited), and passes the property key. }
+
+{ The reviver walk. Each property is revived depth-first, then the reviver is
+  called on the holder/key pair; returning undefined deletes the property. }
+function TFloriaJSJSONObject.ApplyReviver(const AHolder: TFloriaJSObject; const AKey: string): TFloriaJSValue;
+var
+  value, revived: TFloriaJSValue;
+  arr: TFloriaJSArray;
+  i: Integer;
+  keys: TStringList;
+begin
+  value := AHolder.GetProperty(AKey);
+
+  if value.IsArray() then
+  begin
+    arr := value.AsArray();
+    for i := 0 to arr.Length() - 1 do
+    begin
+      revived := ApplyReviver(arr, IntToStr(i));
+      if revived.IsUndefined() then
+        arr.DeleteElement(i)
+      else
+        arr.SetElement(i, revived);
+    end;
+  end
+  else if value.IsObject() and not value.IsFunction() then
+  begin
+    keys := TStringList.Create();
+    try
+      value.AsObject().GetKeys(keys);
+      for i := 0 to keys.Count - 1 do
+      begin
+        revived := ApplyReviver(value.AsObject(), keys[i]);
+        if revived.IsUndefined() then
+          value.AsObject().DeleteProperty(keys[i])
+        else
+          value.AsObject().SetProperty(keys[i], revived);
+      end;
+    finally
+      keys.Free();
+    end;
+  end;
+
+  Result := Heap.InvokeFunction(FReviverFn, [JSMakeString(AKey), value],
+    JSMakeObject(AHolder));
+end;
+
+function TFloriaJSJSONObject.ApplyToJSON(const AVal: TFloriaJSValue; const AKey: string): TFloriaJSValue;
+var
+  toJSON, holder: TFloriaJSValue;
+begin
+  if not AVal.IsObject() then
+    Exit(AVal);
+  if AVal.AsObject() = nil then
+    Exit(AVal);
+
+  toJSON := AVal.AsObject().GetProperty('toJSON');
+  if not toJSON.IsFunction() then
+    Exit(AVal);
+
+  holder := JSMakeString(AKey);
+  Result := Heap.InvokeFunction(toJSON, [holder], AVal);
+end;
+
+{ Applies the replacer, when one was supplied. A function replacer is called
+  with `(key, value)` and its result is serialised; a key-array replacer filters
+  object properties elsewhere. }
+function TFloriaJSJSONObject.ApplyReplacer(const AVal: TFloriaJSValue; const AKey: string): TFloriaJSValue;
+begin
+  if not FReplacerFn.IsFunction() then
+    Exit(AVal);
+  Result := Heap.InvokeFunction(FReplacerFn, [JSMakeString(AKey), AVal], JSMakeUndefined());
+end;
+
+{ The per-value pipeline ECMAScript applies before serialising: `toJSON`
+  first, then the replacer function. }
+function TFloriaJSJSONObject.PrepareValue(const AVal: TFloriaJSValue; const AKey: string): TFloriaJSValue;
+begin
+  Result := ApplyToJSON(AVal, AKey);
+  Result := ApplyReplacer(Result, AKey);
+end;
+
+function TFloriaJSJSONObject.Serialize(const AVal: TFloriaJSValue; AVisited: TFPList; const AIndent: string; const AGap: string; const AKey: string): string;
 var
   sb: TStringBuilder;
   arr: TFloriaJSArray;
@@ -403,33 +514,39 @@ var
   i, count: Integer;
   valStr, propKey, nextIndent: string;
   hasWritten: Boolean;
+  value: TFloriaJSValue;
+  propVal: TFloriaJSValue;
 begin
-  if AVal.IsNull() then
+  { toJSON and the replacer run before any type dispatch, so they can turn any
+    value into anything else, including a primitive. }
+  value := PrepareValue(AVal, AKey);
+
+  if value.IsNull() then
     Exit('null');
 
-  if AVal.IsBoolean() then
+  if value.IsBoolean() then
   begin
-    if AVal.BoolVal then
+    if value.BoolVal then
       Exit('true')
     else
       Exit('false');
   end;
 
-  if AVal.IsNumber() then
+  if value.IsNumber() then
   begin
-    if IsNaN(AVal.NumVal) or IsInfinite(AVal.NumVal) then
+    if IsNaN(value.NumVal) or IsInfinite(value.NumVal) then
       Exit('null');
     { JSON has no Infinity/NaN, and ECMAScript serialises numbers with the
       same shortest round-tripping form as String(). }
-    Exit(JSNumberToStr(AVal.NumVal));
+    Exit(JSNumberToStr(value.NumVal));
   end;
 
-  if AVal.IsString() then
-    Exit(EscapeString(AVal.StrVal));
+  if value.IsString() then
+    Exit(EscapeString(value.StrVal));
 
-  if AVal.IsArray() then
+  if value.IsArray() then
   begin
-    arr := AVal.AsArray();
+    arr := value.AsArray();
     if arr = nil then
       Exit('null');
 
@@ -468,7 +585,8 @@ begin
             sb.Append('null')
           else
           begin
-            valStr := Serialize(arr.GetElement(i), AVisited, nextIndent, AGap);
+            valStr := Serialize(arr.GetElement(i), AVisited, nextIndent, AGap,
+              IntToStr(i));
             if valStr = '' then
               sb.Append('null')
             else
@@ -492,9 +610,9 @@ begin
     Exit;
   end;
 
-  if AVal.IsObject() and not AVal.IsFunction() then
+  if value.IsObject() and not value.IsFunction() then
   begin
-    obj := AVal.AsObject();
+    obj := value.AsObject();
     if obj = nil then
       Exit('null');
 
@@ -520,10 +638,17 @@ begin
         for i := 0 to count - 1 do
         begin
           propKey := obj.GetPropertyKey(i);
-          if obj.GetPropertyValue(i).IsUndefined() or obj.GetPropertyValue(i).IsFunction() then
+
+          { A key-array replacer restricts which keys are emitted. }
+          if FHasReplacerKeys and (FReplacerKeys.IndexOf(propKey) < 0) then
             Continue;
 
-          valStr := Serialize(obj.GetPropertyValue(i), AVisited, nextIndent, AGap);
+          { Read through the property so getters run, as ECMAScript requires. }
+          propVal := obj.GetProperty(propKey);
+          if propVal.IsUndefined() or propVal.IsFunction() then
+            Continue;
+
+          valStr := Serialize(propVal, AVisited, nextIndent, AGap, propKey);
           if valStr = '' then
             Continue;
 
@@ -600,15 +725,39 @@ begin
     end;
   end;
 
+  { The second argument is either a function replacer or an array of keys. }
+  FReplacerFn := JSMakeUndefined();
+  FHasReplacerKeys := False;
+  if (Length(AArgs) >= 2) and not AArgs[1].IsUndefined() and not AArgs[1].IsNull() then
+  begin
+    if AArgs[1].IsFunction() then
+      FReplacerFn := AArgs[1]
+    else if AArgs[1].IsArray() then
+    begin
+      FReplacerKeys.Clear();
+      for i := 0 to AArgs[1].AsArray().Length() - 1 do
+      begin
+        spaceVal := AArgs[1].AsArray().GetElement(i);
+        if spaceVal.IsString() or spaceVal.IsNumber() then
+          FReplacerKeys.Add(spaceVal.ToString());
+      end;
+      FHasReplacerKeys := True;
+    end;
+  end;
+
   visited := TFPList.Create();
   try
-    resStr := Serialize(AArgs[0], visited, '', gap);
+    { The root value is serialised under the empty key, as ECMAScript does. }
+    resStr := Serialize(AArgs[0], visited, '', gap, '');
     if resStr = '' then
       Result := JSMakeUndefined()
     else
       Result := JSMakeString(resStr);
   finally
     visited.Free();
+    FReplacerFn := JSMakeUndefined();
+    FHasReplacerKeys := False;
+    FReplacerKeys.Clear();
   end;
 end;
 
@@ -616,6 +765,7 @@ function TFloriaJSJSONObject.Parse(const AArgs: array of TFloriaJSValue; AThis: 
 var
   parser: TJSONParser;
   val: TFloriaJSValue;
+  holder: TFloriaJSObject;
 begin
   if (Length(AArgs) = 0) or not AArgs[0].IsString() then
   begin
@@ -636,7 +786,22 @@ begin
   if parser.Pos <= parser.Len then
     parser.Error('Unexpected non-whitespace token after JSON data');
 
-  Result := val;
+  { With a reviver, the tree is walked bottom-up from a synthetic root holder
+    whose single property is the parsed value. }
+  FReviverFn := JSMakeUndefined();
+  if (Length(AArgs) >= 2) and AArgs[1].IsFunction() then
+  begin
+    FReviverFn := AArgs[1];
+    try
+      holder := Heap.NewObject(Heap.GetObjectPrototype());
+      holder.SetProperty('', val);
+      Result := ApplyReviver(holder, '');
+    finally
+      FReviverFn := JSMakeUndefined();
+    end;
+  end
+  else
+    Result := val;
 end;
 
 procedure FloriaJSRegisterJSON(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);

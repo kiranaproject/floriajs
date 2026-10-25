@@ -331,6 +331,11 @@ type
     procedure TestLogicalAssignmentMembers();
     procedure TestLogicalAssignmentShortCircuit();
     procedure TestBigIntLiteralRejection();
+    procedure TestPromiseConstructor();
+    procedure TestPromiseCallbacksRun();
+    procedure TestPromiseAwaitIntegration();
+    procedure TestJSONStringifyParity();
+    procedure TestJSONParseReviver();
   end;
 
 { TFloriaJSTypesTest }
@@ -7793,6 +7798,315 @@ begin
     res := engine.Execute('var x = 10; x;');
     AssertTrue('a number followed by a space is unaffected', res.Success);
     AssertEquals('plain numbers still lex', '10', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestPromiseConstructor();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // `Promise` is a constructor function, not a plain object.
+    res := engine.Execute('typeof Promise;');
+    AssertTrue('Promise is a function', res.Success);
+    AssertEquals('typeof Promise', 'function', res.StringValue);
+
+    res := engine.Execute('new Promise(function(r){ r(1); }) instanceof Object;');
+    AssertTrue('new Promise builds an object', res.Success and res.BooleanValue);
+
+    // The executor runs synchronously and receives two functions.
+    res := engine.Execute(
+      'var seen = "";' +
+      'new Promise(function(res, rej){ seen = typeof res + "/" + typeof rej; });' +
+      'seen;'
+    );
+    AssertTrue('executor receives resolve/reject', res.Success);
+    AssertEquals('both callbacks are functions', 'function/function', res.StringValue);
+
+    res := engine.Execute('var n = 0; new Promise(function(r){ n = 5; r(); }); n;');
+    AssertTrue('executor runs synchronously', res.Success);
+    AssertEquals('executor side effect is visible immediately', '5', res.StringValue);
+
+    // A non-callable executor is a TypeError.
+    res := engine.Execute('new Promise();');
+    AssertFalse('missing executor is rejected', res.Success);
+    AssertTrue('missing executor is a TypeError', Pos('TypeError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('new Promise(1);');
+    AssertFalse('non-function executor is rejected', res.Success);
+
+    // The statics still work and still hang off the same object.
+    res := engine.Execute(
+      'typeof Promise.resolve === "function" && typeof Promise.reject === "function" && ' +
+      'typeof Promise.all === "function" && typeof Promise.race === "function";'
+    );
+    AssertTrue('Promise statics are present', res.Success and res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestPromiseCallbacksRun();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // The job runner used to be missing, so no callback ever ran. These assert
+    // the observable result of each reaction kind.
+    res := engine.Execute(
+      'var out = "";' +
+      'new Promise(function(r){ r(42); }).then(function(v){ out = "got " + v; });'
+    );
+    AssertTrue('then registers', res.Success);
+    res := engine.Execute('out;');
+    AssertEquals('then callback runs', 'got 42', res.StringValue);
+
+    res := engine.Execute(
+      'var o = "";' +
+      'new Promise(function(_, j){ j("no"); }).catch(function(e){ o = "err " + e; });'
+    );
+    AssertTrue('catch registers', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('catch callback runs', 'err no', res.StringValue);
+
+    // A throwing executor rejects rather than propagating.
+    res := engine.Execute(
+      'var o = "";' +
+      'new Promise(function(){ throw new Error("boom"); })' +
+      '.catch(function(e){ o = e.message; });'
+    );
+    AssertTrue('throwing executor is caught', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('a throw rejects the promise', 'boom', res.StringValue);
+
+    // First settlement wins.
+    res := engine.Execute(
+      'var o = "";' +
+      'new Promise(function(r){ r(1); r(2); }).then(function(v){ o = v; });'
+    );
+    AssertTrue('double resolve', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('the first settlement wins', '1', res.StringValue);
+
+    res := engine.Execute(
+      'var o = "";' +
+      'new Promise(function(r, j){ r(1); j(2); }).then(function(v){ o = "ok" + v; });'
+    );
+    AssertTrue('resolve then reject', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('reject after resolve is ignored', 'ok1', res.StringValue);
+
+    // Chains, pass-through, and adoption.
+    res := engine.Execute(
+      'var o = "";' +
+      'Promise.resolve(1).then(function(v){ return v + 1; }).then(function(v){ o = v; });'
+    );
+    AssertTrue('chained then', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('values flow through the chain', '2', res.StringValue);
+
+    res := engine.Execute(
+      'var o = ""; Promise.resolve(6).then(null).then(function(v){ o = v; });'
+    );
+    AssertTrue('missing handler', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('a missing handler passes the value through', '6', res.StringValue);
+
+    res := engine.Execute(
+      'var o = "";' +
+      'new Promise(function(r){ r(Promise.resolve(4)); }).then(function(v){ o = v; });'
+    );
+    AssertTrue('resolving with a promise', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('resolving with a promise adopts it', '4', res.StringValue);
+
+    // A throw inside a handler rejects the child.
+    res := engine.Execute(
+      'var o = "";' +
+      'Promise.resolve(1).then(function(){ throw new Error("t"); })' +
+      '.catch(function(e){ o = e.message; });'
+    );
+    AssertTrue('throw inside then', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('a throw in a handler rejects the child', 't', res.StringValue);
+
+    // finally runs and forwards the original settlement.
+    res := engine.Execute(
+      'var o = ""; Promise.resolve(2).finally(function(){ o = "fin"; });'
+    );
+    AssertTrue('finally registers', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('finally callback runs', 'fin', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestPromiseAwaitIntegration();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // `await` depends on the same job queue, so it is a good end-to-end check.
+    res := engine.Execute(
+      'var out = "";' +
+      'async function f() { var v = await Promise.resolve(3); out = "a" + v; }' +
+      'f();'
+    );
+    AssertTrue('await on Promise.resolve', res.Success);
+    res := engine.Execute('out;');
+    AssertEquals('await resumes with the value', 'a3', res.StringValue);
+
+    res := engine.Execute(
+      'var o = "";' +
+      'async function g() { o = await new Promise(function(r){ r(8); }); }' +
+      'g();'
+    );
+    AssertTrue('await on new Promise', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('await resolves a constructed promise', '8', res.StringValue);
+
+    res := engine.Execute(
+      'var o = "";' +
+      'async function h() { try { await Promise.reject("bad"); } catch (e) { o = "caught " + e; } }' +
+      'h();'
+    );
+    AssertTrue('await on a rejection', res.Success);
+    res := engine.Execute('o;');
+    AssertEquals('await throws the rejection', 'caught bad', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestJSONStringifyParity();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // Getters are invoked, as ECMAScript property access requires.
+    res := engine.Execute('JSON.stringify({get x(){ return 1; }});');
+    AssertTrue('getter is invoked', res.Success);
+    AssertEquals('getter value is serialised', '{"x":1}', res.StringValue);
+
+    // toJSON is called, with the property key.
+    res := engine.Execute('JSON.stringify({toJSON: function(){ return 5; }});');
+    AssertTrue('toJSON on the root', res.Success);
+    AssertEquals('toJSON result replaces the value', '5', res.StringValue);
+
+    res := engine.Execute('JSON.stringify({a: {toJSON: function(k){ return "k:" + k; }}});');
+    AssertTrue('toJSON receives the key', res.Success);
+    AssertEquals('toJSON is passed the property name', '{"a":"k:a"}', res.StringValue);
+
+    res := engine.Execute('JSON.stringify({x: {toJSON: function(){ return [1, 2]; }}});');
+    AssertTrue('toJSON may return a structure', res.Success);
+    AssertEquals('toJSON result is serialised recursively', '{"x":[1,2]}', res.StringValue);
+
+    // A function replacer replaces every value, starting from the root.
+    res := engine.Execute('JSON.stringify({a: 1}, function(k, v){ return 9; });');
+    AssertTrue('replacer runs', res.Success);
+    AssertEquals('replacer result replaces the value', '9', res.StringValue);
+
+    res := engine.Execute(
+      'JSON.stringify({a: 1}, function(k, v){ return k === "" ? v : undefined; });'
+    );
+    AssertTrue('replacer can drop members', res.Success);
+    AssertEquals('returning undefined omits the member', '{}', res.StringValue);
+
+    res := engine.Execute(
+      'JSON.stringify([1, 2], function(k, v){ return typeof v === "number" ? v * 2 : v; });'
+    );
+    AssertTrue('replacer on arrays', res.Success);
+    AssertEquals('replacer applies to elements', '[2,4]', res.StringValue);
+
+    // A key-array replacer filters object properties.
+    res := engine.Execute('JSON.stringify({a: 1, b: 2}, ["b"]);');
+    AssertTrue('key-array replacer', res.Success);
+    AssertEquals('only listed keys are emitted', '{"b":2}', res.StringValue);
+
+    // undefined and functions are omitted from objects but become null in arrays.
+    res := engine.Execute('JSON.stringify({a: undefined, b: function(){}, c: 1});');
+    AssertTrue('undefined/function members', res.Success);
+    AssertEquals('undefined and functions are omitted', '{"c":1}', res.StringValue);
+
+    res := engine.Execute('JSON.stringify([undefined, function(){}, 1]);');
+    AssertTrue('undefined/function elements', res.Success);
+    AssertEquals('array holes serialise as null', '[null,null,1]', res.StringValue);
+
+    // toJSON returning undefined drops the member.
+    res := engine.Execute('JSON.stringify({toJSON: function(){ return undefined; }});');
+    AssertTrue('toJSON returning undefined', res.Success);
+    AssertEquals('toJSON undefined yields undefined', 'undefined', res.StringValue);
+
+    // Indentation still works with a replacer.
+    res := engine.Execute('JSON.stringify({a: 1}, ["a"], 2);');
+    AssertTrue('indent with replacer', res.Success);
+    AssertEquals('indentation is preserved', '{' + #10 + '  "a": 1' + #10 + '}', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestJSONParseReviver();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    // The reviver runs bottom-up on every member.
+    res := engine.Execute(
+      'JSON.parse(''{"a": 1}'', function(k, v){ return typeof v === "number" ? v * 2 : v; }).a;'
+    );
+    AssertTrue('reviver runs', res.Success);
+    AssertEquals('reviver transforms a number', '2', res.StringValue);
+
+    // Returning undefined deletes the property.
+    res := engine.Execute(
+      'JSON.parse(''{"a": 1}'', function(k, v){ return k === "a" ? undefined : v; }).a;'
+    );
+    AssertTrue('reviver deletes', res.Success);
+    AssertEquals('undefined deletes the property', 'undefined', res.StringValue);
+
+    // Arrays are revived element by element.
+    res := engine.Execute(
+      'JSON.parse(''[1, 2]'', function(k, v){ return typeof v === "number" ? v + 1 : v; }).join(",");'
+    );
+    AssertTrue('reviver on arrays', res.Success);
+    AssertEquals('reviver applies to elements', '2,3', res.StringValue);
+
+    // Nested objects are walked before their parent.
+    res := engine.Execute(
+      'var seen = [];' +
+      'JSON.parse(''{"a": {"b": 1}}'', function(k, v){ if (k !== "") { seen.push(k); } return v; });' +
+      'seen.join(",");'
+    );
+    AssertTrue('reviver walks nested objects', res.Success);
+    AssertEquals('children are revived before parents', 'b,a', res.StringValue);
+
+    // A primitive root still goes through the reviver with the empty key.
+    res := engine.Execute(
+      'var rootKey = "unset";' +
+      'JSON.parse("5", function(k, v){ rootKey = k; return v; });' +
+      'rootKey;'
+    );
+    AssertTrue('reviver sees the root', res.Success);
+    AssertEquals('the root key is the empty string', '', res.StringValue);
+
+    // Without a reviver the tree is returned unchanged.
+    res := engine.Execute('JSON.parse(''{"a": 1}'').a;');
+    AssertTrue('parse without reviver', res.Success);
+    AssertEquals('no reviver leaves the value alone', '1', res.StringValue);
   finally
     engine.Free();
   end;

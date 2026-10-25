@@ -78,6 +78,7 @@ type
     procedure SetMemberValue(const AObj: TFloriaJSValue; const APropName: string; const AVal: TFloriaJSValue);
     function  HeapInvoker(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
     function  HeapConstructor(const AFuncVal: TFloriaJSValue; const AArgs: TFloriaJSValueArray): TFloriaJSValue;
+    procedure HeapJobRunner(const AJob: TFloriaJSPromiseJob);
   public
     constructor Create(AHeap: TFloriaJSHeap = nil; AGlobalEnv: TFloriaJSEnvironment = nil);
     destructor Destroy(); override;
@@ -140,6 +141,9 @@ begin
   begin
     FHeap.SetFunctionInvoker(@HeapInvoker);
     FHeap.SetConstructInvoker(@HeapConstructor);
+    { Without this the queue filled up and was silently dropped, so no `.then`,
+      `.catch`, or `.finally` callback ever ran. }
+    FHeap.SetJobRunner(@HeapJobRunner);
   end;
 end;
 
@@ -153,12 +157,73 @@ begin
   Result := ConstructObject(AFuncVal, AArgs);
 end;
 
+{ Runs one settled-promise reaction. The handler receives the settled value; its
+  return value settles the child promise. A throw rejects the child instead. }
+procedure TFloriaJSVM.HeapJobRunner(const AJob: TFloriaJSPromiseJob);
+var
+  handler, arg, resultValue: TFloriaJSValue;
+begin
+  handler := JSMakeUndefined();
+  if AJob.IsFinally then
+    handler := AJob.OnFinally
+  else if AJob.IsRejection then
+    handler := AJob.OnRejected
+  else
+    handler := AJob.OnFulfilled;
+
+  { A missing handler passes the settlement through to the child. }
+  if not handler.IsFunction() then
+  begin
+    if AJob.Child <> nil then
+    begin
+      if AJob.IsRejection then
+        AJob.Child.Reject(AJob.Value)
+      else
+        AJob.Child.Fulfill(AJob.Value);
+    end;
+    Exit;
+  end;
+
+  arg := AJob.Value;
+  try
+    resultValue := CallFunction(handler, [arg], JSMakeUndefined());
+  except
+    on E: EFloriaJSThrow do
+    begin
+      if AJob.Child <> nil then
+        AJob.Child.Reject(E.Value);
+      Exit;
+    end;
+  end;
+
+  if AJob.Child = nil then
+    Exit;
+
+  if AJob.IsFinally then
+  begin
+    { `finally` ignores the callback's value and forwards the original one. }
+    if AJob.IsRejection then
+      AJob.Child.Reject(AJob.Value)
+    else
+      AJob.Child.Fulfill(AJob.Value);
+  end
+  else if resultValue.IsPromise() then
+  begin
+    { Returning a promise makes the child adopt it. }
+    resultValue.AsPromise().Attach(JSMakeUndefined(), JSMakeUndefined(),
+      JSMakeUndefined(), False, AJob.Child);
+  end
+  else
+    AJob.Child.Fulfill(resultValue);
+end;
+
 destructor TFloriaJSVM.Destroy();
 begin
   if (FHeap <> nil) and not FOwnsHeap then
   begin
     FHeap.SetFunctionInvoker(nil);
     FHeap.SetConstructInvoker(nil);
+    FHeap.SetJobRunner(nil);
   end;
 
   SetLength(FStack, 0);

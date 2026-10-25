@@ -320,7 +320,6 @@ type
     procedure AddReaction(const AReaction: TFloriaJSPromiseReaction);
     procedure ReleaseReaction(const AReaction: TFloriaJSPromiseReaction);
     procedure ScheduleReactions();
-    procedure Attach(const AOnFulfilled, AOnRejected, AOnFinally: TFloriaJSValue; AIsFinally: Boolean; AChild: TFloriaJSPromise);
   public
     constructor Create(AHeap: TFloriaJSHeap);
     destructor Destroy(); override;
@@ -331,11 +330,39 @@ type
 
     procedure Fulfill(const AValue: TFloriaJSValue);
     procedure Reject(const AValue: TFloriaJSValue);
+    { Registers a reaction, or schedules it immediately when already settled.
+      `AChild` receives the handler's outcome. Public because the VM's promise
+      job runner adopts a returned promise through it. }
+    procedure Attach(const AOnFulfilled, AOnRejected, AOnFinally: TFloriaJSValue; AIsFinally: Boolean; AChild: TFloriaJSPromise);
     function  Chain(const AOnFulfilled, AOnRejected: TFloriaJSValue): TFloriaJSPromise;
     function  ChainFinally(const AOnFinally: TFloriaJSValue): TFloriaJSPromise;
 
     property State: TFloriaJSPromiseState read FState;
     property ResultValue: TFloriaJSValue read FResult;
+  end;
+
+  { The resolve/reject pair handed to a `new Promise(executor)` call.
+
+    ECMAScript specifies these as a fresh pair of functions per promise, both
+    closing over the same already-resolved flag so that the first call wins.
+    A `of object` native method lets one small object own that state, which a
+    bare function pointer could not carry. }
+  TFloriaJSPromiseResolver = class
+  private
+    FPromise: TFloriaJSPromise;
+    FSettled: Boolean;
+    FResolveFn: TFloriaJSFunction;
+    FRejectFn: TFloriaJSFunction;
+    FHeap: TFloriaJSHeap;
+  public
+    constructor Create(AHeap: TFloriaJSHeap; APromise: TFloriaJSPromise);
+    destructor Destroy(); override;
+
+    function  Resolve(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  Reject(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+
+    property ResolveFunction: TFloriaJSFunction read FResolveFn;
+    property RejectFunction: TFloriaJSFunction read FRejectFn;
   end;
 
   { Callback Used by the Evaluator to Execute Deferred Promise Jobs }
@@ -415,6 +442,7 @@ type
     function  HasPromiseJobs(): Boolean;
     procedure RunPendingJobs();
 
+    function  PromiseConstructor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseResolve(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseReject(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -2094,7 +2122,12 @@ end;
 
 constructor TFloriaJSPromise.Create(AHeap: TFloriaJSHeap);
 begin
-  inherited Create(nil);
+  { Promises are ordinary objects in the prototype chain, so they inherit from
+    Object.prototype and `p instanceof Object` holds. }
+  if AHeap <> nil then
+    inherited Create(AHeap.GetObjectPrototype())
+  else
+    inherited Create(nil);
   FHeap := AHeap;
   FState := fjspPending;
   FResult := JSMakeUndefined();
@@ -2813,6 +2846,104 @@ begin
     if job.Child <> nil then
       job.Child.Release;
   end;
+end;
+
+{ TFloriaJSPromiseResolver }
+
+constructor TFloriaJSPromiseResolver.Create(AHeap: TFloriaJSHeap; APromise: TFloriaJSPromise);
+begin
+  inherited Create();
+  FHeap := AHeap;
+  FPromise := APromise;
+  FSettled := False;
+  { A method pointer must come from an instance, not a type name. }
+  FResolveFn := AHeap.NewNativeMethod('resolve', @Self.Resolve);
+  FRejectFn := AHeap.NewNativeMethod('reject', @Self.Reject);
+end;
+
+destructor TFloriaJSPromiseResolver.Destroy();
+begin
+  { The functions point back at this object, so they must not outlive it. They
+    are owned by the heap, which drops them when it collects; clearing the
+    method here would leave a dangling call target if one were still reachable.
+    Instead the heap frees this helper only after the promise graph is gone. }
+  inherited Destroy();
+end;
+
+function TFloriaJSPromiseResolver.Resolve(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  value: TFloriaJSValue;
+begin
+  { The first call wins: later calls are ignored. }
+  if FSettled then
+    Exit(JSMakeUndefined());
+  FSettled := True;
+
+  if Length(AArgs) > 0 then
+    value := AArgs[0]
+  else
+    value := JSMakeUndefined();
+
+  { Resolving with the promise itself is a TypeError in ECMAScript. }
+  if value.IsPromise() and (value.AsPromise() = FPromise) then
+  begin
+    FPromise.Reject(JSMakeObject(FHeap.NewError('TypeError',
+      'Chaining cycle detected for promise')));
+    Exit(JSMakeUndefined());
+  end;
+
+  FPromise.Fulfill(value);
+  Result := JSMakeUndefined();
+end;
+
+function TFloriaJSPromiseResolver.Reject(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if FSettled then
+    Exit(JSMakeUndefined());
+  FSettled := True;
+
+  if Length(AArgs) > 0 then
+    FPromise.Reject(AArgs[0])
+  else
+    FPromise.Reject(JSMakeUndefined());
+  Result := JSMakeUndefined();
+end;
+
+function TFloriaJSHeap.PromiseConstructor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p: TFloriaJSPromise;
+  resolver: TFloriaJSPromiseResolver;
+  executor: TFloriaJSValue;
+  resolveArgs: TFloriaJSValueArray;
+begin
+  if (Length(AArgs) = 0) or (not AArgs[0].IsFunction()) then
+    raise EFloriaJSThrow.Create(JSMakeObject(NewError('TypeError',
+      'Promise resolver is not a function')));
+  executor := AArgs[0];
+
+  p := NewPromise();
+  resolver := TFloriaJSPromiseResolver.Create(Self, p);
+  { The heap frees the resolver, which in turn keeps its two functions alive
+    for as long as any script can still reach them. }
+  OwnHelper(resolver);
+
+  SetLength(resolveArgs, 2);
+  resolveArgs[0] := JSMakeFunction(resolver.ResolveFunction);
+  resolveArgs[1] := JSMakeFunction(resolver.RejectFunction);
+
+  try
+    { The executor runs synchronously; a throw rejects the promise. }
+    InvokeFunction(executor, resolveArgs, JSMakeUndefined());
+  except
+    on E: EFloriaJSThrow do
+    begin
+      { A throw after settling is ignored, as the spec requires. }
+      if p.State = fjspPending then
+        p.Reject(E.Value);
+    end;
+  end;
+
+  Result := JSMakePromise(p);
 end;
 
 function TFloriaJSHeap.PromiseResolve(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
