@@ -14,7 +14,7 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **221 tests pass** with `pasbuild test`.
+- Test suite: **222 tests pass** with `pasbuild test`.
 - Gap scan: **186 probes OK / 8 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
@@ -1034,9 +1034,8 @@ the suspension itself.
 - `for…of` steps a generator through its own `next()`, and `yield*` lowers to
   an iterate-and-yield loop over the delegated iterable.
 
-**Known limitation.** A generator cannot be resumed after the script that
-created it ends; the activation environment is released with the script. This
-is documented rather than silently failing.
+**Resumption across scripts.** A generator can be resumed by a later script; see
+the lifetime fix below.
 
 **Tests.** Laziness, `next()` shape and values, parameters, `yield` outside a
 generator, resumption across yields, completion via `return`, sent values
@@ -1223,18 +1222,47 @@ list did not mention. All are fixed.
    unwinds only to there.
 6. **A generator object did not survive its script.** Still open — see below.
 
-**Still open: resuming a generator after its creating script ends.** The
-generator object is reclaimed with the script's environment, because nothing
-outside that environment holds a reference to it. Fixing it properly means
-deciding which host-visible objects are rooted across evaluations, which is a
-lifetime-policy question rather than a bug in the generator code. The failure is
-now a clean `TypeError` rather than an access violation, and it is documented as
-a limitation.
+**Resolved: generator lifetime.** See the section below.
 
 **Verified correct while auditing, so left alone:** identifier case
 sensitivity (the 28 `TStringList` instances were checked; the six that hold
 identifiers or keys set `CaseSensitive := True`), and the deferred UTF-8
 `length` trade-off, which is deliberate and now documented with examples.
+
+### Generator lifetime
+
+Resuming a generator after its creating script ended was left open by the
+audit. It is now fixed, and the fix turned out to be three separate defects
+rather than one rooting-policy decision.
+
+**1. Cached native methods were never retained.** `next`, `return`, and
+`[Symbol.iterator]` are created lazily and cached in fields on the generator.
+`Track` only *registers* an object with the heap; it does not keep it alive.
+Nothing held a reference, so the method was reclaimed at the next collection and
+the cached pointer dangled — `var f = it.next` crashed even inside a single
+script. The generator now retains what it caches (`OwnMethod`) and releases it
+in its destructor.
+
+**2. The activation environment was never released.** The generator kept its
+environment alive so it could resume, but nothing ever gave it up, so every
+generator left an environment behind — a real leak of one environment plus its
+bindings per generator. The destructor now detaches it.
+
+**3. `Collect` reclaimed environments too early in the pass.** It ran
+`ReclaimOrphanedEnvironments` *before* sweeping objects, but freeing a generator
+is what detaches its environment, so the environment could only be reclaimed by
+the *next* collection. `Collect` is now sweep → reclaim → sweep, exposed as
+`SweepObjects`. Measured: 500 create-and-drop generators went from growing the
+heap by 503 objects to 4, and a second identical round grows it by 0.
+
+Detaching during a full `Clear` is skipped, because `Clear` frees the
+environments first and the pointer would be dangling.
+
+**Tests.** Binding `next` to a variable and calling it; resuming in a later
+script; resuming with parameters and locals intact; finishing in a third script;
+and a churn test asserting the object count is identical across two rounds of
+200 generators. Verified separately that closures, twenty sequential
+cross-script resumes, and 200-generator churn all work and free cleanly.
 
 ---
 

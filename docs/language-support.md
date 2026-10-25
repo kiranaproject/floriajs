@@ -31,7 +31,7 @@ them.
 | `with` | No | Rejected at parse time with a clear error; it never runs as an undeclared name. |
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
 | `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, and `super`. Methods are non-enumerable. Class fields are not supported. |
-| Generators (`function*`, `yield`) | Yes | `function*` bodies run lazily and suspend at `yield`; `yield*` delegates. Generator objects implement `next()`, `return()`, and `Symbol.iterator`. A generator created by one script cannot be resumed after that script ends. |
+| Generators (`function*`, `yield`) | Yes | `function*` bodies run lazily and suspend at `yield`; `yield*` delegates. Generator objects implement `next()`, `return()`, and `Symbol.iterator`, and may be resumed by a later script. |
 | `for await` | No | Parse error. |
 
 There is no automatic semicolon insertion in the ECMAScript sense. Semicolons
@@ -403,9 +403,8 @@ assignment operator, including plain `=`.
 - `yield* iterable` delegates, yielding each value of another iterable.
 - Generators are iterable, so `for…of g()` drains one, and `yield*` composes
   with it.
-- **Limitation:** a generator must be driven by the script that created it.
-  Resuming after that script ends is not supported, because the activation
-  environment is released with the script.
+- A generator may be resumed by a later script: it keeps its activation
+  environment, saved stack, and bytecode alive for as long as it exists.
 
 ### Classes
 
