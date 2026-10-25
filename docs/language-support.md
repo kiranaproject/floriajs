@@ -145,7 +145,8 @@ code units. Non-ASCII characters count as multiple units.
 | `RegExp` | Regular-expression constructor and regex literals. |
 | `URIError`, `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI` | URI helpers. |
 | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | Host timers. They require the host to pump `FloriaJSProcessTimers`. |
-| `Intl`, `eval`, `alert`, `BigInt` | Not defined. Reading them throws `ReferenceError`; only `typeof` yields `undefined`. |
+| `BigInt` | Conversion function. `new BigInt()` throws; it is not a constructor. |
+| `Intl`, `eval`, `alert` | Not defined. Reading them throws `ReferenceError`; only `typeof` yields `undefined`. |
 
 ### Math
 
@@ -332,6 +333,22 @@ pump, delayed and repeating callbacks do not execute.
 - `NaN` and the infinities stringify as `"NaN"`, `"Infinity"`, and
   `"-Infinity"`; both zeros stringify as `"0"`.
 
+### BigInt
+
+- Literals: `123n`, and the radix forms `0x1Fn`, `0b101n`, `0o17n`. A
+  fractional or exponent form (`1.5n`, `1e3n`) is a syntax error, as is
+  `BigInt(1.5)`.
+- Arbitrary precision: values are stored as exact decimal digit strings, so
+  `99999999999999999999n + 1n` is exact where a Number would round.
+- Arithmetic: `+`, `-`, `*`, `/` (truncating), `%` (sign of the dividend), `**`
+  (non-negative exponent), and unary `-`. Division by zero is a `RangeError`.
+- Mixing a BigInt with a Number in an arithmetic operator is a `TypeError`, as
+  ECMAScript requires; convert explicitly with `BigInt(...)` or `Number(...)`.
+- Comparison: two BigInts compare exactly, and `===` requires both sides to be
+  BigInts. Loose `==` coerces, so `1n == 1` and `1n == "1"` are `true`.
+- `BigInt(value)` converts from a Number (integral only), string, or boolean.
+  `typeof` a BigInt is `"bigint"` and `String()` prints the exact digits.
+
 ### Generators
 
 - `function* g() { ... }` declares a generator. Calling it does not run the
@@ -418,7 +435,6 @@ are grouped by cause, because the three groups have different answers:
 | :--- | :--- | :--- |
 | `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
 | `for await` | `for await` is a parse error; async iteration is not implemented. | P2-07 |
-| `BigInt` | BigInt literals are rejected at lex time (`BigInt literals are not supported`) rather than being mis-parsed. | P2-09 |
 | Function metadata | `Function` constructor, `length`, `name`, and `toString` parity. | P2-10 |
 | Library completeness | `Object.is`/`defineProperty`/`getOwnPropertyNames`/`freeze`/`seal`/`fromEntries`, `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`, `String.fromCharCode`/`fromCodePoint`, `String.prototype.localeCompare`/`normalize`, `Date` setters, `Intl`, `eval`, `alert`. | P2-11 |
 | Modules | `import`/`export` are not implemented; no module system. | — |

@@ -14,12 +14,12 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **209 tests pass** with `pasbuild test`.
-- Gap scan: **162 probes OK / 7 ERR** with `bash scratch/run_gapscan.sh`.
+- Test suite: **211 tests pass** with `pasbuild test`.
+- Gap scan: **168 probes OK / 7 ERR** with `bash scratch/run_gapscan.sh`.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
-- Documentation claims: **57 checked, 0 failing** with
+- Documentation claims: **60 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -52,6 +52,8 @@ currently untested because the existing tests assert only the happy path.
 - Tagged templates, with the cooked strings array, `raw`, and substitutions.
 - Generators: `function*`, `yield`, `yield*`, suspension/resumption, and
   iteration over generator objects.
+- BigInt: literals, arbitrary-precision arithmetic, comparison, and
+  `BigInt()` conversion.
 - Priority 3 library surface: Map, Set, Date, Symbol, RegExp, URI helpers,
   timers, and strict runtime type errors.
 
@@ -1040,11 +1042,47 @@ iterations, manual `while` draining, `return()` early completion, and `yield*`
 over arrays, strings, and the empty iterable. Verified against Node over 16
 cases: no differences.
 
-### [ ] P2-09 — BigInt
+### [x] P2-09 — BigInt
 
-Add lexer literal support (`123n`), a `TFloriaJSBigInt` value, arithmetic and
-comparison rules, and `BigInt()` conversion. Defer if host interop does not
-need it.
+BigInt literals were rejected at lex time (a deliberate P2-05 fix, because
+`10n` had been silently lexing as `10` followed by the identifier `n`), and
+there was no BigInt type at all.
+
+**Files.** `src/main/pascal/floria.js.types.pas` (`fjstBigInt`),
+`src/main/pascal/floria.js.value.pas` (kind dispatch, arithmetic, comparison,
+equality), `src/main/pascal/floria.js.number.pas` (arbitrary-precision
+arithmetic), `src/main/pascal/floria.js.lexer.pas` (literal scanning),
+`src/main/pascal/floria.js.ast.pas` / `parser.pas` / `compiler.pas` (literal
+node), `src/main/pascal/floria.js.stdlib.pas` (`BigInt()`).
+
+**Implementation.**
+
+- A BigInt is a **canonical signed decimal digit string** in the value's
+  `StrVal`, mirroring how Symbol stores its payload. No second numeric
+  representation is needed, and arbitrary precision is free.
+- `floria.js.number` gained `BigIntAdd/Sub/Mul/Div/Mod/Compare/Negate/Normalize`
+  plus `BigIntFromRadix` and `BigIntEqualsDouble`, all operating on digit
+  strings. Division truncates toward zero and the remainder takes the dividend's
+  sign, matching JavaScript.
+- The lexer consumes the `n` suffix as part of the literal and converts radix
+  forms to decimal; a fractional or exponent form is a syntax error.
+- Arithmetic operators dispatch to the BigInt helpers when both operands are
+  BigInts. Mixing with a Number raises a `TypeError`; `**` requires a
+  non-negative exponent and division by zero is a `RangeError`.
+- Strict equality requires both sides to be BigInts; loose equality compares
+  mathematically with a Number or numeric string.
+- `BigInt(value)` converts a Number (integral only), string, or boolean. It is
+  **not** constructable: `new BigInt()` throws, via a new
+  `TFloriaJSFunction.NotConstructable` flag.
+
+**Tests.** Literal forms in every radix, rejection of fractional and exponent
+forms, addition/subtraction/multiplication/division/remainder/exponentiation,
+truncation and remainder sign, unary minus, exactness beyond a double's range,
+division by zero, mixed-operand `TypeError`, relational and strict/loose
+equality across kinds, conversion from each type, rejection of a fractional
+conversion, string conversion, and `new BigInt()` being rejected. The
+arithmetic was validated separately against Python over 500 random cases with
+no differences, and the language-level semantics against Node over 40 cases.
 
 ### [ ] P2-10 — Function constructor and function metadata
 
