@@ -56,11 +56,10 @@ Current suites cover:
 
 - types, engine/context lifecycle, lexer, AST, parser;
 - values and object/array primitives;
-- language behaviour (the `TFloriaJSEvaluatorTest` name is historical):
-  arithmetic, scopes, loops, functions, closures, recursion, host callbacks,
-  console capture, operators, arrows, globals, Object, JSON, template
-  interpolation, literal completion, iteration statements,
-  parameter/destructuring forms, and async/await;
+- language behaviour (`TFloriaJSRuntimeTest`): arithmetic, scopes, loops,
+  functions, closures, recursion, host callbacks, console capture, operators,
+  arrows, globals, Object, JSON, template interpolation, literal completion,
+  iteration statements, parameter/destructuring forms, and async/await;
 - bytecode VM: chunks, local variables, jumps, calls, objects, try/catch, and
   compile-and-run;
 - Priority 3: Map, Set, Date, Symbol, RegExp, URI, and host globals;
@@ -68,7 +67,11 @@ Current suites cover:
   lifecycle;
 - lifetime/reclamation: loop and recursion heap stability, closures, shared
   AST/bytecode reference counting;
-- switch/try-catch, construction (`new`/`this`/prototypes), array methods.
+- switch/try-catch, construction (`new`/`this`/prototypes), array methods;
+- Priority 1 regressions (`TFloriaJSPriority1Test`): hoisting and declaration
+  conflicts, optional-chaining boundaries, array holes and `length` mutation,
+  bound-function construction, number formatting/parsing parity, and
+  `delete`/`debugger` semantics.
 
 When adding a test:
 
@@ -79,6 +82,25 @@ When adding a test:
    a useful first failure.
 4. If the feature allocates objects, add a lifetime/reclamation assertion or
    extend the leak harness.
+
+## Documentation claims
+
+`scratch/run_docclaims.sh` compiles and runs `scratch/docclaims.pas`, which
+asserts the statements in [language support](language-support.md) that are
+observable from JavaScript. Each claim records the documented statement, a
+script, and the expected result; a mismatch prints `FAIL` with the expected and
+actual values and the script exits non-zero.
+
+Run it after any behaviour change that could invalidate the docs:
+
+```bash
+bash scratch/run_docclaims.sh
+```
+
+The point is that the acceptance criterion for the documentation is "no
+statement contradicts the runtime", which is only checkable by running the
+statements. When you correct or add a documented behaviour, add or update the
+corresponding claim so it cannot silently rot again.
 
 ## Gap scan
 

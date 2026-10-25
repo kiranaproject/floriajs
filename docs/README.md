@@ -65,18 +65,20 @@ Implemented and covered by the test suite:
 
 Not implemented yet (see the [roadmap](roadmap.md)):
 
-- `class`, generators/`yield`, tagged templates, `for await`, and
-  `import`/`export`.
+- `class`, `super`, and `extends`.
+- Generators/`yield`, tagged templates, `for await`, and `import`/`export`.
 - `BigInt`, the `void` operator, and logical assignment (`&&=`, `||=`).
+- A promise constructor (`new Promise(executor)`).
 - Convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
   and `Object.is`.
 - A JIT/AOT compiler, hidden classes/inline caches, and persistent bytecode
   caching. The VM is currently a pure interpreter.
 
-The runtime also keeps some non-standard semantics, mostly in coercion,
-numeric formatting, and the still-missing operators. See
-[language support](language-support.md#semantic-deviations) for the complete
-list.
+The runtime also keeps some non-standard semantics. The
+[language support](language-support.md#semantic-deviations) page groups them by
+cause: deliberate embedded trade-offs, missing features with the roadmap task
+that covers each one, and known gaps. Number formatting and parsing are
+ECMAScript-exact, so they are not among them.
 
 ## Documentation conventions
 

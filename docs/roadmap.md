@@ -19,6 +19,8 @@ At the time this roadmap was written:
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
 - Unit count: 26 units.
+- Documentation claims: **36 checked, 0 failing** with
+  `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
 currently untested because the existing tests assert only the happy path.
@@ -684,30 +686,54 @@ being a parse error rather than a `ReferenceError`.
 
 ---
 
-### [ ] P1-06 — Re-sync documentation with current runtime behaviour
+### [x] P1-06 — Re-sync documentation with current runtime behaviour
 
-Several docs still describe the pre-P1 runtime:
+**Failures.** The docs had drifted from the runtime in ways that a reader would
+not notice, because nothing checked them:
 
-- `docs/language-support.md` must stay consistent with the P0/P1 fixes; the
-  `const` reassignment, hoisting, `Function.prototype`, `delete`, `debugger`,
-  and number-formatting statements have all been rewritten already, so re-read
-  the page for anything left over.
-- `docs/README.md` still lists `Function.prototype` methods as unimplemented.
-- `docs/api/values.md` needs the remaining new types documented as they land.
-- `docs/getting-started.md` still mentions the old “prototype deliberately has
-  no constructor back-reference” design.
+- `docs/README.md` still said numeric formatting was non-standard, which P1-04
+  had just fixed.
+- `docs/architecture.md` did not list `floria.js.number` at all.
+- `docs/development.md` referred to a `TFloriaJSEvaluatorTest` class that does
+  not exist and omitted the whole Priority 1 suite.
+- `docs/language-support.md` described `void 0` as yielding `0` (it always
+  throws `ReferenceError`), said `class` was "sometimes silently ignored" (every
+  form throws the same `ReferenceError`), and claimed `for…of` over a
+  `Map`/`Set` "runs zero iterations" (it throws `TypeError`).
+- `docs/api/values.md` never documented `TFloriaJSPrototypeObject`.
+- The deviation table was a flat list mixing scheduled work, deliberate design
+  decisions, and unexplained gaps, which is exactly the distinction the task
+  asked for.
 
-Update these pages as the P0 fixes land. The language-support deviation table
-must distinguish:
+Two further deviations surfaced while verifying, and are now documented:
+`this` at the top level of a script is unbound and throws, and a detached
+`Foo.prototype` loses its `constructor` back-reference.
 
-- currently incorrect behaviour that is scheduled (P0),
-- deliberate embedded trade-offs,
-- genuinely missing features (P2/P3).
+**Files.** `docs/README.md`, `docs/language-support.md`, `docs/architecture.md`,
+`docs/development.md`, `docs/api/values.md`, `docs/roadmap.md`; new
+`scratch/docclaims.pas` and `scratch/run_docclaims.sh`.
 
-Acceptance: no statement in `docs/` contradicts a passing test or a completed
-roadmap item.
+**Implementation.**
 
----
+- Replaced the flat deviation table with the three required groups:
+  **deliberate embedded trade-offs** (no scheduled change),
+  **missing features (scheduled)** (each row names its roadmap task), and
+  **known gaps** (unscheduled divergences).
+- Collapsed the duplicate "Not implemented" list into a pointer at the
+  scheduled table, so the two cannot drift apart.
+- Corrected every statement listed under **Failures** above, and rewrote the
+  tagged-template entries after finding that the tag is never called at all.
+- Documented `TFloriaJSPrototypeObject`, including the weak-owner design that
+  makes `constructor` work without a reference cycle.
+- Added `floria.js.number` to the architecture unit table and the Priority 1
+  suite to the test-suite list.
+
+**Verification.** The acceptance criterion ("no statement in `docs/`
+contradicts a passing test or a completed roadmap item") is only checkable by
+executing the documented behaviour, so `scratch/docclaims.pas` encodes 36
+statements from the page as assertions with their expected results. It reports
+`36 claims, 0 failed`, and a deliberately wrong claim makes it fail, so it
+detects drift rather than just passing.
 
 ## Priority 2 — Missing language and library features
 

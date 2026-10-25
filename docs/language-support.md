@@ -30,7 +30,7 @@ them.
 | Empty statement (`;`) | Yes | Treated as an empty block. |
 | `with` | No | Rejected at parse time with a clear error; it never runs as an undeclared name. |
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
-| `class` | No | Some forms are silently ignored, others fail to parse. |
+| `class` | No | Not a keyword: every form (`class A {}`, `class {}`, `extends`) parses as the identifier `class` and throws `ReferenceError: class is not defined`. Scheduled as P2-06. |
 | Generators (`function*`, `yield`) | No | Parse error. |
 | `for await` | No | Parse error. |
 
@@ -109,7 +109,7 @@ Notes:
 | Numeric separators | Yes | `1_000_000` (decimal forms) |
 | Strings | Yes | `\n`, `\r`, `\t`, `\b`, `\f`, `\v`, `\0`, `\\`, `\'`, `\"`, `\xNN`, `\uNNNN` |
 | Template literals | Yes | `` `v=${n + 1}` `` interpolation via string concatenation |
-| Tagged templates | No | `tag\`x\`` is silently treated as adjacent expressions |
+| Tagged templates | No | The tag is **not called**. `tag\`x\`` parses as the expression `tag` followed by a template literal, and the whole thing evaluates to the template string, so `tag` is never invoked |
 | Array literals | Yes | Holes/elisions (`[1, , 3]`), spread (`[...a]`), trailing commas. Holes are tracked separately from explicit `undefined`. |
 | Object literals | Yes | Shorthand, computed keys, spread, methods, getters/setters, trailing commas |
 | Spread in calls | Yes | `f(...args)` |
@@ -258,8 +258,8 @@ Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
   `forEach`, and the `size` getter.
 - Keys use SameValueZero: `NaN` equals `NaN`, and `+0`/`-0` are the same key.
 - `keys`, `values`, and `entries` return **arrays**, not iterator objects.
-  `for…of` over a `Map`/`Set` currently runs zero iterations; iterate the
-  arrays instead.
+  `Map`/`Set` are not iterable themselves: `for…of` over one throws `TypeError`
+  (`5 is not iterable`-style), so iterate the returned arrays instead.
 
 ### Date
 
@@ -350,52 +350,78 @@ FTML property expressions and signal handlers use this same language. See the
 
 ## Semantic deviations
 
-These are the differences most likely to surprise a JavaScript developer:
+These are the differences most likely to surprise a JavaScript developer. They
+are grouped by cause, because the three groups have different answers:
 
-| Area | Current behaviour |
+- **Deliberate embedded trade-offs** are design decisions for a small,
+  dependency-free runtime. They are not scheduled to change.
+- **Missing features** are unimplemented syntax or APIs. Each is scheduled on
+  the [roadmap](roadmap.md) under the priority named here.
+- **Known gaps** are places where the implementation differs from ECMAScript
+  without a specific scheduled task yet; they are the most likely to bite.
+
+### Deliberate embedded trade-offs
+
+| Area | Behaviour | Why |
+| :--- | :--- | :--- |
+| Execution engine | Pure bytecode interpreter; no JIT/AOT, hidden classes, inline caches, or persistent bytecode cache. | Keeps the runtime embeddable and dependency-free. Optional work is P3. |
+| Timers | Require the host to call `FloriaJSProcessTimers`; no built-in event loop, and timer state is process-wide. | The host owns the main loop. |
+| Strings | Byte-oriented (UTF-8), including `length`, indexing, and `for…of`. | Avoids a UTF-16 representation in an embedded runtime. |
+| `globalThis` | A snapshot object, not a live binding to the global scope. | A live proxy would need a global object model. |
+| `Map`/`Set` storage | Lookup is linear rather than hash-based; `keys`/`values`/`entries` return arrays, not iterator objects. | Simplicity; the full iterator protocol is P2-05. |
+| Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. | Reuses the FPC regex engine instead of shipping one. |
+| `Symbol` property keys | Symbols are primitives, but `obj[sym]` stores under the string form `Symbol(description)`; not real symbol-keyed properties. | Would require a separate symbol-keyed property table. |
+
+### Missing features (scheduled)
+
+| Area | Current behaviour | Task |
+| :--- | :--- | :--- |
+| `void` | Not a keyword or operator: `void` parses as an identifier, so any use throws `ReferenceError: void is not defined`. | P2-01 |
+| Logical assignment | `&&=` and `\|\|=` are not implemented; `a &&= b` is a parse error. | P2-02 |
+| Promise construction | `new Promise(executor)` is not supported (`TypeError: Value is not a constructor`); use `Promise.resolve`/`reject`/`all`/`race`. | P2-03 |
+| `JSON` parity | `JSON.stringify` ignores the replacer, does not invoke getters, and does not call `toJSON`; `JSON.parse` has no reviver. | P2-04 |
+| `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
+| `class` | Not a keyword: every form (`class A {}`, `class {}`, `extends`) parses as the identifier `class` and throws `ReferenceError: class is not defined`. | P2-06 |
+| Generators / `for await` | `function*` and `for await` are parse errors. | P2-07 |
+| Tagged templates | The tag is never called: `tag\`x\`` evaluates to the template string itself, so `function t(s){ return 1; } t\`x\`` is `"x"`, not `1`. | P2-08 |
+| `BigInt` | `10n` is not supported. | P2-09 |
+| Function metadata | `Function` constructor, `length`, `name`, and `toString` parity. | P2-10 |
+| Library completeness | `Object.is`/`defineProperty`/`getOwnPropertyNames`/`freeze`/`seal`/`fromEntries`, `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`, `String.fromCharCode`/`fromCodePoint`, `String.prototype.localeCompare`/`normalize`, `Date` setters, `Intl`, `eval`, `alert`. | P2-11 |
+| Modules | `import`/`export` are not implemented; no module system. | — |
+
+### Known gaps
+
+| Area | Behaviour |
 | :--- | :--- |
 | TDZ | There is no temporal dead zone before a `let`/`const` declaration. |
 | `var` | Hoisted to function or script root. `let`/`const` are block-scoped. Cross-scope collisions raise `SyntaxError`. |
 | Classic `for` with `let`/`const` | Loop bindings are block-scoped and invisible after the loop. Each iteration gets a fresh binding, so closures capture per-iteration values; `var` loop bindings remain function/script scoped. |
-| `void` | Not an operator. `void 0` happens to yield `0` because it is two expressions. |
-| Logical assignment | `&&=` and `\|\|=` are not implemented. |
-| Tagged templates | Not implemented; often silently treated as two expressions. |
-| `class` | Not implemented; some forms fail, some are ignored. |
 | `with` | Unsupported: rejected at parse time rather than as a runtime `ReferenceError`. |
-| `debugger` | A no-op statement. Recognised as a keyword, so it is reserved. |
-| `globalThis` | Snapshot, not a live binding to the global scope. |
-| Strings | Byte-oriented (UTF-8), including `length`, indexing, and `for…of`. |
 | Loose equality | No object-to-primitive coercion: `[1] == 1` and `[] == false` are `false`, and a custom `toString`/`valueOf` is not consulted by `+` or `==`. |
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
-| `JSON.stringify` | Ignores the replacer, does not invoke getters, and does not call `toJSON`; `JSON.parse` has no reviver. |
-| Promise construction | `new Promise(executor)` is not supported. |
-| Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |
 | `for…in`/`for…of` targets | Must be simple identifiers; destructuring targets are not parsed. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
 | `for…of` on non-iterables | Throws `TypeError`. |
-| `for…of` on Map/Set | Runs zero iterations; use `keys()`/`values()`/`entries()`, which return arrays. |
-| `Map`/`Set` iteration | `keys`, `values`, and `entries` return arrays, not iterator objects; lookup is linear rather than hash-based. Full iterator protocol scheduled for P2-05. |
-| `Symbol` property keys | Symbols are primitives, but assigning `obj[sym]` stores under the string form `Symbol(description)`; they are not real symbol-keyed properties. |
-| Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. |
-| Timers | Require the host to call `FloriaJSProcessTimers`; there is no built-in event loop, and timer state is process-wide. |
-| Execution engine | Pure bytecode interpreter; no JIT/AOT, hidden classes, inline caches, or persistent bytecode cache. |
+| Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |
+| `this` | Behaves as if every function were strict: a plain call sees `this === undefined` rather than the global object, so `function f(){ return this; } f()` is `undefined`. At the top level of a script `this` is not bound at all, and reading it throws `ReferenceError`; use `globalThis` instead. Methods, `new`, and lexical `this` in arrows behave normally. |
+| Detached `prototype.constructor` | `Foo.prototype.constructor === Foo` works, but the back-reference is a weak registration. After `var p = Foo.prototype; Foo.prototype = {}`, `p.constructor` is `Object` rather than `Foo`. |
 
 ## Not implemented
 
-- `class`, `super`, `extends`.
-- Generators (`function*`, `yield`), `for await`, and async iteration.
-- Tagged templates.
-- `import` / `export`.
-- `BigInt`.
-- The `void` operator and logical assignment (`&&=`, `||=`).
-- `Object.is`, `Object.defineProperty`, `Object.freeze`/`seal`.
-- `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`.
-- `String.fromCharCode`/`fromCodePoint`.
-- `Intl`, `eval`, `alert`.
-- A promise constructor (`new Promise(executor)`).
+Unimplemented syntax and APIs are listed once, in
+[Missing features (scheduled)](#missing-features-scheduled), together with the
+roadmap task that covers them. That table is the authoritative list; this page
+does not repeat it, so the two cannot drift apart.
+
+`import`/`export` is listed there without a task number because it is not yet
+scheduled in detail; there is no module system.
 
 ## Verifying behaviour
 
 - Run `pasbuild test` for the unit suite.
 - Run `bash scratch/run_gapscan.sh` for the JavaScript-level probe matrix.
+- Run `bash scratch/run_docclaims.sh` to check that the statements on this page
+  still match the runtime. Each claim in `scratch/docclaims.pas` asserts one
+  documented behaviour, so correcting the docs and adding the claim go
+  together.
 - When adding a feature, update this page and the [roadmap](roadmap.md).

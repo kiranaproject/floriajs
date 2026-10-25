@@ -180,6 +180,42 @@ property HeapOwned: Boolean read FHeapOwned write FHeapOwned;
   reclaim it on `Collect`. It is used for objects whose lifetime another owner
   manages.
 
+## `TFloriaJSPrototypeObject`
+
+The object a user function exposes as its `prototype` property.
+
+```pascal
+constructor Create(AProto: TFloriaJSObject; AOwner: TFloriaJSFunction);
+destructor Destroy(); override;
+
+function  GetPropertyWithReceiver(const AName: string;
+  AReceiver: TFloriaJSObject): TFloriaJSValue; override;
+function  HasOwnProperty(const AName: string): Boolean; override;
+
+property OwnerFunction: TFloriaJSFunction read FOwnerFunction write SetOwnerFunction;
+```
+
+- The `constructor` back-reference to the owning function is **not stored as a
+  normal property**. Reference counting cannot reclaim a cycle, and
+  `Foo.prototype.constructor === Foo` would otherwise keep every function and
+  its prototype alive forever.
+- Instead the object holds a *weak owner registration*: `OwnerFunction` is
+  assigned directly, without retaining, and the function is told to unregister
+  the prototype when either side goes away. `constructor` reads are answered
+  from that registration, and `hasOwnProperty('constructor')` reports `true`,
+  so the property looks ordinary from JavaScript.
+- Replacing the `prototype` property (or handing it to another function)
+  updates the registration. A detached prototype therefore stops answering
+  `constructor` with its former owner and falls back to `Object`, whereas
+  ECMAScript keeps `constructor` on the old object. This is a deliberate
+  consequence of the weak registration and is listed under known gaps in
+  [language support](../language-support.md#known-gaps).
+- `AProto` is normally `Object.prototype`, which is what makes
+  `instanceof Object` true for user instances.
+
+Host code should not need this class directly; `TFloriaJSHeap` creates these
+objects when it installs `prototype` on a user function.
+
 ## `TFloriaJSArray`
 
 ```pascal

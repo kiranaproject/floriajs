@@ -58,6 +58,7 @@ dispatch signals.
 | `floria.js.compiler` | AST-to-bytecode compiler. |
 | `floria.js.vm` | Stack-based bytecode interpreter, call frames, exception handlers. |
 | `floria.js.value` | `TFloriaJSValue`, objects, arrays, functions, errors, promises, heap, coercion helpers. |
+| `floria.js.number` | ECMAScript-exact double-to-string and string-to-double conversion on exact decimal digit strings. |
 | `floria.js.env` | Lexical environments, bindings, parent lookup, delegated item scope. |
 
 ### Standard library
