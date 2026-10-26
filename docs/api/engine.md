@@ -102,6 +102,26 @@ end;
 
 Do not call `Free` on a context that the engine still tracks.
 
+### `ExecuteFile` and `EvaluateFile`
+
+```pascal
+function ExecuteFile(const AFileName: string): TFloriaJSResult;
+function EvaluateFile(const AFileName: string): TFloriaJSResult;
+```
+
+Runs the contents of a JavaScript file. A missing or unreadable file is
+reported as a failed result rather than raising, so a host can display it the
+same way as a script error:
+
+```pascal
+res := engine.ExecuteFile('app/main.js');
+if not res.Success then
+  WriteLn('error: ', res.ErrorMessage);
+```
+
+`ExecuteFile` uses the default context; `EvaluateFile` is the same operation on
+a specific context.
+
 ### `Execute` and `ExecuteValue`
 
 These forward to `DefaultContext`:

@@ -158,6 +158,50 @@ reported a 71% swing between two identical runs because it used the median.
 deviation of the stable benchmarks (median deviation is about 3%). Anything
 smaller is noise.
 
+## Comparing against Node
+
+`bench/run_compare.sh` runs the same `.js` files under floriajs and under Node,
+and reports the ratio:
+
+```bash
+bash bench/run_compare.sh            # print the comparison
+bash bench/run_compare.sh --save     # also update bench/compare-baseline.txt
+bash bench/run_compare.sh --check    # fail on a >25% ratio regression
+```
+
+**Why a ratio, not absolute time.** Absolute microseconds depend on the
+machine: a baseline from a fast desktop says nothing about a laptop. The ratio
+against Node does travel, because both interpreters run on the same hardware in
+the same session. That is what makes this comparable across machines.
+
+The workloads live in `bench/workloads/*.js` as real files and are executed by
+both engines. `bench/runner/` is a **Pasbuild sub-project** that loads each file
+with `ExecuteFile`; `bench/node/run_node.js` loads the same file with `vm`.
+
+### Keeping the two engines honest
+
+Both runners use a fresh context per measurement, one warm-up run, 41 runs, and
+report the **fastest**. The comparison refuses to report ratios if the two
+engines produced **different results** for a workload: timings from two
+interpreters that computed different answers mean nothing. This caught a
+deliberately corrupted workload during development.
+
+### Why the runner is a separate Pasbuild project
+
+It declares a dependency on `floriajs`, so it builds the way a host application
+does. That dependency resolves to the *installed* copy in
+`~/.pasbuild/repository`, which can be stale — an early run reported generators
+as unimplemented because the installed units predated them. `run_compare.sh`
+therefore compiles the library into `bench/runner/target/units` first, which is
+searched before the repository and shadows the stale copy.
+
+### Interleave the engines
+
+Running all of one engine's workloads before the other's biases every ratio by
+about 12%, because whichever goes first pays for CPU frequency ramp-up. The
+script alternates both the workload order and which engine runs first, which
+cancels the bias; run-to-run median deviation is about 5%.
+
 ### Two traps this suite hit
 
 Both produced plausible-looking numbers that were wrong by orders of magnitude.

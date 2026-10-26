@@ -14,8 +14,9 @@ At the time this roadmap was written:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **222 tests pass** with `pasbuild test`.
+- Test suite: **223 tests pass** with `pasbuild test`.
 - Benchmark suite: **15 workloads** with a checked-in baseline; `--check` guards a 20% regression.
+- Node comparison: **12 file-based workloads**, geometric mean **4.3x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **186 probes OK / 8 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
@@ -1306,6 +1307,31 @@ rather than the parser.
 | `binding/unbound-write` | 2.80 | 357,600 |
 | `binding/bound-1-level` | 15.12 | 66,100 |
 | `binding/bound-3-levels` | 43.05 | 23,200 |
+
+**Comparing against Node.** `bash bench/run_compare.sh` runs the same `.js`
+files under both engines and reports the ratio, which is portable across
+machines in a way absolute microseconds are not. The workloads live in
+`bench/workloads/` and `bench/runner/` is a Pasbuild sub-project that loads them
+with the new `ExecuteFile` API, so the interpreter is exercised the way a host
+uses it rather than through a string built for the occasion.
+
+Current ratios on this machine (geometric mean **4.3x**, slowest
+`call_recursive` at **45x**):
+
+| workload | floriajs | Node | ratio |
+| :--- | ---: | ---: | ---: |
+| `loop_count` | 54.9 ms | 25.1 ms | 2.2x |
+| `loop_while` | 53.6 ms | 27.4 ms | 2.0x |
+| `call_plain` | 10.3 ms | 2.7 ms | 3.8x |
+| `call_recursive` | 26.9 ms | 0.59 ms | 45.4x |
+| `prop_read_write` | 34.6 ms | 9.1 ms | 3.8x |
+| `prop_array_write` | 335.1 ms | 10.8 ms | 30.9x |
+| `string_concat` | 13.2 ms | 5.4 ms | 2.4x |
+| `arith_mixed` | 66.3 ms | 26.1 ms | 2.5x |
+
+A 45x gap on recursion and a 31x gap on array writes are where the dispatch
+work has the most to gain. Node's absolute numbers here are also modest because
+this is an older laptop (i5-6267U); the ratios are the part that transfers.
 
 **Two findings that P3 should act on.**
 
