@@ -15,6 +15,7 @@ At the time this roadmap was written:
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
 - Test suite: **222 tests pass** with `pasbuild test`.
+- Benchmark suite: **15 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Gap scan: **186 probes OK / 8 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   Some errors are expected (`throw`, unsupported `yield`); the probe harness is
   not an ECMAScript conformance suite.
@@ -1278,6 +1279,51 @@ against a checked-in benchmark, not guessed.
   reduce the wrapped region while preserving catch semantics.
 - Benchmark loops, calls, property access, and FTML binding updates before and
   after.
+
+**Prerequisite done: the benchmark suite.** P3 says measurements must come from
+a checked-in benchmark rather than guesses, and there was none. `bench/` now
+provides one: `bash bench/run_bench.sh` runs it, `--save` records a baseline,
+and `--check` fails on a regression over 20%.
+
+It covers the four workloads this task names (loops, calls, property access, and
+FTML binding updates) plus strings, arithmetic, and allocation. Each workload is
+compiled once and executed many times, so the numbers describe the interpreter
+rather than the parser.
+
+**Baseline (this machine, `bench/baseline.txt`):**
+
+| workload | us/op | ops/s |
+| :--- | ---: | ---: |
+| `loop/count-10k` | 5.47 | 182,775 |
+| `loop/while-10k` | 5.34 | 187,182 |
+| `call/plain-1k` | 11.64 | 85,889 |
+| `call/recursive-fib-16` | 10.58 | 94,551 |
+| `prop/read-write-5k` | 6.36 | 157,302 |
+| `prop/array-write-5k` | 60.40 | 16,556 |
+| `string/concat-2k` | 6.54 | 152,847 |
+| `arith/mixed-10k` | 7.13 | 140,347 |
+| `object/alloc-2k` | 13.47 | 74,262 |
+| `binding/unbound-write` | 2.80 | 357,600 |
+| `binding/bound-1-level` | 15.12 | 66,100 |
+| `binding/bound-3-levels` | 43.05 | 23,200 |
+
+**Two findings that P3 should act on.**
+
+1. **Array element writes are about ten times slower than object writes**
+   (`prop/array-write-5k` at 60 us/op against `prop/read-write-5k` at 6.4).
+   A numeric index is converted to a string and then parsed back with
+   `TryStrToInt` inside `TFloriaJSArray.SetProperty`. Writing `a[i]` costs the
+   same as writing `a["" + i]`, which confirms the round trip is the cost.
+   P3-02 (slot resolution) does not address this; it needs a numeric key path.
+
+2. **A binding write costs about 5x an unbound one, and compounds with depth**
+   (2.8 us unbound, 15.1 us at one level, 43.0 us at three). That is the
+   baseline P3-05 must beat.
+
+**Measured cost of the dispatch wrapper.** Not yet separated: the suite measures
+end-to-end workload cost, not the `try`/`except` share of it. Isolating it needs
+a variant build with the wrapper removed, which is the first experiment this
+task should run.
 
 ### [ ] P3-02 — Resolve user variables to slots
 

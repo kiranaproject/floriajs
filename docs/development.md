@@ -8,6 +8,7 @@ and the safe way to add language or standard-library features.
 ```text
 floriajs/
 ├── docs/                 Documentation (this directory)
+├── bench/                Benchmark suite (checked in, with a baseline)
 ├── examples/             Compilable Pascal examples
 ├── scratch/              Local gap-scan harnesses (ignored by Git)
 ├── src/
@@ -122,6 +123,63 @@ Add a probe for every user-visible feature. The files are ignored, but they are
 the working record behind the [roadmap](roadmap.md). A probe that merely
 returns a plausible value is not enough: check the expected value in the
 script, as several old probes printed “OK” for silent no-ops.
+
+## Benchmarks
+
+`bench/` holds the performance suite. Unlike the gap scan it is checked in,
+because a measurement is only useful if the same measurement can be repeated.
+
+```bash
+bash bench/run_bench.sh            # run and print tables
+bash bench/run_bench.sh --save     # also update bench/baseline.txt
+bash bench/run_bench.sh --check    # fail on a >20% regression vs the baseline
+```
+
+Two programs:
+
+- `bench/bench_js.pas` — VM workloads: loops, calls, property access, strings,
+  arithmetic, allocation.
+- `bench/bench_ftml.pas` — reactive binding propagation, one to three levels
+  deep.
+
+Each workload is **compiled once** and then executed many times, so the figures
+describe the interpreter and not the parser. `us/op` is microseconds per loop
+iteration or per call, which is comparable across workloads of different sizes.
+
+### Reading the numbers
+
+The reported `us/op` is derived from the **fastest** sample, not the mean or the
+median. Interference can only ever make a run slower, so the fastest observed
+run is the closest estimate of the work itself. The median and p95 are printed
+for context: they move with machine load, and an early version of this suite
+reported a 71% swing between two identical runs because it used the median.
+
+`--check` uses a 20% threshold because that is roughly the worst run-to-run
+deviation of the stable benchmarks (median deviation is about 3%). Anything
+smaller is noise.
+
+### Two traps this suite hit
+
+Both produced plausible-looking numbers that were wrong by orders of magnitude.
+They are worth knowing before adding a workload.
+
+1. **Timing one call instead of the batch.** The calibration measures a batch of
+   `N` calls to clear the clock resolution, but the sampling loop originally
+   timed a single call while the report divided by `N`. Every figure was
+   under-reported by the batch factor — a 240 ns operation printed as 0.3 ns.
+   The batch must be what is timed *and* what the divisor describes.
+
+2. **Not collecting between runs.** `TFloriaJSContext.Execute` calls
+   `Heap.Collect()` before each script. A benchmark that drives
+   `VM.Execute` directly must do the same, or each run leaves its garbage
+   behind: the heap grew by about a thousand objects per run and later samples
+   were twice as slow as earlier ones.
+
+A third trap is specific to the FTML benchmark: writing the **same** value to a
+property short-circuits the update path and costs about a seventh of a real
+change. The workload therefore always writes a new value, and the program
+asserts that the binding actually propagated — otherwise the timings could
+describe a no-op.
 
 ## Coding conventions
 
