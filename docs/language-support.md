@@ -180,8 +180,10 @@ empty text; `JSON.stringify` emits `null`; spread materialises holes as
 explicit `undefined`. `length = n` extends with holes or truncates the array,
 and invalid lengths raise `RangeError`.
 
-Not implemented: `flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`,
-`values`, `entries`. `arr.toString()` returns comma-joined elements like `arr.join()`.
+`flat`, `flatMap`, `fill`, `copyWithin`, `at`, and `values` are implemented.
+
+Not implemented: `keys` and `entries`. `arr.toString()` returns comma-joined
+elements like `arr.join()`.
 
 ### String
 
@@ -193,8 +195,10 @@ Not implemented: `flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`,
 `replace`/`replaceAll` accept string or regex patterns and optional function
 replacers (called with `match`, `index`, and the whole string). `$&`-style
 replacement templates are not supported. `match`/`search`/`split` work with
-regex patterns. Not implemented: `localeCompare`, `normalize`,
-`String.fromCharCode`, `String.fromCodePoint`.
+regex patterns. `String.fromCharCode` and `String.fromCodePoint` build strings
+from code units and code points, encoding them as UTF-8.
+
+Not implemented: `localeCompare`, `normalize`.
 
 `String.prototype` is the shared prototype used by primitive strings, so
 `String.prototype.charAt === "".charAt` is true.
@@ -232,8 +236,11 @@ A bound function is a function object of its own, as in ECMAScript:
 - A bound function has no own `prototype`; `"prototype" in B` and
   `B.hasOwnProperty("prototype")` are `false`.
 
-Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
-`freeze`/`seal`, `fromEntries`.
+`Object.is`, `getOwnPropertyNames`, `defineProperty`, `freeze`, `seal`,
+`isFrozen`, and `isSealed` are implemented; see
+[Built-in coverage](#built-in-coverage) for their exact semantics.
+
+Not implemented: `fromEntries`.
 
 ### JSON
 
@@ -278,8 +285,9 @@ Not implemented: `Object.is`, `defineProperty`, `getOwnPropertyNames`,
   component getters (`getFullYear`, `getMonth`, `getDate`, `getDay`,
   `getHours`, `getMinutes`, `getSeconds`, `getMilliseconds`, and their
   `getUTC*` forms).
-- `setTime(ms)` is supported. The other component setters
-  (`setFullYear`, `setMonth`, …) are not implemented.
+- `setTime(ms)` and the component setters (`setFullYear`, `setMonth`,
+  `setDate`, `setHours`, `setMinutes`, `setSeconds`, `setMilliseconds`) are
+  supported. An out-of-range month or day carries into the next year or month.
 
 ### Symbol
 
@@ -472,15 +480,22 @@ are grouped by cause, because the three groups have different answers:
 | `Object.defineProperty` | Honours `value`, `get`, `set`, and `enumerable`; other descriptor fields (`writable`, `configurable`) are ignored. |
 | `Symbol` property keys | Symbols are primitives, but `obj[sym]` stores under the string form `Symbol(description)`; not real symbol-keyed properties. | Would require a separate symbol-keyed property table. |
 
-### Missing features (scheduled)
+### Missing features
 
-| Area | Current behaviour | Task |
-| :--- | :--- | :--- |
-| `for…of` on Map/Set | Throws `TypeError` because they are not iterable; use `keys()`/`values()`/`entries()`, which return arrays. | P2-05 |
-| `for await` | `for await` is a parse error; async iteration is not implemented. | P2-07 |
+Everything known to be absent. Nothing here is scheduled; the roadmap's Priority
+2 is complete, so these are deliberate or unplanned gaps rather than pending
+work.
+
+| Area | Current behaviour |
+| :--- | :--- |
+| `for await` | Parse error; async iteration is not implemented. |
+| `Array.prototype.keys` / `entries` | Not implemented. `values()` and `Symbol.iterator` are. |
+| `Object.fromEntries` | Not implemented. `Object.entries` is. |
+| `String.prototype.localeCompare` / `normalize` | Not implemented. |
 | Function `toString` | Returns `function <name>() { [native code] }` for user functions too; the original source is not retained. |
-| Library completeness | `Object.is`/`defineProperty`/`getOwnPropertyNames`/`freeze`/`seal`/`fromEntries`, `Array.prototype.flat`/`flatMap`/`fill`/`copyWithin`/`at`, `String.fromCharCode`/`fromCodePoint`, `String.prototype.localeCompare`/`normalize`, `Date` setters, `Intl`, `eval`, `alert`. | P2-11 |
-| Modules | `import`/`export` are not implemented; no module system. | — |
+| `Intl`, `eval`, `alert` | Not defined. Reading them throws `ReferenceError`. |
+| Modules | `import`/`export` are not implemented; no module system. |
+| `with` | Rejected at parse time. |
 
 ### Known gaps
 
@@ -492,7 +507,7 @@ are grouped by cause, because the three groups have different answers:
 | `with` | Unsupported: rejected at parse time rather than as a runtime `ReferenceError`. |
 | Loose equality | No object-to-primitive coercion: `[1] == 1` and `[] == false` are `false`, and a custom `toString`/`valueOf` is not consulted by `+` or `==`. |
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
-| `for…in` targets | Must be a simple identifier; destructuring targets are not parsed. `for…of` accepts both. |
+| `for…in` targets | A destructuring target is parsed but its names are **not bound**, so using them raises `ReferenceError`. Use a simple identifier. `for…of` accepts both. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
 | `for…of` on non-iterables | Throws `TypeError`. |
 | Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |
@@ -502,9 +517,8 @@ are grouped by cause, because the three groups have different answers:
 ## Not implemented
 
 Unimplemented syntax and APIs are listed once, in
-[Missing features (scheduled)](#missing-features-scheduled), together with the
-roadmap task that covers them. That table is the authoritative list; this page
-does not repeat it, so the two cannot drift apart.
+[Missing features](#missing-features). That table is the authoritative list;
+this page does not repeat it, so the two cannot drift apart.
 
 `import`/`export` is listed there without a task number because it is not yet
 scheduled in detail; there is no module system.
