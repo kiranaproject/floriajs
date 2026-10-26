@@ -53,6 +53,10 @@ type
     procedure RegisterMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
 
     function  Evaluate(const AScript: string): TFloriaJSResult; virtual;
+    { Runs the contents of a JavaScript file. A missing or unreadable file is
+      reported as a failed result rather than an exception, so a host can show
+      the error. }
+    function  EvaluateFile(const AFileName: string): TFloriaJSResult; virtual;
     function  EvaluateValue(const AScript: string): TFloriaJSValue; virtual;
     function  Call(const AFuncName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue; virtual;
 
@@ -88,6 +92,8 @@ type
     procedure DestroyContext(AContext: TFloriaJSContext);
 
     function  Execute(const AScript: string): TFloriaJSResult; virtual;
+    { Runs the contents of a JavaScript file through the default context. }
+    function  ExecuteFile(const AFileName: string): TFloriaJSResult; virtual;
     function  ExecuteValue(const AScript: string): TFloriaJSValue; virtual;
     procedure ReleaseValue(const AValue: TFloriaJSValue); virtual;
     procedure RegisterFunction(const AName: string; AProc: TFloriaJSNativeProc);
@@ -199,6 +205,38 @@ begin
   except
     on E: Exception do
       Result := FloriaJSMakeErrorResult(E.Message);
+  end;
+end;
+
+
+{ Reads AFileName and runs it. A missing or unreadable file becomes a failed
+  result, so the caller can report it the same way as a script error. }
+function TFloriaJSContext.EvaluateFile(const AFileName: string): TFloriaJSResult;
+var
+  sl: TStringList;
+begin
+  if not FileExists(AFileName) then
+  begin
+    Result := FloriaJSMakeErrorResult('File not found: ' + AFileName);
+    Exit;
+  end;
+
+  sl := TStringList.Create();
+  try
+    try
+      sl.LoadFromFile(AFileName);
+    except
+      on E: Exception do
+      begin
+        Result := FloriaJSMakeErrorResult('Cannot read ' + AFileName + ': ' + E.Message);
+        Exit;
+      end;
+    end;
+    { The source is run verbatim. TStringList normalises line endings, which
+      does not change how the lexer reads it. }
+    Result := Evaluate(sl.Text);
+  finally
+    sl.Free();
   end;
 end;
 
@@ -347,6 +385,14 @@ begin
     Result := FDefaultContext.Evaluate(AScript)
   else
     Result := FloriaJSMakeErrorResult('No active execution context');
+end;
+
+function TFloriaJSEngine.ExecuteFile(const AFileName: string): TFloriaJSResult;
+begin
+  if FDefaultContext <> nil then
+    Result := FDefaultContext.EvaluateFile(AFileName)
+  else
+    Result := FloriaJSMakeErrorResult('No default context');
 end;
 
 function TFloriaJSEngine.ExecuteValue(const AScript: string): TFloriaJSValue;

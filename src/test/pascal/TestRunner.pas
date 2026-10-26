@@ -361,6 +361,7 @@ type
     procedure TestNumberFormatting();
     procedure TestUnicodeEncoding();
     procedure TestGeneratorLifetime();
+    procedure TestExecuteFile();
   end;
 
 { TFloriaJSTypesTest }
@@ -9514,6 +9515,47 @@ begin
       IntToStr(steadyObjects), IntToStr(engine.DefaultContext.Heap.GetObjectCount()));
   finally
     engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPriority2Test.TestExecuteFile();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+  tmpName: string;
+  f: TextFile;
+begin
+  engine := TFloriaJSEngine.Create();
+  tmpName := GetTempFileName();
+  try
+    AssignFile(f, tmpName);
+    Rewrite(f);
+    WriteLn(f, 'var s = 0;');
+    WriteLn(f, 'for (var i = 0; i < 100; i++) { s = s + 1; }');
+    WriteLn(f, 's;');
+    CloseFile(f);
+
+    res := engine.ExecuteFile(tmpName);
+    AssertTrue('a file runs', res.Success);
+    AssertEquals('the file result is returned', '100', res.StringValue);
+
+    // A missing file is a failed result, not an exception.
+    res := engine.ExecuteFile('/nonexistent/does-not-exist.js');
+    AssertFalse('a missing file fails', res.Success);
+    AssertTrue('the error names the file', Pos('does-not-exist.js', res.ErrorMessage) > 0);
+
+    // A syntax error in the file is reported like any other script error.
+    AssignFile(f, tmpName);
+    Rewrite(f);
+    WriteLn(f, 'var = ;');
+    CloseFile(f);
+    res := engine.ExecuteFile(tmpName);
+    AssertFalse('a broken file fails', res.Success);
+    AssertTrue('the error is non-empty', Length(res.ErrorMessage) > 0);
+  finally
+    engine.Free();
+    if FileExists(tmpName) then
+      DeleteFile(tmpName);
   end;
 end;
 
