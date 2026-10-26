@@ -1,0 +1,16 @@
+benchmark	batch	sample_ms	p95_ms	us_per_op	ops_per_run
+loop/count-10k	1	58.419	66.684	5.4712	10000
+loop/nested-100x100	1	59.508	150.585	5.6248	10000
+loop/while-10k	1	58.703	104.107	5.3424	10000
+call/plain-1k	4	51.896	70.561	11.6430	1000
+call/noargs-1k	8	99.572	106.437	11.9053	1000
+call/recursive-fib-16	2	71.171	86.164	10.5763	3193
+prop/read-write-5k	2	66.398	71.483	6.3572	5000
+prop/computed-2k	4	54.391	58.349	6.1584	2000
+prop/array-write-5k	1	321.978	358.164	60.4016	5000
+string/concat-2k	4	55.917	60.932	6.5425	2000
+arith/mixed-10k	1	80.026	85.665	7.1252	10000
+object/alloc-2k	2	59.141	64.185	13.4658	2000
+binding/unbound-write	16384	50.539	53.961	2.7958	1
+binding/bound-1-level	2048	34.246	37.395	15.1201	1
+binding/bound-3-levels	2048	95.770	101.437	43.0464	1
