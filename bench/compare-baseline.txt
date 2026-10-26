@@ -1,0 +1,12 @@
+arith_mixed	66340	26118	2.5	1
+call_noargs	10488	2764	3.8	1000
+call_plain	10288	2713	3.8	1000
+call_recursive	26926	593	45.4	987
+loop_count	54866	25134	2.2	10000
+loop_nested	55702	27061	2.1	10000
+loop_while	53596	27381	2.0	10000
+object_alloc	24373	8031	3.0	1999000
+prop_array_write	335103	10830	30.9	5000
+prop_computed	13623	3849	3.5	1999
+prop_read_write	34602	9093	3.8	5000
+string_concat	13153	5380	2.4	2000

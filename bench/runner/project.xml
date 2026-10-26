@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The floriajs benchmark runner.
+
+  A separate Pasbuild project so the interpreter can be exercised the way a host
+  application uses it: load a .js file, run it, report. Building it through
+  Pasbuild (rather than a raw fpc invocation) keeps it honest about what the
+  library's own consumers see.
+
+  It declares a dependency on floriajs, which resolves to the installed units.
+  `bench/run_compare.sh` rebuilds the library into target/units first, because
+  that directory is searched before the repository and a stale installed copy
+  would silently benchmark old code.
+-->
+<project>
+  <name>floria-bench-runner</name>
+  <version>0.0.1</version>
+  <author>Dio Affriza</author>
+  <license>MPL-2.0</license>
+
+  <build>
+    <projectType>application</projectType>
+    <outputDirectory>target</outputDirectory>
+    <mainSource>runner.pas</mainSource>
+  </build>
+
+  <dependencies>
+    <dependency>
+      <name>floriajs</name>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>
+  </dependencies>
+</project>
