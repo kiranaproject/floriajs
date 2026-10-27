@@ -192,13 +192,18 @@ begin
       FManager.PushActiveBinding(Self);
 
     try
-      if (FBytecode = nil) and (FManager <> nil) and (FManager.Compiler <> nil) and (FExpression <> nil) then
-        FBytecode := FManager.Compiler.CompileExpression(FExpression);
+      try
+        if (FBytecode = nil) and (FManager <> nil) and (FManager.Compiler <> nil) and (FExpression <> nil) then
+          FBytecode := FManager.Compiler.CompileExpression(FExpression);
 
-      if (FBytecode <> nil) and (FManager <> nil) and (FManager.VM <> nil) then
-        newVal := FManager.VM.Execute(FBytecode, FEnv)
-      else
-        newVal := JSMakeUndefined();
+        if (FBytecode <> nil) and (FManager <> nil) and (FManager.VM <> nil) then
+          newVal := FManager.VM.Execute(FBytecode, FEnv)
+        else
+          newVal := JSMakeUndefined();
+      except
+        on E: Exception do
+          newVal := JSMakeUndefined();
+      end;
     finally
       if FManager <> nil then
         FManager.PopActiveBinding();
