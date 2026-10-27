@@ -109,7 +109,9 @@ type
   { Declarative FTML Framework (Floria Toolkit Markup Language) }
   TFloriaFTMLItem           = floria.ftml.types.TFloriaFTMLItem;
   TFloriaFTMLItemClass      = floria.ftml.types.TFloriaFTMLItemClass;
+  TFloriaFTMLContainer      = floria.ftml.types.TFloriaFTMLContainer;
   TFloriaFTMLRectangle      = floria.ftml.types.TFloriaFTMLRectangle;
+  TFloriaFTMLPanel          = floria.ftml.types.TFloriaFTMLPanel;
   TFloriaFTMLText           = floria.ftml.types.TFloriaFTMLText;
   TFloriaFTMLButton         = floria.ftml.types.TFloriaFTMLButton;
   TFloriaFTMLTextInput      = floria.ftml.types.TFloriaFTMLTextInput;

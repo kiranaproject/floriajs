@@ -218,6 +218,12 @@ type
     property RowSpan: Integer read GetRowSpan write SetRowSpan;
   end;
 
+  { Built-in Container Component (Transparent grouping & layout) }
+  TFloriaFTMLContainer = class(TFloriaFTMLItem)
+  public
+    constructor Create(const ATypeName: string = 'Container'; AEngine: TObject = nil); override;
+  end;
+
   { Built-in Rectangle Component }
   TFloriaFTMLRectangle = class(TFloriaFTMLItem)
   public
@@ -236,6 +242,12 @@ type
     property Radius: Double read GetRadius write SetRadius;
     property BorderWidth: Double read GetBorderWidth write SetBorderWidth;
     property BorderColor: string read GetBorderColor write SetBorderColor;
+  end;
+
+  { Built-in Panel Component (Themed/styled card surface) }
+  TFloriaFTMLPanel = class(TFloriaFTMLRectangle)
+  public
+    constructor Create(const ATypeName: string = 'Panel'; AEngine: TObject = nil); override;
   end;
 
   { Built-in Text Component }
@@ -1667,6 +1679,13 @@ begin
   SetProperty('opacity', JSMakeNumber(AVal));
 end;
 
+{ TFloriaFTMLContainer }
+
+constructor TFloriaFTMLContainer.Create(const ATypeName: string; AEngine: TObject);
+begin
+  inherited Create(ATypeName, AEngine);
+end;
+
 { TFloriaFTMLRectangle }
 
 constructor TFloriaFTMLRectangle.Create(const ATypeName: string; AEngine: TObject);
@@ -1676,6 +1695,14 @@ begin
   DefineProperty('radius', JSMakeNumber(0.0));
   DefineProperty('borderWidth', JSMakeNumber(0.0));
   DefineProperty('borderColor', JSMakeString('#000000'));
+end;
+
+{ TFloriaFTMLPanel }
+
+constructor TFloriaFTMLPanel.Create(const ATypeName: string; AEngine: TObject);
+begin
+  inherited Create(ATypeName, AEngine);
+  DefineProperty('padding', JSMakeNumber(8.0));
 end;
 
 function TFloriaFTMLRectangle.GetColor(): string;

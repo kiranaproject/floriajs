@@ -114,7 +114,10 @@ begin
 
   // Register standard built-in FTML components
   RegisterComponentType('Item', TFloriaFTMLItem);
+  RegisterComponentType('Container', TFloriaFTMLContainer);
   RegisterComponentType('Rectangle', TFloriaFTMLRectangle);
+  RegisterComponentType('Panel', TFloriaFTMLPanel);
+  RegisterComponentType('Card', TFloriaFTMLPanel);
   RegisterComponentType('Text', TFloriaFTMLText);
   RegisterComponentType('Button', TFloriaFTMLButton);
   RegisterComponentType('TextInput', TFloriaFTMLTextInput);

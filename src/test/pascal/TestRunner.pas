@@ -2897,18 +2897,30 @@ end;
 procedure TFloriaFTMLTypesTest.TestBuiltinElements();
 var
   rect: TFloriaFTMLRectangle;
+  cont: TFloriaFTMLContainer;
+  pan: TFloriaFTMLPanel;
   txt: TFloriaFTMLText;
   btn: TFloriaFTMLButton;
   col: TFloriaFTMLColumn;
   r1, r2: TFloriaFTMLItem;
 begin
   rect := TFloriaFTMLRectangle.Create();
+  cont := TFloriaFTMLContainer.Create();
+  pan := TFloriaFTMLPanel.Create();
   txt := TFloriaFTMLText.Create();
   btn := TFloriaFTMLButton.Create();
   col := TFloriaFTMLColumn.Create();
   r1 := TFloriaFTMLItem.Create('Item');
   r2 := TFloriaFTMLItem.Create('Item');
   try
+    // Container properties (transparent grouping)
+    AssertEquals('Container type', 'Container', cont.TypeName);
+
+    // Panel properties (styled card surface)
+    AssertEquals('Panel type', 'Panel', pan.TypeName);
+    AssertTrue('Panel is Rectangle descendant', pan is TFloriaFTMLRectangle);
+    AssertEquals('Panel default padding', 8.0, pan.GetPropertyAsNumber('padding', 0.0), 0.001);
+
     // Rectangle properties
     AssertEquals('Default rect color', '#ffffff', rect.Color);
     rect.Color := '#336699';
@@ -2943,6 +2955,8 @@ begin
     col.Free();
     btn.Free();
     txt.Free();
+    pan.Free();
+    cont.Free();
     rect.Free();
   end;
 end;
@@ -3092,6 +3106,18 @@ begin
     AssertEquals('Width is 640', 640.0, root.Width, 0.001);
     AssertEquals('Height is 480', 480.0, root.Height, 0.001);
     AssertEquals('Color is #222222', '#222222', TFloriaFTMLRectangle(root).Color);
+
+    root := engine.LoadString('Container { id: myCont; width: 300; height: 200; }');
+    AssertNotNull('Container item created', root);
+    AssertTrue('Root is TFloriaFTMLContainer', root is TFloriaFTMLContainer);
+    AssertEquals('Container ID', 'myCont', root.Id);
+
+    root := engine.LoadString('Panel { id: myPan; width: 400; height: 250; color: "#112233"; radius: 6; }');
+    AssertNotNull('Panel item created', root);
+    AssertTrue('Root is TFloriaFTMLPanel', root is TFloriaFTMLPanel);
+    AssertEquals('Panel ID', 'myPan', root.Id);
+    AssertEquals('Panel color', '#112233', TFloriaFTMLPanel(root).Color);
+    AssertEquals('Panel radius', 6.0, TFloriaFTMLPanel(root).Radius, 0.001);
   finally
     engine.Free();
   end;
