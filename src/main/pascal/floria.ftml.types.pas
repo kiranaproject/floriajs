@@ -1751,7 +1751,7 @@ constructor TFloriaFTMLText.Create(const ATypeName: string; AEngine: TObject);
 begin
   inherited Create(ATypeName, AEngine);
   DefineProperty('text', JSMakeString(''));
-  DefineProperty('color', JSMakeString('#000000'));
+  DefineProperty('color', JSMakeString(''));
   DefineProperty('fontSize', JSMakeNumber(14.0));
   DefineProperty('fontFamily', JSMakeString('sans-serif'));
   DefineProperty('alignment', JSMakeString('left'));
@@ -1769,7 +1769,7 @@ end;
 
 function TFloriaFTMLText.GetColor(): string;
 begin
-  Result := GetPropertyAsString('color', '#000000');
+  Result := GetPropertyAsString('color', '');
 end;
 
 procedure TFloriaFTMLText.SetColor(const AVal: string);
