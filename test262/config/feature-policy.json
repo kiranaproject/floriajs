@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "policyName": "floriajs-diagnostic-subset",
+  "status": "phase-10.10-modules-text-json",
+  "upstream": {
+    "repository": "https://github.com/tc39/test262.git",
+    "revisionFile": "test262-revision.txt",
+    "checkoutDirectory": ".upstream",
+    "revisionMustMatch": true
+  },
+  "scenarios": {
+    "raw": {
+      "action": "run",
+      "variant": "non-strict",
+      "modifySource": false,
+      "injectHarness": false
+    },
+    "noStrict": {
+      "action": "run",
+      "variant": "non-strict",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ]
+    },
+    "default": {
+      "runVariants": [
+        "non-strict",
+        "strict"
+      ],
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ]
+    },
+    "onlyStrict": {
+      "action": "run",
+      "runVariants": [
+        "strict"
+      ],
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ]
+    },
+    "module": {
+      "action": "skip",
+      "reason": "ECMAScript modules and module resolution are not implemented"
+    },
+    "async": {
+      "action": "run",
+      "runVariants": [
+        "non-strict"
+      ],
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "completionMessages": {
+        "success": "Test262:AsyncTestComplete",
+        "failurePrefix": "Test262:AsyncTestFailure:"
+      },
+      "requiresPromiseDrain": true,
+      "pumpTimers": true,
+      "enforcedBy": "external-host-deadline"
+    }
+  },
+  "timers": {
+    "ownership": "context-owned heap registry",
+    "pumpApi": [
+      "TFloriaJSContext.PumpTimers",
+      "FloriaJSProcessTimers"
+    ],
+    "zeroDelay": "timer queue only; never also enqueued as a promise job",
+    "pendingWork": "TFloriaJSContext.HasPendingWork / PendingTimerCount / NextTimerDelayMS"
+  },
+  "hostApi": {
+    "$262.global": "the existing globalThis snapshot; not a live global object",
+    "$262.evalScript": "re-entrant evaluation without heap collection or microtask drain",
+    "$262.gc": "unsupported: collection is unsafe while a native callback holds live values",
+    "$262.detachArrayBuffer": "unsupported: ArrayBuffer detachment is not implemented",
+    "$262.createRealm": "a separate context-owned realm with its own heap, global object, intrinsics, timers, and output",
+    "$262.agent": "unsupported: no agent or concurrency support"
+  },
+  "negativeVerdicts": {
+    "acceptedParsePhases": [
+      "parse",
+      "compile"
+    ],
+    "runtimePhase": "runtime",
+    "resolutionReason": "negative resolution expectations require module support",
+    "dontEvaluateMarker": "Test262: This statement should not be evaluated.",
+    "unsupportedParseErrorPatterns": [
+      "not supported",
+      "unsupported"
+    ]
+  },
+  "harness": {
+    "evaluateInOneFreshProcessPerScenario": true,
+    "evaluateInSameContextWithinScenario": true,
+    "evaluateEachSourceOnce": true,
+    "includeOrder": "metadata-order",
+    "unsupportedIncludes": [
+      "detachArrayBuffer.js"
+    ]
+  },
+  "skipRules": {
+    "standaloneFixtures": {
+      "filenameContains": "_FIXTURE",
+      "reason": "Fixture files are inputs to module tests, not standalone tests"
+    },
+    "directories": [
+      "test/intl402/",
+      "test/staging/intl402/"
+    ],
+    "directoryReason": "ECMA-402 internationalization is not implemented",
+    "unsupportedHostMembers": [
+      "$262.detachArrayBuffer",
+      "$262.gc"
+    ],
+    "unsupportedFeatureTags": [
+      "WeakRef",
+      "FinalizationRegistry",
+      "IsHTMLDDA",
+      "host-gc-required"
+    ]
+  },
+  "knownNonConformances": [
+    "tdz-not-applied-to-for-in-of-bindings-or-catch-parameters",
+    "weak-collections-are-not-truly-weak",
+    "incomplete-object-to-string-in-some-builtins",
+    "atomics-wait-is-single-threaded",
+    "agents-are-cooperative-not-preemptive",
+    "proxy-with-statement-test-incomplete",
+    "waitasync-agent-notification-incomplete"
+  ],
+  "outcomes": [
+    "pass",
+    "fail",
+    "unsupported",
+    "skipped",
+    "harness-error",
+    "timeout",
+    "crash"
+  ],
+  "reporting": {
+    "format": "jsonl-planned",
+    "freshProcessPerScenario": true,
+    "attemptedPassRate": "pass / (pass + fail)",
+    "excludedFromAttemptedPassRate": [
+      "unsupported",
+      "skipped",
+      "harness-error",
+      "timeout",
+      "crash"
+    ],
+    "neverHideCrashesOrHarnessErrorsInExpectedFailures": true
+  }
+}

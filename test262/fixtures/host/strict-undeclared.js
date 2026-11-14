@@ -1,0 +1,1 @@
+undeclaredStrictAssignment = 1;

@@ -153,7 +153,9 @@ begin
   symCtor.SetProperty('toStringTag', JSMakeSymbol('Symbol.toStringTag', NextSymbolId()));
   symCtor.SetProperty('hasInstance', JSMakeSymbol('Symbol.hasInstance', NextSymbolId()));
   symCtor.SetProperty('isConcatSpreadable', JSMakeSymbol('Symbol.isConcatSpreadable', NextSymbolId()));
+  symCtor.SetProperty('species', JSMakeSymbol('Symbol.species', NextSymbolId()));
   symCtor.SetProperty('toPrimitive', JSMakeSymbol('Symbol.toPrimitive', NextSymbolId()));
+  symCtor.SetProperty('asyncIterator', JSMakeSymbol('Symbol.asyncIterator', NextSymbolId()));
 
   AEnv.Define('Symbol', JSMakeFunction(symCtor));
 end;

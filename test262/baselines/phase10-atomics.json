@@ -1,0 +1,2884 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 2044720,
+    "sha256": "4299bb01a022d9861c72533cc8eecdd586da7e7b261dc6c799b04b01497c4669"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/atomics-tests.txt",
+    "selection": [
+      "built-ins/Atomics/add/good-views.js",
+      "built-ins/Atomics/add/expected-return-value.js",
+      "built-ins/Atomics/add/bad-range.js",
+      "built-ins/Atomics/add/non-shared-bufferdata.js",
+      "built-ins/Atomics/add/non-views.js",
+      "built-ins/Atomics/load/good-views.js",
+      "built-ins/Atomics/load/expected-return-value.js",
+      "built-ins/Atomics/store/good-views.js",
+      "built-ins/Atomics/store/expected-return-value.js",
+      "built-ins/Atomics/compareExchange/good-views.js",
+      "built-ins/Atomics/compareExchange/expected-return-value.js",
+      "built-ins/Atomics/exchange/good-views.js",
+      "built-ins/Atomics/exchange/expected-return-value.js",
+      "built-ins/Atomics/notify/notify-with-no-agents-waiting.js",
+      "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "edb2866b88a42c2569a7f0a05c5801ccd4ab0dd12ed222bb446c2f0b30fbd14f",
+    "status": "phase-10.10-with"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/bad-range.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "bad-range.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/bad-range.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bad-range.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/bad-range.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 776,
+        "sha256": "d117387c351bfb9783e8a332d01dd5e58a2b087cd4797660d038210170e0d533"
+      },
+      "testPath": "built-ins/Atomics/add/bad-range.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/bad-range.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "bad-range.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/bad-range.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bad-range.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/bad-range.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 776,
+        "sha256": "d117387c351bfb9783e8a332d01dd5e58a2b087cd4797660d038210170e0d533"
+      },
+      "testPath": "built-ins/Atomics/add/bad-range.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/expected-return-value.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/expected-return-value.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/expected-return-value.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1163,
+        "sha256": "fb21337d33b3a613ed4f3d04ab43c36fb0098e53fe04d4027ffbb839dc9fa676"
+      },
+      "testPath": "built-ins/Atomics/add/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/expected-return-value.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/expected-return-value.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/expected-return-value.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1163,
+        "sha256": "fb21337d33b3a613ed4f3d04ab43c36fb0098e53fe04d4027ffbb839dc9fa676"
+      },
+      "testPath": "built-ins/Atomics/add/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2008,
+        "sha256": "5e06c6d3bc9a413cf9953f048c82a4120fec5d649f5243bdb4fa7417aade0f81"
+      },
+      "testPath": "built-ins/Atomics/add/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2008,
+        "sha256": "5e06c6d3bc9a413cf9953f048c82a4120fec5d649f5243bdb4fa7417aade0f81"
+      },
+      "testPath": "built-ins/Atomics/add/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/non-shared-bufferdata.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "non-shared-bufferdata.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/non-shared-bufferdata.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "non-shared-bufferdata.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/non-shared-bufferdata.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 639,
+        "sha256": "aebaea2960747e7915fed0514d32ea22eafb40ca270c860f9306ee0a51bd5c15"
+      },
+      "testPath": "built-ins/Atomics/add/non-shared-bufferdata.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/non-shared-bufferdata.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "non-shared-bufferdata.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/non-shared-bufferdata.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "non-shared-bufferdata.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/non-shared-bufferdata.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 639,
+        "sha256": "aebaea2960747e7915fed0514d32ea22eafb40ca270c860f9306ee0a51bd5c15"
+      },
+      "testPath": "built-ins/Atomics/add/non-shared-bufferdata.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/non-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--test",
+        "non-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/non-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "non-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/non-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 478,
+        "sha256": "d959bd1faf144f8f3f25a9abda31faf583dfc178d77ba8d3b140139d1ef3d851"
+      },
+      "testPath": "built-ins/Atomics/add/non-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/non-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--test",
+        "non-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/non-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "non-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/non-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 478,
+        "sha256": "d959bd1faf144f8f3f25a9abda31faf583dfc178d77ba8d3b140139d1ef3d851"
+      },
+      "testPath": "built-ins/Atomics/add/non-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/compareExchange/expected-return-value.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/compareExchange/expected-return-value.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/compareExchange/expected-return-value.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1350,
+        "sha256": "e76480c6a08af7654ee4c5106113742ead538a8200b5a3d64af868a0c9d75861"
+      },
+      "testPath": "built-ins/Atomics/compareExchange/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/compareExchange/expected-return-value.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/compareExchange/expected-return-value.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/compareExchange/expected-return-value.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1350,
+        "sha256": "e76480c6a08af7654ee4c5106113742ead538a8200b5a3d64af868a0c9d75861"
+      },
+      "testPath": "built-ins/Atomics/compareExchange/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/compareExchange/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/compareExchange/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/compareExchange/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2718,
+        "sha256": "52b31840906364b4f186392c43d23c0b92dc4edf77c60a322bf82b3a60b7c9eb"
+      },
+      "testPath": "built-ins/Atomics/compareExchange/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/compareExchange/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/compareExchange/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/compareExchange/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2718,
+        "sha256": "52b31840906364b4f186392c43d23c0b92dc4edf77c60a322bf82b3a60b7c9eb"
+      },
+      "testPath": "built-ins/Atomics/compareExchange/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/exchange/expected-return-value.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/exchange/expected-return-value.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/exchange/expected-return-value.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1192,
+        "sha256": "b4c0f6f0163b313a6d550275b9fb4ed591c13b6c4d7664d4afdcde24740535bd"
+      },
+      "testPath": "built-ins/Atomics/exchange/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/exchange/expected-return-value.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/exchange/expected-return-value.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/exchange/expected-return-value.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1192,
+        "sha256": "b4c0f6f0163b313a6d550275b9fb4ed591c13b6c4d7664d4afdcde24740535bd"
+      },
+      "testPath": "built-ins/Atomics/exchange/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/exchange/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/exchange/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/exchange/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2097,
+        "sha256": "0dbd13fe7287c6ae7e76a8aed4aa49f61e7956b2c484ed4b9f4b817d8c3fc955"
+      },
+      "testPath": "built-ins/Atomics/exchange/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/exchange/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/exchange/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/exchange/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2097,
+        "sha256": "0dbd13fe7287c6ae7e76a8aed4aa49f61e7956b2c484ed4b9f4b817d8c3fc955"
+      },
+      "testPath": "built-ins/Atomics/exchange/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/load/expected-return-value.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/load/expected-return-value.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/load/expected-return-value.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1435,
+        "sha256": "37d4d754c84dd44a55edc94b31f8641835e31ab97f07ecb6ded8ec6e31bb3ccd"
+      },
+      "testPath": "built-ins/Atomics/load/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/load/expected-return-value.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/load/expected-return-value.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/load/expected-return-value.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1435,
+        "sha256": "37d4d754c84dd44a55edc94b31f8641835e31ab97f07ecb6ded8ec6e31bb3ccd"
+      },
+      "testPath": "built-ins/Atomics/load/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/load/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/load/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/load/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1628,
+        "sha256": "c724179d6a0ca188bdc478b51c4d9b06aa6e5a2e8645d0991231beda2026871b"
+      },
+      "testPath": "built-ins/Atomics/load/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/load/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/load/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/load/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1628,
+        "sha256": "c724179d6a0ca188bdc478b51c4d9b06aa6e5a2e8645d0991231beda2026871b"
+      },
+      "testPath": "built-ins/Atomics/load/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/notify/notify-with-no-agents-waiting.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "notify-with-no-agents-waiting.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/notify/notify-with-no-agents-waiting.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "notify-with-no-agents-waiting.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/notify/notify-with-no-agents-waiting.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 870,
+        "sha256": "c4f49f9a52daab30e695cea6d8fe400a7ebd38dc41daef6843b763d1006ba718"
+      },
+      "testPath": "built-ins/Atomics/notify/notify-with-no-agents-waiting.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/notify/notify-with-no-agents-waiting.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "notify-with-no-agents-waiting.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/notify/notify-with-no-agents-waiting.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "notify-with-no-agents-waiting.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/notify/notify-with-no-agents-waiting.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 870,
+        "sha256": "c4f49f9a52daab30e695cea6d8fe400a7ebd38dc41daef6843b763d1006ba718"
+      },
+      "testPath": "built-ins/Atomics/notify/notify-with-no-agents-waiting.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/store/expected-return-value.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/store/expected-return-value.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/store/expected-return-value.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 956,
+        "sha256": "af9b54f3765cd978fe33cf7af7974f98a786c6f7bb57c40cbdeecf673644b4f3"
+      },
+      "testPath": "built-ins/Atomics/store/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/store/expected-return-value.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "expected-return-value.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/store/expected-return-value.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expected-return-value.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics",
+          "SharedArrayBuffer",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/store/expected-return-value.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 956,
+        "sha256": "af9b54f3765cd978fe33cf7af7974f98a786c6f7bb57c40cbdeecf673644b4f3"
+      },
+      "testPath": "built-ins/Atomics/store/expected-return-value.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/store/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/store/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/store/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1709,
+        "sha256": "e0c7de04683c9f4f1ca6c7337004d0808741cc7c6ab518ac58d1c155dc04cec3"
+      },
+      "testPath": "built-ins/Atomics/store/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/store/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/store/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/store/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1709,
+        "sha256": "e0c7de04683c9f4f1ca6c7337004d0808741cc7c6ab518ac58d1c155dc04cec3"
+      },
+      "testPath": "built-ins/Atomics/store/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "return-bytelength.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "return-bytelength.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "SharedArrayBuffer"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 454,
+        "sha256": "f22fec7bad2b846ef19471444139655bbb3a3da9893171925033f924ab7577a2"
+      },
+      "testPath": "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "return-bytelength.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "return-bytelength.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "SharedArrayBuffer"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 454,
+        "sha256": "f22fec7bad2b846ef19471444139655bbb3a3da9893171925033f924ab7577a2"
+      },
+      "testPath": "built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 30,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 30,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "built-ins/Atomics/add": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      },
+      "built-ins/Atomics/compareExchange": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 4,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 4,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 4,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 4
+      },
+      "built-ins/Atomics/exchange": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 4,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 4,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 4,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 4
+      },
+      "built-ins/Atomics/load": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 4,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 4,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 4,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 4
+      },
+      "built-ins/Atomics/notify": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Atomics/store": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 4,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 4,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 4,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 4
+      },
+      "built-ins/SharedArrayBuffer/prototype/byteLength": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      }
+    },
+    "features": {
+      "ArrayBuffer": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 16,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 16,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 16,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 16
+      },
+      "Atomics": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 28,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 28,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 28,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 28
+      },
+      "DataView": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 14,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 14,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 14,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 14
+      },
+      "SharedArrayBuffer": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 28,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 28,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 28,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 28
+      },
+      "Symbol": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 14,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 14,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 14,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 14
+      },
+      "TypedArray": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 28,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 28,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 28,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 28
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 30,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 30
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

@@ -18,3 +18,9 @@ examples/hello_floriajs
 examples/parse_ftml_demo
 examples/reactive_ftml_demo
 scratch/
+
+# Test262 upstream checkout and generated results
+test262/.upstream/
+test262/results/
+test262/.venv/
+__pycache__/

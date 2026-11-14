@@ -1,0 +1,2081 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 2044960,
+    "sha256": "e6586d3021375c904efdad1585887a0b3bc593968cf8804e7305bac0c3820add"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/bigint-atomics-tests.txt",
+    "selection": [
+      "built-ins/Atomics/add/bigint/good-views.js",
+      "built-ins/Atomics/load/bigint/good-views.js",
+      "built-ins/Atomics/store/bigint/good-views.js",
+      "built-ins/Atomics/compareExchange/bigint/good-views.js",
+      "built-ins/Atomics/exchange/bigint/good-views.js",
+      "built-ins/Atomics/waitAsync/value-not-equal-agent.js",
+      "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js",
+      "built-ins/Atomics/waitAsync/true-for-timeout-agent.js",
+      "built-ins/Atomics/waitAsync/false-for-timeout-agent.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "26c1644b88ab4c5436ee2b7f6ef0630a6e3705ad2c41293d394c3cdde7ed63fb",
+    "status": "phase-10.10-modules-text-json"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/bigint/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/bigint/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/bigint/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1729,
+        "sha256": "6808ad3883b244fd5919a5a6ced4156abd61ce6fa914ccd234ff60950b31017e"
+      },
+      "testPath": "built-ins/Atomics/add/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/add/bigint/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/add/bigint/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/add/bigint/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1729,
+        "sha256": "6808ad3883b244fd5919a5a6ced4156abd61ce6fa914ccd234ff60950b31017e"
+      },
+      "testPath": "built-ins/Atomics/add/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/compareExchange/bigint/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/compareExchange/bigint/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/compareExchange/bigint/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2572,
+        "sha256": "592282e92ff0e53cc27a2fb3d83709f274576ec4a372bd861709579345760c75"
+      },
+      "testPath": "built-ins/Atomics/compareExchange/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/compareExchange/bigint/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/compareExchange/bigint/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/compareExchange/bigint/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2572,
+        "sha256": "592282e92ff0e53cc27a2fb3d83709f274576ec4a372bd861709579345760c75"
+      },
+      "testPath": "built-ins/Atomics/compareExchange/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/exchange/bigint/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/exchange/bigint/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/exchange/bigint/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1956,
+        "sha256": "a17b10440d64c1b91b49f0224af1c59dfd0a383008a939bddf0dab84c251dae7"
+      },
+      "testPath": "built-ins/Atomics/exchange/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/exchange/bigint/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/exchange/bigint/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/exchange/bigint/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1956,
+        "sha256": "a17b10440d64c1b91b49f0224af1c59dfd0a383008a939bddf0dab84c251dae7"
+      },
+      "testPath": "built-ins/Atomics/exchange/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/load/bigint/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/load/bigint/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/load/bigint/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1414,
+        "sha256": "6d507671518b81e2b6349278b0b90cbef1ff33e44b1f6517b54b3ceb0e150e34"
+      },
+      "testPath": "built-ins/Atomics/load/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/load/bigint/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/load/bigint/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/load/bigint/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1414,
+        "sha256": "6d507671518b81e2b6349278b0b90cbef1ff33e44b1f6517b54b3ceb0e150e34"
+      },
+      "testPath": "built-ins/Atomics/load/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/store/bigint/good-views.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/store/bigint/good-views.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/store/bigint/good-views.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1485,
+        "sha256": "014e658320e762d91e97cb5025c44d391d58cc8ba0f31ddc1f55033803d80085"
+      },
+      "testPath": "built-ins/Atomics/store/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "testAtomics.js",
+        "testTypedArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/store/bigint/good-views.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "testAtomics.js",
+        "--harness",
+        "testTypedArray.js",
+        "--test",
+        "good-views.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Atomics/store/bigint/good-views.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "good-views.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "ArrayBuffer",
+          "Atomics",
+          "BigInt",
+          "DataView",
+          "SharedArrayBuffer",
+          "Symbol",
+          "TypedArray"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "testAtomics.js",
+          "testTypedArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Atomics/store/bigint/good-views.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1485,
+        "sha256": "014e658320e762d91e97cb5025c44d391d58cc8ba0f31ddc1f55033803d80085"
+      },
+      "testPath": "built-ins/Atomics/store/bigint/good-views.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/waitAsync/false-for-timeout-agent.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "false-for-timeout-agent.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "built-ins/Atomics/waitAsync/false-for-timeout-agent.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "false-for-timeout-agent.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics.waitAsync",
+          "SharedArrayBuffer",
+          "TypedArray",
+          "Atomics",
+          "arrow-function",
+          "async-functions"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "built-ins/Atomics/waitAsync/false-for-timeout-agent.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2866,
+        "sha256": "4ec1820c1fe7997706eb7370782ad6e8d8b1a379e6a9e0740882498ac02d2ffa"
+      },
+      "testPath": "built-ins/Atomics/waitAsync/false-for-timeout-agent.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/waitAsync/false-for-timeout-agent.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "false-for-timeout-agent.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "built-ins/Atomics/waitAsync/false-for-timeout-agent.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "false-for-timeout-agent.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics.waitAsync",
+          "SharedArrayBuffer",
+          "TypedArray",
+          "Atomics",
+          "arrow-function",
+          "async-functions"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "built-ins/Atomics/waitAsync/false-for-timeout-agent.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2866,
+        "sha256": "4ec1820c1fe7997706eb7370782ad6e8d8b1a379e6a9e0740882498ac02d2ffa"
+      },
+      "testPath": "built-ins/Atomics/waitAsync/false-for-timeout-agent.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/waitAsync/true-for-timeout-agent.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "true-for-timeout-agent.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "built-ins/Atomics/waitAsync/true-for-timeout-agent.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "true-for-timeout-agent.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics.waitAsync",
+          "SharedArrayBuffer",
+          "TypedArray",
+          "Atomics",
+          "arrow-function",
+          "async-functions"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "built-ins/Atomics/waitAsync/true-for-timeout-agent.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2182,
+        "sha256": "c158f98f1287e63eeb097d0ca795e66b26d7473983b3d61be64527ae23890b41"
+      },
+      "testPath": "built-ins/Atomics/waitAsync/true-for-timeout-agent.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/waitAsync/true-for-timeout-agent.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "true-for-timeout-agent.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "built-ins/Atomics/waitAsync/true-for-timeout-agent.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "true-for-timeout-agent.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics.waitAsync",
+          "SharedArrayBuffer",
+          "TypedArray",
+          "Atomics",
+          "arrow-function",
+          "async-functions"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "built-ins/Atomics/waitAsync/true-for-timeout-agent.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2182,
+        "sha256": "c158f98f1287e63eeb097d0ca795e66b26d7473983b3d61be64527ae23890b41"
+      },
+      "testPath": "built-ins/Atomics/waitAsync/true-for-timeout-agent.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "undefined-for-timeout-agent.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "undefined-for-timeout-agent.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics.waitAsync",
+          "SharedArrayBuffer",
+          "TypedArray",
+          "Atomics",
+          "arrow-function",
+          "async-functions"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2328,
+        "sha256": "59c6c3a17e80b63f33f56601df765b50b89922848c0d6ead86cadab620e346d1"
+      },
+      "testPath": "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "undefined-for-timeout-agent.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "undefined-for-timeout-agent.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics.waitAsync",
+          "SharedArrayBuffer",
+          "TypedArray",
+          "Atomics",
+          "arrow-function",
+          "async-functions"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2328,
+        "sha256": "59c6c3a17e80b63f33f56601df765b50b89922848c0d6ead86cadab620e346d1"
+      },
+      "testPath": "built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/waitAsync/value-not-equal-agent.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "value-not-equal-agent.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "built-ins/Atomics/waitAsync/value-not-equal-agent.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "value-not-equal-agent.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics.waitAsync",
+          "SharedArrayBuffer",
+          "TypedArray",
+          "Atomics",
+          "arrow-function",
+          "async-functions"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "built-ins/Atomics/waitAsync/value-not-equal-agent.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2093,
+        "sha256": "049e0bed8153d621b1757e5c95d45a9ab61ba1df141eb4f7bf829c81040ef7b4"
+      },
+      "testPath": "built-ins/Atomics/waitAsync/value-not-equal-agent.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "atomicsHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Atomics/waitAsync/value-not-equal-agent.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "atomicsHelper.js",
+        "--test",
+        "value-not-equal-agent.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "built-ins/Atomics/waitAsync/value-not-equal-agent.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "value-not-equal-agent.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Atomics.waitAsync",
+          "SharedArrayBuffer",
+          "TypedArray",
+          "Atomics",
+          "arrow-function",
+          "async-functions"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "atomicsHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "built-ins/Atomics/waitAsync/value-not-equal-agent.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2093,
+        "sha256": "049e0bed8153d621b1757e5c95d45a9ab61ba1df141eb4f7bf829c81040ef7b4"
+      },
+      "testPath": "built-ins/Atomics/waitAsync/value-not-equal-agent.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 18,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 18,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "built-ins/Atomics/add/bigint": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Atomics/compareExchange/bigint": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Atomics/exchange/bigint": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Atomics/load/bigint": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Atomics/store/bigint": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Atomics/waitAsync": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 8,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 8,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 8,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 8
+      }
+    },
+    "features": {
+      "ArrayBuffer": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      },
+      "Atomics": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 18,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 18,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 18,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 18
+      },
+      "Atomics.waitAsync": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 8,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 8,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 8,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 8
+      },
+      "BigInt": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      },
+      "DataView": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      },
+      "SharedArrayBuffer": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 18,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 18,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 18,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 18
+      },
+      "Symbol": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      },
+      "TypedArray": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 18,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 18,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 18,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 18
+      },
+      "arrow-function": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 8,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 8,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 8,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 8
+      },
+      "async-functions": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 8,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 8,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 8,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 8
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 18,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 18
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

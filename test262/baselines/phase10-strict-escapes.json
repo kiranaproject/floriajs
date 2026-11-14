@@ -1,0 +1,1538 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 2026544,
+    "sha256": "7f51099188fc4a0b5c8913ddd6ca61704404fa7dc510f0405fdde4ee8436caa0"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/strict-escape-tests.txt",
+    "selection": [
+      "language/literals/string/legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-3-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-4-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-8-strict.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-9-strict.js",
+      "language/literals/string/legacy-non-octal-escape-sequence-strict.js",
+      "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js",
+      "language/literals/string/legacy-octal-escape-sequence-strict.js",
+      "language/literals/string/legacy-octal-escape-sequence.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "83905a52b4a963e1f6aced79f9a996c2470e91e3249ffe687068d5c8c13441a6",
+    "status": "phase-10.10-proxy-complete"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 802,
+        "sha256": "e0943607bc09d87baf512911233e1a21288f844c8fee9352e6150a2487f0eecc"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 802,
+        "sha256": "2e944ef58e322a546471a5638561f27568d3486b2eb40f133ddce50541313f21"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-3-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-3-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-3-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-3-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-3-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 802,
+        "sha256": "f42349ccf66ba389b6315fa236302c9bc06e9f736765b14ba5a58e1a75213e39"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-3-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-4-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-4-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-4-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-4-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-4-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 802,
+        "sha256": "0a6b4a0a2d4e4536b9c1575fe6a076928a9590a1386cd8b7cd2b8016eba4045f"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-4-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 802,
+        "sha256": "dc0922c3e3b468dcc36b24c7fae1ecc0a7de452cd9cf6e817a09ce451f4bdf8b"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 802,
+        "sha256": "002584fc11d7207e63caf376f6d6a4dc053b0d36e35a19adcb6acf99733f5ad7"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 802,
+        "sha256": "ec9887d9f12eba543b37c7c80fc6dea0c8d29732c5ece17153d23ae2828c9a8f"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-8-non-strict.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-8-non-strict.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 547,
+        "sha256": "5a8e414bea1ea35a43db367109ef8319a7ec0ab4c96e9b2f0f20e093222f847c"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 834,
+        "sha256": "01a06ed020ea91b74dc75ec15a0021dbefdf12e2221e7999f38885df33df0c72"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-8-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-8-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-8-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-8-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-8-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 777,
+        "sha256": "f8b54b170460df1478b4d3b0c8819d744a4dc2e01c52d0b680de363599752415"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-8-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-9-non-strict.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-9-non-strict.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 547,
+        "sha256": "28b053f3656779f1cb0ee0a06115ba861cfe4ac816522d3883309eee88981e5a"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 834,
+        "sha256": "c7a804a39b7bf32029917ab0384d73d8cfe249cb929ac86f3a12aa3cd7725ff1"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-9-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-9-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-9-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-9-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-9-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 777,
+        "sha256": "3f6233c11d94593109853ceebb06b9089a5048151cf68b17c58cefc3b7870407"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-9-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-non-octal-escape-sequence-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-non-octal-escape-sequence-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-non-octal-escape-sequence-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-non-octal-escape-sequence-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 716,
+        "sha256": "fc5572b46973fcf3b8daa8e7aa4ad1aed8a277eaf8ba66fc196c96e1bd4e2cea"
+      },
+      "testPath": "language/literals/string/legacy-non-octal-escape-sequence-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-escape-sequence-prologue-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-escape-sequence-prologue-strict.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 394,
+        "sha256": "1739ed144a98c9d85b36b34e116fdc651300afa99e6ca1e740baa82507b42ccc"
+      },
+      "testPath": "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-escape-sequence-prologue-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-escape-sequence-prologue-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 394,
+        "sha256": "1739ed144a98c9d85b36b34e116fdc651300afa99e6ca1e740baa82507b42ccc"
+      },
+      "testPath": "language/literals/string/legacy-octal-escape-sequence-prologue-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-octal-escape-sequence-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-escape-sequence-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal escape sequences are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/string/legacy-octal-escape-sequence-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-escape-sequence-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/string/legacy-octal-escape-sequence-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 724,
+        "sha256": "92f885dc7451767ad6aaed842442d0d8f08bff80976ef37847a509672077ec5a"
+      },
+      "testPath": "language/literals/string/legacy-octal-escape-sequence-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/string/legacy-octal-escape-sequence.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-escape-sequence.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/literals/string/legacy-octal-escape-sequence.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-escape-sequence.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/literals/string/legacy-octal-escape-sequence.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 5808,
+        "sha256": "b958f764dc5de806c67cbde5ba23da31c410d1caa6f03e0158363d994d9d1384"
+      },
+      "testPath": "language/literals/string/legacy-octal-escape-sequence.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 18,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 18,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "language/literals/string": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 18,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 18,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 18,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 18
+      }
+    },
+    "features": {
+      "(none)": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 18,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 18,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 18,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 18
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 18,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 18
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

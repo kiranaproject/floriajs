@@ -1,0 +1,34 @@
+name: Test262 smoke
+
+on:
+  push:
+    paths:
+      - "test262/**"
+      - "src/main/pascal/**"
+      - ".github/workflows/test262-smoke.yml"
+  pull_request:
+    paths:
+      - "test262/**"
+      - "src/main/pascal/**"
+      - ".github/workflows/test262-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  test262:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Free Pascal and PyYAML
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fpc
+          python3 -m pip install -r test262/requirements.txt
+
+      - name: Run reviewed Test262 corpus
+        run: bash test262/tools/ci_smoke.sh

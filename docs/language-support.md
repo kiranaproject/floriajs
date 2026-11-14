@@ -32,15 +32,35 @@ them.
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
 | `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, and `super`. Methods are non-enumerable. Class fields are not supported. |
 | Generators (`function*`, `yield`) | Yes | `function*` bodies run lazily and suspend at `yield`; `yield*` delegates. Generator objects implement `next()`, `return()`, and `Symbol.iterator`, and may be resumed by a later script. |
-| `for await` | No | Parse error. |
+| `for await` | Yes | Async iteration over async iterators and sync iterables; each step awaits the iterator result. Async generator functions (`async function*`) remain unsupported. |
 
-There is no automatic semicolon insertion in the ECMAScript sense. Semicolons
-are usually optional because the grammar accepts statement boundaries, but
-line breaks do not terminate expressions:
+Automatic semicolon insertion covers the restricted productions and statement
+boundaries:
+
+- a line break after `return`, `break`, `continue`, or `throw` ends the
+  statement; `return` and `break`/`continue` without an operand or label, and a
+  `throw` with no expression on its line, are handled accordingly;
+- a line break before postfix `++`/`--` ends the previous statement instead of
+  applying the operator;
+- a line break may terminate a statement that the grammar would otherwise
+  continue, and `}` or end of input also terminate a statement;
+- a semicolon is still required between two statements on the same line.
 
 ```javascript
 function f() { return
-  1; }        // returns 1 in floriajs; undefined in JavaScript
+  1; }        // returns undefined, as in JavaScript
+
+var x = 1
+x
+++x           // x is 1, and the prefix increment applies to a new statement
+```
+
+A `throw` followed by a line break is a syntax error, because ECMAScript does
+not allow the newline there:
+
+```javascript
+throw
+new Error("boom");   // SyntaxError: Illegal newline after throw
 ```
 
 ## Functions
@@ -57,7 +77,7 @@ function f() { return
 | `arguments` | Yes | An array-like **array** of the call's arguments. Present even inside arrow functions (unlike JavaScript). |
 | `bind` and `new` | Yes | A bound function is constructable exactly when its target is; `new Bound(...)` ignores the bound `this` and uses the target's prototype. Bound functions have no own `prototype`. |
 | Closures / recursion | Yes | Environments are reference-counted and reclaimed when unreachable. |
-| `async` / `await` | Yes | Async functions return a promise; `await` drains pending jobs when needed. |
+| `async` / `await` | Yes | Async function bodies are resumable state machines: `await` suspends and resumes when the awaited promise settles, including timers and try/catch across awaits. |
 | Generators / `yield` | Yes | See the Generators section. |
 
 ## Operators
@@ -98,7 +118,7 @@ Notes:
     `true`.
 - Optional chaining short-circuits the full chain across member accesses and calls (`a?.b.c` and `a?.b()` return `undefined` on nullish `a`). Grouping boundaries `(a?.b).c` terminate the optional chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets such as `(a?.b)++`, are rejected as syntax errors.
 - `==` handles `null == undefined`, number/string, and boolean conversions.
-  Object-to-primitive coercion is not implemented (`[1] == 1` is `false`).
+  Object-to-primitive coercion uses `valueOf` and `toString` for arithmetic, `+`, loose equality, and relational operators.
 
 ## Literals and lexical features
 
@@ -117,8 +137,10 @@ Notes:
 | Comments | Yes | `//` and `/* … */`; **not nested** |
 | Regex literals | Yes | `/pattern/flags`, with `g`, `i`, and `m` |
 
-String `length`, indexing, and `for…of` operate on **UTF-8 bytes**, not UTF-16
-code units. Non-ASCII characters count as multiple units.
+String `length`, indexing, `charCodeAt`, slicing, and `for…of` operate on
+UTF-16 code units. A non-BMP character is a surrogate pair and therefore has
+length 2; the string iterator yields the whole code point as one value. Regex
+matching and byte-level lexer storage still use UTF-8 internally.
 
 ## Built-in library
 
@@ -137,14 +159,14 @@ code units. Non-ASCII characters count as multiple units.
 | `Promise` | Constructor: `new Promise(executor)` runs the executor synchronously with `resolve`/`reject` callbacks (first settlement wins; a throw rejects). Plus `resolve`, `reject`, `all`, `race`. |
 | `Error`, `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError` | Constructors returning error objects with standard prototype chains, `name`, `message`, and `toString()`. |
 | `console` | `log`, `warn`, `error`. Output is captured per context. |
-| `globalThis` | A snapshot object containing references to the globals above. It is **not** a live global proxy: `var x = 1; globalThis.x` is `undefined`. |
+| `globalThis` | The live global object. Global `var`/function bindings are its properties, and property writes through it update the globals. Global lexical `let`/`const` bindings are not properties. |
 | `arguments` | Available inside user functions; an `Array`. |
 | `Map`, `Set` | Collections (see below). |
 | `Date` | Date/time object (see below). |
 | `Symbol` | Primitive symbols, registry, and well-known symbols. |
 | `RegExp` | Regular-expression constructor and regex literals. |
 | `URIError`, `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI` | URI helpers. |
-| `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | Host timers. They require the host to pump `FloriaJSProcessTimers`. |
+| `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | Host timers. They require the owner context to pump timers (`Ctx.PumpTimers()` or the compatibility helper `FloriaJSProcessTimers(Ctx.Heap)`). |
 | `BigInt` | Conversion function. `new BigInt()` throws; it is not a constructor. |
 | `Intl`, `eval`, `alert` | Not defined. Reading them throws `ReferenceError`; only `typeof` yields `undefined`. |
 
@@ -196,7 +218,7 @@ elements like `arr.join()`.
 replacers (called with `match`, `index`, and the whole string). `$&`-style
 replacement templates are not supported. `match`/`search`/`split` work with
 regex patterns. `String.fromCharCode` and `String.fromCodePoint` build strings
-from code units and code points, encoding them as UTF-8.
+from code units and code points. `fromCharCode` treats each argument as a single code unit; `fromCodePoint` encodes an astral point as a surrogate pair.
 
 Not implemented: `localeCompare`, `normalize`.
 
@@ -321,9 +343,13 @@ available, along with `URIError`. Invalid percent-encoding raises a catchable
 ### Timers
 
 `setTimeout`, `clearTimeout`, `setInterval`, and `clearInterval` register
-callbacks in a process-wide queue. The runtime has no wall-clock event loop:
-the host must call `FloriaJSProcessTimers(Heap)` periodically. Without that
-pump, delayed and repeating callbacks do not execute.
+callbacks in a queue owned by the context's heap. The runtime has no wall-clock
+event loop: the host must pump the owning context, normally with
+`Ctx.PumpTimers()`. `FloriaJSProcessTimers(Ctx.Heap)` remains available as a
+compatibility alias. Without a pump, delayed and repeating callbacks do not
+execute. A zero-delay callback is queued once, runs exactly once when pumped,
+and preserves its callback arguments; `clearTimeout`/`clearInterval` also
+cancel work that is due but has not started.
 
 ### Numbers
 
@@ -345,11 +371,13 @@ pump, delayed and repeating callbacks do not execute.
 
 Available beyond the earlier sections:
 
-- `Object.is`, `Object.getOwnPropertyNames`, `Object.defineProperty`,
+- `Object.is`, `Object.getOwnPropertyNames`, `Object.getOwnPropertyDescriptor`,
+  `Object.defineProperty`, `Object.preventExtensions`/`isExtensible`,
   `Object.freeze`/`seal`/`isFrozen`/`isSealed`.
+- `Object.prototype.propertyIsEnumerable`.
 - `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, and `at`.
-- `String.fromCharCode` and `String.fromCodePoint`, both encoding to UTF-8
-  (an astral code point is one four-byte character here, not a surrogate pair).
+- `String.fromCharCode` and `String.fromCodePoint`. The latter encodes an
+  astral code point as a surrogate pair, matching UTF-16 `length` and indexing.
 - `Number.prototype.toFixed`, `toPrecision`, and `toExponential`, all rounding
   the true binary value, so `(1.005).toFixed(2)` is `"1.00"` and
   `(0.1 + 0.2).toFixed(2)` is `"0.30"`.
@@ -447,7 +475,7 @@ assignment operator, including plain `=`.
   available on promises and run as microtasks, drained after a script
   completes. `new Promise(executor)` is supported, as are
   `Promise.resolve`/`reject`/`all`/`race`. There is no host event loop, so
-  timer-based work still needs `FloriaJSProcessTimers`.
+  timer-based work still needs an explicit `Ctx.PumpTimers()` call.
 
 ## FTML expressions
 
@@ -471,13 +499,13 @@ are grouped by cause, because the three groups have different answers:
 | Area | Behaviour | Why |
 | :--- | :--- | :--- |
 | Execution engine | Pure bytecode interpreter; no JIT/AOT, hidden classes, inline caches, or persistent bytecode cache. | Keeps the runtime embeddable and dependency-free. Optional work is P3. |
-| Timers | Require the host to call `FloriaJSProcessTimers`; no built-in event loop, and timer state is process-wide. | The host owns the main loop. |
-| Strings | Byte-oriented (UTF-8), including `length`, indexing, and `for…of`. | Avoids a UTF-16 representation in an embedded runtime. |
-| `globalThis` | A snapshot object, not a live binding to the global scope. | A live proxy would need a global object model. |
+| Timers | Require the host to call `Ctx.PumpTimers()`; no built-in event loop. Timer state is owned by the context's heap, so pumping one context cannot run another context's callbacks. | The host owns the main loop. |
+| Strings | Stored as UTF-8, but `length`, indexing, slicing, `charCodeAt`, and `for…of` expose UTF-16 code units. Regular-expression matching still operates on the UTF-8 representation. | Conversion happens at the JS boundary; the internal storage remains compact. |
+| `globalThis` | A live global object backed by the root environment. | Global lexical bindings intentionally stay out of the object. |
 | `Map`/`Set` storage | Lookup is linear rather than hash-based. | Simplicity; hashing is P3 work. |
 | Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. | Reuses the FPC regex engine instead of shipping one. |
-| `Object.freeze` / `seal` | Mark the object; `Object.isFrozen`/`isSealed` report the mark, but writes to a frozen object are **not** rejected, because the runtime has no per-property attributes. |
-| `Object.defineProperty` | Honours `value`, `get`, `set`, and `enumerable`; other descriptor fields (`writable`, `configurable`) are ignored. |
+| `Object.freeze` / `seal` | Now update per-property `writable`/`configurable` flags. Frozen objects reject writes, additions, and deletes; sealed objects reject additions and deletes while retaining writability. |
+| `Object.defineProperty` | Honours `value`, `writable`, `enumerable`, `configurable`, `get`, and `set`. Existing non-configurable properties cannot be converted between data and accessor forms. Accessor descriptors do not use `writable`. |
 | `Symbol` property keys | Symbols are primitives, but `obj[sym]` stores under the string form `Symbol(description)`; not real symbol-keyed properties. | Would require a separate symbol-keyed property table. |
 
 ### Missing features
@@ -488,31 +516,40 @@ work.
 
 | Area | Current behaviour |
 | :--- | :--- |
-| `for await` | Parse error; async iteration is not implemented. |
+| Async generators | `async function*` supports `yield`, `await`, `for await`, and `yield*`. Yielded promises are awaited, sent values are forwarded to the inner iterator, and the async-generator prototype chain is present. `yield*` forwards `return`/`throw`, adopts thenables, and passes the exact ordering tests. |
 | `Array.prototype.keys` / `entries` | Not implemented. `values()` and `Symbol.iterator` are. |
 | `Object.fromEntries` | Not implemented. `Object.entries` is. |
 | `String.prototype.localeCompare` / `normalize` | Not implemented. |
 | Function `toString` | Returns `function <name>() { [native code] }` for user functions too; the original source is not retained. |
 | `Intl`, `eval`, `alert` | Not defined. Reading them throws `ReferenceError`. |
-| Modules | `import`/`export` are not implemented; no module system. |
-| `with` | Rejected at parse time. |
+| Agents | `$262.agent` supports cooperative agents with `start`, `report`, `getReport`, `broadcast`, `receiveBroadcast`, `sleep`, `monotonicNow`, `leave`, and `getSharedArrayBuffer`. Agents are single-threaded and switch only at explicit agent/Atomics calls; real preemptive concurrency is not implemented. `Atomics.waitAsync` waiters are resolved by `Atomics.notify`, including across cooperative agents. |
+| Proxy | `new Proxy` and `Proxy.revocable` support `get`, `set`, `has`, `deleteProperty`, `ownKeys`, `getOwnPropertyDescriptor`, `apply`, and `construct` traps, with the main property invariants. The `with`-statement invariant test remains unsupported. |
+| `with` | Supported in sloppy mode; rejected in strict mode. |
 
 ### Known gaps
 
 | Area | Behaviour |
 | :--- | :--- |
-| TDZ | There is no temporal dead zone before a `let`/`const` declaration. |
+| Strict mode | `"use strict"` directives and class bodies enable strict assignment checks: assigning an undeclared name throws `ReferenceError`, duplicate parameters are early errors, legacy octal literals and octal escape sequences are rejected, `delete` of an identifier is rejected, and `eval`/`arguments` bindings are rejected. Strict future reserved words are rejected as identifiers. |
+| TDZ | `let`/`const`/`class` bindings are uninitialized from block entry until their declaration. Reading or assigning one early throws `ReferenceError`. `typeof` does not bypass the dead zone. Declarations inside a block are hoisted to that block; see the note below. |
 | `var` | Hoisted to function or script root. `let`/`const` are block-scoped. Cross-scope collisions raise `SyntaxError`. |
 | Classic `for` with `let`/`const` | Loop bindings are block-scoped and invisible after the loop. Each iteration gets a fresh binding, so closures capture per-iteration values; `var` loop bindings remain function/script scoped. |
-| `with` | Unsupported: rejected at parse time rather than as a runtime `ReferenceError`. |
-| Loose equality | No object-to-primitive coercion: `[1] == 1` and `[] == false` are `false`, and a custom `toString`/`valueOf` is not consulted by `+` or `==`. |
+| `with` | Supported in sloppy mode; rejected as a `SyntaxError` in strict mode. Primitive objects are boxed. |
+| Loose equality | Objects are converted through `Symbol.toPrimitive` when present, otherwise `valueOf`/`toString`, for `+`, `==`, and relational operators. |
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
 | `for…in` targets | A destructuring target is parsed but its names are **not bound**, so using them raises `ReferenceError`. Use a simple identifier. `for…of` accepts both. |
 | `for…in` on strings | Produces no keys (strings are not objects). |
 | `for…of` on non-iterables | Throws `TypeError`. |
 | Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |
-| `this` | Behaves as if every function were strict: a plain call sees `this === undefined` rather than the global object, so `function f(){ return this; } f()` is `undefined`. At the top level of a script `this` is not bound at all, and reading it throws `ReferenceError`; use `globalThis` instead. Methods, `new`, and lexical `this` in arrows behave normally. |
+| `this` | Top-level `this` is the global object. A plain call of a non-strict function receives the global object; a strict function keeps `this === undefined`. Methods, `new`, and lexical `this` in arrows behave normally. |
 | Detached `prototype.constructor` | `Foo.prototype.constructor === Foo` works, but the back-reference is a weak registration. After `var p = Foo.prototype; Foo.prototype = {}`, `p.constructor` is `Object` rather than `Foo`. |
+| Modules | Static relative `import`/`export` declarations are lowered into a diagnostic bundle with module-scoped function bodies. Exports are live getters, named imports are rewritten to live property reads, star-export cycles are supported, and exported `let`/`const` keep their TDZ. Specifiers must be relative; `import.meta`, dynamic import for relative specifiers, and JSON import attributes are supported. Text modules are supported; full module records are not implemented. |
+| Realms | `$262.createRealm()` in the diagnostic host creates a genuinely separate context with its own heap, global object, intrinsics, timers, and output. Cross-realm intrinsic selection works for the supported constructors and array species. |
+
+TDZ hoisting is implemented for program bodies, ordinary blocks, function
+bodies, `switch` bodies, and the initializer of a classic `for` loop. A
+`for…in`/`for…of` binding and a catch parameter are initialized at the point
+where the binding is created, so they do not expose a TDZ window.
 
 ## Not implemented
 
@@ -520,8 +557,9 @@ Unimplemented syntax and APIs are listed once, in
 [Missing features](#missing-features). That table is the authoritative list;
 this page does not repeat it, so the two cannot drift apart.
 
-`import`/`export` is listed there without a task number because it is not yet
-scheduled in detail; there is no module system.
+Static `import`/`export` is handled by the diagnostic module bundler; it is not
+a spec-complete module loader. `$262.createRealm()` is available in the
+diagnostic host; agents remain unsupported.
 
 ## Verifying behaviour
 

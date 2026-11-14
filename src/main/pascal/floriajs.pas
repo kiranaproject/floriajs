@@ -27,6 +27,7 @@ uses
   floria.js.vm,
   floria.js.compiler,
   floria.js.stdlib,
+  floria.js.timers,
   floria.js.core,
   floria.ftml.types,
   floria.ftml.binding,
@@ -36,6 +37,11 @@ type
   { Core Types & Constants }
   TFloriaJSType            = floria.js.types.TFloriaJSType;
   TFloriaJSResult          = floria.js.types.TFloriaJSResult;
+  TFloriaJSDiagnosticKind   = floria.js.types.TFloriaJSDiagnosticKind;
+  TFloriaJSDiagnosticResult = floria.js.types.TFloriaJSDiagnosticResult;
+
+  { Host timers }
+  TFloriaJSTimerRegistry    = floria.js.timers.TFloriaJSTimerRegistry;
 
   { Lexer & Tokens }
   TFloriaJSTokenKind       = floria.js.lexer.TFloriaJSTokenKind;

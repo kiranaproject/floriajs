@@ -325,9 +325,10 @@ standard library was installed last. Multi-context console capture is
 therefore “last registered context wins”.
 
 **Timers need a host pump.** `setTimeout`/`setInterval` register callbacks in
-a process-wide timer queue. The host must call `FloriaJSProcessTimers(Heap)`
-periodically (and provide the event loop that decides when to call it); the VM
-does not run a wall-clock timer loop.
+a queue owned by the context's heap. The host must call `Context.PumpTimers()`
+periodically (or use the compatibility wrapper `FloriaJSProcessTimers(Heap)`)
+and provide the event loop that decides when to call it; the VM does not run a
+wall-clock timer loop. Separate contexts have separate timer queues.
 
 ## FTML runtime
 

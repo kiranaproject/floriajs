@@ -18,7 +18,7 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value,
-  floria.js.env, floria.js.bytecode, floria.js.collections;
+  floria.js.env, floria.js.bytecode, floria.js.collections, floria.js.utf16;
 
 type
   { Call Stack Frame }
@@ -84,12 +84,30 @@ type
     function  GetMemberValue(const AObj: TFloriaJSValue; const APropName: string): TFloriaJSValue;
     procedure SetMemberValue(const AObj: TFloriaJSValue; const APropName: string; const AVal: TFloriaJSValue);
     function  HeapInvoker(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
+    function  InvokeNative(const AFn: TFloriaJSFunction; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
     function  HeapConstructor(const AFuncVal: TFloriaJSValue; const AArgs: TFloriaJSValueArray): TFloriaJSValue;
     procedure HeapJobRunner(const AJob: TFloriaJSPromiseJob);
     function  RunGenerator(AGen: TFloriaJSGenerator; const ASent: TFloriaJSValue;
       out AValue: TFloriaJSValue; out ADone: Boolean): Boolean;
     function  MakeGenerator(AFn: TFloriaJSFunction; const AArgs: array of TFloriaJSValue;
       const AThisVal: TFloriaJSValue; AParentEnv: TFloriaJSEnvironment): TFloriaJSGenerator;
+    function  ResolveCallThis(const ASubCode: TFloriaJSBytecode;
+      const AThisVal: TFloriaJSValue): TFloriaJSValue;
+    procedure SuspendActiveFrame(const AValue: TFloriaJSValue);
+    procedure ResumeAsyncTask(ATask: TFloriaJSGenerator;
+      const AValue: TFloriaJSValue; AIsRejection: Boolean);
+    procedure FinishAsyncTask(ATask: TFloriaJSGenerator;
+      const AValue: TFloriaJSValue; AIsRejection: Boolean);
+    function  StartAsyncTask(AFn: TFloriaJSFunction;
+      const AArgs: array of TFloriaJSValue; const AThisVal: TFloriaJSValue;
+      AParentEnv: TFloriaJSEnvironment): TFloriaJSPromise;
+    function  StartAsyncGenerator(AFn: TFloriaJSFunction;
+      const AArgs: array of TFloriaJSValue; const AThisVal: TFloriaJSValue;
+      AParentEnv: TFloriaJSEnvironment): TFloriaJSGenerator;
+    function  AsyncGeneratorNext(AGen: TFloriaJSGenerator;
+      const ASent: TFloriaJSValue; AMode: Integer): TFloriaJSPromise;
+    procedure FinishAsyncGenerator(ATask: TFloriaJSGenerator;
+      const AValue: TFloriaJSValue; ADone: Boolean);
   public
     constructor Create(AHeap: TFloriaJSHeap = nil; AGlobalEnv: TFloriaJSEnvironment = nil);
     destructor Destroy(); override;
@@ -162,6 +180,25 @@ begin
   end;
 end;
 
+function TFloriaJSVM.InvokeNative(const AFn: TFloriaJSFunction;
+  const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  savedHeap: TFloriaJSHeap;
+begin
+  savedHeap := JSActiveRealmHeap();
+  JSSetActiveRealmHeap(AFn.Heap);
+  try
+    if Assigned(AFn.NativeMethod) then
+      Result := AFn.NativeMethod(AArgs, AThis)
+    else if Assigned(AFn.NativeProc) then
+      Result := AFn.NativeProc(AArgs, AThis)
+    else
+      Result := JSMakeUndefined();
+  finally
+    JSSetActiveRealmHeap(savedHeap);
+  end;
+end;
+
 function TFloriaJSVM.HeapInvoker(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
 begin
   Result := CallFunction(AFuncVal, AArgs, AThis);
@@ -180,6 +217,19 @@ end;
 { Creates a suspended generator for AFn, binding its parameters into a fresh
   activation environment exactly as a normal call does. All three call paths
   (opCall, opCallOpt, and CallFunction) use this so they cannot diverge. }
+function TFloriaJSVM.ResolveCallThis(const ASubCode: TFloriaJSBytecode;
+  const AThisVal: TFloriaJSValue): TFloriaJSValue;
+begin
+  { A plain call of a non-strict function receives the global object. Strict
+    functions keep undefined, and explicit receivers are unchanged. }
+  if (ASubCode <> nil) and (not ASubCode.IsStrict) and
+     (AThisVal.IsUndefined() or AThisVal.IsNull()) and
+     (FGlobalEnv <> nil) and (FGlobalEnv.DelegateObject <> nil) then
+    Result := JSMakeObject(FGlobalEnv.DelegateObject)
+  else
+    Result := AThisVal;
+end;
+
 function TFloriaJSVM.MakeGenerator(AFn: TFloriaJSFunction;
   const AArgs: array of TFloriaJSValue; const AThisVal: TFloriaJSValue;
   AParentEnv: TFloriaJSEnvironment): TFloriaJSGenerator;
@@ -196,6 +246,8 @@ begin
   else
     callEnv := TFloriaJSEnvironment.Create(AParentEnv, FHeap);
   FHeap.TrackEnvironment(callEnv);
+  if AFn.IsNamedExpression then
+    callEnv.Define(AFn.Name, JSMakeFunction(AFn), True);
 
   for i := 0 to subCode.GetArgumentCount() - 1 do
   begin
@@ -217,6 +269,8 @@ begin
   end;
 
   Result := TFloriaJSGenerator(FHeap.Track(TFloriaJSGenerator.Create(FHeap)));
+  if AFn.IsAsyncGenerator then
+    Result.Prototype := FHeap.GetAsyncGeneratorPrototype();
   Result.Bytecode := subCode;
   Result.SetEnv(callEnv);
   Result.ThisVal := AThisVal;
@@ -289,6 +343,296 @@ end;
   suspended it. The body runs until it yields again (AValue is the yielded
   value, ADone is False) or returns (AValue is the return value, ADone is True).
   A throw completes the generator and propagates. }
+procedure TFloriaJSVM.SuspendActiveFrame(const AValue: TFloriaJSValue);
+var
+  baseBP, i, firstOwn: Integer;
+  catchIP, frameOffset, stackDepth: Integer;
+  envPtr: Pointer;
+begin
+  if FActiveGenerator = nil then
+    Exit;
+
+  baseBP := FFrames[FFP].BaseBP;
+  FActiveGenerator.IP := FFrames[FFP].IP;
+  FActiveGenerator.ThisVal := FFrames[FFP].ThisVal;
+  FActiveGenerator.CurrentEnv := FFrames[FFP].Env;
+  FActiveGenerator.BaseBP := baseBP;
+  FActiveGenerator.ClearSnapshot();
+  for i := baseBP to FSP - 1 do
+    FActiveGenerator.PushSnapshotValue(FStack[i]);
+  FActiveGenerator.StackCount := FSP - baseBP;
+
+  { Try handlers created inside this generator frame are suspended with it.
+    They must leave the VM's active stack while suspended, then be rebased onto
+    the new frame when the generator resumes. }
+  firstOwn := FTryCount;
+  while (firstOwn > 0) and
+        (FTryHandlers[firstOwn - 1].FrameIndex >= FActiveGenerator.FrameFP) do
+    Dec(firstOwn);
+  FActiveGenerator.ClearTrySnapshots();
+  for i := firstOwn to FTryCount - 1 do
+  begin
+    catchIP := FTryHandlers[i].CatchIP;
+    frameOffset := FTryHandlers[i].FrameIndex - FActiveGenerator.FrameFP;
+    stackDepth := FTryHandlers[i].StackDepth - baseBP;
+    envPtr := FTryHandlers[i].Env;
+    FActiveGenerator.PushTrySnapshot(catchIP, frameOffset, stackDepth, envPtr);
+  end;
+  FTryCount := firstOwn;
+
+  FYieldedValue := AValue;
+  FIsSuspending := True;
+  while FFP > FActiveGenerator.FrameFP do
+    PopFrame();
+  while FSP > FActiveGenerator.BaseBP do
+    Pop();
+end;
+
+procedure TFloriaJSVM.FinishAsyncTask(ATask: TFloriaJSGenerator;
+  const AValue: TFloriaJSValue; AIsRejection: Boolean);
+begin
+  try
+    if ATask.AsyncPromise <> nil then
+    begin
+      if AIsRejection then
+        ATask.AsyncPromise.Reject(AValue)
+      else
+        ATask.AsyncPromise.Fulfill(AValue);
+    end;
+  finally
+    ATask.HasPendingThrow := False;
+    ATask.PendingThrow := JSMakeUndefined();
+    ATask.AsyncPromise := nil;
+    ATask.Release();
+  end;
+end;
+
+procedure TFloriaJSVM.ResumeAsyncTask(ATask: TFloriaJSGenerator;
+  const AValue: TFloriaJSValue; AIsRejection: Boolean);
+var
+  done: Boolean;
+  resultValue, awaited, onFulfilled, onRejected: TFloriaJSValue;
+begin
+  if ATask = nil then
+    Exit;
+  done := False;
+  resultValue := JSMakeUndefined();
+  ATask.HasPendingThrow := AIsRejection;
+  if AIsRejection then
+    ATask.PendingThrow := AValue
+  else
+    ATask.PendingThrow := JSMakeUndefined();
+  try
+    RunGenerator(ATask, AValue, resultValue, done);
+  except
+    on E: EFloriaJSThrow do
+    begin
+      if ATask.IsAsyncGenerator then
+      begin
+        ATask.State := fjgsCompleted;
+        ATask.ReturnValue := JSMakeUndefined();
+        if ATask.AsyncPromise <> nil then
+          ATask.AsyncPromise.Reject(E.Value);
+        ATask.AsyncPromise := nil;
+        ATask.AsyncGeneratorYielded := False;
+        ATask.Release();
+      end
+      else
+        FinishAsyncTask(ATask, E.Value, True);
+      Exit;
+    end;
+  end;
+
+  if ATask.IsAsyncGenerator then
+  begin
+    if done then
+    begin
+      FinishAsyncGenerator(ATask, resultValue, True);
+      Exit;
+    end;
+    if ATask.AsyncGeneratorYielded then
+    begin
+      { A yielded promise is awaited before delivery. Non-promise values are
+        delivered immediately, which keeps concurrent next() calls simple. }
+      if resultValue.IsPromise() then
+      begin
+        onFulfilled := JSMakeFunction(FHeap.NewNativeMethod('onYieldFulfilled',
+          @ATask.AsyncYieldFulfilled));
+        onRejected := JSMakeFunction(FHeap.NewNativeMethod('onYieldRejected',
+          @ATask.AsyncYieldRejected));
+        resultValue.AsPromise().Attach(onFulfilled, onRejected, JSMakeUndefined(), False, nil);
+        Exit;
+      end;
+      FinishAsyncGenerator(ATask, resultValue, False);
+      Exit;
+    end;
+    { Otherwise this suspension is an await. Fall through to the normal
+      promise-adoption path; the pending next() promise stays pending. }
+  end;
+
+  if done then
+  begin
+    FinishAsyncTask(ATask, resultValue, False);
+    Exit;
+  end;
+
+  { The suspended value is the operand of await. Resolve it like
+    Promise.resolve so thenables are adopted as well. }
+  awaited := FHeap.PromiseResolve([resultValue], JSMakeUndefined());
+  if not awaited.IsPromise() then
+  begin
+    FinishAsyncTask(ATask, resultValue, False);
+    Exit;
+  end;
+
+  onFulfilled := JSMakeFunction(FHeap.NewNativeMethod('onFulfilled',
+    @ATask.AsyncFulfilled));
+  onRejected := JSMakeFunction(FHeap.NewNativeMethod('onRejected',
+    @ATask.AsyncRejected));
+  awaited.AsPromise().Attach(onFulfilled, onRejected, JSMakeUndefined(), False, nil);
+end;
+
+function TFloriaJSVM.StartAsyncTask(AFn: TFloriaJSFunction;
+  const AArgs: array of TFloriaJSValue; const AThisVal: TFloriaJSValue;
+  AParentEnv: TFloriaJSEnvironment): TFloriaJSPromise;
+var
+  task: TFloriaJSGenerator;
+  promise: TFloriaJSPromise;
+begin
+  promise := FHeap.NewPromise();
+  task := MakeGenerator(AFn, AArgs, AThisVal, AParentEnv);
+  task.IsAsyncTask := True;
+  task.AsyncResume := @ResumeAsyncTask;
+  task.AsyncPromise := promise;
+  task.Retain();
+  Result := promise;
+  ResumeAsyncTask(task, JSMakeUndefined(), False);
+end;
+
+function TFloriaJSVM.StartAsyncGenerator(AFn: TFloriaJSFunction;
+  const AArgs: array of TFloriaJSValue; const AThisVal: TFloriaJSValue;
+  AParentEnv: TFloriaJSEnvironment): TFloriaJSGenerator;
+begin
+  Result := MakeGenerator(AFn, AArgs, AThisVal, AParentEnv);
+  Result.IsAsyncTask := True;
+  Result.IsAsyncGenerator := True;
+  Result.AsyncResume := @ResumeAsyncTask;
+  Result.AsyncGeneratorNext := @AsyncGeneratorNext;
+end;
+
+procedure TFloriaJSVM.FinishAsyncGenerator(ATask: TFloriaJSGenerator;
+  const AValue: TFloriaJSValue; ADone: Boolean);
+var
+  resultObj: TFloriaJSObject;
+  promise: TFloriaJSPromise;
+begin
+  promise := ATask.AsyncPromise;
+  if promise <> nil then
+  begin
+    resultObj := FHeap.NewObject(FHeap.GetObjectPrototype());
+    resultObj.SetProperty('value', AValue);
+    resultObj.SetProperty('done', JSMakeBoolean(ADone));
+    promise.Fulfill(JSMakeObject(resultObj));
+  end;
+  ATask.AsyncPromise := nil;
+  ATask.AsyncGeneratorYielded := False;
+  ATask.Release();
+end;
+
+function TFloriaJSVM.AsyncGeneratorNext(AGen: TFloriaJSGenerator;
+  const ASent: TFloriaJSValue; AMode: Integer): TFloriaJSPromise;
+var
+  promise: TFloriaJSPromise;
+  resultObj: TFloriaJSObject;
+  iterator, method, inner, adopted, onFulfilled, onRejected: TFloriaJSValue;
+  trapName: string;
+begin
+  promise := FHeap.NewPromise();
+
+  if AGen.State = fjgsCompleted then
+  begin
+    resultObj := FHeap.NewObject(FHeap.GetObjectPrototype());
+    resultObj.SetProperty('value', AGen.ReturnValue);
+    resultObj.SetProperty('done', JSMakeBoolean(True));
+    promise.Fulfill(JSMakeObject(resultObj));
+    Exit(promise);
+  end;
+
+  if (AMode <> 0) and AGen.InYieldStar and AGen.YieldStarIterator.IsObject() then
+  begin
+    iterator := AGen.YieldStarIterator;
+    if AMode = 1 then
+      trapName := 'return'
+    else
+      trapName := 'throw';
+    method := iterator.AsObject().GetProperty(trapName);
+    if not method.IsFunction() then
+    begin
+      if AMode = 2 then
+      begin
+        promise.Reject(JSMakeObject(FHeap.NewError('TypeError',
+          'The iterator does not provide a throw method')));
+        Exit(promise);
+      end;
+      AGen.ClearSnapshot();
+      AGen.State := fjgsCompleted;
+      AGen.ReturnValue := ASent;
+      resultObj := FHeap.NewObject(FHeap.GetObjectPrototype());
+      resultObj.SetProperty('value', ASent);
+      resultObj.SetProperty('done', JSMakeBoolean(True));
+      promise.Fulfill(JSMakeObject(resultObj));
+      Exit(promise);
+    end;
+
+    inner := FHeap.InvokeFunction(method, [ASent], iterator);
+    AGen.AsyncPromise := promise;
+    AGen.Retain();
+    adopted := FHeap.PromiseResolve([inner], JSMakeUndefined());
+    if AMode = 1 then
+    begin
+      onFulfilled := JSMakeFunction(FHeap.NewNativeMethod('onReturnFulfilled',
+        @AGen.AsyncReturnFulfilled));
+      onRejected := JSMakeFunction(FHeap.NewNativeMethod('onReturnRejected',
+        @AGen.AsyncReturnRejected));
+    end
+    else
+    begin
+      onFulfilled := JSMakeFunction(FHeap.NewNativeMethod('onThrowFulfilled',
+        @AGen.AsyncThrowFulfilled));
+      onRejected := JSMakeFunction(FHeap.NewNativeMethod('onThrowRejected',
+        @AGen.AsyncThrowRejected));
+    end;
+    adopted.AsPromise().Attach(onFulfilled, onRejected, JSMakeUndefined(), False, nil);
+    Exit(promise);
+  end;
+
+  if AMode = 1 then
+  begin
+    AGen.ClearSnapshot();
+    AGen.State := fjgsCompleted;
+    AGen.ReturnValue := ASent;
+    resultObj := FHeap.NewObject(FHeap.GetObjectPrototype());
+    resultObj.SetProperty('value', ASent);
+    resultObj.SetProperty('done', JSMakeBoolean(True));
+    promise.Fulfill(JSMakeObject(resultObj));
+    Exit(promise);
+  end;
+
+  if AMode = 2 then
+  begin
+    AGen.AsyncPromise := promise;
+    AGen.Retain();
+    ResumeAsyncTask(AGen, ASent, True);
+    Exit(promise);
+  end;
+
+  AGen.AsyncPromise := promise;
+  AGen.AsyncGeneratorYielded := False;
+  AGen.Retain();
+  ResumeAsyncTask(AGen, ASent, False);
+  Result := promise;
+end;
+
 function TFloriaJSVM.RunGenerator(AGen: TFloriaJSGenerator;
   const ASent: TFloriaJSValue; out AValue: TFloriaJSValue;
   out ADone: Boolean): Boolean;
@@ -302,6 +646,9 @@ var
   prevGenerator: TFloriaJSGenerator;
   prevSuspending: Boolean;
   prevYielded: TFloriaJSValue;
+  catchIP, frameOffset, stackDepth: Integer;
+  envPtr: Pointer;
+  pending: TFloriaJSValue;
 begin
   Result := False;
   AValue := JSMakeUndefined();
@@ -359,13 +706,34 @@ begin
   { Remember this frame so a later yield unwinds exactly back to it. }
   AGen.FrameFP := FFP;
   if isResume then
+  begin
     FFrames[FFP].IP := AGen.IP;
+    if AGen.CurrentEnv <> nil then
+      FFrames[FFP].Env := TFloriaJSEnvironment(AGen.CurrentEnv);
+  end;
+
+  { Re-register try handlers that were suspended with this generator, rebased
+    onto the frame's new position. }
+  for i := 0 to AGen.TrySnapshotCount() - 1 do
+  begin
+    AGen.GetTrySnapshot(i, catchIP, frameOffset, stackDepth, envPtr);
+    PushTryHandler(catchIP, FFP + frameOffset, baseBP + stackDepth,
+      TFloriaJSEnvironment(envPtr));
+  end;
+  AGen.ClearTrySnapshots();
 
   try
     AGen.State := fjgsRunning;
-    { The sent value becomes the result of the `yield` expression: the compiler
-      leaves it on the stack where the yielded value was consumed. }
-    if isResume then
+    { A rejection resumes the task by throwing at the await point; otherwise
+      the settled value becomes the result of the await/yield expression. }
+    if AGen.HasPendingThrow then
+    begin
+      pending := AGen.PendingThrow;
+      AGen.HasPendingThrow := False;
+      AGen.PendingThrow := JSMakeUndefined();
+      HandleThrow(pending);
+    end
+    else if isResume then
       Push(ASent);
 
     { RunLoop leaves the frame's result on the stack. It also unwinds the frame
@@ -389,6 +757,10 @@ begin
       PopFrame();
     while FSP > baseBP do
       Pop();
+    { A completed activation no longer needs its pinned environment. A
+      suspended one keeps it until the next resume or destruction. }
+    if ADone and (AGen.CurrentEnv <> nil) then
+      AGen.CurrentEnv := nil;
     FActiveGenerator := prevGenerator;
     FIsSuspending := prevSuspending;
     FYieldedValue := prevYielded;
@@ -602,9 +974,10 @@ begin
   if AObj.IsString() then
   begin
     if APropName = 'length' then
-      Exit(JSMakeNumber(Length(AObj.StrVal)));
-    if TryStrToInt(APropName, i) and (i >= 0) and (i < Length(AObj.StrVal)) then
-      Exit(JSMakeString(Copy(AObj.StrVal, i + 1, 1)));
+      Exit(JSMakeNumber(JSUTF16Length(AObj.StrVal)));
+    if TryStrToInt(APropName, i) and (i >= 0) and
+       (i < JSUTF16Length(AObj.StrVal)) then
+      Exit(JSMakeString(JSUTF16CharAt(AObj.StrVal, i)));
     if FHeap <> nil then
       Exit(FHeap.GetStringPrototype().GetProperty(APropName));
   end;
@@ -655,6 +1028,7 @@ end;
 function TFloriaJSVM.Execute(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue): TFloriaJSValue;
 var
   i, initialFP, initialBaseBP: Integer;
+  savedHeap: TFloriaJSHeap;
 begin
   if ABytecode = nil then Exit(JSMakeUndefined());
 
@@ -668,10 +1042,13 @@ begin
   for i := 0 to ABytecode.GetLocalCount() - 1 do
     Push(JSMakeUndefined());
 
+  savedHeap := JSActiveRealmHeap();
+  JSSetActiveRealmHeap(FHeap);
   PushFrame(ABytecode, AEnv, AThis, initialBaseBP);
   try
     Result := RunLoop(initialFP, initialBaseBP);
   finally
+    JSSetActiveRealmHeap(savedHeap);
     while FFP > initialFP do
       PopFrame();
     while FSP > initialBaseBP do
@@ -684,6 +1061,9 @@ var
   curFrame: ^TFloriaJSCallFrame;
   inst: TFloriaJSInstruction;
   a, b, val, retVal, propVal, objVal, calleeVal, thisVal, resVal: TFloriaJSValue;
+  savedNewTarget: TFloriaJSValue;
+  savedConstructor: TFloriaJSFunction;
+  intrinsicName: string;
   propName, varName, propKeyStr, pName, restName: string;
   argc, i, j, callBaseBP, asyncInitialFP: Integer;
   args: array of TFloriaJSValue;
@@ -797,7 +1177,7 @@ begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Peek();
             if FGlobalEnv <> nil then
-              FGlobalEnv.Assign(varName, val);
+              FGlobalEnv.Assign(varName, val, curFrame^.Bytecode.IsStrict);
           end;
 
         opSetGlobal:
@@ -805,7 +1185,7 @@ begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Pop();
             if FGlobalEnv <> nil then
-              FGlobalEnv.Assign(varName, val);
+              FGlobalEnv.Assign(varName, val, curFrame^.Bytecode.IsStrict);
           end;
 
         opLoadEnv:
@@ -835,9 +1215,9 @@ begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Peek();
             if curFrame^.Env <> nil then
-              curFrame^.Env.Assign(varName, val)
+              curFrame^.Env.Assign(varName, val, curFrame^.Bytecode.IsStrict)
             else if FGlobalEnv <> nil then
-              FGlobalEnv.Assign(varName, val);
+              FGlobalEnv.Assign(varName, val, curFrame^.Bytecode.IsStrict);
           end;
 
         opDefineEnv:
@@ -855,9 +1235,15 @@ begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Pop();
             if curFrame^.Env <> nil then
-              curFrame^.Env.Define(varName, val, True, bkConst)
+            begin
+              if not curFrame^.Env.InitializeLexical(varName, val) then
+                curFrame^.Env.Define(varName, val, True, bkConst);
+            end
             else if FGlobalEnv <> nil then
-              FGlobalEnv.Define(varName, val, True, bkConst);
+            begin
+              if not FGlobalEnv.InitializeLexical(varName, val) then
+                FGlobalEnv.Define(varName, val, True, bkConst);
+            end;
           end;
 
         opDefineLet:
@@ -865,9 +1251,15 @@ begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Pop();
             if curFrame^.Env <> nil then
-              curFrame^.Env.Define(varName, val, False, bkLet)
+            begin
+              if not curFrame^.Env.InitializeLexical(varName, val) then
+                curFrame^.Env.Define(varName, val, False, bkLet);
+            end
             else if FGlobalEnv <> nil then
-              FGlobalEnv.Define(varName, val, False, bkLet);
+            begin
+              if not FGlobalEnv.InitializeLexical(varName, val) then
+                FGlobalEnv.Define(varName, val, False, bkLet);
+            end;
           end;
 
         opDeclareVar:
@@ -879,9 +1271,52 @@ begin
               FGlobalEnv.DeclareVar(varName);
           end;
 
+        opDeclareLet, opDeclareConst:
+          begin
+            varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
+            if curFrame^.Env <> nil then
+            begin
+              if inst.Op = opDeclareConst then
+                curFrame^.Env.DeclareLexical(varName, True, bkConst)
+              else
+                curFrame^.Env.DeclareLexical(varName, False, bkLet);
+            end
+            else if FGlobalEnv <> nil then
+            begin
+              if inst.Op = opDeclareConst then
+                FGlobalEnv.DeclareLexical(varName, True, bkConst)
+              else
+                FGlobalEnv.DeclareLexical(varName, False, bkLet);
+            end;
+          end;
+
         opPushEnv:
           begin
             curFrame^.Env := TFloriaJSEnvironment.Create(curFrame^.Env, FHeap);
+            FHeap.TrackEnvironment(curFrame^.Env);
+          end;
+
+        opPushWith:
+          begin
+            objVal := Pop();
+            if objVal.IsNull() or objVal.IsUndefined() then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+                'with statement requires an object')));
+            if not objVal.IsObject() then
+            begin
+              if objVal.IsString() then
+              begin
+                fnObj := FHeap.NewObject(FHeap.GetStringPrototype());
+                fnObj.SetProperty('length', JSMakeNumber(JSUTF16Length(objVal.StrVal)));
+                objVal := JSMakeObject(fnObj);
+              end
+              else if objVal.IsNumber() then
+                objVal := JSMakeObject(FHeap.NewObject(FHeap.GetNumberPrototype()))
+              else
+                objVal := JSMakeObject(FHeap.NewObject(FHeap.GetObjectPrototype()));
+            end;
+            curFrame^.Env := TFloriaJSEnvironment.Create(curFrame^.Env, FHeap);
+            curFrame^.Env.DelegateObject := objVal.AsObject();
             FHeap.TrackEnvironment(curFrame^.Env);
           end;
 
@@ -1314,7 +1749,15 @@ begin
         opAwait:
           begin
             val := Pop();
-            if val.IsPromise() then
+            if (FActiveGenerator <> nil) and FActiveGenerator.IsAsyncTask then
+            begin
+              { In an async body, await is a suspension point. The driver
+                resumes the task with the settled value or throws its reason. }
+              FActiveGenerator.AsyncGeneratorYielded := False;
+              SuspendActiveFrame(val);
+              Break;
+            end
+            else if val.IsPromise() then
             begin
               promise := val.AsPromise();
               while (promise.State = fjspPending) and (FHeap <> nil) and FHeap.HasPromiseJobs() do
@@ -1421,6 +1864,12 @@ begin
               Continue;
             end;
 
+            if calleeVal.IsObject() and (calleeVal.ObjVal is TFloriaJSProxy) then
+            begin
+              Push(TFloriaJSProxy(calleeVal.ObjVal).Call(args, thisVal));
+              Continue;
+            end;
+
             if not calleeVal.IsFunction() then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', calleeVal.ToString() + ' is not a function')));
 
@@ -1439,17 +1888,28 @@ begin
             end
             else if fn.IsNative then
             begin
-              if Assigned(fn.NativeMethod) then
-                resVal := fn.NativeMethod(args, thisVal)
-              else if Assigned(fn.NativeProc) then
-                resVal := fn.NativeProc(args, thisVal)
-              else
-                resVal := JSMakeUndefined();
+              resVal := InvokeNative(fn, args, thisVal);
               Push(resVal);
             end
             else if fn.Bytecode <> nil then
             begin
               subCode := TFloriaJSBytecode(fn.Bytecode);
+              if not fn.IsArrow then
+                thisVal := ResolveCallThis(subCode, thisVal);
+
+              if fn.IsAsyncGenerator then
+              begin
+                genObj := StartAsyncGenerator(fn, args, thisVal, curFrame^.Env);
+                Push(JSMakeObject(genObj));
+                Continue;
+              end;
+
+              if fn.IsAsync then
+              begin
+                promise := StartAsyncTask(fn, args, thisVal, curFrame^.Env);
+                Push(JSMakePromise(promise));
+                Continue;
+              end;
 
               { A generator function returns a suspended generator instead of
                 running its body. This mirrors the same branch in CallFunction:
@@ -1466,6 +1926,8 @@ begin
               else
                 callEnv := TFloriaJSEnvironment.Create(curFrame^.Env, FHeap);
               FHeap.TrackEnvironment(callEnv);
+              if fn.IsNamedExpression then
+                callEnv.Define(fn.Name, JSMakeFunction(fn), True);
 
               for i := 0 to subCode.GetArgumentCount() - 1 do
               begin
@@ -1565,6 +2027,12 @@ begin
               calleeVal := Pop();
             end;
 
+            if calleeVal.IsObject() and (calleeVal.ObjVal is TFloriaJSProxy) then
+            begin
+              Push(TFloriaJSProxy(calleeVal.ObjVal).Construct(args));
+              Continue;
+            end;
+
             if not FHeap.IsConstructable(calleeVal) then
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
 
@@ -1585,18 +2053,27 @@ begin
             if propVal.IsObject() then
               protoObj := propVal.AsObject()
             else
-              protoObj := FHeap.GetObjectPrototype();
+            begin
+              intrinsicName := 'Object';
+              if fn.IntrinsicName <> '' then
+                intrinsicName := fn.IntrinsicName;
+              protoObj := FHeap.GetPrototypeFromConstructor(calleeVal, intrinsicName);
+            end;
 
             objVal := JSMakeObject(FHeap.NewObject(protoObj));
 
             if fn.IsNative then
             begin
-              if Assigned(fn.NativeMethod) then
-                resVal := fn.NativeMethod(args, objVal)
-              else if Assigned(fn.NativeProc) then
-                resVal := fn.NativeProc(args, objVal)
-              else
-                resVal := JSMakeUndefined();
+              savedNewTarget := FHeap.CurrentNewTarget;
+              FHeap.CurrentNewTarget := calleeVal;
+              savedConstructor := FHeap.CurrentConstructor;
+              FHeap.CurrentConstructor := fn;
+              try
+                resVal := InvokeNative(fn, args, objVal);
+              finally
+                FHeap.CurrentConstructor := savedConstructor;
+                FHeap.CurrentNewTarget := savedNewTarget;
+              end;
 
               if resVal.IsObject() then
                 Push(resVal)
@@ -1606,6 +2083,22 @@ begin
             else if fn.Bytecode <> nil then
             begin
               subCode := TFloriaJSBytecode(fn.Bytecode);
+              if not fn.IsArrow then
+                thisVal := ResolveCallThis(subCode, thisVal);
+
+              if fn.IsAsyncGenerator then
+              begin
+                genObj := StartAsyncGenerator(fn, args, thisVal, curFrame^.Env);
+                Push(JSMakeObject(genObj));
+                Continue;
+              end;
+
+              if fn.IsAsync then
+              begin
+                promise := StartAsyncTask(fn, args, thisVal, curFrame^.Env);
+                Push(JSMakePromise(promise));
+                Continue;
+              end;
 
               { A generator function returns a suspended generator instead of
                 running its body. This mirrors the same branch in CallFunction:
@@ -1622,6 +2115,8 @@ begin
               else
                 callEnv := TFloriaJSEnvironment.Create(curFrame^.Env, FHeap);
               FHeap.TrackEnvironment(callEnv);
+              if fn.IsNamedExpression then
+                callEnv.Define(fn.Name, JSMakeFunction(fn), True);
 
               for i := 0 to subCode.GetArgumentCount() - 1 do
               begin
@@ -1655,40 +2150,11 @@ begin
 
         opYield:
           begin
-            { Suspend: record where to resume and the operand stack above this
-              frame's base, then unwind so the generator runner returns. }
             val := Pop();
             if FActiveGenerator <> nil then
             begin
-              FActiveGenerator.IP := curFrame^.IP;
-              { The activation environment recorded at creation is kept: it
-                holds the parameters and locals the body resolves against, and
-                the generator retains it. The frame's current env may be a child
-                scope pushed for a block, which is not valid on resume. }
-              FActiveGenerator.ThisVal := curFrame^.ThisVal;
-              FActiveGenerator.BaseBP := curFrame^.BaseBP;
-              FActiveGenerator.ClearSnapshot();
-              { Snapshot everything from the frame's stack base upward: the
-                local slots were pushed before the frame, so they live in
-                [BaseBP, ...) together with the operand stack. The yielded value
-                was already popped, so it is not included. }
-              for i := curFrame^.BaseBP to FSP - 1 do
-                FActiveGenerator.PushSnapshotValue(FStack[i]);
-              FActiveGenerator.StackCount := FSP - curFrame^.BaseBP;
-              FYieldedValue := val;
-              FIsSuspending := True;
-              { Unwind only this generator's frames and stack slots. Popping to
-                zero would also destroy the *caller's* frame and stack, which is
-                what made a generator usable exactly once inside a loop. The
-                runner restores the rest of its own state afterwards. }
-              { Unwind back to the frame the generator runner pushed, which is
-                the one that suspended: popping every frame would also destroy
-                the caller's, and the saved IP would then be applied to the
-                wrong frame on resume. }
-              while FFP > FActiveGenerator.FrameFP do
-                PopFrame();
-              while FSP > FActiveGenerator.BaseBP do
-                Pop();
+              FActiveGenerator.AsyncGeneratorYielded := True;
+              SuspendActiveFrame(val);
               Break;
             end
             else
@@ -1718,6 +2184,7 @@ begin
           begin
             subCode := curFrame^.Bytecode.GetSubFunction(inst.Imm);
             fnObj := FHeap.NewBytecodeFunction(subCode.Name, subCode, curFrame^.Env, subCode.IsArrow, subCode.IsAsync);
+            TFloriaJSFunction(fnObj).IsAsyncGenerator := subCode.IsAsyncGenerator;
             if curFrame^.Env <> nil then
               curFrame^.Env.MarkCaptured();
             Push(JSMakeObject(fnObj));
@@ -1791,6 +2258,61 @@ begin
               if not JSGetIterator(FHeap, objVal, iterObj) then
                 raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', objVal.ToString() + ' is not iterable')));
               Push(JSMakeObject(iterObj));
+            end;
+          end;
+
+        opForAwaitInit:
+          begin
+            objVal := Pop();
+            if objVal.IsNull() or objVal.IsUndefined() then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+                'Value is not async iterable')));
+            if objVal.IsObject() then
+            begin
+              resVal := objVal.AsObject().GetWellKnownProperty('Symbol.asyncIterator');
+              if resVal.IsFunction() then
+              begin
+                Push(FHeap.InvokeFunction(resVal, [], objVal));
+                Continue;
+              end;
+            end;
+            if objVal.IsObject() and (objVal.ObjVal is TFloriaJSGenerator) then
+              Push(objVal)
+            else
+            begin
+              if not JSGetIterator(FHeap, objVal, iterObj) then
+                raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+                  objVal.ToString() + ' is not iterable')));
+              Push(JSMakeObject(iterObj));
+            end;
+          end;
+
+        opSetYieldStar:
+          begin
+            val := Pop();
+            if FActiveGenerator <> nil then
+            begin
+              FActiveGenerator.InYieldStar := True;
+              FActiveGenerator.YieldStarIterator := val;
+            end;
+          end;
+
+        opClearYieldStar:
+          begin
+            if FActiveGenerator <> nil then
+            begin
+              FActiveGenerator.InYieldStar := False;
+              FActiveGenerator.YieldStarDone := False;
+              FActiveGenerator.YieldStarIterator := JSMakeUndefined();
+            end;
+          end;
+
+        opYieldStarDoneJump:
+          begin
+            if (FActiveGenerator <> nil) and FActiveGenerator.YieldStarDone then
+            begin
+              FActiveGenerator.YieldStarDone := False;
+              curFrame^.IP := inst.Imm;
             end;
           end;
 
@@ -1891,8 +2413,12 @@ var
   resVal: TFloriaJSValue;
   callArgs: TFloriaJSValueArray;
   genObj: TFloriaJSGenerator;
-  argc, i, initialFP, initialBaseBP: Integer;
+  effectiveThis: TFloriaJSValue;
+  argc, i, initialFP, initialBaseBP, savedTryCount: Integer;
 begin
+  if AFuncVal.IsObject() and (AFuncVal.ObjVal is TFloriaJSProxy) then
+    Exit(TFloriaJSProxy(AFuncVal.ObjVal).Call(AArgs, AThisVal));
+
   if not AFuncVal.IsFunction() then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', AFuncVal.ToString() + ' is not a function')));
 
@@ -1913,24 +2439,26 @@ begin
   end;
 
   if fn.IsNative then
-  begin
-    if Assigned(fn.NativeMethod) then
-      Exit(fn.NativeMethod(AArgs, AThisVal))
-    else if Assigned(fn.NativeProc) then
-      Exit(fn.NativeProc(AArgs, AThisVal))
-    else
-      Exit(JSMakeUndefined());
-  end;
+    Exit(InvokeNative(fn, AArgs, AThisVal));
 
   if fn.Bytecode <> nil then
   begin
     subCode := TFloriaJSBytecode(fn.Bytecode);
+    effectiveThis := AThisVal;
+    if not fn.IsArrow then
+      effectiveThis := ResolveCallThis(subCode, AThisVal);
+
+    if fn.IsAsyncGenerator then
+      Exit(JSMakeObject(StartAsyncGenerator(fn, AArgs, effectiveThis, FGlobalEnv)));
+
+    if fn.IsAsync then
+      Exit(JSMakePromise(StartAsyncTask(fn, AArgs, effectiveThis, FGlobalEnv)));
 
     { Calling a generator function does not run its body: it captures the
       arguments and environment and returns a suspended generator. }
     if subCode.IsGenerator then
     begin
-      genObj := MakeGenerator(fn, AArgs, AThisVal, FGlobalEnv);
+      genObj := MakeGenerator(fn, AArgs, effectiveThis, FGlobalEnv);
       Exit(JSMakeObject(genObj));
     end;
 
@@ -1939,6 +2467,8 @@ begin
     else
       callEnv := TFloriaJSEnvironment.Create(FGlobalEnv);
     FHeap.TrackEnvironment(callEnv);
+    if fn.IsNamedExpression then
+      callEnv.Define(fn.Name, JSMakeFunction(fn), True);
 
     argc := Length(AArgs);
     for i := 0 to subCode.GetArgumentCount() - 1 do
@@ -1951,7 +2481,7 @@ begin
 
     if not fn.IsArrow then
     begin
-      callEnv.Define('this', AThisVal);
+      callEnv.Define('this', effectiveThis);
       if FHeap <> nil then
       begin
         arrObj := FHeap.NewArray();
@@ -1975,7 +2505,9 @@ begin
     if fn.IsAsync then
     begin
       promise := FHeap.NewPromise();
-      PushFrame(subCode, callEnv, AThisVal, initialBaseBP, False, nil, True);
+      PushFrame(subCode, callEnv, effectiveThis, initialBaseBP, False, nil, True);
+      savedTryCount := FTryCount;
+      FTryCount := 0;
       try
         resVal := RunLoop(initialFP, initialBaseBP);
         promise.Fulfill(resVal);
@@ -1985,6 +2517,7 @@ begin
         on E: Exception do
           promise.Reject(JSMakeString(E.Message));
       end;
+      FTryCount := savedTryCount;
       while FFP > initialFP do
         PopFrame();
       while FSP > initialBaseBP do
@@ -1993,10 +2526,13 @@ begin
     end
     else
     begin
-      PushFrame(subCode, callEnv, AThisVal, initialBaseBP, False, nil, True);
+      PushFrame(subCode, callEnv, effectiveThis, initialBaseBP, False, nil, True);
+      savedTryCount := FTryCount;
+      FTryCount := 0;
       try
         Result := RunLoop(initialFP, initialBaseBP);
       finally
+        FTryCount := savedTryCount;
         while FFP > initialFP do
           PopFrame();
         while FSP > initialBaseBP do
@@ -2012,11 +2548,16 @@ function TFloriaJSVM.ConstructObject(const AFuncVal: TFloriaJSValue; const AArgs
 var
   fn: TFloriaJSFunction;
   protoObj, newObj: TFloriaJSObject;
-  retVal: TFloriaJSValue;
+  retVal, savedNewTarget, newTarget: TFloriaJSValue;
   callArgs: TFloriaJSValueArray;
   thisVal: TFloriaJSValue;
+  savedConstructor: TFloriaJSFunction;
+  intrinsicName: string;
   i: Integer;
 begin
+  if AFuncVal.IsObject() and (AFuncVal.ObjVal is TFloriaJSProxy) then
+    Exit(TFloriaJSProxy(AFuncVal.ObjVal).Construct(AArgs));
+
   if not FHeap.IsConstructable(AFuncVal) then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
 
@@ -2034,17 +2575,34 @@ begin
       raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError', 'Value is not a constructor')));
   end;
 
-  protoObj := FHeap.GetConstructPrototype(JSMakeFunction(fn));
-  if protoObj = nil then
-    protoObj := FHeap.GetObjectPrototype();
+  { `Reflect.construct` may supply a different newTarget. Its realm decides the
+    default prototype when the newTarget has no object `prototype`. }
+  savedNewTarget := FHeap.CurrentNewTarget;
+  newTarget := savedNewTarget;
+  if not newTarget.IsFunction() then
+    newTarget := JSMakeFunction(fn);
+  FHeap.CurrentNewTarget := newTarget;
+  savedConstructor := FHeap.CurrentConstructor;
+  FHeap.CurrentConstructor := fn;
+  try
+    intrinsicName := 'Object';
+    if fn.IntrinsicName <> '' then
+      intrinsicName := fn.IntrinsicName;
+    protoObj := FHeap.GetPrototypeFromConstructor(newTarget, intrinsicName);
+    if protoObj = nil then
+      protoObj := FHeap.GetObjectPrototype();
 
-  newObj := FHeap.NewObject(protoObj);
-  thisVal := JSMakeObject(newObj);
-  retVal := CallFunction(JSMakeFunction(fn), callArgs, thisVal);
-  if retVal.IsObject() then
-    Result := retVal
-  else
-    Result := thisVal;
+    newObj := FHeap.NewObject(protoObj);
+    thisVal := JSMakeObject(newObj);
+    retVal := CallFunction(JSMakeFunction(fn), callArgs, thisVal);
+    if retVal.IsObject() then
+      Result := retVal
+    else
+      Result := thisVal;
+  finally
+    FHeap.CurrentConstructor := savedConstructor;
+    FHeap.CurrentNewTarget := savedNewTarget;
+  end;
 end;
 
 end.

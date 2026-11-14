@@ -1,0 +1,1185 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 2044720,
+    "sha256": "56f38d864b6fba37d0fcfea3b2446a03db604832071d5d3a38d5f18caf9a94bf"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/with-tests.txt",
+    "selection": [
+      "language/statements/with/12.10-0-1.js",
+      "language/statements/with/12.10-0-10.js",
+      "language/statements/with/12.10-0-11.js",
+      "language/statements/with/12.10-0-12.js",
+      "language/statements/with/12.10-0-3.js",
+      "language/statements/with/12.10-0-7.js",
+      "language/statements/with/12.10-0-8.js",
+      "language/statements/with/12.10-0-9.js",
+      "language/statements/with/12.10-2-1.js",
+      "language/statements/with/12.10-2-2.js",
+      "language/statements/with/12.10-2-3.js",
+      "language/statements/with/12.10-2-4.js",
+      "language/statements/with/12.10-2-5.js",
+      "language/statements/with/12.10-7-1.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "a7e3366a7ce69dcb31ffbae5b9def4efd84ff42f20e9e93a45e4e8a51b26f499",
+    "status": "phase-10.10-reserved-words"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-0-1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-0-1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-0-1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-0-1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-0-1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 478,
+        "sha256": "5ab81464a5f21ca1ab65a7bccd96748f5e7a47f253883a3281d41c3e93db7e5a"
+      },
+      "testPath": "language/statements/with/12.10-0-1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-0-10.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-0-10.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-0-10.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-0-10.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-0-10.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 416,
+        "sha256": "d8e6a9906c33cd2734470fc7720defc91f7cfd29bae708138c87bcb3133baea8"
+      },
+      "testPath": "language/statements/with/12.10-0-10.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-0-11.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-0-11.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-0-11.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-0-11.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-0-11.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 424,
+        "sha256": "23578fffc61ad37d21782bbbd7576f9e031d0d7205273482e3e6eead5ebf75ea"
+      },
+      "testPath": "language/statements/with/12.10-0-11.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-0-12.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-0-12.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-0-12.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-0-12.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-0-12.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 403,
+        "sha256": "e6a5a95872b1abdd544bd605493f2d76b959ae337f3d0e647f13bbdcd3e427fa"
+      },
+      "testPath": "language/statements/with/12.10-0-12.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-0-3.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-0-3.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-0-3.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-0-3.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-0-3.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 443,
+        "sha256": "74b9cbc531571d15b6009123955a92bf96332e3d351d4ef2faa769e0bf9b6e72"
+      },
+      "testPath": "language/statements/with/12.10-0-3.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-0-7.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-0-7.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-0-7.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-0-7.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-0-7.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 419,
+        "sha256": "a72635dc43d55c02f7af51ee141487daf9f0daa52c00e8541a2ba8a490538b2c"
+      },
+      "testPath": "language/statements/with/12.10-0-7.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-0-8.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-0-8.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-0-8.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-0-8.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-0-8.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 380,
+        "sha256": "20c0b1dfe6f86135ba7ac9224734c50a1207114d2ef711ac93ab3fd12121ebf5"
+      },
+      "testPath": "language/statements/with/12.10-0-8.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-0-9.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-0-9.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-0-9.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-0-9.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-0-9.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 420,
+        "sha256": "5a3f96ea43526c648681690f0b7f919252455a861dc278841ddd8b3576bd4f46"
+      },
+      "testPath": "language/statements/with/12.10-0-9.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-2-1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-2-1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-2-1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-2-1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-2-1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 321,
+        "sha256": "83feba938e1cc0f631da4bd7108d105ae01718713b2ce6b439f61cda22b9e5d3"
+      },
+      "testPath": "language/statements/with/12.10-2-1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-2-2.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-2-2.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-2-2.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-2-2.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-2-2.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 325,
+        "sha256": "6209ef8f0922ee2b33b7b252937e006f8ab28f30536e1db53a07e1edb332f3b8"
+      },
+      "testPath": "language/statements/with/12.10-2-2.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-2-3.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-2-3.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-2-3.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-2-3.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-2-3.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 325,
+        "sha256": "ec2a09ddd072d06a598978a204a790a4fccf221bbb9bfd81a3e02019edf53738"
+      },
+      "testPath": "language/statements/with/12.10-2-3.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-2-4.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-2-4.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-2-4.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-2-4.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-2-4.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 585,
+        "sha256": "c82a7ad06b9a182095114e1d63eadad3e7625d4e8e36eb082d6d40d7701406fc"
+      },
+      "testPath": "language/statements/with/12.10-2-4.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-2-5.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-2-5.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-2-5.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-2-5.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-2-5.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 570,
+        "sha256": "48ee9134b2a911c66e650e241baded121166f76a3af0062e07c68b217af55851"
+      },
+      "testPath": "language/statements/with/12.10-2-5.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/with/12.10-7-1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "12.10-7-1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/with/12.10-7-1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "12.10-7-1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/with/12.10-7-1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 477,
+        "sha256": "9cd6c0b100b9af771e4930c14eeff22b7e7d6b20326c49eb97bacfdc12a5bdb7"
+      },
+      "testPath": "language/statements/with/12.10-7-1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 14,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 14,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "language/statements/with": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 14,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 14,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 14,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 14
+      }
+    },
+    "features": {
+      "(none)": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 14,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 14,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 14,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 14
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 14,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 14
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

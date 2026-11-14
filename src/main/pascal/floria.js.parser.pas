@@ -50,12 +50,21 @@ type
     FCurrent: TFloriaJSToken;
     FPrevious: TFloriaJSToken;
     FErrors: TStringList;
+    FErrorLines: array of Integer;
+    FErrorColumns: array of Integer;
 
     procedure Advance();
     function  Check(AKind: TFloriaJSTokenKind): Boolean;
     function  Match(AKind: TFloriaJSTokenKind): Boolean;
     function  Consume(AKind: TFloriaJSTokenKind; const AErrorMessage: string): Boolean;
     function  IsAtEnd(): Boolean;
+    { True when a line terminator separates the last consumed token from the
+      current one. Restricted productions use this for automatic semicolon
+      insertion. }
+    function  HasLineBreakBeforeCurrent(): Boolean;
+    { Consumes a semicolon or applies automatic semicolon insertion at a line
+      break, a closing brace, or end of input. }
+    procedure EndStatement(const AContext: string);
     procedure ErrorAtCurrent(const AMessage: string);
     procedure Synchronize();
 
@@ -113,6 +122,8 @@ type
     function  HasErrors(): Boolean;
     function  GetErrorCount(): Integer;
     function  GetError(AIndex: Integer): string;
+    function  GetErrorLine(AIndex: Integer): Integer;
+    function  GetErrorColumn(AIndex: Integer): Integer;
 
     property Errors: TStringList read FErrors;
   end;
@@ -159,6 +170,20 @@ begin
   end;
 end;
 
+function TFloriaJSParser.HasLineBreakBeforeCurrent(): Boolean;
+begin
+  Result := FCurrent.Line > FPrevious.Line;
+end;
+
+procedure TFloriaJSParser.EndStatement(const AContext: string);
+begin
+  if Match(tkSemicolon) then
+    Exit;
+  if Check(tkRBrace) or IsAtEnd() or HasLineBreakBeforeCurrent() then
+    Exit;
+  ErrorAtCurrent('Expected '';'' after ' + AContext);
+end;
+
 function TFloriaJSParser.Check(AKind: TFloriaJSTokenKind): Boolean;
 begin
   Result := (FCurrent.Kind = AKind);
@@ -194,6 +219,10 @@ var
 begin
   errMsg := Format('[Line %d, Col %d] Error: %s', [FCurrent.Line, FCurrent.Column, AMessage]);
   FErrors.Add(errMsg);
+  SetLength(FErrorLines, FErrors.Count);
+  SetLength(FErrorColumns, FErrors.Count);
+  FErrorLines[FErrors.Count - 1] := FCurrent.Line;
+  FErrorColumns[FErrors.Count - 1] := FCurrent.Column;
 end;
 
 procedure TFloriaJSParser.Synchronize();
@@ -232,6 +261,22 @@ begin
     Result := FErrors[AIndex]
   else
     Result := '';
+end;
+
+function TFloriaJSParser.GetErrorLine(AIndex: Integer): Integer;
+begin
+  if (AIndex >= 0) and (AIndex < Length(FErrorLines)) then
+    Result := FErrorLines[AIndex]
+  else
+    Result := 0;
+end;
+
+function TFloriaJSParser.GetErrorColumn(AIndex: Integer): Integer;
+begin
+  if (AIndex >= 0) and (AIndex < Length(FErrorColumns)) then
+    Result := FErrorColumns[AIndex]
+  else
+    Result := 0;
 end;
 
 { Precedence Table }
@@ -326,11 +371,19 @@ begin
   begin
     if FPrevious.IsBigInt then
       Exit(TFloriaJSLiteralExpr.CreateBigInt(FPrevious.BigIntValue, tok.Line, tok.Column));
-    Exit(TFloriaJSLiteralExpr.CreateNumber(tok.NumberValue, tok.Line, tok.Column));
+    begin
+      expr := TFloriaJSLiteralExpr.CreateNumber(tok.NumberValue, tok.Line, tok.Column);
+      TFloriaJSLiteralExpr(expr).IsLegacyOctal := tok.IsLegacyOctal;
+      Exit(expr);
+    end;
   end;
 
   if Match(tkString) or Match(tkTemplateString) then
-    Exit(TFloriaJSLiteralExpr.CreateString(tok.Text, tok.Line, tok.Column));
+    begin
+      expr := TFloriaJSLiteralExpr.CreateString(tok.Text, tok.Line, tok.Column);
+      TFloriaJSLiteralExpr(expr).IsLegacyOctalEscape := tok.IsLegacyOctalEscape;
+      Exit(expr);
+    end;
 
   if Match(tkTemplateHead) then
   begin
@@ -380,6 +433,12 @@ begin
   { yield — only meaningful inside a generator body. }
   if Match(tkYield) then
   begin
+    { A line terminator after `yield` ends the expression, so `yield\n1` yields
+      undefined and then evaluates `1` as a separate statement. }
+    if FCurrent.Line > FPrevious.Line then
+      Exit(TFloriaJSUnaryExpr.Create(tkYield,
+        TFloriaJSLiteralExpr.CreateUndefined(tok.Line, tok.Column),
+        True, tok.Line, tok.Column));
     { `yield* expr` delegates to another iterable; the compiler lowers it to a
       loop that re-yields each value. A second unary node marks the delegation. }
     if Match(tkMultiply) then
@@ -413,7 +472,16 @@ begin
   if Match(tkAsync) then
   begin
     if Match(tkFunction) then
+    begin
+      if Match(tkMultiply) then
+      begin
+        expr := ParseFunctionExpr(True);
+        if expr is TFloriaJSFunctionExpr then
+          TFloriaJSFunctionExpr(expr).IsGenerator := True;
+        Exit(expr);
+      end;
       Exit(ParseFunctionExpr(True));
+    end;
 
     if Match(tkLParen) then
     begin
@@ -707,6 +775,8 @@ begin
     Exit(TFloriaJSBlockStmt.Create(startLine, startCol));
   end;
 
+  { A class declaration is a declaration, not a statement: it never needs a
+    terminating semicolon. }
   Match(tkSemicolon);
   varStmt := TFloriaJSVarStmt.Create(tkLet, startLine, startCol);
   varStmt.AddDeclarator(cls.Name, cls);
@@ -1091,7 +1161,11 @@ begin
         ErrorAtCurrent('Expected parameter name');
         Break;
       end;
-    until not Match(tkComma);
+      if not Match(tkComma) then
+        Break;
+      if Check(tkRParen) then
+        Break;
+    until False;
   end;
   Consume(tkRParen, 'Expected '')'' after function parameter list');
 end;
@@ -1223,6 +1297,11 @@ begin
       left := ParseTaggedTemplate(left);
       Continue;
     end;
+
+    { Postfix ++/-- is a restricted production: a line terminator before the
+      operator ends the previous statement instead of applying the operator. }
+    if (FCurrent.Kind in [tkPlusPlus, tkMinusMinus]) and HasLineBreakBeforeCurrent() then
+      Break;
 
     op := FCurrent;
     Advance();
@@ -1389,7 +1468,10 @@ begin
   begin
     Advance(); { Consume tkAsync }
     Advance(); { Consume tkFunction }
-    Result := ParseFunctionDeclaration(True);
+    if Match(tkMultiply) then
+      Result := ParseFunctionDeclaration(True, True)
+    else
+      Result := ParseFunctionDeclaration(True);
   end
   else if Match(tkFunction) then
   begin
@@ -1422,6 +1504,8 @@ begin
 
     if Match(tkIdentifier) then
       declName := FPrevious.Text
+    else if Match(tkStatic) then
+      declName := FPrevious.Text
     else if Match(tkLBracket) then
       declPattern := ParseArrayLiteral()
     else if Match(tkLBrace) then
@@ -1443,7 +1527,7 @@ begin
       varStmt.AddDeclarator(declName, declInit);
   until not Match(tkComma);
 
-  Match(tkSemicolon); { Optional semicolon }
+  EndStatement('variable declaration');
   Result := varStmt;
 end;
 
@@ -1477,8 +1561,11 @@ function TFloriaJSParser.ParseStatement(): TFloriaJSStmtNode;
 var
   lbl: string;
   stmt: TFloriaJSStmtNode;
+  objExpr: TFloriaJSExprNode;
   startLine, startCol: Integer;
 begin
+  if FCurrent.Kind = tkReserved then
+    ErrorAtCurrent('Unexpected reserved word');
   { Empty statement: an empty block has the same effect and keeps the
     completion value unchanged. }
   if Match(tkSemicolon) then
@@ -1523,13 +1610,15 @@ begin
     Result := ParseContinueStatement()
   else if Match(tkDebugger) then
     Result := ParseDebuggerStatement()
-  else if Check(tkWith) then
+  else if Match(tkWith) then
   begin
-    { Unsupported syntax fails at parse time rather than surfacing as an
-      undeclared-name ReferenceError at run time. }
-    ErrorAtCurrent('''with'' statements are not supported');
-    Advance();
-    Result := TFloriaJSBlockStmt.Create(FPrevious.Line, FPrevious.Column);
+    startLine := FPrevious.Line;
+    startCol := FPrevious.Column;
+    Consume(tkLParen, 'Expected ''('' after ''with''');
+    objExpr := ParseExpression();
+    Consume(tkRParen, 'Expected '')'' after with object');
+    stmt := ParseStatement();
+    Result := TFloriaJSWithStmt.Create(objExpr, stmt, startLine, startCol);
   end
   else if Check(tkLBrace) then
     Result := ParseBlockStatement()
@@ -1590,7 +1679,7 @@ begin
   Consume(tkLParen, 'Expected ''('' after ''while''');
   cond := ParseExpression();
   Consume(tkRParen, 'Expected '')'' after do-while condition');
-  Match(tkSemicolon);
+  EndStatement('do-while statement');
 
   Result := TFloriaJSWhileStmt.Create(cond, body, True, startLine, startCol);
 end;
@@ -1603,7 +1692,7 @@ var
   startLine, startCol: Integer;
   varKind: TFloriaJSTokenKind;
   varName, declName: string;
-  isOf: Boolean;
+  isOf, isAwait: Boolean;
   varStmt: TFloriaJSVarStmt;
   declInit: TFloriaJSExprNode;
   pattern: TFloriaJSExprNode;
@@ -1612,6 +1701,7 @@ begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
 
+  isAwait := Match(tkAwait);
   Consume(tkLParen, 'Expected ''('' after ''for''');
 
   // 1. Check for 'var', 'let', 'const'
@@ -1635,6 +1725,9 @@ begin
         body := ParseStatement();
         forInOf := TFloriaJSForInOfStmt.Create(varKind, '', isOf, iterable, body, startLine, startCol);
         forInOf.Pattern := pattern;
+        forInOf.IsAwait := isAwait;
+        if isAwait and not isOf then
+          ErrorAtCurrent('for await requires of');
         Exit(forInOf);
       end;
       { Not a for-in/of target after all: report it rather than mis-parsing. }
@@ -1654,7 +1747,13 @@ begin
       iterable := ParseExpression();
       Consume(tkRParen, 'Expected '')'' after for loop iterable');
       body := ParseStatement();
-      Exit(TFloriaJSForInOfStmt.Create(varKind, varName, isOf, iterable, body, startLine, startCol));
+      begin
+        forInOf := TFloriaJSForInOfStmt.Create(varKind, varName, isOf, iterable, body, startLine, startCol);
+        forInOf.IsAwait := isAwait;
+        if isAwait and not isOf then
+          ErrorAtCurrent('for await requires of');
+        Exit(forInOf);
+      end;
     end;
 
     // Classic for loop variable declaration
@@ -1694,7 +1793,13 @@ begin
     iterable := ParseExpression();
     Consume(tkRParen, 'Expected '')'' after for loop iterable');
     body := ParseStatement();
-    Exit(TFloriaJSForInOfStmt.Create(tkEOF, varName, isOf, iterable, body, startLine, startCol));
+    begin
+      forInOf := TFloriaJSForInOfStmt.Create(tkEOF, varName, isOf, iterable, body, startLine, startCol);
+      forInOf.IsAwait := isAwait;
+      if isAwait and not isOf then
+        ErrorAtCurrent('for await requires of');
+      Exit(forInOf);
+    end;
   end
   // 3. Classic for loop with empty init
   else if Match(tkSemicolon) then
@@ -1834,9 +1939,15 @@ begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
 
-  { A throw statement always carries the value that is thrown. }
-  expr := ParseExpression();
-  Match(tkSemicolon);
+  { A line terminator is not allowed between throw and its expression. }
+  if HasLineBreakBeforeCurrent() then
+  begin
+    ErrorAtCurrent('Illegal newline after throw');
+    expr := TFloriaJSLiteralExpr.CreateUndefined(startLine, startCol);
+  end
+  else
+    expr := ParseExpression();
+  EndStatement('throw statement');
   Result := TFloriaJSThrowStmt.Create(expr, startLine, startCol);
 end;
 
@@ -1867,12 +1978,13 @@ begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
 
-  if (not Check(tkSemicolon)) and (not Check(tkRBrace)) and (not IsAtEnd()) then
+  if (not HasLineBreakBeforeCurrent()) and
+     (not Check(tkSemicolon)) and (not Check(tkRBrace)) and (not IsAtEnd()) then
     arg := ParseExpression()
   else
     arg := nil;
 
-  Match(tkSemicolon);
+  EndStatement('return statement');
   Result := TFloriaJSReturnStmt.Create(arg, startLine, startCol);
 end;
 
@@ -1884,7 +1996,7 @@ begin
     never sees `debugger` as an identifier. }
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
-  Match(tkSemicolon);
+  EndStatement('debugger statement');
   Result := TFloriaJSDebuggerStmt.Create(startLine, startCol);
 end;
 
@@ -1896,9 +2008,9 @@ begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
   lbl := '';
-  if Match(tkIdentifier) then
+  if (not HasLineBreakBeforeCurrent()) and Match(tkIdentifier) then
     lbl := FPrevious.Text;
-  Match(tkSemicolon);
+  EndStatement('break statement');
   Result := TFloriaJSBreakStmt.Create(startLine, startCol, lbl);
 end;
 
@@ -1910,9 +2022,9 @@ begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
   lbl := '';
-  if Match(tkIdentifier) then
+  if (not HasLineBreakBeforeCurrent()) and Match(tkIdentifier) then
     lbl := FPrevious.Text;
-  Match(tkSemicolon);
+  EndStatement('continue statement');
   Result := TFloriaJSContinueStmt.Create(startLine, startCol, lbl);
 end;
 
@@ -1924,7 +2036,7 @@ begin
   startLine := FCurrent.Line;
   startCol := FCurrent.Column;
   expr := ParseExpression();
-  Match(tkSemicolon);
+  EndStatement('expression statement');
   Result := TFloriaJSExprStmt.Create(expr, startLine, startCol);
 end;
 

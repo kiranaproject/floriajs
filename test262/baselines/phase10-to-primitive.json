@@ -1,0 +1,877 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 1985504,
+    "sha256": "10f5d83a6634630ba74901715076de378bed50ee4902e5bc816edec148aa6818"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/to-primitive-tests.txt",
+    "selection": [
+      "language/expressions/addition/coerce-symbol-to-prim-err.js",
+      "language/expressions/addition/coerce-symbol-to-prim-invocation.js",
+      "language/expressions/addition/coerce-symbol-to-prim-return-obj.js",
+      "language/expressions/addition/coerce-symbol-to-prim-return-prim.js",
+      "language/expressions/addition/get-symbol-to-prim-err.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "374c876abe34af013f7f2268e8a03df4b6af826cfb5fd42ed0a71fcf06c0934c",
+    "status": "phase-10.10-async-generators"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/coerce-symbol-to-prim-err.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "coerce-symbol-to-prim-err.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-err.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "coerce-symbol-to-prim-err.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-err.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1488,
+        "sha256": "ada7b7d280bc252fd3054bea05b42b3c3dddb8b9a41a2c0335a1c43fcf68f992"
+      },
+      "testPath": "language/expressions/addition/coerce-symbol-to-prim-err.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/coerce-symbol-to-prim-err.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "coerce-symbol-to-prim-err.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-err.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "coerce-symbol-to-prim-err.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-err.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1488,
+        "sha256": "ada7b7d280bc252fd3054bea05b42b3c3dddb8b9a41a2c0335a1c43fcf68f992"
+      },
+      "testPath": "language/expressions/addition/coerce-symbol-to-prim-err.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/coerce-symbol-to-prim-invocation.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "coerce-symbol-to-prim-invocation.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-invocation.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "coerce-symbol-to-prim-invocation.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-invocation.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1853,
+        "sha256": "b8ef415aca21861607c2c5c6f9e0f6640039d39da60f920ed99b8d96bba787c0"
+      },
+      "testPath": "language/expressions/addition/coerce-symbol-to-prim-invocation.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/coerce-symbol-to-prim-invocation.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "coerce-symbol-to-prim-invocation.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-invocation.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "coerce-symbol-to-prim-invocation.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-invocation.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1853,
+        "sha256": "b8ef415aca21861607c2c5c6f9e0f6640039d39da60f920ed99b8d96bba787c0"
+      },
+      "testPath": "language/expressions/addition/coerce-symbol-to-prim-invocation.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/coerce-symbol-to-prim-return-obj.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "coerce-symbol-to-prim-return-obj.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-return-obj.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "coerce-symbol-to-prim-return-obj.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-return-obj.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1391,
+        "sha256": "e3e2474b99ed5d5274bf7a96e9d22ee0f0119dfec193986e06f081540f6feaa8"
+      },
+      "testPath": "language/expressions/addition/coerce-symbol-to-prim-return-obj.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/coerce-symbol-to-prim-return-obj.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "coerce-symbol-to-prim-return-obj.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-return-obj.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "coerce-symbol-to-prim-return-obj.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-return-obj.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1391,
+        "sha256": "e3e2474b99ed5d5274bf7a96e9d22ee0f0119dfec193986e06f081540f6feaa8"
+      },
+      "testPath": "language/expressions/addition/coerce-symbol-to-prim-return-obj.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/coerce-symbol-to-prim-return-prim.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "coerce-symbol-to-prim-return-prim.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-return-prim.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "coerce-symbol-to-prim-return-prim.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-return-prim.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1992,
+        "sha256": "c5180a8632e1252d0cb09cf5153ca04da8460a2f23d9c209d9caf2a6e91b0493"
+      },
+      "testPath": "language/expressions/addition/coerce-symbol-to-prim-return-prim.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/coerce-symbol-to-prim-return-prim.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "coerce-symbol-to-prim-return-prim.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-return-prim.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "coerce-symbol-to-prim-return-prim.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/coerce-symbol-to-prim-return-prim.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1992,
+        "sha256": "c5180a8632e1252d0cb09cf5153ca04da8460a2f23d9c209d9caf2a6e91b0493"
+      },
+      "testPath": "language/expressions/addition/coerce-symbol-to-prim-return-prim.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/get-symbol-to-prim-err.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "get-symbol-to-prim-err.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/get-symbol-to-prim-err.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "get-symbol-to-prim-err.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/get-symbol-to-prim-err.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1382,
+        "sha256": "e3aa76e86b42c977e7ce14c9bfca8856a913fe7f8aecd9f58f6e1c9a63486bec"
+      },
+      "testPath": "language/expressions/addition/get-symbol-to-prim-err.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/get-symbol-to-prim-err.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "get-symbol-to-prim-err.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/get-symbol-to-prim-err.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "get-symbol-to-prim-err.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.toPrimitive"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/get-symbol-to-prim-err.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1382,
+        "sha256": "e3aa76e86b42c977e7ce14c9bfca8856a913fe7f8aecd9f58f6e1c9a63486bec"
+      },
+      "testPath": "language/expressions/addition/get-symbol-to-prim-err.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 10,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 10,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "language/expressions/addition": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      }
+    },
+    "features": {
+      "Symbol.toPrimitive": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 10,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 10
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

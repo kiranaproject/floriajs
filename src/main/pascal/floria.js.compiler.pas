@@ -21,6 +21,9 @@ uses
   floria.js.value, floria.js.bytecode;
 
 type
+  { Typed early error raised while translating an otherwise parsed program. }
+  EFloriaJSCompileError = class(Exception);
+
   { Loop and Label Jump Tracking Context }
   TFloriaJSLoopContext = record
     LabelName: string;
@@ -37,6 +40,8 @@ type
   private
     FBytecode: TFloriaJSBytecode;
     FIsTopLevel: Boolean;
+    { Strictness inherited from the enclosing program/function/class body. }
+    FIsStrictMode: Boolean;
     FResultLoc: Integer;
     FLoopStack: array of TFloriaJSLoopContext;
     FLoopDepth: Integer;
@@ -74,6 +79,8 @@ type
     procedure CompileYieldStar(AIterable: TFloriaJSExprNode; ALine: Integer);
 
     procedure CompileVarStmt(AVar: TFloriaJSVarStmt);
+    { Emits uninitialized declarations for a direct let/const statement. }
+    procedure HoistLexicalDecl(AStmt: TFloriaJSStmtNode);
     procedure CompileDestructuring(APattern: TFloriaJSExprNode; AKind: TFloriaJSTokenKind = tkVar);
     procedure CompileBlockStmt(ABlock: TFloriaJSBlockStmt; AHoistFuncs: Boolean = True);
     procedure CompileIfStmt(AIf: TFloriaJSIfStmt);
@@ -81,11 +88,13 @@ type
     procedure CompileForStmt(AFor: TFloriaJSForStmt);
     procedure CompileForInOfStmt(AForInOf: TFloriaJSForInOfStmt);
     procedure CompileForOfStmt(AForInOf: TFloriaJSForInOfStmt; AIterLoc: Integer);
+    procedure CompileForAwaitOfStmt(AForInOf: TFloriaJSForInOfStmt; AIterLoc: Integer);
     procedure CompileSwitchStmt(ASwitch: TFloriaJSSwitchStmt);
     procedure CompileLabeledStmt(ALabeled: TFloriaJSLabeledStmt);
     procedure CompileReturnStmt(ARet: TFloriaJSReturnStmt);
     procedure CompileTryStmt(ATry: TFloriaJSTryStmt);
     procedure CompileThrowStmt(AThrow: TFloriaJSThrowStmt);
+    procedure CompileWithStmt(AWith: TFloriaJSWithStmt);
     procedure CompileBreakStmt(ABreak: TFloriaJSBreakStmt);
     procedure CompileContinueStmt(AContinue: TFloriaJSContinueStmt);
     procedure CompileFunctionDecl(AFuncDecl: TFloriaJSFunctionDecl);
@@ -95,10 +104,22 @@ type
 
     function CompileProgram(AProgram: TFloriaJSProgram): TFloriaJSBytecode;
     function CompileExpression(AExpr: TFloriaJSExprNode): TFloriaJSBytecode;
-    function CompileFunctionBody(const AName: string; AParams: TStringList; ABody: TFloriaJSStmtNode; AIsAsync: Boolean = False; AIsArrow: Boolean = False): TFloriaJSBytecode;
+    function CompileFunctionBody(const AName: string; AParams: TStringList; ABody: TFloriaJSStmtNode; AIsAsync: Boolean = False; AIsArrow: Boolean = False; AInheritedStrict: Boolean = False; AIsAsyncGenerator: Boolean = False): TFloriaJSBytecode;
   end;
 
 implementation
+
+procedure CheckStrictRestrictedName(const AName: string; AStrict: Boolean);
+begin
+  if not AStrict then
+    Exit;
+  if (AName = 'eval') or (AName = 'arguments') then
+    raise EFloriaJSCompileError.Create('SyntaxError: Unexpected eval or arguments in strict mode');
+  if (AName = 'implements') or (AName = 'interface') or (AName = 'package') or
+     (AName = 'private') or (AName = 'protected') or (AName = 'public') or
+     (AName = 'static') or (AName = 'yield') or (AName = 'let') then
+    raise EFloriaJSCompileError.Create('SyntaxError: Unexpected reserved word in strict mode');
+end;
 
 type
   TChainLinkKind = (clkMemberNamed, clkMemberComputed, clkCall);
@@ -445,7 +466,7 @@ var
   curr: TFloriaJSDeclarationScope;
 begin
   if HasAncestorLexical(AName) then
-    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+    raise EFloriaJSCompileError.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
 
   curr := Self;
   while curr <> nil do
@@ -461,16 +482,16 @@ end;
 procedure TFloriaJSDeclarationScope.AddLexical(const AName: string);
 begin
   if FLexicalNames.IndexOf(AName) >= 0 then
-    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+    raise EFloriaJSCompileError.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
 
   if (FKind = fjskFunction) and (FParamNames <> nil) and (FParamNames.IndexOf(AName) >= 0) then
-    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+    raise EFloriaJSCompileError.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
 
   if (FCatchParam <> '') and (AName = FCatchParam) then
-    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+    raise EFloriaJSCompileError.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
 
   if FAllSubtreeVars.IndexOf(AName) >= 0 then
-    raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+    raise EFloriaJSCompileError.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
 
   FLexicalNames.Add(AName);
 end;
@@ -482,7 +503,7 @@ begin
   else
   begin
     if FLexicalNames.IndexOf(AName) >= 0 then
-      raise Exception.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
+      raise EFloriaJSCompileError.Create('SyntaxError: Identifier ''' + AName + ''' has already been declared');
     if FAllSubtreeVars.IndexOf(AName) < 0 then
       FAllSubtreeVars.Add(AName);
   end;
@@ -641,6 +662,65 @@ begin
   end;
 end;
 
+function IsDirectiveStringLiteral(AStmt: TFloriaJSStmtNode): Boolean;
+var
+  exprStmt: TFloriaJSExprStmt;
+begin
+  Result := False;
+  if not (AStmt is TFloriaJSExprStmt) then
+    Exit;
+  exprStmt := TFloriaJSExprStmt(AStmt);
+  Result := (exprStmt.Expression is TFloriaJSLiteralExpr) and
+    (TFloriaJSLiteralExpr(exprStmt.Expression).ValueType = fjstString);
+end;
+
+function IsUseStrictDirective(AStmt: TFloriaJSStmtNode): Boolean;
+var
+  exprStmt: TFloriaJSExprStmt;
+begin
+  Result := False;
+  if not IsDirectiveStringLiteral(AStmt) then
+    Exit;
+  exprStmt := TFloriaJSExprStmt(AStmt);
+  Result := TFloriaJSLiteralExpr(exprStmt.Expression).StringVal = 'use strict';
+end;
+
+function BlockHasUseStrict(ABlock: TFloriaJSBlockStmt): Boolean;
+var
+  i: Integer;
+  stmt: TFloriaJSStmtNode;
+begin
+  Result := False;
+  if ABlock = nil then
+    Exit;
+  for i := 0 to ABlock.GetStatementCount() - 1 do
+  begin
+    stmt := ABlock.GetStatement(i);
+    if not IsDirectiveStringLiteral(stmt) then
+      Break;
+    if IsUseStrictDirective(stmt) then
+      Exit(True);
+  end;
+end;
+
+function ProgramHasUseStrict(AProgram: TFloriaJSProgram): Boolean;
+var
+  i: Integer;
+  stmt: TFloriaJSStmtNode;
+begin
+  Result := False;
+  if AProgram = nil then
+    Exit;
+  for i := 0 to AProgram.GetStatementCount() - 1 do
+  begin
+    stmt := AProgram.GetStatement(i);
+    if not IsDirectiveStringLiteral(stmt) then
+      Break;
+    if IsUseStrictDirective(stmt) then
+      Exit(True);
+  end;
+end;
+
 function TFloriaJSCompiler.CompileProgram(AProgram: TFloriaJSProgram): TFloriaJSBytecode;
 var
   i, count: Integer;
@@ -653,7 +733,9 @@ begin
   FTryDepth := 0;
   FEnvDepth := 0;
   FIsTopLevel := True;
+  FIsStrictMode := ProgramHasUseStrict(AProgram);
   FBytecode := TFloriaJSBytecode.Create('main');
+  FBytecode.IsStrict := FIsStrictMode;
   Result := FBytecode;
   FResultLoc := FBytecode.AddLocal('$result');
 
@@ -702,6 +784,11 @@ begin
     fnNames.Free();
   end;
 
+  { Top-level let/const bindings are in the global/function lexical
+    environment from the start of the program. }
+  for i := 0 to count - 1 do
+    HoistLexicalDecl(AProgram.GetStatement(i));
+
   for i := 0 to count - 1 do
     if not (AProgram.GetStatement(i) is TFloriaJSFunctionDecl) then
       CompileStmt(AProgram.GetStatement(i));
@@ -716,6 +803,7 @@ begin
   FTryDepth := 0;
   FEnvDepth := 0;
   FIsTopLevel := False;
+  FIsStrictMode := False;
   FResultLoc := -1;
   FBytecode := TFloriaJSBytecode.Create('expr');
   Result := FBytecode;
@@ -728,7 +816,7 @@ begin
   FBytecode.Emit(opReturn);
 end;
 
-function TFloriaJSCompiler.CompileFunctionBody(const AName: string; AParams: TStringList; ABody: TFloriaJSStmtNode; AIsAsync: Boolean; AIsArrow: Boolean): TFloriaJSBytecode;
+function TFloriaJSCompiler.CompileFunctionBody(const AName: string; AParams: TStringList; ABody: TFloriaJSStmtNode; AIsAsync: Boolean; AIsArrow: Boolean; AInheritedStrict: Boolean; AIsAsyncGenerator: Boolean): TFloriaJSBytecode;
 var
   compiler: TFloriaJSCompiler;
   subCode: TFloriaJSBytecode;
@@ -738,7 +826,34 @@ var
   fnDecl: TFloriaJSFunctionDecl;
   bodyBlock: TFloriaJSBlockStmt;
   rootScope: TFloriaJSDeclarationScope;
+  strict: Boolean;
+  seenParams: TStringList;
 begin
+  strict := AInheritedStrict;
+  if ABody is TFloriaJSBlockStmt then
+    strict := strict or BlockHasUseStrict(TFloriaJSBlockStmt(ABody));
+
+  if strict and (AParams <> nil) then
+  begin
+    seenParams := TStringList.Create();
+    try
+      seenParams.CaseSensitive := True;
+      for i := 0 to AParams.Count - 1 do
+      begin
+        pName := AParams[i];
+        if pName = '' then
+          Continue;
+        if (pName = 'eval') or (pName = 'arguments') then
+          raise EFloriaJSCompileError.Create('SyntaxError: Unexpected eval or arguments in strict mode');
+        if seenParams.IndexOf(pName) >= 0 then
+          raise EFloriaJSCompileError.Create('SyntaxError: Duplicate parameter name not allowed in this context');
+        seenParams.Add(pName);
+      end;
+    finally
+      seenParams.Free();
+    end;
+  end;
+
   rootScope := TFloriaJSDeclarationScope.Create(nil, fjskFunction, AParams);
   try
     if ABody is TFloriaJSBlockStmt then
@@ -758,6 +873,12 @@ begin
     subCode := TFloriaJSBytecode.Create(AName);
     subCode.IsArrow := AIsArrow;
     subCode.IsAsync := AIsAsync;
+    subCode.IsAsyncGenerator := AIsAsyncGenerator;
+    { Async bodies are executed as resumable generator-style state machines;
+      await is the suspension point. }
+    if AIsAsync then
+      subCode.IsGenerator := True;
+    subCode.IsStrict := strict;
 
     if AParams <> nil then
       for i := 0 to AParams.Count - 1 do
@@ -770,6 +891,7 @@ begin
 
     compiler.FBytecode := subCode;
     compiler.FIsTopLevel := False;
+    compiler.FIsStrictMode := strict;
     compiler.FResultLoc := -1;
     compiler.FParamNames := AParams;
     compiler.CompileParametersPrologue(AParams);
@@ -784,7 +906,6 @@ begin
           begin
             fnDecl := TFloriaJSFunctionDecl(bodyBlock.GetStatement(i));
             fnNames.Add(fnDecl.Name);
-            compiler.CompileFunctionDecl(fnDecl);
           end;
       end;
 
@@ -806,7 +927,7 @@ begin
     end;
 
     if ABody is TFloriaJSBlockStmt then
-      compiler.CompileBlockStmt(TFloriaJSBlockStmt(ABody), False)
+      compiler.CompileBlockStmt(TFloriaJSBlockStmt(ABody), True)
     else if ABody is TFloriaJSExprStmt then
     begin
       compiler.CompileExpr(TFloriaJSExprStmt(ABody).Expression);
@@ -861,6 +982,8 @@ begin
     CompileTryStmt(TFloriaJSTryStmt(AStmt))
   else if AStmt is TFloriaJSThrowStmt then
     CompileThrowStmt(TFloriaJSThrowStmt(AStmt))
+  else if AStmt is TFloriaJSWithStmt then
+    CompileWithStmt(TFloriaJSWithStmt(AStmt))
   else if AStmt is TFloriaJSDebuggerStmt then
   begin
     { `debugger` is a no-op in an embedded runtime: there is no host debugger
@@ -928,6 +1051,10 @@ end;
 
 procedure TFloriaJSCompiler.CompileLiteralExpr(ALit: TFloriaJSLiteralExpr);
 begin
+  if FIsStrictMode and ALit.IsLegacyOctal then
+    raise EFloriaJSCompileError.Create('SyntaxError: Octal literals are not allowed in strict mode');
+  if FIsStrictMode and ALit.IsLegacyOctalEscape then
+    raise EFloriaJSCompileError.Create('SyntaxError: Octal escape sequences are not allowed in strict mode');
   case ALit.ValueType of
     fjstNull:
       FBytecode.Emit(opNull, 0, ALit.Line);
@@ -960,6 +1087,13 @@ procedure TFloriaJSCompiler.CompileIdentifierExpr(AIdent: TFloriaJSIdentifierExp
 var
   locIdx: Integer;
 begin
+  if FIsStrictMode and
+     ((AIdent.Name = 'implements') or (AIdent.Name = 'interface') or
+      (AIdent.Name = 'package') or (AIdent.Name = 'private') or
+      (AIdent.Name = 'protected') or (AIdent.Name = 'public') or
+      (AIdent.Name = 'static') or (AIdent.Name = 'yield') or
+      (AIdent.Name = 'let')) then
+    raise EFloriaJSCompileError.Create('SyntaxError: Unexpected reserved word in strict mode');
   if AIdent.Name = 'undefined' then
     FBytecode.Emit(opUndefined, 0, AIdent.Line)
   else if AIdent.Name = 'NaN' then
@@ -1080,12 +1214,16 @@ begin
           FBytecode.Emit(opDeleteProp, 0, AUnary.Line);
         end
         else if targetNode is TFloriaJSIdentifierExpr then
+        begin
+          if FIsStrictMode then
+            raise EFloriaJSCompileError.Create('SyntaxError: Delete of an unqualified identifier in strict mode');
           { A bare identifier is a binding, not a property: it must not be read,
             because an undeclared name is not an error here. Declared bindings
             are non-deletable (false) and unknown names answer true. }
           FBytecode.Emit(opDeleteEnv,
             FBytecode.AddStringConstant(TFloriaJSIdentifierExpr(targetNode).Name),
-            AUnary.Line)
+            AUnary.Line);
+        end
         else
         begin
           { `delete <non-reference>` evaluates the operand and is always true. }
@@ -1101,14 +1239,15 @@ begin
         if ContainsOptionalChain(targetNode) then
         begin
           if AUnary.IsPrefix then
-            raise Exception.Create('SyntaxError: Invalid left-hand side in prefix operation')
+            raise EFloriaJSCompileError.Create('SyntaxError: Invalid left-hand side in prefix operation')
           else
-            raise Exception.Create('SyntaxError: Invalid left-hand side in postfix operation');
+            raise EFloriaJSCompileError.Create('SyntaxError: Invalid left-hand side in postfix operation');
         end;
 
         if targetNode is TFloriaJSIdentifierExpr then
         begin
           ident := TFloriaJSIdentifierExpr(targetNode);
+          CheckStrictRestrictedName(ident.Name, FIsStrictMode);
           if (Length(ident.Name) > 0) and (ident.Name[1] = '$') then
           begin
             locIdx := FBytecode.FindLocal(ident.Name);
@@ -1325,11 +1464,12 @@ begin
     targetNode := TFloriaJSGroupExpr(targetNode).Expression;
 
   if ContainsOptionalChain(targetNode) then
-    raise Exception.Create('SyntaxError: Invalid left-hand side in assignment');
+    raise EFloriaJSCompileError.Create('SyntaxError: Invalid left-hand side in assignment');
 
   if targetNode is TFloriaJSIdentifierExpr then
   begin
     ident := TFloriaJSIdentifierExpr(targetNode);
+    CheckStrictRestrictedName(ident.Name, FIsStrictMode);
 
     if (Length(ident.Name) > 0) and (ident.Name[1] = '$') then
     begin
@@ -1501,7 +1641,7 @@ begin
   else if (targetNode is TFloriaJSArrayExpr) or (targetNode is TFloriaJSObjectExpr) then
   begin
     if AAssign.Op <> tkAssign then
-      raise Exception.Create('SyntaxError: Invalid left-hand side in assignment');
+      raise EFloriaJSCompileError.Create('SyntaxError: Invalid left-hand side in assignment');
 
     CompileExpr(AAssign.Value);
     FBytecode.Emit(opDup);
@@ -1511,7 +1651,7 @@ begin
     { Anything else is not a reference. Without this the compiler emitted
       nothing and the expression silently evaluated to undefined, so `1 += 2`
       and `(a + b) = 1` looked like they succeeded. }
-    raise Exception.Create('SyntaxError: Invalid left-hand side in assignment');
+    raise EFloriaJSCompileError.Create('SyntaxError: Invalid left-hand side in assignment');
 end;
 
 procedure TFloriaJSCompiler.CompileConditionalExpr(ACond: TFloriaJSConditionalExpr);
@@ -2056,9 +2196,52 @@ end;
   delegation is observationally the same as yielding them one by one. }
 procedure TFloriaJSCompiler.CompileYieldStar(AIterable: TFloriaJSExprNode; ALine: Integer);
 var
-  iterLoc, loopStart, exitJump: Integer;
+  iterLoc, sentLoc, nextLoc, loopStart, exitJump, doneJump: Integer;
 begin
   iterLoc := FBytecode.AddNewLocal('$yieldstar');
+
+  if FBytecode.IsAsyncGenerator then
+  begin
+    { `yield*` in an async generator delegates through the async iteration
+      protocol: each step is awaited before it is re-yielded, and the value
+      sent to the outer yield is forwarded to the inner `next`. }
+    sentLoc := FBytecode.AddNewLocal('$sent');
+    nextLoc := FBytecode.AddNewLocal('$yieldstarNext');
+    CompileExpr(AIterable);
+    FBytecode.Emit(opForAwaitInit);
+    FBytecode.Emit(opSetLoc, iterLoc);
+    FBytecode.Emit(opLoadLoc, iterLoc);
+    FBytecode.Emit(opSetYieldStar);
+    FBytecode.Emit(opLoadLoc, iterLoc);
+    FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('next'));
+    FBytecode.Emit(opSetLoc, nextLoc);
+    FBytecode.Emit(opUndefined);
+    FBytecode.Emit(opSetLoc, sentLoc);
+
+    loopStart := FBytecode.CurrentIP();
+    FBytecode.Emit(opLoadLoc, nextLoc);
+    FBytecode.Emit(opLoadLoc, iterLoc);
+    FBytecode.Emit(opLoadLoc, sentLoc);
+    FBytecode.Emit(opCall, 1, ALine);
+    FBytecode.Emit(opAwait, 0, ALine);
+    FBytecode.Emit(opDup);
+    FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('done'));
+    exitJump := FBytecode.Emit(opJumpIfTrue, 0, ALine);
+    FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('value'));
+    FBytecode.Emit(opAwait, 0, ALine);
+    FBytecode.Emit(opYield, 0, ALine);
+    FBytecode.Emit(opSetLoc, sentLoc);
+    FBytecode.Emit(opLoadLoc, sentLoc);
+    doneJump := FBytecode.Emit(opYieldStarDoneJump, 0, ALine);
+    FBytecode.Emit(opPop);
+    FBytecode.Emit(opJump, loopStart);
+    FBytecode.PatchJump(exitJump, FBytecode.CurrentIP());
+    FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('value'));
+    FBytecode.Emit(opAwait, 0, ALine);
+    FBytecode.PatchJump(doneJump, FBytecode.CurrentIP());
+    FBytecode.Emit(opClearYieldStar);
+    Exit;
+  end;
 
   CompileExpr(AIterable);
   FBytecode.Emit(opForOfInit);
@@ -2119,9 +2302,11 @@ var
   member: TFloriaJSClassMember;
   ctorFn: TFloriaJSFunctionExpr;
   isDerived: Boolean;
+  savedStrict: Boolean;
 begin
   memberCount := ACls.GetMemberCount();
   isDerived := ACls.SuperClass <> nil;
+  CheckStrictRestrictedName(ACls.Name, True);
 
   { `super` is an ordinary name in this runtime, resolved through the
     environment chain like `this`. Each member is compiled inside a scope that
@@ -2168,6 +2353,11 @@ begin
        (member.Kind = fjcmMethod) then
       ctorFn := member.Function_;
   end;
+
+  { Class bodies are always strict. Set this around the method compiles only;
+    the heritage expression is evaluated in the enclosing context. }
+  savedStrict := FIsStrictMode;
+  FIsStrictMode := True;
 
   { Compile the constructor inside a scope binding `super` to the base
     constructor, or to undefined for a base class. }
@@ -2255,6 +2445,7 @@ begin
     FBytecode.Emit(opPopEnv);
   end;
 
+  FIsStrictMode := savedStrict;
   FBytecode.Emit(opLoadLoc, clsLoc);
 end;
 
@@ -2263,8 +2454,11 @@ var
   subCode: TFloriaJSBytecode;
   fnIdx: Integer;
 begin
-  subCode := CompileFunctionBody(AFunc.Name, AFunc.Parameters, AFunc.Body, AFunc.IsAsync, AFunc.IsArrow);
-  subCode.IsGenerator := AFunc.IsGenerator;
+  CheckStrictRestrictedName(AFunc.Name, FIsStrictMode);
+  subCode := CompileFunctionBody(AFunc.Name, AFunc.Parameters, AFunc.Body, AFunc.IsAsync, AFunc.IsArrow, FIsStrictMode, AFunc.IsAsync and AFunc.IsGenerator);
+  subCode.IsNamedExpression := (AFunc.Name <> '') and (not AFunc.IsArrow);
+  if AFunc.IsGenerator or AFunc.IsAsync then
+    subCode.IsGenerator := True;
   fnIdx := FBytecode.AddSubFunction(subCode);
   FBytecode.Emit(opClosure, fnIdx, AFunc.Line);
 end;
@@ -2430,6 +2624,7 @@ begin
     declName := AVar.GetDeclaratorName(i);
     declPattern := AVar.GetDeclaratorPattern(i);
     declInit := AVar.GetDeclaratorInit(i);
+    CheckStrictRestrictedName(declName, FIsStrictMode);
 
     if AVar.Kind = tkVar then
     begin
@@ -2490,6 +2685,42 @@ begin
   end;
 end;
 
+procedure TFloriaJSCompiler.HoistLexicalDecl(AStmt: TFloriaJSStmtNode);
+var
+  varStmt: TFloriaJSVarStmt;
+  declNames: TStringList;
+  i, nameIdx: Integer;
+begin
+  if not (AStmt is TFloriaJSVarStmt) then
+    Exit;
+  varStmt := TFloriaJSVarStmt(AStmt);
+  if not (varStmt.Kind in [tkLet, tkConst]) then
+    Exit;
+
+  declNames := TStringList.Create();
+  declNames.CaseSensitive := True;
+  try
+    for i := 0 to varStmt.GetDeclaratorCount() - 1 do
+    begin
+      declNames.Clear();
+      if varStmt.GetDeclaratorPattern(i) <> nil then
+        CollectPatternNames(varStmt.GetDeclaratorPattern(i), declNames)
+      else if varStmt.GetDeclaratorName(i) <> '' then
+        declNames.Add(varStmt.GetDeclaratorName(i));
+
+      for nameIdx := 0 to declNames.Count - 1 do
+        if varStmt.Kind = tkConst then
+          FBytecode.Emit(opDeclareConst,
+            FBytecode.AddStringConstant(declNames[nameIdx]), varStmt.Line)
+        else
+          FBytecode.Emit(opDeclareLet,
+            FBytecode.AddStringConstant(declNames[nameIdx]), varStmt.Line);
+    end;
+  finally
+    declNames.Free();
+  end;
+end;
+
 procedure TFloriaJSCompiler.CompileBlockStmt(ABlock: TFloriaJSBlockStmt; AHoistFuncs: Boolean = True);
 var
   i, count: Integer;
@@ -2501,6 +2732,11 @@ begin
   begin
     Inc(FEnvDepth);
     FBytecode.Emit(opPushEnv);
+
+    { Let/const bindings exist from block entry but stay uninitialized until
+      their declaration runs, which is the temporal dead zone. }
+    for i := 0 to count - 1 do
+      HoistLexicalDecl(ABlock.GetStatement(i));
   end;
 
   if AHoistFuncs then
@@ -2580,6 +2816,7 @@ begin
     begin
       Inc(FEnvDepth);
       FBytecode.Emit(opPushEnv);
+      HoistLexicalDecl(TFloriaJSStmtNode(initVar));
       CompileVarStmt(initVar);
 
       if initVar.Kind = tkLet then
@@ -2789,6 +3026,82 @@ begin
   PopLoopContext(FBytecode.CurrentIP());
 end;
 
+procedure TFloriaJSCompiler.CompileForAwaitOfStmt(AForInOf: TFloriaJSForInOfStmt;
+  AIterLoc: Integer);
+var
+  i, nameIdx, loopStart, doneJump, doneTarget, afterLoop: Integer;
+  isBlockScoped: Boolean;
+begin
+  CompileExpr(AForInOf.Iterable);
+  FBytecode.Emit(opForAwaitInit);
+  FBytecode.Emit(opSetLoc, AIterLoc);
+
+  loopStart := FBytecode.CurrentIP();
+  PushLoopContext(AForInOf.LabelName);
+
+  { step = await iterator.next() }
+  FBytecode.Emit(opLoadLoc, AIterLoc);
+  FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('next'));
+  FBytecode.Emit(opLoadLoc, AIterLoc);
+  FBytecode.Emit(opCall, 0, AForInOf.Line);
+  FBytecode.Emit(opAwait, 0, AForInOf.Line);
+
+  { Keep the step on the stack for the exit path while inspecting done. }
+  FBytecode.Emit(opDup);
+  FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('done'));
+  doneJump := FBytecode.Emit(opJumpIfTrue, 0, AForInOf.Line);
+
+  { value = await step.value }
+  FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant('value'));
+  FBytecode.Emit(opAwait, 0, AForInOf.Line);
+
+  isBlockScoped := AForInOf.VarKind in [tkLet, tkConst];
+  if isBlockScoped then
+  begin
+    Inc(FEnvDepth);
+    FBytecode.Emit(opPushEnv);
+  end;
+
+  if AForInOf.Pattern <> nil then
+    CompileDestructuring(AForInOf.Pattern, AForInOf.VarKind)
+  else
+  begin
+    nameIdx := FBytecode.AddStringConstant(AForInOf.VarName);
+    if AForInOf.VarKind = tkConst then
+      FBytecode.Emit(opDefineConst, nameIdx, AForInOf.Line)
+    else if AForInOf.VarKind = tkLet then
+      FBytecode.Emit(opDefineLet, nameIdx, AForInOf.Line)
+    else
+    begin
+      FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
+      FBytecode.Emit(opPop);
+    end;
+  end;
+
+  CompileStmt(AForInOf.Body);
+
+  if isBlockScoped then
+  begin
+    Dec(FEnvDepth);
+    FBytecode.Emit(opPopEnv);
+  end;
+
+  FLoopStack[FLoopDepth - 1].ContinueTarget := loopStart;
+  for i := 0 to High(FLoopStack[FLoopDepth - 1].ContinueJumps) do
+    FBytecode.PatchJump(FLoopStack[FLoopDepth - 1].ContinueJumps[i], loopStart);
+  SetLength(FLoopStack[FLoopDepth - 1].ContinueJumps, 0);
+
+  FBytecode.Emit(opJump, loopStart);
+
+  { The done branch still has the step object on the stack. Breaks jump past
+    that cleanup because they never leave a step on the stack. }
+  doneTarget := FBytecode.CurrentIP();
+  FBytecode.PatchJump(doneJump, doneTarget);
+  FBytecode.Emit(opPop);
+  afterLoop := FBytecode.CurrentIP();
+  PopLoopContext(afterLoop);
+end;
+
 procedure TFloriaJSCompiler.CompileForInOfStmt(AForInOf: TFloriaJSForInOfStmt);
 var
   i, iterLoc, idxLoc, lenLoc, varLoc, nameIdx: Integer;
@@ -2803,7 +3116,10 @@ begin
     shape below because it enumerates property names. }
   if AForInOf.IsOf then
   begin
-    CompileForOfStmt(AForInOf, iterLoc);
+    if AForInOf.IsAwait then
+      CompileForAwaitOfStmt(AForInOf, iterLoc)
+    else
+      CompileForOfStmt(AForInOf, iterLoc);
     Exit;
   end;
 
@@ -2915,6 +3231,13 @@ begin
   begin
     Inc(FEnvDepth);
     FBytecode.Emit(opPushEnv);
+
+    for i := 0 to count - 1 do
+    begin
+      caseClause := ASwitch.GetCase(i);
+      for s := 0 to caseClause.GetStatementCount() - 1 do
+        HoistLexicalDecl(caseClause.GetStatement(s));
+    end;
   end;
 
   PushLoopContext('', False); // For unlabelled break
@@ -3001,6 +3324,10 @@ begin
   else
     FBytecode.Emit(opUndefined);
 
+  { An async generator awaits an explicit return value before completing. }
+  if FBytecode.IsAsyncGenerator and (ARet.Argument <> nil) then
+    FBytecode.Emit(opAwait, 0, ARet.Line);
+
   if FTryDepth > 0 then
   begin
     tmpRet := FBytecode.AddLocal('$return');
@@ -3041,6 +3368,7 @@ begin
     FBytecode.PatchJump(tryIdx, FBytecode.CurrentIP());
     if ATry.CatchParam <> '' then
     begin
+      CheckStrictRestrictedName(ATry.CatchParam, FIsStrictMode);
       FBytecode.Emit(opPushEnv);
       nameIdx := FBytecode.AddStringConstant(ATry.CatchParam);
       FBytecode.Emit(opDefineEnv, nameIdx, ATry.Line);
@@ -3086,6 +3414,16 @@ begin
 
     FBytecode.PatchJump(endJump, FBytecode.CurrentIP());
   end;
+end;
+
+procedure TFloriaJSCompiler.CompileWithStmt(AWith: TFloriaJSWithStmt);
+begin
+  if FIsStrictMode then
+    raise EFloriaJSCompileError.Create('SyntaxError: Strict mode code may not include a with statement');
+  CompileExpr(AWith.ObjectExpr);
+  FBytecode.Emit(opPushWith, 0, AWith.Line);
+  CompileStmt(AWith.Body);
+  FBytecode.Emit(opPopEnv, 0, AWith.Line);
 end;
 
 procedure TFloriaJSCompiler.CompileThrowStmt(AThrow: TFloriaJSThrowStmt);
@@ -3172,8 +3510,10 @@ var
   subCode: TFloriaJSBytecode;
   fnIdx, nameIdx: Integer;
 begin
-  subCode := CompileFunctionBody(AFuncDecl.Name, AFuncDecl.Parameters, AFuncDecl.Body, AFuncDecl.IsAsync, False);
-  subCode.IsGenerator := AFuncDecl.IsGenerator;
+  CheckStrictRestrictedName(AFuncDecl.Name, FIsStrictMode);
+  subCode := CompileFunctionBody(AFuncDecl.Name, AFuncDecl.Parameters, AFuncDecl.Body, AFuncDecl.IsAsync, False, FIsStrictMode, AFuncDecl.IsAsync and AFuncDecl.IsGenerator);
+  if AFuncDecl.IsGenerator or AFuncDecl.IsAsync then
+    subCode.IsGenerator := True;
   fnIdx := FBytecode.AddSubFunction(subCode);
   nameIdx := FBytecode.AddStringConstant(AFuncDecl.Name);
   FBytecode.Emit(opClosure, fnIdx, AFuncDecl.Line);

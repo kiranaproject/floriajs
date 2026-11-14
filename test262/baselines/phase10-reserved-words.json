@@ -1,0 +1,6652 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 2043440,
+    "sha256": "e11173bfaf4264ae37eec2813e89a16c4ea8fc05da57a3756f40e490e14e2f56"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/reserved-word-tests.txt",
+    "selection": [
+      "language/future-reserved-words/_implements.js",
+      "language/future-reserved-words/abstract.js",
+      "language/future-reserved-words/boolean.js",
+      "language/future-reserved-words/byte.js",
+      "language/future-reserved-words/char.js",
+      "language/future-reserved-words/class.js",
+      "language/future-reserved-words/const.js",
+      "language/future-reserved-words/debugger.js",
+      "language/future-reserved-words/double.js",
+      "language/future-reserved-words/enum.js",
+      "language/future-reserved-words/export.js",
+      "language/future-reserved-words/extends.js",
+      "language/future-reserved-words/final.js",
+      "language/future-reserved-words/float.js",
+      "language/future-reserved-words/goto.js",
+      "language/future-reserved-words/implement.js",
+      "language/future-reserved-words/implements-strict-escaped.js",
+      "language/future-reserved-words/implements-strict.js",
+      "language/future-reserved-words/implements-titlecase.js",
+      "language/future-reserved-words/implements-uppercase.js",
+      "language/future-reserved-words/implements.js",
+      "language/future-reserved-words/implements0.js",
+      "language/future-reserved-words/implementss.js",
+      "language/future-reserved-words/import.js",
+      "language/future-reserved-words/int.js",
+      "language/future-reserved-words/interface-strict-escaped.js",
+      "language/future-reserved-words/interface-strict.js",
+      "language/future-reserved-words/interface.js",
+      "language/future-reserved-words/let-strict-escaped.js",
+      "language/future-reserved-words/let-strict.js",
+      "language/future-reserved-words/long.js",
+      "language/future-reserved-words/native.js",
+      "language/future-reserved-words/package-strict-escaped.js",
+      "language/future-reserved-words/package-strict.js",
+      "language/future-reserved-words/package.js",
+      "language/future-reserved-words/private-strict-escaped.js",
+      "language/future-reserved-words/private-strict.js",
+      "language/future-reserved-words/private.js",
+      "language/future-reserved-words/protected-strict-escaped.js",
+      "language/future-reserved-words/protected-strict.js",
+      "language/future-reserved-words/protected.js",
+      "language/future-reserved-words/public-strict-escaped.js",
+      "language/future-reserved-words/public-strict.js",
+      "language/future-reserved-words/public.js",
+      "language/future-reserved-words/short.js",
+      "language/future-reserved-words/static-strict-escaped.js",
+      "language/future-reserved-words/static-strict.js",
+      "language/future-reserved-words/static.js",
+      "language/future-reserved-words/super.js",
+      "language/future-reserved-words/synchronized.js",
+      "language/future-reserved-words/throws.js",
+      "language/future-reserved-words/transient.js",
+      "language/future-reserved-words/volatile.js",
+      "language/future-reserved-words/yield-strict-escaped.js",
+      "language/future-reserved-words/yield-strict.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "5edd83b0a653044a726f2b4844596ccebef34662274bc9f06c04e68725ed8e65",
+    "status": "phase-10.10-proxy-invariants"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/_implements.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "_implements.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/_implements.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "_implements.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/_implements.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 310,
+        "sha256": "02b29743c12710d6fe5f6a1cf5a58d349af0031657bb0a025f60e44e29be657b"
+      },
+      "testPath": "language/future-reserved-words/_implements.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/_implements.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "_implements.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/_implements.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "_implements.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/_implements.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 310,
+        "sha256": "02b29743c12710d6fe5f6a1cf5a58d349af0031657bb0a025f60e44e29be657b"
+      },
+      "testPath": "language/future-reserved-words/_implements.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/abstract.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "abstract.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/abstract.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "abstract.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/abstract.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 365,
+        "sha256": "bccdf96f33e311c68404cd812f99d8cf1ededb6a014b23e338de4cbacf37ac5e"
+      },
+      "testPath": "language/future-reserved-words/abstract.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/abstract.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "abstract.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/abstract.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "abstract.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/abstract.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 365,
+        "sha256": "bccdf96f33e311c68404cd812f99d8cf1ededb6a014b23e338de4cbacf37ac5e"
+      },
+      "testPath": "language/future-reserved-words/abstract.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/boolean.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "boolean.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/boolean.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "boolean.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/boolean.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 362,
+        "sha256": "776cecc1cb18575258a23d74248a68966b0684888fb10067814fe70243b7f1b4"
+      },
+      "testPath": "language/future-reserved-words/boolean.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/boolean.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "boolean.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/boolean.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "boolean.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/boolean.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 362,
+        "sha256": "776cecc1cb18575258a23d74248a68966b0684888fb10067814fe70243b7f1b4"
+      },
+      "testPath": "language/future-reserved-words/boolean.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/byte.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "byte.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/byte.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "byte.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/byte.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 353,
+        "sha256": "679bf7e2e38d3592c4d867a1fa83f043f5b8e76aef2da642ea6459f730fd524f"
+      },
+      "testPath": "language/future-reserved-words/byte.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/byte.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "byte.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/byte.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "byte.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/byte.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 353,
+        "sha256": "679bf7e2e38d3592c4d867a1fa83f043f5b8e76aef2da642ea6459f730fd524f"
+      },
+      "testPath": "language/future-reserved-words/byte.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/char.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "char.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/char.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "char.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/char.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 353,
+        "sha256": "21e39fcc5d5cf87aaad18a4566e7517c49c0adfae7441476ff3a5f27740cda05"
+      },
+      "testPath": "language/future-reserved-words/char.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/char.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "char.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/char.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "char.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/char.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 353,
+        "sha256": "21e39fcc5d5cf87aaad18a4566e7517c49c0adfae7441476ff3a5f27740cda05"
+      },
+      "testPath": "language/future-reserved-words/char.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/class.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "class.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 20,
+          "message": "[Line 20, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 20, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/class.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "class.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/class.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 567,
+        "sha256": "38cfcfe67d4ea640df7919567642a1d71d64d2945199bbef266d632f574dd21b"
+      },
+      "testPath": "language/future-reserved-words/class.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/class.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "class.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 21,
+          "message": "[Line 21, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 21, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/class.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "class.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/class.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 567,
+        "sha256": "38cfcfe67d4ea640df7919567642a1d71d64d2945199bbef266d632f574dd21b"
+      },
+      "testPath": "language/future-reserved-words/class.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/const.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "const.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 20,
+          "message": "[Line 20, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 20, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/const.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "const.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/const.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 567,
+        "sha256": "0243cd072382913aad773a3b9752610af299d8a7c279745c91af89eb87b3f88a"
+      },
+      "testPath": "language/future-reserved-words/const.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/const.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "const.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 21,
+          "message": "[Line 21, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 21, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/const.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "const.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/const.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 567,
+        "sha256": "0243cd072382913aad773a3b9752610af299d8a7c279745c91af89eb87b3f88a"
+      },
+      "testPath": "language/future-reserved-words/const.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/debugger.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "debugger.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 20,
+          "message": "[Line 20, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 20, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/debugger.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "debugger.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/debugger.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 573,
+        "sha256": "f99c11d9a578042af73783b37bbd765da6ce8883b82c3f9d695b499055beff84"
+      },
+      "testPath": "language/future-reserved-words/debugger.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/debugger.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "debugger.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 21,
+          "message": "[Line 21, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 21, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/debugger.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "debugger.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/debugger.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 573,
+        "sha256": "f99c11d9a578042af73783b37bbd765da6ce8883b82c3f9d695b499055beff84"
+      },
+      "testPath": "language/future-reserved-words/debugger.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/double.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "double.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/double.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "double.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/double.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 359,
+        "sha256": "fefe8170ceed0949a9a650042a05d128c615d56777e493d171b7af72f9c687cb"
+      },
+      "testPath": "language/future-reserved-words/double.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/double.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "double.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/double.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "double.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/double.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 359,
+        "sha256": "fefe8170ceed0949a9a650042a05d128c615d56777e493d171b7af72f9c687cb"
+      },
+      "testPath": "language/future-reserved-words/double.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/enum.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "enum.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 20,
+          "message": "[Line 20, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 20, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/enum.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "enum.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/enum.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 565,
+        "sha256": "48e2ecfd4e9c76df1b17fad9f38da09cd4929b250ba833d08dd3242b22849853"
+      },
+      "testPath": "language/future-reserved-words/enum.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/enum.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "enum.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 21,
+          "message": "[Line 21, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 21, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/enum.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "enum.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/enum.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 565,
+        "sha256": "48e2ecfd4e9c76df1b17fad9f38da09cd4929b250ba833d08dd3242b22849853"
+      },
+      "testPath": "language/future-reserved-words/enum.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/export.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "export.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 20,
+          "message": "[Line 20, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 20, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/export.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "export.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/export.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 570,
+        "sha256": "19ffac937fe56998d92df7ff8c3d2a94d91457b0e6f70353ab9682f7b81319b7"
+      },
+      "testPath": "language/future-reserved-words/export.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/export.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "export.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 21,
+          "message": "[Line 21, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 21, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/export.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "export.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/export.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 570,
+        "sha256": "19ffac937fe56998d92df7ff8c3d2a94d91457b0e6f70353ab9682f7b81319b7"
+      },
+      "testPath": "language/future-reserved-words/export.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/extends.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "extends.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 20,
+          "message": "[Line 20, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 20, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/extends.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "extends.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/extends.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 572,
+        "sha256": "88753e9dd7ece993de513a38804d4d6c11d55ba0f372ff32f90e2c3f88278891"
+      },
+      "testPath": "language/future-reserved-words/extends.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/extends.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "extends.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 21,
+          "message": "[Line 21, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 21, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/extends.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "extends.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/extends.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 572,
+        "sha256": "88753e9dd7ece993de513a38804d4d6c11d55ba0f372ff32f90e2c3f88278891"
+      },
+      "testPath": "language/future-reserved-words/extends.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/final.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "final.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/final.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "final.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/final.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 357,
+        "sha256": "a661db8bfb5ac2e23e5ae50dfdcfa972fb9a4d2130e871f25ce398577a1e25a8"
+      },
+      "testPath": "language/future-reserved-words/final.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/final.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "final.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/final.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "final.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/final.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 357,
+        "sha256": "a661db8bfb5ac2e23e5ae50dfdcfa972fb9a4d2130e871f25ce398577a1e25a8"
+      },
+      "testPath": "language/future-reserved-words/final.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/float.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "float.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/float.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "float.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/float.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 357,
+        "sha256": "5856ed0de331f1d09590ad7981bb1ffbf54a9a48adf621a7f2c7af46b9d0ee2e"
+      },
+      "testPath": "language/future-reserved-words/float.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/float.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "float.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/float.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "float.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/float.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 357,
+        "sha256": "5856ed0de331f1d09590ad7981bb1ffbf54a9a48adf621a7f2c7af46b9d0ee2e"
+      },
+      "testPath": "language/future-reserved-words/float.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/goto.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "goto.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/goto.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "goto.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/goto.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 354,
+        "sha256": "f02ddb343c5b978e77f749e94bce8630d2913f5dc884645705d5843fe4c425b6"
+      },
+      "testPath": "language/future-reserved-words/goto.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/goto.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "goto.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/goto.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "goto.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/goto.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 354,
+        "sha256": "f02ddb343c5b978e77f749e94bce8630d2913f5dc884645705d5843fe4c425b6"
+      },
+      "testPath": "language/future-reserved-words/goto.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implement.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implement.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implement.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implement.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implement.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 302,
+        "sha256": "4e6ec171d425c9e59d43737d16d8f5a491c56216e9203e9b8887d3c4c7dedf08"
+      },
+      "testPath": "language/future-reserved-words/implement.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implement.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implement.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implement.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implement.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implement.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 302,
+        "sha256": "4e6ec171d425c9e59d43737d16d8f5a491c56216e9203e9b8887d3c4c7dedf08"
+      },
+      "testPath": "language/future-reserved-words/implement.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/implements-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/implements-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 740,
+        "sha256": "f0d2c601abb51a89cb47aee8625cb292e8fa1830192b121b6620dcff41f8da61"
+      },
+      "testPath": "language/future-reserved-words/implements-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/implements-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/implements-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 710,
+        "sha256": "3f89339c8492fb66459bec02790d62f77c36a0fcb71d9e4db28d01b80bf2e529"
+      },
+      "testPath": "language/future-reserved-words/implements-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements-titlecase.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements-titlecase.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implements-titlecase.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements-titlecase.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implements-titlecase.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 306,
+        "sha256": "84dff93407ea79a16a6e59c459b4776b24c90f6c18af0468279fcb542075c2f7"
+      },
+      "testPath": "language/future-reserved-words/implements-titlecase.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements-titlecase.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements-titlecase.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implements-titlecase.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements-titlecase.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implements-titlecase.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 306,
+        "sha256": "84dff93407ea79a16a6e59c459b4776b24c90f6c18af0468279fcb542075c2f7"
+      },
+      "testPath": "language/future-reserved-words/implements-titlecase.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements-uppercase.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements-uppercase.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implements-uppercase.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements-uppercase.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implements-uppercase.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 306,
+        "sha256": "ac9a7fc1c1eaeb3430d8ea781eb6e5e66df963093e8f7b8c4e9804f8449aec1b"
+      },
+      "testPath": "language/future-reserved-words/implements-uppercase.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements-uppercase.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements-uppercase.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implements-uppercase.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements-uppercase.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implements-uppercase.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 306,
+        "sha256": "ac9a7fc1c1eaeb3430d8ea781eb6e5e66df963093e8f7b8c4e9804f8449aec1b"
+      },
+      "testPath": "language/future-reserved-words/implements-uppercase.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implements.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implements.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 551,
+        "sha256": "e12b2e25187668946a878e5ac84fd111aa88f0ac1c13b1409ef065c79905800c"
+      },
+      "testPath": "language/future-reserved-words/implements.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements0.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements0.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implements0.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements0.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implements0.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 310,
+        "sha256": "f4809ba55e47b3b83d54d72f6e3b0b032253f9c4372828b865945b28c8279ffb"
+      },
+      "testPath": "language/future-reserved-words/implements0.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implements0.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implements0.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implements0.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implements0.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implements0.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 310,
+        "sha256": "f4809ba55e47b3b83d54d72f6e3b0b032253f9c4372828b865945b28c8279ffb"
+      },
+      "testPath": "language/future-reserved-words/implements0.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implementss.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implementss.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implementss.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implementss.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implementss.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 310,
+        "sha256": "2e6714ea2cfbeb687ccaf68d7dd8d202ad2ec68a1053396f383988e60df89766"
+      },
+      "testPath": "language/future-reserved-words/implementss.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/implementss.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "implementss.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/implementss.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "implementss.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/implementss.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 310,
+        "sha256": "2e6714ea2cfbeb687ccaf68d7dd8d202ad2ec68a1053396f383988e60df89766"
+      },
+      "testPath": "language/future-reserved-words/implementss.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/import.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "import.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 20,
+          "message": "[Line 20, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 20, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/import.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "import.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/import.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 570,
+        "sha256": "4e81940ea043e54797904c5a842b313ee124364e8efc4ca724900ece8af5891c"
+      },
+      "testPath": "language/future-reserved-words/import.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/import.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "import.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 21,
+          "message": "[Line 21, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 21, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/import.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "import.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/import.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 570,
+        "sha256": "4e81940ea043e54797904c5a842b313ee124364e8efc4ca724900ece8af5891c"
+      },
+      "testPath": "language/future-reserved-words/import.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/int.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "int.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/int.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "int.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/int.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 351,
+        "sha256": "ccb707b316691df00e3b50a0406b00809bde9539835e79ab9d7ab88b1b49a8e4"
+      },
+      "testPath": "language/future-reserved-words/int.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/int.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "int.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/int.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "int.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/int.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 351,
+        "sha256": "ccb707b316691df00e3b50a0406b00809bde9539835e79ab9d7ab88b1b49a8e4"
+      },
+      "testPath": "language/future-reserved-words/int.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/interface-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "interface-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/interface-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "interface-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/interface-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 742,
+        "sha256": "36368c8c440f109609732e3f5f30710b16a845a66ab1a28aaeaea2951a80a918"
+      },
+      "testPath": "language/future-reserved-words/interface-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/interface-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "interface-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/interface-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "interface-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/interface-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 708,
+        "sha256": "938f8fcf7a83e15d520fa659048201b684db9c9d1b9bcf9f4fd95a4aa0ddf894"
+      },
+      "testPath": "language/future-reserved-words/interface-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/interface.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "interface.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/interface.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "interface.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/interface.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 566,
+        "sha256": "bdd767bad850e3c3d0adf02ce1ac6ad61c63138c9d73b4bfb46cc0b9bebed71c"
+      },
+      "testPath": "language/future-reserved-words/interface.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/let-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "let-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 25,
+          "message": "[Line 25, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 25, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/let-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "let-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/let-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 724,
+        "sha256": "2f2e1faa97720383a8808b6e7dd89690200395f268fab2028c24c0aa7dfae44c"
+      },
+      "testPath": "language/future-reserved-words/let-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/let-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "let-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 24,
+          "message": "[Line 24, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 24, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/let-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "let-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/let-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 696,
+        "sha256": "90e41fd23c9f433c37dcb94ff13b818dcda54c54d0256c9b44a2f61f73635688"
+      },
+      "testPath": "language/future-reserved-words/let-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/long.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "long.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/long.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "long.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/long.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 354,
+        "sha256": "d53450ec5e785bcd0ae596d29261ac9e3a8afd99508f5ea75f29d0cb84ce8169"
+      },
+      "testPath": "language/future-reserved-words/long.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/long.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "long.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/long.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "long.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/long.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 354,
+        "sha256": "d53450ec5e785bcd0ae596d29261ac9e3a8afd99508f5ea75f29d0cb84ce8169"
+      },
+      "testPath": "language/future-reserved-words/long.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/native.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "native.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/native.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "native.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/native.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 360,
+        "sha256": "b35430af355b707f3d4aa58bd1b9f88e070363e8e2a8800b53f0d4de0adc474c"
+      },
+      "testPath": "language/future-reserved-words/native.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/native.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "native.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/native.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "native.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/native.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 360,
+        "sha256": "b35430af355b707f3d4aa58bd1b9f88e070363e8e2a8800b53f0d4de0adc474c"
+      },
+      "testPath": "language/future-reserved-words/native.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/package-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "package-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/package-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "package-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/package-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 736,
+        "sha256": "428e2e19cfebd4bee2fac5c677e4a26d51c28a0e49c905776a11fc6547d12170"
+      },
+      "testPath": "language/future-reserved-words/package-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/package-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "package-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/package-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "package-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/package-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 704,
+        "sha256": "eabc3e862a97a521d6afbbc1c45dd4fee00a59e470a7e1d727756a042dabe5c7"
+      },
+      "testPath": "language/future-reserved-words/package-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/package.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "package.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/package.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "package.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/package.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 527,
+        "sha256": "70e086d1148bb582d670b64a5442ab26a994452d52641628854b6401924823ff"
+      },
+      "testPath": "language/future-reserved-words/package.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/private-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "private-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/private-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "private-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/private-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 736,
+        "sha256": "6b86d4d9d4b3e6f6e74493d64626ee20998197444d0507fe88ea4c53746d8689"
+      },
+      "testPath": "language/future-reserved-words/private-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/private-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "private-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/private-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "private-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/private-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 704,
+        "sha256": "844c001c548726ee13ec21e4886fdff055a1710cdec4c1de9e0383ffd5fa1f52"
+      },
+      "testPath": "language/future-reserved-words/private-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/private.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "private.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/private.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "private.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/private.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 527,
+        "sha256": "9b398ab4625d630defaac765588fb5dbb7fcdf554b10886b3e0c1adf08086829"
+      },
+      "testPath": "language/future-reserved-words/private.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/protected-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "protected-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/protected-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "protected-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/protected-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 826,
+        "sha256": "9291bcc6aae3aa07d323efb2578df3924c5c0d2bcd3972477e59b6210f75e4c9"
+      },
+      "testPath": "language/future-reserved-words/protected-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/protected-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "protected-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/protected-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "protected-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/protected-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 708,
+        "sha256": "158b22b7ee659fdb130570927f2c636151515d2187564eae9f752b6084d98c84"
+      },
+      "testPath": "language/future-reserved-words/protected-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/protected.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "protected.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/protected.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "protected.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/protected.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 543,
+        "sha256": "5345d50a0bdd55c61173b7eb2f0a6e80b84445518e25c1aa7d809ddd7789dbec"
+      },
+      "testPath": "language/future-reserved-words/protected.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/public-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "public-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/public-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "public-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/public-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 783,
+        "sha256": "1d38c1e4725ea462ccefd0cedf846d966ca51750bc8e0d086e0e238bb6cac073"
+      },
+      "testPath": "language/future-reserved-words/public-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/public-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "public-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/public-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "public-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/public-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 702,
+        "sha256": "31e19fedb67188c6b12d078e88134c3cab5284bbe23d243dd909abe58920416e"
+      },
+      "testPath": "language/future-reserved-words/public-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/public.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "public.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/public.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "public.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/public.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 519,
+        "sha256": "e13cdeed174a3889c5d61f4efa0af6d8b37849106e08b0fbc1dd35026221be8d"
+      },
+      "testPath": "language/future-reserved-words/public.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/short.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "short.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/short.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "short.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/short.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 357,
+        "sha256": "d1954ffcc9d46e372aed8253df22be7cc5e079158c93f9a35e75843dd5a5b5f9"
+      },
+      "testPath": "language/future-reserved-words/short.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/short.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "short.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/short.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "short.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/short.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 357,
+        "sha256": "d1954ffcc9d46e372aed8253df22be7cc5e079158c93f9a35e75843dd5a5b5f9"
+      },
+      "testPath": "language/future-reserved-words/short.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/static-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "static-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/static-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "static-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/static-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 783,
+        "sha256": "c59554590fbcb36b1a07b6483b25906f4be0b86fa9725b667339c620c8778dfa"
+      },
+      "testPath": "language/future-reserved-words/static-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/static-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "static-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected reserved word in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected reserved word in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/static-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "static-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/static-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 702,
+        "sha256": "c661151a034c67f677b8124c6d445639297eb491af7c840230876850ba511d1f"
+      },
+      "testPath": "language/future-reserved-words/static-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/static.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "static.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/static.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "static.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/static.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 519,
+        "sha256": "55f83ebb4e7e9f77faf7cf520b76253bff8fcf746ddf4e15a2863b6f94e5da1e"
+      },
+      "testPath": "language/future-reserved-words/static.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/super.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "super.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 20,
+          "message": "[Line 20, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 20, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/super.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "super.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/super.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 568,
+        "sha256": "2fcc24a0f143d0da0533df5fd3d90d2fceba534751c986484b1656c28e59e797"
+      },
+      "testPath": "language/future-reserved-words/super.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/super.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "super.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 21,
+          "message": "[Line 21, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 21, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/super.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "super.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/super.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 568,
+        "sha256": "2fcc24a0f143d0da0533df5fd3d90d2fceba534751c986484b1656c28e59e797"
+      },
+      "testPath": "language/future-reserved-words/super.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/synchronized.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "synchronized.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/synchronized.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "synchronized.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/synchronized.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 378,
+        "sha256": "ad10d6ce43db5a2420dcbfe12139d5700151c5c4f71f1111cec7da0f6be46ff0"
+      },
+      "testPath": "language/future-reserved-words/synchronized.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/synchronized.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "synchronized.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/synchronized.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "synchronized.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/synchronized.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 378,
+        "sha256": "ad10d6ce43db5a2420dcbfe12139d5700151c5c4f71f1111cec7da0f6be46ff0"
+      },
+      "testPath": "language/future-reserved-words/synchronized.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/throws.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "throws.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/throws.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "throws.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/throws.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 360,
+        "sha256": "949ec036d5426e5e2f7e31ae7584eb5ac133b1d160a310fdd32cc579857391e3"
+      },
+      "testPath": "language/future-reserved-words/throws.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/throws.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "throws.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/throws.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "throws.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/throws.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 360,
+        "sha256": "949ec036d5426e5e2f7e31ae7584eb5ac133b1d160a310fdd32cc579857391e3"
+      },
+      "testPath": "language/future-reserved-words/throws.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/transient.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "transient.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/transient.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "transient.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/transient.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 369,
+        "sha256": "1d4b2961e0ea439f12716f9873c70f3801273f9c4d3219a61954d1a50a9ba8e5"
+      },
+      "testPath": "language/future-reserved-words/transient.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/transient.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "transient.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/transient.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "transient.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/transient.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 369,
+        "sha256": "1d4b2961e0ea439f12716f9873c70f3801273f9c4d3219a61954d1a50a9ba8e5"
+      },
+      "testPath": "language/future-reserved-words/transient.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/volatile.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "volatile.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/volatile.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "volatile.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/volatile.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 366,
+        "sha256": "beeff1250c2f7de7aee5ccde7b867fa3bfda9706e973a344ee077e3d6cf763ec"
+      },
+      "testPath": "language/future-reserved-words/volatile.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/volatile.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "volatile.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "string",
+          "stringValue": "use strict",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/future-reserved-words/volatile.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "volatile.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/future-reserved-words/volatile.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 366,
+        "sha256": "beeff1250c2f7de7aee5ccde7b867fa3bfda9706e973a344ee077e3d6cf763ec"
+      },
+      "testPath": "language/future-reserved-words/volatile.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/yield-strict-escaped.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "yield-strict-escaped.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 25,
+          "message": "[Line 25, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 25, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/yield-strict-escaped.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-strict-escaped.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/yield-strict-escaped.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 730,
+        "sha256": "75d9223b5329f8cc2a2630a1a10076d716c034eca8bc08e538ed26afb87f0ad6"
+      },
+      "testPath": "language/future-reserved-words/yield-strict-escaped.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/future-reserved-words/yield-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "yield-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 5,
+          "hostExceptionClass": "",
+          "line": 23,
+          "message": "[Line 23, Col 5] Error: Expected variable name",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "[Line 23, Col 5] Error: Expected variable name",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "parse",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/future-reserved-words/yield-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/future-reserved-words/yield-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 568,
+        "sha256": "591fd99fb5126b5bced9d16e5d7a13949f3ab0e43b0421c8697290d1e322e899"
+      },
+      "testPath": "language/future-reserved-words/yield-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 85,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 85,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "language/future-reserved-words": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 85,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 85,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 85,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 85
+      }
+    },
+    "features": {
+      "(none)": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 85,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 85,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 85,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 85
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 85,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 85
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

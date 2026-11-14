@@ -1,0 +1,15 @@
+built-ins/Atomics/add/good-views.js
+built-ins/Atomics/add/expected-return-value.js
+built-ins/Atomics/add/bad-range.js
+built-ins/Atomics/add/non-shared-bufferdata.js
+built-ins/Atomics/add/non-views.js
+built-ins/Atomics/load/good-views.js
+built-ins/Atomics/load/expected-return-value.js
+built-ins/Atomics/store/good-views.js
+built-ins/Atomics/store/expected-return-value.js
+built-ins/Atomics/compareExchange/good-views.js
+built-ins/Atomics/compareExchange/expected-return-value.js
+built-ins/Atomics/exchange/good-views.js
+built-ins/Atomics/exchange/expected-return-value.js
+built-ins/Atomics/notify/notify-with-no-agents-waiting.js
+built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js

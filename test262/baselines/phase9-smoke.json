@@ -1,0 +1,1073 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 1920208,
+    "sha256": "27880ab17511ad97dd0f43c7724cb8a68fa636520719451bb70f3302b8b27a8c"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/smoke-tests.txt",
+    "selection": [
+      "language/expressions/addition/S11.6.1_A2.1_T1.js",
+      "language/statements/function/S13.2.1_A6_T1.js",
+      "language/statements/function/S13_A18.js",
+      "language/statements/try/S12.14_A1.js",
+      "built-ins/Array/S15.4_A1.1_T4.js",
+      "built-ins/Object/keys/15.2.3.14-2-1.js",
+      "built-ins/Promise/all/S25.4.4.1_A1.1_T1.js",
+      "built-ins/Promise/resolve/S25.4.4.5_A1.1_T1.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "dbc26e4db161876be0b0f25d150302bf7ecaeb2fc833236707a4fd5a9aa5466a",
+    "status": "phase-9-host-api"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Array/S15.4_A1.1_T4.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "S15.4_A1.1_T4.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Array/S15.4_A1.1_T4.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "S15.4_A1.1_T4.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Array/S15.4_A1.1_T4.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 570,
+        "sha256": "9c2666c8d93f78a9b6e409da87718bec508e08012fd3c2083beb07304254fe97"
+      },
+      "testPath": "built-ins/Array/S15.4_A1.1_T4.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [],
+      "hostCommand": [],
+      "hostExitCode": null,
+      "hostResult": null,
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "skipped",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "ECMAScript strict-mode semantics are not implemented",
+      "scenarioId": "built-ins/Array/S15.4_A1.1_T4.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 570,
+        "sha256": "9c2666c8d93f78a9b6e409da87718bec508e08012fd3c2083beb07304254fe97"
+      },
+      "testPath": "built-ins/Array/S15.4_A1.1_T4.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Object/keys/15.2.3.14-2-1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "15.2.3.14-2-1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Object/keys/15.2.3.14-2-1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "15.2.3.14-2-1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Object/keys/15.2.3.14-2-1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 347,
+        "sha256": "568da250024e28e0be3d104dddad788c05a79649e20bb47a09cd35f3a5b90024"
+      },
+      "testPath": "built-ins/Object/keys/15.2.3.14-2-1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [],
+      "hostCommand": [],
+      "hostExitCode": null,
+      "hostResult": null,
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "skipped",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "ECMAScript strict-mode semantics are not implemented",
+      "scenarioId": "built-ins/Object/keys/15.2.3.14-2-1.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 347,
+        "sha256": "568da250024e28e0be3d104dddad788c05a79649e20bb47a09cd35f3a5b90024"
+      },
+      "testPath": "built-ins/Object/keys/15.2.3.14-2-1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Promise/all/S25.4.4.1_A1.1_T1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "S25.4.4.1_A1.1_T1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Promise/all/S25.4.4.1_A1.1_T1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "S25.4.4.1_A1.1_T1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Promise/all/S25.4.4.1_A1.1_T1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 326,
+        "sha256": "8bc01341233cdb1172df20f1a749248a034959dcc0083046bca753e9b773d7a0"
+      },
+      "testPath": "built-ins/Promise/all/S25.4.4.1_A1.1_T1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [],
+      "hostCommand": [],
+      "hostExitCode": null,
+      "hostResult": null,
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "skipped",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "ECMAScript strict-mode semantics are not implemented",
+      "scenarioId": "built-ins/Promise/all/S25.4.4.1_A1.1_T1.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 326,
+        "sha256": "8bc01341233cdb1172df20f1a749248a034959dcc0083046bca753e9b773d7a0"
+      },
+      "testPath": "built-ins/Promise/all/S25.4.4.1_A1.1_T1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "built-ins/Promise/resolve/S25.4.4.5_A1.1_T1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "S25.4.4.5_A1.1_T1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "built-ins/Promise/resolve/S25.4.4.5_A1.1_T1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "S25.4.4.5_A1.1_T1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "built-ins/Promise/resolve/S25.4.4.5_A1.1_T1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 346,
+        "sha256": "e8e636b3483e5e9b696692c27682377db750a7948c08e849f5d3cd663174b2c0"
+      },
+      "testPath": "built-ins/Promise/resolve/S25.4.4.5_A1.1_T1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [],
+      "hostCommand": [],
+      "hostExitCode": null,
+      "hostResult": null,
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "skipped",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "ECMAScript strict-mode semantics are not implemented",
+      "scenarioId": "built-ins/Promise/resolve/S25.4.4.5_A1.1_T1.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 346,
+        "sha256": "e8e636b3483e5e9b696692c27682377db750a7948c08e849f5d3cd663174b2c0"
+      },
+      "testPath": "built-ins/Promise/resolve/S25.4.4.5_A1.1_T1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/addition/S11.6.1_A2.1_T1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "S11.6.1_A2.1_T1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "number",
+          "stringValue": "1",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/addition/S11.6.1_A2.1_T1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "S11.6.1_A2.1_T1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/addition/S11.6.1_A2.1_T1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1090,
+        "sha256": "c5e5c7f7ab9b89a6e546dc74480de8d67f866706979b5afcfdf33553091da08c"
+      },
+      "testPath": "language/expressions/addition/S11.6.1_A2.1_T1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [],
+      "hostCommand": [],
+      "hostExitCode": null,
+      "hostResult": null,
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "skipped",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "ECMAScript strict-mode semantics are not implemented",
+      "scenarioId": "language/expressions/addition/S11.6.1_A2.1_T1.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1090,
+        "sha256": "c5e5c7f7ab9b89a6e546dc74480de8d67f866706979b5afcfdf33553091da08c"
+      },
+      "testPath": "language/expressions/addition/S11.6.1_A2.1_T1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/function/S13.2.1_A6_T1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "S13.2.1_A6_T1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/function/S13.2.1_A6_T1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "S13.2.1_A6_T1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/function/S13.2.1_A6_T1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 783,
+        "sha256": "95976f819820eb2a5f0ab9f86f915b153ed9a07e5ae00b072a0dc4d685aa08e7"
+      },
+      "testPath": "language/statements/function/S13.2.1_A6_T1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/function/S13_A18.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "S13_A18.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/function/S13_A18.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "S13_A18.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/function/S13_A18.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1034,
+        "sha256": "cf395ffcb4e58894b43202bfa59d46ea2b889f9de7560db8e94f74455862e908"
+      },
+      "testPath": "language/statements/function/S13_A18.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [],
+      "hostCommand": [],
+      "hostExitCode": null,
+      "hostResult": null,
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "skipped",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "ECMAScript strict-mode semantics are not implemented",
+      "scenarioId": "language/statements/function/S13_A18.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1034,
+        "sha256": "cf395ffcb4e58894b43202bfa59d46ea2b889f9de7560db8e94f74455862e908"
+      },
+      "testPath": "language/statements/function/S13_A18.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/try/S12.14_A1.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "S12.14_A1.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "number",
+          "stringValue": "1",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/try/S12.14_A1.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "S12.14_A1.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/try/S12.14_A1.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1317,
+        "sha256": "f1bb6ab07ba4fd26d4faf90eb8fe4ecff1dde55be4866da08a96ade9139410ec"
+      },
+      "testPath": "language/statements/try/S12.14_A1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [],
+      "hostCommand": [],
+      "hostExitCode": null,
+      "hostResult": null,
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "skipped",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "ECMAScript strict-mode semantics are not implemented",
+      "scenarioId": "language/statements/try/S12.14_A1.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1317,
+        "sha256": "f1bb6ab07ba4fd26d4faf90eb8fe4ecff1dde55be4866da08a96ade9139410ec"
+      },
+      "testPath": "language/statements/try/S12.14_A1.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 8,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 8,
+      "skipped": 7,
+      "unsupported": 0
+    },
+    "directories": {
+      "built-ins/Array": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 1,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 1,
+          "skipped": 1,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 1,
+          "skipped": 1,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Object/keys": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 1,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 1,
+          "skipped": 1,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 1,
+          "skipped": 1,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Promise/all": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 1,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 1,
+          "skipped": 1,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 1,
+          "skipped": 1,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "built-ins/Promise/resolve": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 1,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 1,
+          "skipped": 1,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 1,
+          "skipped": 1,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "language/expressions/addition": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 1,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 1,
+          "skipped": 1,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 1,
+          "skipped": 1,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "language/statements/function": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 1,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 1,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 3
+      },
+      "language/statements/try": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 1,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 1,
+          "skipped": 1,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 1,
+          "skipped": 1,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      }
+    },
+    "features": {
+      "(none)": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 8,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 8,
+          "skipped": 7,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 8,
+          "skipped": 7,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 15
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 8,
+      "skipped": 7,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 15
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

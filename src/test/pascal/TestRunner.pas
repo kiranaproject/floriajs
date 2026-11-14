@@ -18,7 +18,7 @@ uses
   Classes, SysUtils, Math,
   fpcunit, testregistry, consoletestrunner,
   floria.js.types, floria.js.lexer, floria.js.ast, floria.js.parser,
-  floria.js.value, floria.js.env, floria.js.stdlib,
+  floria.js.value, floria.js.env, floria.js.stdlib, floria.js.timers,
   floria.js.core, floria.js.bytecode, floria.js.vm, floria.js.compiler,
   floria.ftml.types, floria.ftml.binding, floria.ftml.engine, floriajs;
 
@@ -292,7 +292,62 @@ type
     procedure TestURIAndHostGlobals();
   end;
 
-  { Test 21: Priority 1 — Semantic Deviations & Core Language Correctness }
+  { Test 21: Host timers — ownership, ordering, cancellation, and pumping }
+  TFloriaJSTimerTest = class(TTestCase)
+  published
+    procedure TestZeroDelayExactlyOnceWithArguments();
+    procedure TestClearTimeoutCancelsQueuedWork();
+    procedure TestIntervalRunsUntilCleared();
+    procedure TestTimerRegistriesAreContextIsolated();
+    procedure TestPendingTimersAreSafeAtEngineFree();
+    procedure TestLegacyProcessTimersStillWorks();
+  end;
+
+  { Test 22: Re-entrant evaluation used by $262.evalScript }
+  TFloriaJSReentrantEvalTest = class(TTestCase)
+  published
+    procedure TestReturnsValueAndPropagatesErrors();
+    procedure TestDoesNotDrainMicrotasks();
+  end;
+
+  { Test 23: Phase 10.1 — temporal dead zone and restricted-production ASI }
+  TFloriaJSPhase10Test = class(TTestCase)
+  published
+    procedure TestTemporalDeadZone();
+    procedure TestTemporalDeadZoneShadow();
+    procedure TestTemporalDeadZoneInForInitializer();
+    procedure TestReturnNewlineInsertsSemicolon();
+    procedure TestThrowNewlineIsSyntaxError();
+    procedure TestPostfixNewlineInsertsSemicolon();
+    procedure TestSemicolonInsertionAtLineBreak();
+    procedure TestMissingSemicolonOnOneLineIsRejected();
+    procedure TestStrictUndeclaredAssignment();
+    procedure TestStrictDuplicateParameters();
+    procedure TestClassMethodsAreStrict();
+    procedure TestObjectToPrimitiveCoercion();
+    procedure TestLiveGlobalObject();
+    procedure TestTopLevelAndOrdinaryCallThis();
+    procedure TestPropertyDescriptors();
+    procedure TestAccessorAndFrozenDescriptors();
+    procedure TestUTF16StringSemantics();
+    procedure TestAsyncSuspensionAndRejection();
+    procedure TestAsyncEnvironmentSurvivesSuspension();
+    procedure TestForAwaitOf();
+    procedure TestArrayBufferTypedArraysAndDataView();
+    procedure TestReflectAndWeakCollections();
+    procedure TestRealmContextsAreIsolated();
+    procedure TestRealmEvalScriptStaysInItsRealm();
+    procedure TestCrossRealmIntrinsicSelection();
+    procedure TestAsyncGenerators();
+    procedure TestSymbolToPrimitiveAndToString();
+    procedure TestStrictEarlyErrors();
+    procedure TestSharedArrayBufferAndAtomics();
+    procedure TestProxyTraps();
+    procedure TestBigIntAtomicsAndWaitAsync();
+    procedure TestProxyInvariants();
+  end;
+
+  { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
   TFloriaJSPriority1Test = class(TTestCase)
   published
     procedure TestConstReassignmentRejection();
@@ -324,6 +379,19 @@ type
   end;
 
   { Priority 2 language features. }
+  { Additive, phase-aware execution diagnostics. }
+  TFloriaJSDiagnosticsTest = class(TTestCase)
+  published
+    procedure TestDetailedSuccess();
+    procedure TestDetailedParseError();
+    procedure TestDetailedCompileError();
+    procedure TestDetailedRuntimeError();
+    procedure TestDetailedPrimitiveThrow();
+    procedure TestDetailedHostException();
+    procedure TestDetailedFileAndMissingFile();
+    procedure TestDetailedValuesSurviveCollection();
+  end;
+
   TFloriaJSPriority2Test = class(TTestCase)
   published
     procedure TestVoidOperator();
@@ -2128,10 +2196,12 @@ begin
     res := engine.Execute(
       'var r = 0;' + LineEnding +
       'async function f() { return 42; }' + LineEnding +
-      '(async function () { r = await f(); })();' + LineEnding +
-      'r;'
+      '(async function () { r = await f(); })();'
     );
     AssertTrue('Async await success', res.Success);
+    { await resumes through a microtask, so the continuation runs after the
+      script body. Reading r in a later script observes the settled value. }
+    res := engine.Execute('r;');
     AssertEquals('Await resolves the async result', 42.0, res.NumberValue, 0.0001);
   finally
     engine.Free();
@@ -5979,6 +6049,1194 @@ begin
   end;
 end;
 
+{ TFloriaJSTimerTest }
+
+procedure TFloriaJSTimerTest.TestZeroDelayExactlyOnceWithArguments();
+var
+  engine: TFloriaJSEngine;
+  context: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    context := engine.DefaultContext;
+    res := context.Evaluate(
+      'var timerLog = [];' +
+      'setTimeout(function(a, b) { timerLog.push(a + ":" + b); }, 0, "x", "y");' +
+      'setTimeout(function() { timerLog.push("second"); }, 0);' +
+      'timerLog.length === 0;'
+    );
+    AssertTrue('timer does not run as a microtask', res.Success and res.BooleanValue);
+    AssertEquals('two timers are pending', 2, context.PendingTimerCount());
+
+    context.PumpTimers();
+
+    res := context.Evaluate(
+      'timerLog.length === 2 && timerLog[0] === "x:y" && timerLog[1] === "second";'
+    );
+    AssertTrue('zero-delay callbacks ran once in scheduling order', res.BooleanValue);
+    AssertEquals('timer queue is empty after pumping', 0, context.PendingTimerCount());
+
+    context.PumpTimers();
+    res := context.Evaluate('timerLog.length === 2;');
+    AssertTrue('fired timers are not executed again', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTimerTest.TestClearTimeoutCancelsQueuedWork();
+var
+  engine: TFloriaJSEngine;
+  context: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    context := engine.DefaultContext;
+    context.Evaluate(
+      'var cancelLog = [];' +
+      'var cancelled = setTimeout(function() { cancelLog.push("cancelled"); }, 0);' +
+      'clearTimeout(cancelled);' +
+      'setTimeout(function() { cancelLog.push("kept"); }, 0);'
+    );
+    context.PumpTimers();
+    res := context.Evaluate('cancelLog.length === 1 && cancelLog[0] === "kept";');
+    AssertTrue('clearTimeout prevents the callback from running', res.BooleanValue);
+
+    { Cancel a timer that is already due but has not run yet. }
+    context.Evaluate(
+      'var queuedLog = [];' +
+      'var queuedTarget;' +
+      'setTimeout(function() { clearTimeout(queuedTarget); queuedLog.push("canceller"); }, 0);' +
+      'queuedTarget = setTimeout(function() { queuedLog.push("target"); }, 0);'
+    );
+    context.PumpTimers();
+    res := context.Evaluate('queuedLog.length === 1 && queuedLog[0] === "canceller";');
+    AssertTrue('a due timer can be cancelled before it runs', res.BooleanValue);
+    AssertEquals('cancelled timers leave no pending work', 0, context.PendingTimerCount());
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTimerTest.TestIntervalRunsUntilCleared();
+var
+  engine: TFloriaJSEngine;
+  context: TFloriaJSContext;
+  res: TFloriaJSResult;
+  guard: Integer;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    context := engine.DefaultContext;
+    context.Evaluate(
+      'var intervalCount = 0;' +
+      'var intervalId = setInterval(function() {' +
+      '  intervalCount++;' +
+      '  if (intervalCount === 3) clearInterval(intervalId);' +
+      '}, 0);'
+    );
+    guard := 0;
+    while context.HasPendingTimers() and (guard < 20) do
+    begin
+      context.PumpTimers();
+      Inc(guard);
+    end;
+    AssertTrue('interval pump terminated', guard < 20);
+    res := context.Evaluate('intervalCount === 3;');
+    AssertTrue('zero-delay interval ran exactly three times', res.BooleanValue);
+    AssertEquals('clearInterval removed the repeating timer', 0, context.PendingTimerCount());
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTimerTest.TestTimerRegistriesAreContextIsolated();
+var
+  engine: TFloriaJSEngine;
+  first, second: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    first := engine.CreateContext('timer-one');
+    second := engine.CreateContext('timer-two');
+    first.Evaluate('var timerLog = []; setTimeout(function() { timerLog.push("one"); }, 0);');
+    second.Evaluate('var timerLog = []; setTimeout(function() { timerLog.push("two"); }, 0);');
+    AssertEquals('first context owns one timer', 1, first.PendingTimerCount());
+    AssertEquals('second context owns one timer', 1, second.PendingTimerCount());
+
+    first.PumpTimers();
+
+    res := first.Evaluate('timerLog.length === 1 && timerLog[0] === "one";');
+    AssertTrue('first context callback ran in the first context', res.BooleanValue);
+    res := second.Evaluate('timerLog.length === 0;');
+    AssertTrue('pumping one context does not run another context timer', res.BooleanValue);
+    AssertEquals('second context timer is still pending', 1, second.PendingTimerCount());
+
+    second.PumpTimers();
+    res := second.Evaluate('timerLog.length === 1 && timerLog[0] === "two";');
+    AssertTrue('second context callback ran in the second context', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSTimerTest.TestPendingTimersAreSafeAtEngineFree();
+var
+  engine: TFloriaJSEngine;
+  context: TFloriaJSContext;
+begin
+  engine := TFloriaJSEngine.Create();
+  context := engine.DefaultContext;
+  context.Evaluate(
+    'var neverLog = [];' +
+    'setTimeout(function() { neverLog.push("late"); }, 60000);'
+  );
+  AssertEquals('long timer is pending at shutdown', 1, context.PendingTimerCount());
+  AssertTrue('pending work is visible to the host', context.HasPendingWork());
+  engine.Free();
+  { Reaching this point without a crash or double-release is the assertion. }
+end;
+
+procedure TFloriaJSTimerTest.TestLegacyProcessTimersStillWorks();
+var
+  engine: TFloriaJSEngine;
+  context: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    context := engine.DefaultContext;
+    context.Evaluate('var legacyLog = []; setTimeout(function() { legacyLog.push("legacy"); }, 0);');
+    FloriaJSProcessTimers(context.Heap);
+    res := context.Evaluate('legacyLog.length === 1 && legacyLog[0] === "legacy";');
+    AssertTrue('legacy FloriaJSProcessTimers uses the context-owned queue', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+{ TFloriaJSReentrantEvalTest }
+
+procedure TFloriaJSReentrantEvalTest.TestReturnsValueAndPropagatesErrors();
+var
+  engine: TFloriaJSEngine;
+  context: TFloriaJSContext;
+  value: TFloriaJSValue;
+  thrownName: string;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    context := engine.DefaultContext;
+
+    value := context.EvaluateReentrant('var nestedValue = 41; nestedValue + 1;');
+    AssertEquals('re-entrant evaluation returns its completion value', 42.0, value.ToNumber());
+
+    thrownName := '';
+    try
+      context.EvaluateReentrant('throw new RangeError("nested boom");');
+    except
+      on E: EFloriaJSThrow do
+        if E.Value.IsObject() and (E.Value.ObjVal is TFloriaJSError) then
+          thrownName := TFloriaJSError(E.Value.ObjVal).Name;
+    end;
+    AssertEquals('runtime throws propagate unchanged', 'RangeError', thrownName);
+
+    thrownName := '';
+    try
+      context.EvaluateReentrant('var = ;');
+    except
+      on E: EFloriaJSThrow do
+        if E.Value.IsObject() and (E.Value.ObjVal is TFloriaJSError) then
+          thrownName := TFloriaJSError(E.Value.ObjVal).Name;
+    end;
+    AssertEquals('parse errors become catchable SyntaxErrors', 'SyntaxError', thrownName);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSReentrantEvalTest.TestDoesNotDrainMicrotasks();
+var
+  engine: TFloriaJSEngine;
+  context: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    context := engine.DefaultContext;
+    context.EvaluateReentrant(
+      'var reentrantLog = [];' +
+      'Promise.resolve().then(function() { reentrantLog.push("job"); });'
+    );
+
+    res := context.Evaluate('reentrantLog.length;');
+    AssertEquals('re-entrant evaluation does not drain the microtask queue', 0.0, res.NumberValue);
+
+    context.DrainPromiseJobs();
+    res := context.Evaluate('reentrantLog.length;');
+    AssertEquals('the queued job still runs when the host drains it', 1.0, res.NumberValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+{ TFloriaJSPhase10Test }
+
+procedure TFloriaJSPhase10Test.TestTemporalDeadZone();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var seen = [];' +
+      'try { before; } catch (e) { seen.push(e.name); }' +
+      'let before = 1;' +
+      'seen.join(",");'
+    );
+    AssertTrue('reading a let binding before its declaration throws', res.Success);
+    AssertEquals('the early read is a ReferenceError', 'ReferenceError', res.StringValue);
+
+    res := engine.Execute('let own = own;');
+    AssertFalse('a let initializer cannot read itself', res.Success);
+    AssertTrue('self-read reports the temporal dead zone',
+      Pos('before initialization', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var t = []; try { typeof missingLater; } catch (e) { t.push(e.name); } let missingLater = 1; t[0];');
+    AssertTrue('typeof does not bypass the temporal dead zone', res.Success);
+    AssertEquals('typeof on a TDZ binding throws ReferenceError', 'ReferenceError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestTemporalDeadZoneShadow();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'let shadow = 1;' +
+      'var result = "";' +
+      '{' +
+      '  try { result = shadow === 1 ? "outer" : "bad"; }' +
+      '  catch (e) { result = e.name; }' +
+      '  let shadow = 2;' +
+      '}' +
+      'result;'
+    );
+    AssertTrue('shadowed TDZ read executes', res.Success);
+    AssertEquals('inner let shadows the outer binding even before initialization',
+      'ReferenceError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestTemporalDeadZoneInForInitializer();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var name = "";' +
+      'try { for (let i = i; i < 1; i++) {} } catch (e) { name = e.name; }' +
+      'name;'
+    );
+    AssertTrue('for initializer executes', res.Success);
+    AssertEquals('for initializer cannot read its own binding',
+      'ReferenceError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestReturnNewlineInsertsSemicolon();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function f() {' + LineEnding +
+      '  return' + LineEnding +
+      '  42;' + LineEnding +
+      '}' + LineEnding +
+      'f() === undefined;'
+    );
+    AssertTrue('return newline parses', res.Success);
+    AssertTrue('return followed by a newline returns undefined', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestThrowNewlineIsSyntaxError();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function f() {' + LineEnding +
+      '  throw' + LineEnding +
+      '  new Error("boom");' + LineEnding +
+      '}'
+    );
+    AssertFalse('throw followed by a newline is rejected', res.Success);
+    AssertTrue('the error explains the illegal newline',
+      Pos('Illegal newline after throw', res.ErrorMessage) > 0);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestPostfixNewlineInsertsSemicolon();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var x = 1;' + LineEnding +
+      'var y = 10;' + LineEnding +
+      'x' + LineEnding +
+      '--y;' + LineEnding +
+      'x + "," + y;'
+    );
+    AssertTrue('postfix newline parses', res.Success);
+    AssertEquals('the line break ends x and keeps --y prefix', '1,9', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestSemicolonInsertionAtLineBreak();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var a = 1' + LineEnding +
+      'var b = 2' + LineEnding +
+      'a + b;'
+    );
+    AssertTrue('line breaks terminate var declarations', res.Success);
+    AssertEquals('both declarations were evaluated', 3.0, res.NumberValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestMissingSemicolonOnOneLineIsRejected();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('var a = 1 var b = 2;');
+    AssertFalse('adjacent same-line statements still need a semicolon', res.Success);
+    AssertTrue('the parser reports the missing separator',
+      Pos('Expected '';''', res.ErrorMessage) > 0);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestStrictUndeclaredAssignment();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('"use strict"; strictUndeclared = 1;');
+    AssertFalse('strict assignment to an undeclared name fails', res.Success);
+    AssertTrue('the failure is a ReferenceError', Pos('ReferenceError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('sloppyUndeclared = 1; sloppyUndeclared;');
+    AssertTrue('non-strict assignment still creates a global', res.Success);
+    AssertEquals('the sloppy binding is visible', 1.0, res.NumberValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestStrictDuplicateParameters();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('function duplicate(a, a) { return a; } duplicate(1, 2);');
+    AssertTrue('duplicate parameters are allowed in non-strict code', res.Success);
+
+    res := engine.Execute('"use strict"; function duplicate(a, a) { return a; }');
+    AssertFalse('duplicate parameters are rejected in strict code', res.Success);
+    AssertTrue('the early error names duplicates', Pos('Duplicate parameter name', res.ErrorMessage) > 0);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestClassMethodsAreStrict();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'class StrictClass {' +
+      '  method() { classUndeclaredAssignment = 1; }' +
+      '}' +
+      'new StrictClass().method();'
+    );
+    AssertFalse('class methods run in strict mode', res.Success);
+    AssertTrue('the class-method assignment is a ReferenceError', Pos('ReferenceError', res.ErrorMessage) > 0);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestObjectToPrimitiveCoercion();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('[1] == 1;');
+    AssertTrue('loose equality coerces an array to its primitive', res.BooleanValue);
+
+    res := engine.Execute('[] == false;');
+    AssertTrue('an empty array equals false after coercion', res.BooleanValue);
+
+    res := engine.Execute('({ valueOf: function() { return 5; } }) + 2;');
+    AssertEquals('valueOf is used by addition', 7.0, res.NumberValue);
+
+    res := engine.Execute('var o = { toString: function() { return "x"; } }; "" + o;');
+    AssertEquals('toString is consulted for string addition', 'x', res.StringValue);
+
+    res := engine.Execute('[2] < 3;');
+    AssertTrue('relational comparison coerces objects', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestLiveGlobalObject();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var live = 1;' +
+      'var fromObject = globalThis.live;' +
+      'globalThis.live = 2;' +
+      'var afterWrite = live;' +
+      'globalThis.added = 3;' +
+      'var addedOnObject = added;' +
+      'function declared() { return 4; }' +
+      'var functionVisible = typeof globalThis.declared;' +
+      'let lexicalOnly = 5;' +
+      'var lexicalOnObject = typeof globalThis.lexicalOnly;' +
+      'fromObject + "," + afterWrite + "," + addedOnObject + "," + functionVisible + "," + lexicalOnObject;'
+    );
+    AssertTrue('live global object script succeeds', res.Success);
+    AssertEquals('global bindings and object properties stay in sync',
+      '1,2,3,function,undefined', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestTopLevelAndOrdinaryCallThis();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('this === globalThis;');
+    AssertTrue('top-level this is the global object', res.BooleanValue);
+
+    res := engine.Execute(
+      'function plain() { return this === globalThis; }' +
+      'function strict() { "use strict"; return this === undefined; }' +
+      'var obj = { m: function() { return this === obj; } };' +
+      'plain() + "," + strict() + "," + obj.m();'
+    );
+    AssertTrue('call receiver script succeeds', res.Success);
+    AssertEquals('plain calls use the global object, strict and methods keep their receiver',
+      'true,true,true', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestPropertyDescriptors();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var o = {};' +
+      'Object.defineProperty(o, "x", {' +
+      '  value: 1, writable: false, enumerable: false, configurable: false' +
+      '});' +
+      'var d = Object.getOwnPropertyDescriptor(o, "x");' +
+      'o.x = 2;' +
+      'd.value + "," + d.writable + "," + d.enumerable + "," + d.configurable + "," + o.x + "," + delete o.x;'
+    );
+    AssertTrue('descriptor script succeeds', res.Success);
+    AssertEquals('data descriptor flags are honoured',
+      '1,false,false,false,1,false', res.StringValue);
+
+    res := engine.Execute('Object.keys({x:1}).length;');
+    AssertEquals('ordinary properties remain enumerable', 1.0, res.NumberValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestAccessorAndFrozenDescriptors();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var o = {};' +
+      'Object.defineProperty(o, "x", {' +
+      '  get: function() { return 7; }, enumerable: true, configurable: true' +
+      '});' +
+      'var d = Object.getOwnPropertyDescriptor(o, "x");' +
+      'typeof d.get + "," + o.x + "," + d.enumerable + "," + d.configurable;'
+    );
+    AssertTrue('accessor descriptor script succeeds', res.Success);
+    AssertEquals('accessor descriptor is exposed',
+      'function,7,true,true', res.StringValue);
+
+    res := engine.Execute(
+      'var f = {a: 1};' +
+      'Object.freeze(f);' +
+      'f.a = 2;' +
+      'var beforeDelete = f.a;' +
+      'var deleted = delete f.a;' +
+      'beforeDelete + "," + deleted + "," + f.a + "," + Object.isFrozen(f);'
+    );
+    AssertTrue('frozen object script succeeds', res.Success);
+    AssertEquals('freeze blocks writes and deletes',
+      '1,false,1,true', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestUTF16StringSemantics();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('String.fromCodePoint(0x1F600).length;');
+    AssertTrue('astral length script succeeds', res.Success);
+    AssertEquals('an astral code point has two UTF-16 code units', 2.0, res.NumberValue);
+
+    res := engine.Execute('String.fromCodePoint(0x1F600).charCodeAt(0) + "," + String.fromCodePoint(0x1F600).charCodeAt(1);');
+    AssertTrue('surrogate code units script succeeds', res.Success);
+    AssertEquals('charCodeAt exposes the surrogate pair', '55357,56832', res.StringValue);
+
+    res := engine.Execute('var e = String.fromCodePoint(0x1F600); ("a" + e + "b").slice(1, 3);');
+    AssertTrue('code-unit slice succeeds', res.Success);
+    AssertEquals('slice indexes UTF-16 code units', '😀', res.StringValue);
+
+    res := engine.Execute('String.fromCharCode(0xE9).length + "," + String.fromCharCode(0xE9).charCodeAt(0);');
+    AssertTrue('fromCharCode code unit', res.Success);
+    AssertEquals('fromCharCode uses one code unit', '1,233', res.StringValue);
+
+    res := engine.Execute('Array.from("a" + String.fromCodePoint(0x1F600) + "b").length;');
+    AssertTrue('string iterator script succeeds', res.Success);
+    AssertEquals('for-of/Array.from yields code points, not code units', 3.0, res.NumberValue);
+
+    res := engine.Execute('"\u00e9".length + "," + "\u00e9".charCodeAt(0);');
+    AssertTrue('BMP code unit script succeeds', res.Success);
+    AssertEquals('BMP characters count as one unit', '1,233', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestAsyncSuspensionAndRejection();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var seen = [];' +
+      'async function work() {' +
+      '  seen.push("start");' +
+      '  var value = await Promise.resolve(41);' +
+      '  seen.push(value + 1);' +
+      '  try { await Promise.reject("boom"); } catch (e) { seen.push(e); }' +
+      '  return "done";' +
+      '}' +
+      'work().then(function(v) { seen.push(v); });'
+    );
+    AssertTrue('async suspension script succeeds', res.Success);
+    { Microtasks are drained at the end of Evaluate, so a later read sees the
+      resumed continuation. }
+    res := engine.Execute('seen.join(",");');
+    AssertEquals('await suspends and resumes in order',
+      'start,42,boom,done', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestAsyncEnvironmentSurvivesSuspension();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    { A block-scoped binding created before an await must still be reachable
+      after the async task resumes. The activation environment is unwound at
+      the suspension point, so the generator has to keep it alive. }
+    res := engine.Execute(
+      'var out = [];' +
+      'async function f() {' +
+      '  const x = 5;' +
+      '  await Promise.resolve();' +
+      '  return x;' +
+      '}' +
+      'f().then(function(v) { out.push(v); }, function(e) { out.push(e.name); });'
+    );
+    AssertTrue('async environment script succeeds', res.Success);
+    res := engine.Execute('out.join(",");');
+    AssertEquals('block bindings survive an await', '5', res.StringValue);
+
+    res := engine.Execute(
+      'var out2 = [];' +
+      'async function g() {' +
+      '  const a = 1;' +
+      '  await Promise.resolve();' +
+      '  { const b = 2; await Promise.resolve(); out2.push(a + b); }' +
+      '  return a;' +
+      '}' +
+      'g().then(function(v) { out2.push(v); });'
+    );
+    AssertTrue('nested async environment script succeeds', res.Success);
+    res := engine.Execute('out2.join(",");');
+    AssertEquals('nested block bindings survive multiple awaits', '3,1',
+      res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestForAwaitOf();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var out = [];' +
+      'async function run() {' +
+      '  for await (var v of [Promise.resolve(1), 2, Promise.resolve(3)]) out.push(v);' +
+      '  var it = { i: 0, next: function() {' +
+      '    return Promise.resolve(this.i < 2 ? {value: ++this.i, done: false} : {value: undefined, done: true});' +
+      '  }};' +
+      '  it[Symbol.asyncIterator] = function() { return this; };' +
+      '  for await (var x of it) out.push(x * 10);' +
+      '}' +
+      'run();'
+    );
+    AssertTrue('for await script succeeds', res.Success);
+    res := engine.Execute('out.join(",");');
+    AssertEquals('for await awaits values and async iterators',
+      '1,2,3,10,20', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestArrayBufferTypedArraysAndDataView();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var ab = new ArrayBuffer(8);' +
+      'var u8 = new Uint8Array(ab);' +
+      'u8[0] = 255; u8[1] = 1;' +
+      'var u16 = new Uint16Array([1, 65537]);' +
+      'var i8 = new Int8Array([-1, 128]);' +
+      'var f = new Float64Array([1.5, 2.25]);' +
+      'var dv = new DataView(ab);' +
+      'dv.setUint16(2, 4660);' +
+      'var copied = u8.slice(0, 2);' +
+      'var view = u8.subarray(1, 3);' +
+      'ab.byteLength + "," + u8.byteLength + "," + u8[0] + "," + u16.length + "," + u16[1] + "," + i8[0] + "," + (f[0] + f[1]) + "," + dv.getUint16(2) + "," + copied[0] + "," + view[1];'
+    );
+    AssertTrue('binary data script succeeds', res.Success);
+    AssertEquals('array buffers, typed arrays, and DataView work',
+      '8,8,255,2,1,-1,3.75,4660,255,52', res.StringValue);
+
+    res := engine.Execute('ArrayBuffer.isView(u8) + "," + ArrayBuffer.isView({}) + "," + (u16.buffer === ab);');
+    AssertTrue('ArrayBuffer helpers succeed', res.Success);
+    AssertEquals('isView and buffer identity', 'true,false,false', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestReflectAndWeakCollections();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var target = { a: 1 };' +
+      'Reflect.set(target, "b", 2);' +
+      'var got = Reflect.get(target, "a") + Reflect.get(target, "b");' +
+      'var has = Reflect.has(target, "a");' +
+      'var keys = Reflect.ownKeys(target).sort().join(",");' +
+      'var sum = Reflect.apply(function (x, y) { return x + y; }, null, [20, 22]);' +
+      'var made = Reflect.construct(function (x) { this.x = x; }, [7]);' +
+      'var wm = new WeakMap(); var key = {}; wm.set(key, 5);' +
+      'var ws = new WeakSet(); var member = {}; ws.add(member);' +
+      'got + "," + has + "," + keys + "," + sum + "," + made.x + "," + wm.get(key) + "," + ws.has(member);'
+    );
+    AssertTrue('Reflect/Weak script succeeds', res.Success);
+    AssertEquals('Reflect and weak collections work',
+      '3,true,a,b,42,7,5,true', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestRealmContextsAreIsolated();
+var
+  engine: TFloriaJSEngine;
+  first, second: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    first := engine.DefaultContext;
+    second := engine.CreateContext('realm');
+
+    res := first.Evaluate('var shared = 1; globalThis.onlyFirst = 7;');
+    AssertTrue('first realm script succeeds', res.Success);
+
+    res := second.Evaluate('typeof shared + "," + typeof onlyFirst;');
+    AssertTrue('second realm script succeeds', res.Success);
+    AssertEquals('bindings do not leak between realms', 'undefined,undefined',
+      res.StringValue);
+
+    res := second.Evaluate('var shared = 2; shared;');
+    AssertEquals('second realm owns its binding', 2.0, res.NumberValue);
+    res := first.Evaluate('shared;');
+    AssertEquals('first realm keeps its binding', 1.0, res.NumberValue);
+
+    AssertTrue('each realm has its own global object',
+      first.GetGlobal('globalThis').ObjVal <> second.GetGlobal('globalThis').ObjVal);
+    AssertTrue('each realm has its own Array intrinsic',
+      first.GetGlobal('Array').ObjVal <> second.GetGlobal('Array').ObjVal);
+    AssertFalse('Array prototype identity is realm-local',
+      first.GetGlobal('Array').ObjVal = second.GetGlobal('Array').ObjVal);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestRealmEvalScriptStaysInItsRealm();
+var
+  engine: TFloriaJSEngine;
+  first, second: TFloriaJSContext;
+  value: TFloriaJSValue;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    first := engine.DefaultContext;
+    second := engine.CreateContext('realm');
+
+    value := second.EvaluateReentrant('var realmLocal = 5; realmLocal * 2;');
+    AssertEquals('re-entrant realm evaluation returns its value', 10.0,
+      value.ToNumber());
+
+    res := first.Evaluate('typeof realmLocal;');
+    AssertEquals('realm-local binding stays out of the caller realm',
+      'undefined', res.StringValue);
+
+    res := first.Evaluate('var callerLocal = 9; callerLocal;');
+    AssertEquals('caller realm is unchanged', 9.0, res.NumberValue);
+    res := second.Evaluate('typeof callerLocal;');
+    AssertEquals('caller binding stays out of the realm',
+      'undefined', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestCrossRealmIntrinsicSelection();
+var
+  engine: TFloriaJSEngine;
+  first, second: TFloriaJSContext;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    first := engine.DefaultContext;
+    second := engine.CreateContext('realm');
+
+    res := second.Evaluate('var C = function() {}; C.prototype = null;');
+    AssertTrue('realm constructor script succeeds', res.Success);
+
+    first.SetGlobal('otherArray', second.GetGlobal('Array'));
+    first.SetGlobal('otherObject', second.GetGlobal('Object'));
+    first.SetGlobal('C', second.GetGlobal('C'));
+
+    res := first.Evaluate(
+      'var a = Reflect.construct(Array, [1], C);' +
+      'Object.getPrototypeOf(a) === otherArray.prototype;');
+    AssertTrue('cross-realm Array construction succeeds', res.Success);
+    AssertTrue('Array uses the newTarget realm prototype', res.BooleanValue);
+
+    res := first.Evaluate(
+      'var b = Array.from.call(C, []);' +
+      'Object.getPrototypeOf(b) === otherObject.prototype;');
+    AssertTrue('cross-realm Array.from succeeds', res.Success);
+    AssertTrue('Array.from uses the constructor realm default', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestAsyncGenerators();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var log = [];' +
+      'async function* gen() {' +
+      '  log.push("start");' +
+      '  yield 1;' +
+      '  var x = await Promise.resolve(2);' +
+      '  log.push("awaited");' +
+      '  yield x;' +
+      '  return 3;' +
+      '}' +
+      'async function main() {' +
+      '  var it = gen();' +
+      '  var a = await it.next();' +
+      '  log.push("a:" + a.value + ":" + a.done);' +
+      '  var b = await it.next();' +
+      '  log.push("b:" + b.value + ":" + b.done);' +
+      '  var c = await it.next();' +
+      '  log.push("c:" + c.value + ":" + c.done);' +
+      '}' +
+      'main();'
+    );
+    AssertTrue('async generator script succeeds', res.Success);
+    res := engine.Execute('log.join(",");');
+    AssertEquals('async generator yields, awaits, and completes',
+      'start,a:1:false,awaited,b:2:false,c:3:true', res.StringValue);
+
+    res := engine.Execute(
+      'var seen = [];' +
+      'async function* values() { yield 1; await Promise.resolve(); yield 2; }' +
+      'async function run() { for await (var v of values()) seen.push(v); }' +
+      'run();'
+    );
+    AssertTrue('for await over async generator succeeds', res.Success);
+    res := engine.Execute('seen.join(",");');
+    AssertEquals('for await consumes async generator values', '1,2',
+      res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestSymbolToPrimitiveAndToString();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var obj = {};' +
+      'obj[Symbol.toPrimitive] = function(hint) {' +
+      '  return hint === "string" ? "text" : 42;' +
+      '};' +
+      'var sum = obj + 1;' +
+      'var text = String(obj);' +
+      'var key = {};' +
+      'key[Symbol.toPrimitive] = function() { return "k"; };' +
+      'var map = {}; map[key] = 7;' +
+      'sum + "," + text + "," + map.k;'
+    );
+    AssertTrue('Symbol.toPrimitive script succeeds', res.Success);
+    AssertEquals('Symbol.toPrimitive drives default and string hints',
+      '43,text,7', res.StringValue);
+
+    res := engine.Execute(
+      'var bad = {};' +
+      'bad[Symbol.toPrimitive] = function() { return {}; };' +
+      'try { bad + 1; "no throw"; } catch (e) { e.name; }'
+    );
+    AssertTrue('object result from Symbol.toPrimitive throws', res.Success);
+    AssertEquals('object result is a TypeError', 'TypeError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestStrictEarlyErrors();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute('"use strict"; 0123;');
+    AssertFalse('strict legacy octal is rejected', res.Success);
+    AssertTrue('octal error is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('"use strict"; delete x;');
+    AssertFalse('strict delete of an identifier is rejected', res.Success);
+    AssertTrue('delete error is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('"use strict"; var eval = 1;');
+    AssertFalse('strict eval binding is rejected', res.Success);
+    AssertTrue('eval binding error is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('"use strict"; function arguments() {}');
+    AssertFalse('strict arguments binding is rejected', res.Success);
+    AssertTrue('arguments binding error is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('"use strict"; try {} catch (eval) {}');
+    AssertFalse('strict catch binding is rejected', res.Success);
+    AssertTrue('catch binding error is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('0123;');
+    AssertTrue('sloppy legacy octal still parses', res.Success);
+    AssertEquals('sloppy legacy octal keeps its octal value', 83.0, res.NumberValue);
+
+    res := engine.Execute('08;');
+    AssertTrue('sloppy non-octal decimal parses', res.Success);
+    AssertEquals('sloppy non-octal decimal keeps its decimal value', 8.0, res.NumberValue);
+
+    res := engine.Execute('"use strict"; "\1";');
+    AssertFalse('strict legacy octal escape is rejected', res.Success);
+    AssertTrue('octal escape error is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('"\1".charCodeAt(0);');
+    AssertTrue('sloppy legacy octal escape parses', res.Success);
+    AssertEquals('sloppy legacy octal escape keeps its value', 1.0, res.NumberValue);
+
+    res := engine.Execute('`\1`;');
+    AssertFalse('template octal escape is rejected', res.Success);
+    AssertTrue('template octal escape error is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('"use strict"; "\0";');
+    AssertTrue('strict NUL escape is allowed', res.Success);
+
+    res := engine.Execute('"use strict"; var implements = 1;');
+    AssertFalse('strict future reserved word is rejected', res.Success);
+    AssertTrue('reserved word error is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+
+    res := engine.Execute('var implements = 1; implements;');
+    AssertTrue('sloppy future reserved word parses', res.Success);
+    AssertEquals('sloppy future reserved word value', 1.0, res.NumberValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestSharedArrayBufferAndAtomics();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var sab = new SharedArrayBuffer(16);' +
+      'var a = new Int32Array(sab);' +
+      'var stored = Atomics.store(a, 0, 5);' +
+      'var loaded = Atomics.load(a, 0);' +
+      'var oldAdd = Atomics.add(a, 0, 3);' +
+      'var oldCas = Atomics.compareExchange(a, 0, 8, 9);' +
+      'var wait = Atomics.wait(a, 0, 9);' +
+      'var notified = Atomics.notify(a, 0, 1);' +
+      'stored + "," + loaded + "," + oldAdd + "," + oldCas + "," + a[0] + "," + wait + "," + notified + "," + sab.byteLength;'
+    );
+    AssertTrue('SharedArrayBuffer/Atomics script succeeds', res.Success);
+    AssertEquals('SharedArrayBuffer and Atomics operations work',
+      '5,5,5,8,9,timed-out,0,16', res.StringValue);
+
+    res := engine.Execute(
+      'var sab2 = new SharedArrayBuffer(8);' +
+      'var copy = sab2.slice(0, 4);' +
+      'copy instanceof SharedArrayBuffer;'
+    );
+    AssertTrue('SharedArrayBuffer slice succeeds', res.Success);
+    AssertTrue('slice returns a SharedArrayBuffer', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestProxyTraps();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var target = { a: 1 };' +
+      'var log = [];' +
+      'var p = new Proxy(target, {' +
+      '  get: function(t, k) { log.push("get:" + k); return t[k] * 2; },' +
+      '  set: function(t, k, v) { log.push("set:" + k); t[k] = v; return true; },' +
+      '  has: function(t, k) { log.push("has:" + k); return k in t; },' +
+      '  deleteProperty: function(t, k) { log.push("del:" + k); delete t[k]; return true; },' +
+      '  ownKeys: function(t) { log.push("keys"); return Object.keys(t); }' +
+      '});' +
+      'var got = p.a;' +
+      'p.b = 3;' +
+      'var hasA = "a" in p;' +
+      'var keys = Object.keys(p).join(",");' +
+      'delete p.a;' +
+      'got + "," + target.b + "," + hasA + "," + keys + "," + (target.a === undefined) + "," + log.join("|");'
+    );
+    AssertTrue('Proxy trap script succeeds: ' + res.ErrorMessage, res.Success);
+    AssertEquals('Proxy traps run and forward to the target',
+      '2,3,true,a,b,true,get:a|set:b|has:a|keys|del:a', res.StringValue);
+
+    res := engine.Execute(
+      'var r = Proxy.revocable({ x: 1 }, {});' +
+      'var before = r.proxy.x;' +
+      'r.revoke();' +
+      'try { r.proxy.x; "no throw"; } catch (e) { before + "," + e.name; }'
+    );
+    AssertTrue('Proxy.revocable script succeeds', res.Success);
+    AssertEquals('revoked proxy throws TypeError', '1,TypeError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestBigIntAtomicsAndWaitAsync();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var sab = new SharedArrayBuffer(16);' +
+      'var a = new BigInt64Array(sab);' +
+      'var stored = Atomics.store(a, 0, 5n);' +
+      'var oldAdd = Atomics.add(a, 0, 3n);' +
+      'var oldCas = Atomics.compareExchange(a, 0, 8n, 9n);' +
+      'stored + "," + oldAdd + "," + oldCas + "," + a[0];'
+    );
+    AssertTrue('BigInt Atomics script succeeds', res.Success);
+    AssertEquals('BigInt Atomics operations work', '5,5,8,9', res.StringValue);
+
+    res := engine.Execute(
+      'var sab2 = new SharedArrayBuffer(8);' +
+      'var b = new Int32Array(sab2);' +
+      'var r1 = Atomics.waitAsync(b, 0, 1, 0);' +
+      'var r2 = Atomics.waitAsync(b, 0, 0, 100);' +
+      'r1.async + "," + r1.value + "," + r2.async + "," + typeof r2.value.then;'
+    );
+    AssertTrue('Atomics.waitAsync script succeeds', res.Success);
+    AssertEquals('waitAsync returns the expected result shape',
+      'false,not-equal,true,function', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestProxyInvariants();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var target = {};' +
+      'Object.defineProperty(target, "attr", { configurable: false, writable: false, value: 1 });' +
+      'var p = new Proxy(target, { get: function() { return 2; } });' +
+      'try { p.attr; "no throw"; } catch (e) { e.name; }'
+    );
+    AssertTrue('Proxy get invariant script succeeds', res.Success);
+    AssertEquals('Proxy get invariant throws TypeError', 'TypeError', res.StringValue);
+
+    res := engine.Execute(
+      'var target2 = {};' +
+      'Object.defineProperty(target2, "attr", { configurable: false, value: 1 });' +
+      'var p2 = new Proxy(target2, { deleteProperty: function() { return true; } });' +
+      'try { delete p2.attr; "no throw"; } catch (e) { e.name; }'
+    );
+    AssertTrue('Proxy delete invariant script succeeds', res.Success);
+    AssertEquals('Proxy delete invariant throws TypeError', 'TypeError', res.StringValue);
+
+    res := engine.Execute(
+      'var target3 = {};' +
+      'Object.defineProperty(target3, "foo", { configurable: false, enumerable: true, value: true });' +
+      'var p3 = new Proxy(target3, { ownKeys: function() { return ["bar"]; } });' +
+      'try { Object.keys(p3); "no throw"; } catch (e) { e.name; }'
+    );
+    AssertTrue('Proxy ownKeys invariant script succeeds', res.Success);
+    AssertEquals('Proxy ownKeys invariant throws TypeError', 'TypeError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
 { TFloriaJSPriority1Test }
 
 procedure TFloriaJSPriority1Test.TestConstReassignmentRejection();
@@ -7590,12 +8848,15 @@ begin
     res := engine.Execute('var debugger = 1;');
     AssertFalse('debugger is a reserved word', res.Success);
 
-    // 4. `with` is unsupported and must fail at parse time, not at run time as
-    //    an undeclared name.
-    res := engine.Execute('with ({}) { }');
-    AssertFalse('with is rejected', res.Success);
-    AssertTrue('with fails as a parse error, not a ReferenceError',
-      (Pos('not supported', res.ErrorMessage) > 0) and
+    // 4. `with` is supported in sloppy mode and rejected in strict mode.
+    res := engine.Execute('var o = { x: 1 }; with (o) { x = 2; } o.x;');
+    AssertTrue('with is accepted in sloppy mode', res.Success);
+    AssertEquals('with resolves properties from the object', 2.0, res.NumberValue);
+
+    res := engine.Execute('"use strict"; with ({}) { }');
+    AssertFalse('with is rejected in strict mode', res.Success);
+    AssertTrue('with strict failure is a SyntaxError',
+      (Pos('SyntaxError', res.ErrorMessage) > 0) and
       (Pos('ReferenceError', res.ErrorMessage) = 0));
   finally
     engine.Free();
@@ -9172,15 +10433,15 @@ begin
     AssertTrue('fromCodePoint', res.Success);
     AssertEquals('a BMP code point', 'A', res.StringValue);
 
-    // This runtime stores strings as UTF-8 bytes, so an astral code point is
-    // one character of four bytes; it must not become '?' or a surrogate pair.
+    // ECMAScript length and indexing use UTF-16 code units, so an astral code
+    // point is a surrogate pair of length 2.
     res := engine.Execute('String.fromCodePoint(0x1F600).length;');
     AssertTrue('fromCodePoint astral', res.Success);
-    AssertEquals('an astral code point is four UTF-8 bytes', '4', res.StringValue);
+    AssertEquals('an astral code point is two UTF-16 code units', '2', res.StringValue);
 
-    res := engine.Execute('String.fromCodePoint(0x1F600).charCodeAt(0);');
+    res := engine.Execute('String.fromCodePoint(0x1F600).charCodeAt(0) + "," + String.fromCodePoint(0x1F600).charCodeAt(1);');
     AssertTrue('fromCodePoint encoding', res.Success);
-    AssertEquals('the first UTF-8 byte of U+1F600', '240', res.StringValue);
+    AssertEquals('the astral code point is a surrogate pair', '55357,56832', res.StringValue);
 
     res := engine.Execute('String.fromCodePoint(0xE9).charCodeAt(0) > 127;');
     AssertTrue('non-ASCII is encoded, not replaced', res.Success);
@@ -9411,27 +10672,27 @@ begin
     // lexer and String statics must encode explicitly.
     res := engine.Execute('"\u00e9".charCodeAt(0);');
     AssertTrue('unicode escape', res.Success);
-    AssertEquals('the escape is encoded as UTF-8', '195', res.StringValue);
+    AssertEquals('the escape is one UTF-16 code unit', '233', res.StringValue);
 
     res := engine.Execute('"\u4e2d".charCodeAt(0);');
     AssertTrue('CJK escape', res.Success);
-    AssertEquals('a three-byte character starts correctly', '228', res.StringValue);
+    AssertEquals('the CJK escape is its code unit', '20013', res.StringValue);
 
     res := engine.Execute('"\u0041";');
     AssertTrue('ASCII escape', res.Success);
     AssertEquals('ASCII is unchanged', 'A', res.StringValue);
 
     res := engine.Execute('String.fromCharCode(0xE9).charCodeAt(0);');
-    AssertTrue('fromCharCode encoding', res.Success);
-    AssertEquals('a non-ASCII code unit is encoded', '195', res.StringValue);
+    AssertTrue('fromCharCode code unit', res.Success);
+    AssertEquals('a non-ASCII code unit round-trips', '233', res.StringValue);
 
     res := engine.Execute('String.fromCodePoint(0x1F600).length;');
     AssertTrue('astral code point', res.Success);
-    AssertEquals('an astral code point is four UTF-8 bytes', '4', res.StringValue);
+    AssertEquals('an astral code point is two UTF-16 code units', '2', res.StringValue);
 
     res := engine.Execute('String.fromCodePoint(0x1F600).charCodeAt(0);');
     AssertTrue('astral encoding', res.Success);
-    AssertEquals('a four-byte character starts correctly', '240', res.StringValue);
+    AssertEquals('the high surrogate is returned', '55357', res.StringValue);
 
     // The encoded character must be a real character, never '?' (63).
     res := engine.Execute('String.fromCodePoint(0xE9).charCodeAt(0) === 63;');
@@ -9585,6 +10846,195 @@ begin
   end;
 end;
 
+function NativeHostFailure(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  raise Exception.Create('host boom');
+end;
+
+procedure TFloriaJSDiagnosticsTest.TestDetailedSuccess();
+var
+  engine: TFloriaJSEngine;
+  diagnostic: TFloriaJSDiagnosticResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    diagnostic := engine.ExecuteDetailed('40 + 2;', 'success.js');
+    AssertTrue('detailed success uses the legacy success flag', diagnostic.Result.Success);
+    AssertEquals('successful completion kind', Ord(fjdkSuccess), Ord(diagnostic.Kind));
+    AssertEquals('successful primitive result is preserved', '42', diagnostic.Result.StringValue);
+    AssertEquals('successful source name', 'success.js', diagnostic.SourceName);
+    AssertEquals('successful error name is empty', '', diagnostic.ErrorName);
+    AssertEquals('successful message is empty', '', diagnostic.Message);
+
+    diagnostic := engine.ExecuteDetailed('var = ;', 'failure.js');
+    AssertFalse('the next invocation can fail independently', diagnostic.Result.Success);
+
+    diagnostic := engine.ExecuteDetailed('6 * 7;', 'next.js');
+    AssertTrue('a later success is independent of an earlier failure', diagnostic.Result.Success);
+    AssertEquals('success resets the diagnostic kind', Ord(fjdkSuccess), Ord(diagnostic.Kind));
+    AssertEquals('success resets the source name', 'next.js', diagnostic.SourceName);
+    AssertEquals('success resets error metadata', '', diagnostic.ErrorName);
+    AssertEquals('success resets the legacy error string', '', diagnostic.Result.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSDiagnosticsTest.TestDetailedParseError();
+var
+  engine: TFloriaJSEngine;
+  ctx: TFloriaJSContext;
+  diagnostic: TFloriaJSDiagnosticResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    ctx := engine.DefaultContext;
+    diagnostic := ctx.EvaluateDetailed('var = ;', 'parse-fixture.js');
+    AssertFalse('a parse failure is unsuccessful', diagnostic.Result.Success);
+    AssertEquals('parse failures have their own phase', Ord(fjdkParseError), Ord(diagnostic.Kind));
+    AssertEquals('parse failures expose SyntaxError', 'SyntaxError', diagnostic.ErrorName);
+    AssertEquals('parse source name is preserved', 'parse-fixture.js', diagnostic.SourceName);
+    AssertEquals('parse line is preserved', 1, diagnostic.Line);
+    AssertTrue('parse column is available', diagnostic.Column > 0);
+    AssertEquals('legacy parser text is unchanged', diagnostic.Result.ErrorMessage, diagnostic.Message);
+    AssertTrue('legacy parser location text is retained', Pos('[Line 1,', diagnostic.Result.ErrorMessage) > 0);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSDiagnosticsTest.TestDetailedCompileError();
+var
+  engine: TFloriaJSEngine;
+  diagnostic: TFloriaJSDiagnosticResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    diagnostic := engine.ExecuteDetailed('let x = 1; let x = 2;', 'compile-fixture.js');
+    AssertFalse('a compiler early error is unsuccessful', diagnostic.Result.Success);
+    AssertEquals('compiler errors have their own phase', Ord(fjdkCompileError), Ord(diagnostic.Kind));
+    AssertEquals('compiler early errors expose SyntaxError', 'SyntaxError', diagnostic.ErrorName);
+    AssertEquals('compiler source name is preserved', 'compile-fixture.js', diagnostic.SourceName);
+    AssertTrue('legacy compiler text is retained', Pos('SyntaxError:', diagnostic.Result.ErrorMessage) > 0);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSDiagnosticsTest.TestDetailedRuntimeError();
+var
+  engine: TFloriaJSEngine;
+  diagnostic: TFloriaJSDiagnosticResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    diagnostic := engine.ExecuteDetailed('throw new TypeError("boom");', 'runtime-fixture.js');
+    AssertFalse('a JavaScript throw is unsuccessful', diagnostic.Result.Success);
+    AssertEquals('JavaScript throws have their own completion kind', Ord(fjdkJavaScriptThrow), Ord(diagnostic.Kind));
+    AssertEquals('the JavaScript error constructor is preserved', 'TypeError', diagnostic.ErrorName);
+    AssertEquals('the JavaScript error message is preserved separately', 'boom', diagnostic.Message);
+    AssertEquals('runtime source name is preserved', 'runtime-fixture.js', diagnostic.SourceName);
+    AssertEquals('legacy runtime text remains unchanged', 'TypeError: boom', diagnostic.Result.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSDiagnosticsTest.TestDetailedPrimitiveThrow();
+var
+  engine: TFloriaJSEngine;
+  diagnostic: TFloriaJSDiagnosticResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    diagnostic := engine.ExecuteDetailed('throw "boom";', 'throw-fixture.js');
+    AssertEquals('primitive throws remain JavaScript completions', Ord(fjdkJavaScriptThrow), Ord(diagnostic.Kind));
+    AssertEquals('a primitive throw has no invented constructor', '', diagnostic.ErrorName);
+    AssertEquals('primitive throw message', 'boom', diagnostic.Message);
+    AssertEquals('legacy primitive throw text', 'boom', diagnostic.Result.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSDiagnosticsTest.TestDetailedHostException();
+var
+  engine: TFloriaJSEngine;
+  ctx: TFloriaJSContext;
+  diagnostic: TFloriaJSDiagnosticResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    ctx := engine.DefaultContext;
+    ctx.RegisterFunction('failFromHost', @NativeHostFailure);
+    diagnostic := ctx.EvaluateDetailed('failFromHost();', 'harness.js');
+    AssertFalse('a host exception is unsuccessful', diagnostic.Result.Success);
+    AssertEquals('host failures have their own kind', Ord(fjdkHostException), Ord(diagnostic.Kind));
+    AssertEquals('host exception class is exposed', 'Exception', diagnostic.HostExceptionClass);
+    AssertEquals('host failures have no invented JavaScript constructor', '', diagnostic.ErrorName);
+    AssertEquals('host failure message', 'host boom', diagnostic.Message);
+    AssertEquals('host failure source', 'harness.js', diagnostic.SourceName);
+    AssertEquals('legacy host failure text', 'host boom', diagnostic.Result.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSDiagnosticsTest.TestDetailedFileAndMissingFile();
+var
+  engine: TFloriaJSEngine;
+  diagnostic: TFloriaJSDiagnosticResult;
+  tmpName: string;
+  f: TextFile;
+begin
+  engine := TFloriaJSEngine.Create();
+  tmpName := GetTempFileName();
+  try
+    AssignFile(f, tmpName);
+    Rewrite(f);
+    WriteLn(f, 'throw new RangeError("file boom");');
+    CloseFile(f);
+
+    diagnostic := engine.ExecuteFileDetailed(tmpName);
+    AssertEquals('file JavaScript throw kind', Ord(fjdkJavaScriptThrow), Ord(diagnostic.Kind));
+    AssertEquals('file JavaScript error constructor', 'RangeError', diagnostic.ErrorName);
+    AssertEquals('file JavaScript error message', 'file boom', diagnostic.Message);
+    AssertEquals('file source name is retained', tmpName, diagnostic.SourceName);
+    AssertEquals('legacy file error text', 'RangeError: file boom', diagnostic.Result.ErrorMessage);
+
+    diagnostic := engine.ExecuteFileDetailed('/nonexistent/does-not-exist.js');
+    AssertEquals('a missing file is a host failure', Ord(fjdkHostException), Ord(diagnostic.Kind));
+    AssertEquals('missing file source name is retained', '/nonexistent/does-not-exist.js', diagnostic.SourceName);
+    AssertEquals('missing file has no synthetic exception class', '', diagnostic.HostExceptionClass);
+    AssertTrue('missing file legacy message names the path', Pos('does-not-exist.js', diagnostic.Result.ErrorMessage) > 0);
+  finally
+    engine.Free();
+    if FileExists(tmpName) then
+      DeleteFile(tmpName);
+  end;
+end;
+
+procedure TFloriaJSDiagnosticsTest.TestDetailedValuesSurviveCollection();
+var
+  engine: TFloriaJSEngine;
+  diagnostic: TFloriaJSDiagnosticResult;
+  legacy: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    diagnostic := engine.ExecuteDetailed('throw new TypeError("managed");', 'lifetime.js');
+    legacy := engine.Execute('0;');
+    AssertTrue('the following evaluation succeeds', legacy.Success);
+    AssertEquals('saved diagnostic kind is not an object reference', Ord(fjdkJavaScriptThrow), Ord(diagnostic.Kind));
+    AssertEquals('saved constructor survives later collection', 'TypeError', diagnostic.ErrorName);
+    AssertEquals('saved message survives later collection', 'managed', diagnostic.Message);
+    AssertEquals('saved source survives later collection', 'lifetime.js', diagnostic.SourceName);
+    AssertEquals('saved legacy text survives later collection', 'TypeError: managed', diagnostic.Result.ErrorMessage);
+  finally
+    engine.Free();
+  end;
+end;
+
 var
   Application: TTestRunner;
 
@@ -9611,6 +11061,10 @@ begin
   RegisterTest(TFloriaJSArrayMethodsTest);
   RegisterTest(TFloriaJSVMTest);
   RegisterTest(TFloriaJSPriority3Test);
+  RegisterTest(TFloriaJSTimerTest);
+  RegisterTest(TFloriaJSReentrantEvalTest);
+  RegisterTest(TFloriaJSPhase10Test);
+  RegisterTest(TFloriaJSDiagnosticsTest);
   RegisterTest(TFloriaJSPriority1Test);
   RegisterTest(TFloriaJSPriority2Test);
 

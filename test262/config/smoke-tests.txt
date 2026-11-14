@@ -1,0 +1,26 @@
+# Reviewed Phase 0 smoke corpus for the pinned Test262 revision.
+# Paths are relative to the upstream test/ directory. Lines beginning with
+# '#' are documentation, not test paths. These are inputs for the synchronous
+# diagnostic adapter, not a claim of full Test262 support.
+
+# Arithmetic: numeric and member-value addition.
+language/expressions/addition/S11.6.1_A2.1_T1.js
+
+# Functions: primitive arguments are passed by value.
+language/statements/function/S13.2.1_A6_T1.js
+
+# Closures: a returned function closes over its arguments.
+language/statements/function/S13_A18.js
+
+# Exceptions: try/catch/finally without an actual exception.
+language/statements/try/S12.14_A1.js
+
+# Arrays: string keys address numeric array elements.
+built-ins/Array/S15.4_A1.1_T4.js
+
+# Objects: Object.keys returns an Array.
+built-ins/Object/keys/15.2.3.14-2-1.js
+
+# Promise basics: Promise.all and Promise.resolve are callable.
+built-ins/Promise/all/S25.4.4.1_A1.1_T1.js
+built-ins/Promise/resolve/S25.4.4.5_A1.1_T1.js

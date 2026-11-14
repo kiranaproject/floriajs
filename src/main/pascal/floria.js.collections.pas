@@ -17,7 +17,7 @@ unit floria.js.collections;
 interface
 
 uses
-  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env;
+  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env, floria.js.utf16;
 
 type
   { Map Key-Value Entry }
@@ -726,12 +726,12 @@ begin
         if FKind = fikString then
         begin
           str := FSource.StrVal;
-          if FCursor >= Length(str) then
+          if FCursor >= JSUTF16Length(str) then
             Exit(False);
-          { Strings are byte-oriented, matching `length` and indexing. }
-          AValue := JSMakeString(str[FCursor + 1]);
-          Inc(FCursor);
-          Exit(True);
+          { The string iterator yields code points, keeping a surrogate pair as
+            one yielded value. }
+          AValue := JSMakeString(JSUTF16NextCodePoint(str, FCursor));
+          Exit(AValue.IsString() and (AValue.StrVal <> ''));
         end;
 
         if not FSource.IsArray() then

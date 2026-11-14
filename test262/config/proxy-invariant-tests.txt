@@ -1,0 +1,11 @@
+built-ins/Proxy/deleteProperty/targetdesc-is-not-configurable.js
+built-ins/Proxy/get/accessor-get-is-undefined-throws.js
+built-ins/Proxy/get/not-same-value-configurable-false-writable-false-throws.js
+built-ins/Proxy/get/return-trap-result-same-value-configurable-false-writable-false.js
+built-ins/Proxy/getOwnPropertyDescriptor/resultdesc-is-not-configurable-not-writable-targetdesc-is-writable.js
+built-ins/Proxy/has/return-false-targetdesc-not-configurable.js
+built-ins/Proxy/ownKeys/extensible-return-trap-result-absent-not-configurable-keys.js
+built-ins/Proxy/ownKeys/extensible-return-trap-result.js
+built-ins/Proxy/ownKeys/return-all-non-configurable-keys.js
+built-ins/Proxy/setPrototypeOf/not-extensible-target-same-target-prototype.js
+built-ins/Proxy/has/return-false-targetdesc-not-configurable-using-with.js

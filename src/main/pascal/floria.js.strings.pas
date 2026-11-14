@@ -18,7 +18,7 @@ unit floria.js.strings;
 interface
 
 uses
-  Classes, SysUtils, Math, StrUtils, floria.js.types, floria.js.value, floria.js.regexp;
+  Classes, SysUtils, Math, StrUtils, floria.js.types, floria.js.value, floria.js.regexp, floria.js.utf16;
 
 procedure FloriaJSRegisterString(AHeap: TFloriaJSHeap);
 
@@ -33,6 +33,7 @@ type
     FHeap: TFloriaJSHeap;
     function ReplacementText(const AWhole, AMatch: string; AIndex: Integer;
       const AReplacement: TFloriaJSValue): string;
+    function ArgString(const AValue: TFloriaJSValue): string;
   public
     constructor Create(AHeap: TFloriaJSHeap);
 
@@ -129,9 +130,9 @@ var
 begin
   s := ThisString(AThis);
   i := IntArg(AArgs, 0, 0);
-  if (i < 0) or (i >= Length(s)) then
+  if (i < 0) or (i >= JSUTF16Length(s)) then
     Exit(JSMakeString(''));
-  Result := JSMakeString(Copy(s, i + 1, 1));
+  Result := JSMakeString(JSUTF16CharAt(s, i));
 end;
 
 function TFloriaJSStringHelper.CharCodeAt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -141,9 +142,9 @@ var
 begin
   s := ThisString(AThis);
   i := IntArg(AArgs, 0, 0);
-  if (i < 0) or (i >= Length(s)) then
+  if (i < 0) or (i >= JSUTF16Length(s)) then
     Exit(JSMakeNumber(NaN));
-  Result := JSMakeNumber(Ord(s[i + 1]));
+  Result := JSMakeNumber(JSUTF16CharCodeAt(s, i));
 end;
 
 function TFloriaJSStringHelper.IndexOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -156,17 +157,7 @@ begin
   if Length(AArgs) > 0 then needle := AArgs[0].ToString();
 
   from := IntArg(AArgs, 1, 0);
-  if from < 0 then from := 0;
-  if from > Length(s) then from := Length(s);
-
-  if needle = '' then
-    Exit(JSMakeNumber(from));
-
-  p := PosEx(needle, s, from + 1);
-  if p = 0 then
-    Result := JSMakeNumber(-1)
-  else
-    Result := JSMakeNumber(p - 1);
+  Result := JSMakeNumber(JSUTF16IndexOf(s, needle, from));
 end;
 
 function TFloriaJSStringHelper.LastIndexOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -178,22 +169,8 @@ begin
   needle := JSMakeUndefined().ToString();
   if Length(AArgs) > 0 then needle := AArgs[0].ToString();
 
-  from := IntArg(AArgs, 1, Length(s));
-  if from < 0 then from := 0;
-  if from > Length(s) then from := Length(s);
-
-  if needle = '' then
-    Exit(JSMakeNumber(from));
-
-  maxStart := Length(s) - Length(needle);
-  if from > maxStart then from := maxStart;
-
-  if maxStart >= 0 then
-    for i := from downto 0 do
-      if Copy(s, i + 1, Length(needle)) = needle then
-        Exit(JSMakeNumber(i));
-
-  Result := JSMakeNumber(-1);
+  from := IntArg(AArgs, 1, JSUTF16Length(s));
+  Result := JSMakeNumber(JSUTF16LastIndexOf(s, needle, from));
 end;
 
 function TFloriaJSStringHelper.Includes(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -206,14 +183,7 @@ begin
   if Length(AArgs) > 0 then needle := AArgs[0].ToString();
 
   from := IntArg(AArgs, 1, 0);
-  if from < 0 then from := 0;
-  if from > Length(s) then from := Length(s);
-
-  if needle = '' then
-    Exit(JSMakeBoolean(True));
-
-  p := PosEx(needle, s, from + 1);
-  Result := JSMakeBoolean(p > 0);
+  Result := JSMakeBoolean(JSUTF16IndexOf(s, needle, from) >= 0);
 end;
 
 function TFloriaJSStringHelper.StartsWith(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -226,10 +196,7 @@ begin
   if Length(AArgs) > 0 then needle := AArgs[0].ToString();
 
   pos := IntArg(AArgs, 1, 0);
-  if pos < 0 then pos := 0;
-  if pos > Length(s) then pos := Length(s);
-
-  Result := JSMakeBoolean(Copy(s, pos + 1, Length(needle)) = needle);
+  Result := JSMakeBoolean(JSUTF16IndexOf(s, needle, pos) = pos);
 end;
 
 function TFloriaJSStringHelper.EndsWith(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -241,15 +208,13 @@ begin
   needle := '';
   if Length(AArgs) > 0 then needle := AArgs[0].ToString();
 
-  finish := IntArg(AArgs, 1, Length(s));
+  finish := IntArg(AArgs, 1, JSUTF16Length(s));
   if finish < 0 then finish := 0;
-  if finish > Length(s) then finish := Length(s);
-
-  if Length(needle) > finish then
+  if finish > JSUTF16Length(s) then finish := JSUTF16Length(s);
+  if JSUTF16Length(needle) > finish then
     Exit(JSMakeBoolean(False));
-
   Result := JSMakeBoolean(
-    Copy(s, finish - Length(needle) + 1, Length(needle)) = needle);
+    JSUTF16Slice(s, finish - JSUTF16Length(needle), JSUTF16Length(needle)) = needle);
 end;
 
 function TFloriaJSStringHelper.Slice(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -258,13 +223,13 @@ var
   start, finish: Integer;
 begin
   s := ThisString(AThis);
-  start := NormalizeIndex(IntArg(AArgs, 0, 0), Length(s));
-  finish := NormalizeIndex(IntArg(AArgs, 1, Length(s)), Length(s));
+  start := NormalizeIndex(IntArg(AArgs, 0, 0), JSUTF16Length(s));
+  finish := NormalizeIndex(IntArg(AArgs, 1, JSUTF16Length(s)), JSUTF16Length(s));
 
   if finish <= start then
     Exit(JSMakeString(''));
 
-  Result := JSMakeString(Copy(s, start + 1, finish - start));
+  Result := JSMakeString(JSUTF16Slice(s, start, finish - start));
 end;
 
 function TFloriaJSStringHelper.Substring(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -275,12 +240,12 @@ begin
   s := ThisString(AThis);
 
   start := IntArg(AArgs, 0, 0);
-  finish := IntArg(AArgs, 1, Length(s));
+  finish := IntArg(AArgs, 1, JSUTF16Length(s));
 
   if start < 0 then start := 0;
-  if start > Length(s) then start := Length(s);
+  if start > JSUTF16Length(s) then start := JSUTF16Length(s);
   if finish < 0 then finish := 0;
-  if finish > Length(s) then finish := Length(s);
+  if finish > JSUTF16Length(s) then finish := JSUTF16Length(s);
 
   if start > finish then
   begin
@@ -289,7 +254,7 @@ begin
     finish := temp;
   end;
 
-  Result := JSMakeString(Copy(s, start + 1, finish - start));
+  Result := JSMakeString(JSUTF16Slice(s, start, finish - start));
 end;
 
 function TFloriaJSStringHelper.Substr(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -302,16 +267,16 @@ begin
   start := IntArg(AArgs, 0, 0);
   if start < 0 then
   begin
-    start := Length(s) + start;
+    start := JSUTF16Length(s) + start;
     if start < 0 then start := 0;
   end;
-  if start > Length(s) then start := Length(s);
+  if start > JSUTF16Length(s) then start := JSUTF16Length(s);
 
-  count := IntArg(AArgs, 1, Length(s) - start);
+  count := IntArg(AArgs, 1, JSUTF16Length(s) - start);
   if count < 0 then count := 0;
-  if start + count > Length(s) then count := Length(s) - start;
+  if start + count > JSUTF16Length(s) then count := JSUTF16Length(s) - start;
 
-  Result := JSMakeString(Copy(s, start + 1, count));
+  Result := JSMakeString(JSUTF16Slice(s, start, count));
 end;
 
 function TFloriaJSStringHelper.ToUpperCase(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -591,6 +556,13 @@ begin
   end;
 end;
 
+function TFloriaJSStringHelper.ArgString(const AValue: TFloriaJSValue): string;
+begin
+  { String.prototype.concat performs ToString on each argument, including
+    Symbol.toPrimitive and a user-supplied `toString`. }
+  Result := JSToString(AValue);
+end;
+
 function TFloriaJSStringHelper.Concat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   s: string;
@@ -598,7 +570,7 @@ var
 begin
   s := ThisString(AThis);
   for i := 0 to High(AArgs) do
-    s := s + AArgs[i].ToString();
+    s := s + ArgString(AArgs[i]);
   Result := JSMakeString(s);
 end;
 
@@ -621,16 +593,16 @@ var
 begin
   s := ThisString(AThis);
   target := IntArg(AArgs, 0, 0);
-  if target <= Length(s) then
+  if target <= JSUTF16Length(s) then
     Exit(JSMakeString(s));
 
   padding := StringArg(AArgs, 1, ' ');
   if padding = '' then
     Exit(JSMakeString(s));
 
-  need := target - Length(s);
-  fill := DupeString(padding, (need div Length(padding)) + 1);
-  Result := JSMakeString(Copy(fill, 1, need) + s);
+  need := target - JSUTF16Length(s);
+  fill := DupeString(padding, (need div JSUTF16Length(padding)) + 1);
+  Result := JSMakeString(JSUTF16Slice(fill, 0, need) + s);
 end;
 
 function TFloriaJSStringHelper.PadEnd(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -640,21 +612,33 @@ var
 begin
   s := ThisString(AThis);
   target := IntArg(AArgs, 0, 0);
-  if target <= Length(s) then
+  if target <= JSUTF16Length(s) then
     Exit(JSMakeString(s));
 
   padding := StringArg(AArgs, 1, ' ');
   if padding = '' then
     Exit(JSMakeString(s));
 
-  need := target - Length(s);
-  fill := DupeString(padding, (need div Length(padding)) + 1);
-  Result := JSMakeString(s + Copy(fill, 1, need));
+  need := target - JSUTF16Length(s);
+  fill := DupeString(padding, (need div JSUTF16Length(padding)) + 1);
+  Result := JSMakeString(s + JSUTF16Slice(fill, 0, need));
 end;
 
 function TFloriaJSStringHelper.ToStringValue(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  errorHeap: TFloriaJSHeap;
 begin
-  Result := JSMakeString(ThisString(AThis));
+  if AThis.IsString() then
+    Exit(JSMakeString(AThis.StrVal));
+
+  { thisStringValue throws for anything other than a String primitive or a
+    String object. The diagnostic runtime has no String wrapper object, so the
+    primitive case is the supported path. }
+  errorHeap := JSActiveRealmHeap();
+  if errorHeap = nil then
+    errorHeap := FHeap;
+  raise EFloriaJSThrow.Create(JSMakeObject(errorHeap.NewError('TypeError',
+    'String.prototype.toString requires that this be a String')));
 end;
 
 procedure RegisterMethod(AHeap: TFloriaJSHeap; AProto: TFloriaJSObject;

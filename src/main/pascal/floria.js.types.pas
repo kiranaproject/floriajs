@@ -58,6 +58,29 @@ type
     ErrorMessage: string;
   end;
 
+  { Additive diagnostic classifications. These do not alter TFloriaJSResult or
+    the slots of any existing class. }
+  TFloriaJSDiagnosticKind = (
+    fjdkSuccess,
+    fjdkParseError,
+    fjdkCompileError,
+    fjdkJavaScriptThrow,
+    fjdkHostException
+  );
+
+  { Detailed execution information for hosts and conformance runners. All fields
+    are managed values so a later heap collection cannot invalidate them. }
+  TFloriaJSDiagnosticResult = record
+    Result: TFloriaJSResult;
+    Kind: TFloriaJSDiagnosticKind;
+    ErrorName: string;
+    Message: string;
+    SourceName: string;
+    Line: Integer;
+    Column: Integer;
+    HostExceptionClass: string;
+  end;
+
 function FloriaJSMakeOkResult(const AStringVal: string = ''): TFloriaJSResult;
 function FloriaJSMakeErrorResult(const AErrorMsg: string): TFloriaJSResult;
 

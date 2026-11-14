@@ -1,0 +1,1055 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 2044800,
+    "sha256": "cf40ec5738d85aa0200cbc3bb696bb9afafbfb51a938aea971b13db47924d070"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/import-attributes-tests.txt",
+    "selection": [
+      "language/import/import-attributes/json-value-array.js",
+      "language/import/import-attributes/json-value-boolean.js",
+      "language/import/import-attributes/json-value-null.js",
+      "language/import/import-attributes/json-value-number.js",
+      "language/import/import-attributes/json-value-object.js",
+      "language/import/import-attributes/json-value-string.js",
+      "language/import/import-attributes/json-via-namespace.js",
+      "language/import/import-attributes/json-idempotency.js",
+      "language/import/import-attributes/json-extensibility-array.js",
+      "language/import/import-attributes/json-extensibility-object.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "8acee6437b9f25b9b5534775d329e744cdeba9900a4e026bb6650b23883d2910",
+    "status": "phase-10.10-async-generators-complete"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "propertyHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-extensibility-array.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "propertyHelper.js",
+        "--test",
+        "json-extensibility-array.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-extensibility-array.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "propertyHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-value-array_FIXTURE.json",
+        "test/language/import/import-attributes/json-extensibility-array.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-extensibility-array.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 558,
+        "sha256": "a707cb9b8ee5b45fe7dd530ac26d03e67f63f2dcf2a83821755df75b6239ae5c"
+      },
+      "testPath": "language/import/import-attributes/json-extensibility-array.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "propertyHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-extensibility-object.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "propertyHelper.js",
+        "--test",
+        "json-extensibility-object.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-extensibility-object.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "propertyHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-value-object_FIXTURE.json",
+        "test/language/import/import-attributes/json-extensibility-object.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-extensibility-object.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 560,
+        "sha256": "35b63bf54524489f30ee4a8d73f1b2027585fb876a5e8515a0fbd19cd9c9239c"
+      },
+      "testPath": "language/import/import-attributes/json-extensibility-object.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-idempotency.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "json-idempotency.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/import/import-attributes/json-idempotency.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules",
+          "globalThis",
+          "dynamic-import"
+        ],
+        "flags": [
+          "module",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-idempotency_FIXTURE.json",
+        "test/language/import/import-attributes/json-idempotency-indirect_FIXTURE.js",
+        "test/language/import/import-attributes/json-idempotency.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/import/import-attributes/json-idempotency.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 905,
+        "sha256": "77d171afb82f0820ac23ce6f0c4def3406810b4c3593a9aedac7760df727f6a6"
+      },
+      "testPath": "language/import/import-attributes/json-idempotency.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-value-array.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "json-value-array.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-value-array.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-value-array_FIXTURE.json",
+        "test/language/import/import-attributes/json-value-array.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-value-array.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1738,
+        "sha256": "34727f5bc8ff7f21672ce0335b6646d683a92b004d5fc5dfa81ae0a7a9fde887"
+      },
+      "testPath": "language/import/import-attributes/json-value-array.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-value-boolean.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "json-value-boolean.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-value-boolean.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-value-boolean_FIXTURE.json",
+        "test/language/import/import-attributes/json-value-boolean.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-value-boolean.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 709,
+        "sha256": "0ca437d46a6f70f03e6737c6241b11303b8d819e6a4a0f5ae5b44851ec6f713d"
+      },
+      "testPath": "language/import/import-attributes/json-value-boolean.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-value-null.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "json-value-null.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-value-null.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-value-null_FIXTURE.json",
+        "test/language/import/import-attributes/json-value-null.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-value-null.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 701,
+        "sha256": "2ccfcb9f33ffcee8b5b6958412c48f7865a6facfd961cd9a04a33711f1cc96fd"
+      },
+      "testPath": "language/import/import-attributes/json-value-null.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-value-number.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "json-value-number.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-value-number.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-value-number_FIXTURE.json",
+        "test/language/import/import-attributes/json-value-number.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-value-number.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 710,
+        "sha256": "58c7e439efa6cb9866427432bdb525499d2707252269a6b67c80f3ee89443aa8"
+      },
+      "testPath": "language/import/import-attributes/json-value-number.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "propertyHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-value-object.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "propertyHelper.js",
+        "--test",
+        "json-value-object.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-value-object.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "propertyHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-value-object_FIXTURE.json",
+        "test/language/import/import-attributes/json-value-object.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-value-object.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1991,
+        "sha256": "708dac6ac04aa408dd5eea287a4ac238f5ca5fc531df6aa6a84eabfbc64c104b"
+      },
+      "testPath": "language/import/import-attributes/json-value-object.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-value-string.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "json-value-string.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-value-string.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-value-string_FIXTURE.json",
+        "test/language/import/import-attributes/json-value-string.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-value-string.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 719,
+        "sha256": "b095e9d39d9c66b5863dbb39dab40524b6b13a1a087f188ce058dbf1e637c6d7"
+      },
+      "testPath": "language/import/import-attributes/json-value-string.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/import/import-attributes/json-via-namespace.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "json-via-namespace.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/import/import-attributes/json-via-namespace.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "import-attributes",
+          "json-modules"
+        ],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/import/import-attributes/json-via-namespace_FIXTURE.json",
+        "test/language/import/import-attributes/json-via-namespace.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/import/import-attributes/json-via-namespace.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 473,
+        "sha256": "bdf3caa007eb5147cccc7323ad3e9bdc1366c3b2a7e8b781aea1b9b726da008e"
+      },
+      "testPath": "language/import/import-attributes/json-via-namespace.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 10,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 10,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "language/import/import-attributes": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      }
+    },
+    "features": {
+      "dynamic-import": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 1,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 1,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 1,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 1
+      },
+      "globalThis": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 1,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 1,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 1,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 1
+      },
+      "import-attributes": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      },
+      "json-modules": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 10,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 10
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

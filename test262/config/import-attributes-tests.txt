@@ -1,0 +1,10 @@
+language/import/import-attributes/json-value-array.js
+language/import/import-attributes/json-value-boolean.js
+language/import/import-attributes/json-value-null.js
+language/import/import-attributes/json-value-number.js
+language/import/import-attributes/json-value-object.js
+language/import/import-attributes/json-value-string.js
+language/import/import-attributes/json-via-namespace.js
+language/import/import-attributes/json-idempotency.js
+language/import/import-attributes/json-extensibility-array.js
+language/import/import-attributes/json-extensibility-object.js

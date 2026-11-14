@@ -79,6 +79,58 @@ begin
   Result := JSStrictEqual(ALeft, ARight);
 end;
 
+{ ArraySpeciesCreate for the diagnostic subset. The result is a new array whose
+  prototype follows an explicit species constructor. When the species is
+  another realm's Array intrinsic, ECMAScript falls back to the current realm's
+  Array.prototype; that case is preserved here. }
+function ArraySpeciesCreate(AHeap: TFloriaJSHeap; AArr: TFloriaJSArray;
+  const ALength: Integer): TFloriaJSArray;
+var
+  ctorVal, speciesVal, realmArray, speciesSymbol: TFloriaJSValue;
+  speciesFn: TFloriaJSFunction;
+  proto: TFloriaJSObject;
+begin
+  Result := AHeap.NewArray();
+  Result.SetLengthTo(ALength);
+  if AArr = nil then Exit;
+
+  ctorVal := AArr.GetProperty('constructor');
+  if not ctorVal.IsFunction() then Exit;
+
+  { If the constructor is another realm's Array intrinsic, ECMAScript treats it
+    as undefined before reading @@species. This also avoids invoking a species
+    getter that the test expects not to run. }
+  speciesFn := ctorVal.AsFunction();
+  if (speciesFn.Heap <> nil) and (speciesFn.Heap <> AHeap) and
+     (speciesFn.Heap.RealmGlobal <> nil) then
+  begin
+    realmArray := speciesFn.Heap.RealmGlobal.GetProperty('Array');
+    if realmArray.IsFunction() and (realmArray.ObjVal = speciesFn) then
+      Exit;
+  end;
+
+  { Resolve the well-known Symbol.species key in this heap's realm. }
+  speciesSymbol := JSMakeUndefined();
+  if AHeap.RealmGlobal <> nil then
+  begin
+    speciesSymbol := AHeap.RealmGlobal.GetProperty('Symbol');
+    if speciesSymbol.IsFunction() then
+      speciesSymbol := speciesSymbol.AsFunction().GetProperty('species');
+  end;
+
+  if speciesSymbol.IsSymbol() then
+    speciesVal := ctorVal.AsFunction().GetProperty(JSPropertyKeyName(speciesSymbol))
+  else
+    speciesVal := ctorVal.AsFunction().GetProperty('Symbol(Symbol.species)');
+  if not speciesVal.IsFunction() then Exit;
+
+  speciesFn := speciesVal.AsFunction();
+
+  proto := AHeap.GetPrototypeFromConstructor(speciesVal, 'Array');
+  if proto <> nil then
+    Result.Prototype := proto;
+end;
+
 procedure RequireCallback(AHeap: TFloriaJSHeap; const ACallback: TFloriaJSValue;
   const AMethod: string);
 begin
@@ -258,7 +310,7 @@ begin
   if deleteCount > arr.Length() - start then
     deleteCount := arr.Length() - start;
 
-  removed := arr.Heap.NewArray();
+  removed := ArraySpeciesCreate(arr.Heap, arr, 0);
   for i := 1 to deleteCount do
   begin
     { splice preserves holes in the removed slice. }
@@ -306,7 +358,7 @@ begin
   arr := ThisArray(AThis);
   if arr = nil then Exit(JSMakeUndefined());
 
-  res := arr.Heap.NewArray();
+  res := ArraySpeciesCreate(arr.Heap, arr, 0);
   for i := 0 to arr.Length() - 1 do
   begin
     { concat preserves the holes of the source array. }
@@ -348,7 +400,7 @@ begin
   start := NormalizeIndex(IntArg(AArgs, 0, 0), arr.Length());
   finish := NormalizeIndex(IntArg(AArgs, 1, arr.Length()), arr.Length());
 
-  res := arr.Heap.NewArray();
+  res := ArraySpeciesCreate(arr.Heap, arr, 0);
   for i := start to finish - 1 do
   begin
     { slice copies holes as holes. }
@@ -655,7 +707,7 @@ begin
   thisArg := JSMakeUndefined();
   if Length(AArgs) > 1 then thisArg := AArgs[1];
 
-  res := arr.Heap.NewArray();
+  res := ArraySpeciesCreate(arr.Heap, arr, 0);
   for i := 0 to arr.Length() - 1 do
   begin
     if not arr.HasElement(i) then
@@ -691,7 +743,7 @@ begin
   thisArg := JSMakeUndefined();
   if Length(AArgs) > 1 then thisArg := AArgs[1];
 
-  res := arr.Heap.NewArray();
+  res := ArraySpeciesCreate(arr.Heap, arr, 0);
   for i := 0 to arr.Length() - 1 do
   begin
     if not arr.HasElement(i) then
@@ -991,6 +1043,7 @@ begin
   if heap = nil then Exit(JSMakeUndefined());
 
   res := heap.NewArray();
+  res.Prototype := heap.GetPrototypeFromConstructor(AThis, 'Object');
   if Length(AArgs) = 0 then
     Exit(JSMakeArray(res));
 
@@ -1038,6 +1091,7 @@ begin
   if heap = nil then Exit(JSMakeUndefined());
 
   res := heap.NewArray();
+  res.Prototype := heap.GetPrototypeFromConstructor(AThis, 'Object');
   for i := 0 to High(AArgs) do
     res.Push(AArgs[i]);
 
@@ -1088,6 +1142,7 @@ begin
   RegisterMethod(AHeap, proto, 'reduceRight', @JSArrayReduceRight);
 
   arrayObj := AHeap.NewNativeMethod('Array', @AHeap.ArrayCtor);
+  arrayObj.IntrinsicName := 'Array';
   { Publish the shared array prototype on the constructor, so instanceof and
     Array.prototype access go through the same object the arrays use. }
   arrayObj.SetProperty('prototype', JSMakeObject(proto));

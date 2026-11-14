@@ -29,6 +29,9 @@ type
     Value: TFloriaJSValue;
     IsConst: Boolean;
     Kind: TFloriaJSBindingKind;
+    { False between block entry and the declaration's initializer. Reading or
+      assigning such a binding raises the temporal-dead-zone ReferenceError. }
+    Initialized: Boolean;
   end;
 
   { Lexical Scope Environment }
@@ -41,6 +44,7 @@ type
     FBindingCount: Integer;
     FCaptured: Boolean;
     FDetached: Boolean;
+    FPinned: Boolean;
 
     function FindLocalIndex(const AName: string): Integer;
   public
@@ -48,6 +52,11 @@ type
     destructor Destroy(); override;
 
     procedure Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean = False; AKind: TFloriaJSBindingKind = bkVar);
+    { Creates an uninitialized block-scoped binding at scope entry. }
+    procedure DeclareLexical(const AName: string; AIsConst: Boolean; AKind: TFloriaJSBindingKind);
+    { Initializes a predeclared lexical binding. Returns False when the binding
+      is not present locally (for example a per-iteration copy). }
+    function  InitializeLexical(const AName: string; const AValue: TFloriaJSValue): Boolean;
     procedure DeclareVar(const AName: string);
     procedure Undefine(const AName: string);
     { Marks the environment as captured by a closure. A captured environment
@@ -58,9 +67,14 @@ type
       still refer to it. The environment is not released immediately: the
       runtime decides at the next safe point whether it is still reachable. }
     procedure Detach();
+    { A pinned environment is still needed by a suspended activation (for
+      example an async task waiting at an await). The heap must not reclaim it
+      even though the scope that created it has already been left. }
+    procedure Pin();
+    procedure Unpin();
     { Counts how many bindings of the environment hold the given object. }
     function  CountReferences(AObj: TFloriaJSObject): Integer;
-    function  Assign(const AName: string; const AValue: TFloriaJSValue): Boolean;
+    function  Assign(const AName: string; const AValue: TFloriaJSValue; AStrict: Boolean = False): Boolean;
     function  Get(const AName: string; out AValue: TFloriaJSValue): Boolean;
     function  GetDefault(const AName: string; const ADefault: TFloriaJSValue): TFloriaJSValue;
     function  Has(const AName: string): Boolean;
@@ -75,6 +89,7 @@ type
     property DelegateObject: TFloriaJSObject read FDelegateObject write FDelegateObject;
     property Captured: Boolean read FCaptured;
     property Detached: Boolean read FDetached;
+    property Pinned: Boolean read FPinned;
   end;
 
 implementation
@@ -92,6 +107,7 @@ begin
   FDelegateObject := nil;
   FCaptured := False;
   FDetached := False;
+  FPinned := False;
   SetLength(FBindings, 0);
   FBindingCount := 0;
 end;
@@ -127,6 +143,16 @@ begin
   FDetached := True;
 end;
 
+procedure TFloriaJSEnvironment.Pin();
+begin
+  FPinned := True;
+end;
+
+procedure TFloriaJSEnvironment.Unpin();
+begin
+  FPinned := False;
+end;
+
 function TFloriaJSEnvironment.CountReferences(AObj: TFloriaJSObject): Integer;
 var
   i: Integer;
@@ -154,6 +180,19 @@ procedure TFloriaJSEnvironment.Define(const AName: string; const AValue: TFloria
 var
   idx: Integer;
 begin
+  { Global var/function bindings are properties of the live global object. The
+    object is the delegate of the root environment; lexical let/const and
+    explicitly const-published host values stay in the environment. }
+  if (FDelegateObject <> nil) and (FParent = nil) and
+     (AKind = bkVar) and (not AIsConst) then
+  begin
+    { Global function/var bindings are writable, enumerable, non-configurable
+      data properties. Function declarations may replace an existing
+      configurable property with these attributes. }
+    FDelegateObject.DefineDataProperty(AName, AValue, True, True, False);
+    Exit;
+  end;
+
   idx := FindLocalIndex(AName);
   if idx >= 0 then
   begin
@@ -172,6 +211,7 @@ begin
     JSRetainValue(AValue);
     FBindings[idx].IsConst := AIsConst;
     FBindings[idx].Kind := AKind;
+    FBindings[idx].Initialized := True;
     Exit;
   end;
 
@@ -188,13 +228,78 @@ begin
   JSRetainValue(AValue);
   FBindings[FBindingCount].IsConst := AIsConst;
   FBindings[FBindingCount].Kind := AKind;
+  FBindings[FBindingCount].Initialized := True;
   Inc(FBindingCount);
+end;
+
+procedure TFloriaJSEnvironment.DeclareLexical(const AName: string;
+  AIsConst: Boolean; AKind: TFloriaJSBindingKind);
+var
+  idx: Integer;
+begin
+  idx := FindLocalIndex(AName);
+  if idx >= 0 then
+  begin
+    { Duplicate declarations in one program are rejected at compile time by
+      TFloriaJSDeclarationScope. At run time an existing binding can only come
+      from an earlier evaluation in the same context, or from a previous entry
+      into this block, so it is reset for the new scope entry. }
+    JSReleaseValue(FBindings[idx].Value);
+    FBindings[idx].Value := JSMakeUndefined();
+    FBindings[idx].IsConst := AIsConst;
+    FBindings[idx].Kind := AKind;
+    FBindings[idx].Initialized := False;
+    Exit;
+  end;
+
+  if FBindingCount >= Length(FBindings) then
+  begin
+    if Length(FBindings) = 0 then
+      SetLength(FBindings, 8)
+    else
+      SetLength(FBindings, Length(FBindings) * 2);
+  end;
+
+  FBindings[FBindingCount].Name := AName;
+  FBindings[FBindingCount].Value := JSMakeUndefined();
+  FBindings[FBindingCount].IsConst := AIsConst;
+  FBindings[FBindingCount].Kind := AKind;
+  FBindings[FBindingCount].Initialized := False;
+  Inc(FBindingCount);
+end;
+
+function TFloriaJSEnvironment.InitializeLexical(const AName: string;
+  const AValue: TFloriaJSValue): Boolean;
+var
+  idx: Integer;
+begin
+  idx := FindLocalIndex(AName);
+  if idx < 0 then
+    Exit(False);
+
+  { Initialization is not assignment: it is allowed for a const binding, and
+    it must succeed for the declaration that follows the hoisted declaration. }
+  JSReleaseValue(FBindings[idx].Value);
+  FBindings[idx].Value := AValue;
+  JSRetainValue(AValue);
+  FBindings[idx].Initialized := True;
+  Result := True;
 end;
 
 procedure TFloriaJSEnvironment.DeclareVar(const AName: string);
 var
   idx: Integer;
 begin
+  if (FDelegateObject <> nil) and (FParent = nil) then
+  begin
+    if not FDelegateObject.HasOwnProperty(AName) then
+    begin
+      FDelegateObject.SetProperty(AName, JSMakeUndefined());
+      FDelegateObject.SetPropertyConfigurable(AName, False);
+    end;
+    Exit;
+  end;
+
   idx := FindLocalIndex(AName);
   if idx >= 0 then Exit;
   Define(AName, JSMakeUndefined(), False, bkVar);
@@ -220,15 +325,30 @@ begin
   FBindings[FBindingCount].Value := JSMakeUndefined();
   FBindings[FBindingCount].IsConst := False;
   FBindings[FBindingCount].Kind := bkVar;
+  FBindings[FBindingCount].Initialized := False;
 end;
 
-function TFloriaJSEnvironment.Assign(const AName: string; const AValue: TFloriaJSValue): Boolean;
+procedure RaiseTemporalDeadZone(AHeap: TFloriaJSHeap; const AName: string);
+var
+  message: string;
+begin
+  message := 'Cannot access ''' + AName + ''' before initialization';
+  if AHeap <> nil then
+    raise EFloriaJSThrow.Create(JSMakeObject(AHeap.NewError('ReferenceError', message)))
+  else
+    raise Exception.Create(message);
+end;
+
+function TFloriaJSEnvironment.Assign(const AName: string; const AValue: TFloriaJSValue; AStrict: Boolean): Boolean;
 var
   idx: Integer;
 begin
   idx := FindLocalIndex(AName);
   if idx >= 0 then
   begin
+    if not FBindings[idx].Initialized then
+      RaiseTemporalDeadZone(FHeap, AName);
+
     if FBindings[idx].IsConst then
     begin
       if FHeap <> nil then
@@ -252,10 +372,22 @@ begin
   end;
 
   if FParent <> nil then
-    Exit(FParent.Assign(AName, AValue));
+    Exit(FParent.Assign(AName, AValue, AStrict));
+
+  if AStrict then
+  begin
+    if FHeap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('ReferenceError',
+        AName + ' is not defined')))
+    else
+      raise Exception.Create(AName + ' is not defined');
+  end;
 
   // If not found in scope chain, define in global scope (standard JS non-strict behavior)
-  Define(AName, AValue, False, bkVar);
+  if (FDelegateObject <> nil) and (FParent = nil) then
+    FDelegateObject.SetProperty(AName, AValue)
+  else
+    Define(AName, AValue, False, bkVar);
   Result := True;
 end;
 
@@ -266,6 +398,8 @@ begin
   idx := FindLocalIndex(AName);
   if idx >= 0 then
   begin
+    if not FBindings[idx].Initialized then
+      RaiseTemporalDeadZone(FHeap, AName);
     AValue := FBindings[idx].Value;
     Exit(True);
   end;

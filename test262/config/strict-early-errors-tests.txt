@@ -1,0 +1,14 @@
+language/literals/numeric/legacy-octal-integer-strict.js
+language/literals/numeric/legacy-octal-integer.js
+language/literals/numeric/legacy-octal-integery-000-strict.js
+language/literals/numeric/legacy-octal-integery-005-strict.js
+language/literals/numeric/legacy-octal-integery-01-strict.js
+language/literals/numeric/legacy-octal-integery-010-strict.js
+language/literals/numeric/legacy-octal-integery-06-strict.js
+language/literals/numeric/legacy-octal-integery-07-strict.js
+language/literals/numeric/non-octal-decimal-integer-strict.js
+language/literals/numeric/non-octal-decimal-integer.js
+language/expressions/delete/identifier-strict.js
+language/expressions/delete/identifier-strict-recursive.js
+language/expressions/assignment/id-arguments-strict.js
+language/expressions/assignment/id-eval-strict.js

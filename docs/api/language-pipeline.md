@@ -342,8 +342,11 @@ procedure FloriaJSProcessTimers(AHeap: TFloriaJSHeap);
 - `ALogOutput` is the list that receives `console` output. Passing `nil` makes
   `console` write to standard output/error. The sink is process-wide.
 - `FloriaJSRegisterString` installs methods on the shared string prototype.
-- Timers are queued process-wide. The host event loop must call
-  `FloriaJSProcessTimers` periodically for delayed/repeating callbacks to run.
+- Timers are queued per heap. The host event loop must call
+  `Ctx.PumpTimers()` (or the compatibility wrapper `FloriaJSProcessTimers`)
+  periodically for delayed/repeating callbacks to run. `clearTimeout` and
+  `clearInterval` cancel pending work, and a zero-delay callback fires once
+  with its original arguments.
 
 ## Engine integration
 

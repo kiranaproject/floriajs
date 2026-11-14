@@ -1,0 +1,9 @@
+built-ins/Atomics/add/bigint/good-views.js
+built-ins/Atomics/load/bigint/good-views.js
+built-ins/Atomics/store/bigint/good-views.js
+built-ins/Atomics/compareExchange/bigint/good-views.js
+built-ins/Atomics/exchange/bigint/good-views.js
+built-ins/Atomics/waitAsync/value-not-equal-agent.js
+built-ins/Atomics/waitAsync/undefined-for-timeout-agent.js
+built-ins/Atomics/waitAsync/true-for-timeout-agent.js
+built-ins/Atomics/waitAsync/false-for-timeout-agent.js

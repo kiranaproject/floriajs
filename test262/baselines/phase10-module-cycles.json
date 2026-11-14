@@ -1,0 +1,695 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 2026304,
+    "sha256": "7f871a988fbc3e3d6a79bc1c30d6ca059b56acf35cab4513f56975efb911fcd7"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/module-cycle-tests.txt",
+    "selection": [
+      "language/module-code/instn-iee-iee-cycle.js",
+      "language/module-code/instn-iee-star-cycle.js",
+      "language/module-code/instn-named-iee-cycle.js",
+      "language/module-code/instn-named-star-cycle.js",
+      "language/module-code/instn-star-iee-cycle.js",
+      "language/module-code/instn-star-iee-multi-cycle-same-name.js",
+      "language/module-code/instn-star-iee-single-cycle-same-name.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "0b90fb264211067ff020ec88737263fb5f82edae5ca11c8a5077877f70c99ac1",
+    "status": "phase-10.10-agents"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/module-code/instn-iee-iee-cycle.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "instn-iee-iee-cycle.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/module-code/instn-iee-iee-cycle.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/module-code/instn-iee-iee-cycle-2_FIXTURE.js",
+        "test/language/module-code/instn-iee-iee-cycle.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/module-code/instn-iee-iee-cycle.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2459,
+        "sha256": "bd5a9c80d5ca353ab9a83f74770abc3a429af9342aef594e5cd7a9795d63ffd5"
+      },
+      "testPath": "language/module-code/instn-iee-iee-cycle.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/module-code/instn-iee-star-cycle.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "instn-iee-star-cycle.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/module-code/instn-iee-star-cycle.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/module-code/instn-iee-star-cycle-indirect-x_FIXTURE.js",
+        "test/language/module-code/instn-iee-star-cycle-2_FIXTURE.js",
+        "test/language/module-code/instn-iee-star-cycle.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/module-code/instn-iee-star-cycle.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1983,
+        "sha256": "f8e0bf9f5a8157a7d86eb6c8e2eaa572c585df7a7bbf7b0246f48df6addd873f"
+      },
+      "testPath": "language/module-code/instn-iee-star-cycle.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/module-code/instn-named-iee-cycle.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "instn-named-iee-cycle.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/module-code/instn-named-iee-cycle.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/module-code/instn-named-iee-cycle-2_FIXTURE.js",
+        "test/language/module-code/instn-named-iee-cycle.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/module-code/instn-named-iee-cycle.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2873,
+        "sha256": "924a9aa5af94d7c8f60ed1c6ab94bce4849cec14fb26e3fd143723646a9bd1b0"
+      },
+      "testPath": "language/module-code/instn-named-iee-cycle.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/module-code/instn-named-star-cycle.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "instn-named-star-cycle.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/module-code/instn-named-star-cycle.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/module-code/instn-named-star-cycle-indirect-x_FIXTURE.js",
+        "test/language/module-code/instn-named-star-cycle-2_FIXTURE.js",
+        "test/language/module-code/instn-named-star-cycle.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/module-code/instn-named-star-cycle.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2279,
+        "sha256": "1c6ae2c29fed8a0a96f93b2a9650f5c1bcb27018d073f7bbce676e1dc89a6a8c"
+      },
+      "testPath": "language/module-code/instn-named-star-cycle.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/module-code/instn-star-iee-cycle.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "instn-star-iee-cycle.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/module-code/instn-star-iee-cycle.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/module-code/instn-star-iee-cycle-2_FIXTURE.js",
+        "test/language/module-code/instn-star-iee-cycle.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/module-code/instn-star-iee-cycle.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2702,
+        "sha256": "2d57ea3dfe573509c2a8f8d8e9252511fd4b98c65eada24ee87eb761fe05f750"
+      },
+      "testPath": "language/module-code/instn-star-iee-cycle.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/module-code/instn-star-iee-multi-cycle-same-name.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "instn-star-iee-multi-cycle-same-name.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/module-code/instn-star-iee-multi-cycle-same-name.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/module-code/instn-star-iee-multi-cycle-same-name-b_FIXTURE.js",
+        "test/language/module-code/instn-star-iee-multi-cycle-same-name-c_FIXTURE.js",
+        "test/language/module-code/instn-star-iee-multi-cycle-same-name-d_FIXTURE.js",
+        "test/language/module-code/instn-star-iee-multi-cycle-same-name-a_FIXTURE.js",
+        "test/language/module-code/instn-star-iee-multi-cycle-same-name.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/module-code/instn-star-iee-multi-cycle-same-name.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1954,
+        "sha256": "ac78580054103cb32bf7978a17777c68ba53ae3e4fbe153ce546532fccb2c492"
+      },
+      "testPath": "language/module-code/instn-star-iee-multi-cycle-same-name.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/module-code/instn-star-iee-single-cycle-same-name.js::module",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "instn-star-iee-single-cycle-same-name.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/module-code/instn-star-iee-single-cycle-same-name.js::module",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "bundle.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "module"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "moduleBundle": true,
+      "moduleGraph": [
+        "test/language/module-code/instn-star-iee-single-cycle-same-name-b_FIXTURE.js",
+        "test/language/module-code/instn-star-iee-single-cycle-same-name-c_FIXTURE.js",
+        "test/language/module-code/instn-star-iee-single-cycle-same-name-a_FIXTURE.js",
+        "test/language/module-code/instn-star-iee-single-cycle-same-name.js"
+      ],
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/module-code/instn-star-iee-single-cycle-same-name.js::module",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1905,
+        "sha256": "18e99a54a44575cbebc6326d04bbcb1e60f716f040fbebf181d762bbaf43a6ba"
+      },
+      "testPath": "language/module-code/instn-star-iee-single-cycle-same-name.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "module"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 7,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 7,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "language/module-code": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 7,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 7,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 7,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 7
+      }
+    },
+    "features": {
+      "(none)": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 7,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 7,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 7,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 7
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 7,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 7
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

@@ -307,12 +307,13 @@ globals, but floriajs does not run a wall-clock event loop. The host must pump
 the timer queue, for example from the UI loop:
 
 ```pascal
-uses floria.js.timers;
-
-FloriaJSProcessTimers(Ctx.Heap);
+Ctx.PumpTimers();
 ```
 
-Timer state is process-wide in the current implementation.
+This fires every due timer and then drains the Promise jobs those callbacks
+queued. `FloriaJSProcessTimers(Ctx.Heap)` remains available as a compatibility
+wrapper. Timer state is owned by the context's heap, so independent contexts
+do not run each other's callbacks.
 
 ## Bundled examples
 

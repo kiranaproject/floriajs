@@ -1,0 +1,1275 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 1989616,
+    "sha256": "0f6ecd296933b679ddbe8ed22321d0044673d751d59f854305cd7cc68665c67c"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/strict-early-errors-tests.txt",
+    "selection": [
+      "language/literals/numeric/legacy-octal-integer-strict.js",
+      "language/literals/numeric/legacy-octal-integer.js",
+      "language/literals/numeric/legacy-octal-integery-000-strict.js",
+      "language/literals/numeric/legacy-octal-integery-005-strict.js",
+      "language/literals/numeric/legacy-octal-integery-01-strict.js",
+      "language/literals/numeric/legacy-octal-integery-010-strict.js",
+      "language/literals/numeric/legacy-octal-integery-06-strict.js",
+      "language/literals/numeric/legacy-octal-integery-07-strict.js",
+      "language/literals/numeric/non-octal-decimal-integer-strict.js",
+      "language/literals/numeric/non-octal-decimal-integer.js",
+      "language/expressions/delete/identifier-strict.js",
+      "language/expressions/delete/identifier-strict-recursive.js",
+      "language/expressions/assignment/id-arguments-strict.js",
+      "language/expressions/assignment/id-eval-strict.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "e7035ca785dc4902243158a01825a67140f03fb2566e1425ef3fa72de42a745a",
+    "status": "phase-10.10-to-primitive"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/assignment/id-arguments-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "id-arguments-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected eval or arguments in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected eval or arguments in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/expressions/assignment/id-arguments-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "id-arguments-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/expressions/assignment/id-arguments-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 440,
+        "sha256": "b3e92f4f73a72fa4b1f0392b28653b1c11589e2aa98d8279595aac8cecef4330"
+      },
+      "testPath": "language/expressions/assignment/id-arguments-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/assignment/id-eval-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "id-eval-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Unexpected eval or arguments in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Unexpected eval or arguments in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/expressions/assignment/id-eval-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "id-eval-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/expressions/assignment/id-eval-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 430,
+        "sha256": "2869d20f457a72b0b6051423e054179353d2721a3e2549ffa0e3878f5724e60f"
+      },
+      "testPath": "language/expressions/assignment/id-eval-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/delete/identifier-strict-recursive.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "identifier-strict-recursive.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Delete of an unqualified identifier in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Delete of an unqualified identifier in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/expressions/delete/identifier-strict-recursive.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "identifier-strict-recursive.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/expressions/delete/identifier-strict-recursive.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 589,
+        "sha256": "c3f9ac39b85b24968c00f3a2c34b62e66dc8365f94184774f22dd655b3d37da2"
+      },
+      "testPath": "language/expressions/delete/identifier-strict-recursive.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/delete/identifier-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "identifier-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Delete of an unqualified identifier in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Delete of an unqualified identifier in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/expressions/delete/identifier-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "identifier-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/expressions/delete/identifier-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 537,
+        "sha256": "2574f4a7d3f9a03e17d0b56829968756ec8d9435c662a8e47a6c5b3d097e702e"
+      },
+      "testPath": "language/expressions/delete/identifier-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/legacy-octal-integer-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-integer-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal literals are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal literals are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/numeric/legacy-octal-integer-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-integer-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/numeric/legacy-octal-integer-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 860,
+        "sha256": "1f4d61d873c444bcc1e459c733d5c3852d692eb27e8c9719254fea99785c1de1"
+      },
+      "testPath": "language/literals/numeric/legacy-octal-integer-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/legacy-octal-integer.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-integer.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/literals/numeric/legacy-octal-integer.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-integer.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/literals/numeric/legacy-octal-integer.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1380,
+        "sha256": "e1f20b170d9d1f49bd7498ab672c17b07a8417f317d8167d416edd5c5653f969"
+      },
+      "testPath": "language/literals/numeric/legacy-octal-integer.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/legacy-octal-integery-000-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-integery-000-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal literals are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal literals are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/numeric/legacy-octal-integery-000-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-integery-000-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/numeric/legacy-octal-integery-000-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 332,
+        "sha256": "e07b528b11b3f1a78340da958f3143f65cba97e6a94f04864f762ca9f6ae0d4b"
+      },
+      "testPath": "language/literals/numeric/legacy-octal-integery-000-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/legacy-octal-integery-005-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-integery-005-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal literals are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal literals are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/numeric/legacy-octal-integery-005-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-integery-005-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/numeric/legacy-octal-integery-005-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 332,
+        "sha256": "c8cebb08ad96767b96766d6315f29a531d4682ed971cd461f69b602abe5831ad"
+      },
+      "testPath": "language/literals/numeric/legacy-octal-integery-005-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/legacy-octal-integery-01-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-integery-01-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal literals are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal literals are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/numeric/legacy-octal-integery-01-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-integery-01-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/numeric/legacy-octal-integery-01-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 330,
+        "sha256": "49795bbcde756ee6e5fb8356069c47b7d91add32b2ef628eb52fa03df566caef"
+      },
+      "testPath": "language/literals/numeric/legacy-octal-integery-01-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/legacy-octal-integery-010-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-integery-010-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal literals are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal literals are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/numeric/legacy-octal-integery-010-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-integery-010-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/numeric/legacy-octal-integery-010-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 332,
+        "sha256": "d49214f93155cff098426e36d7e5d7983ba0c5bb89372320f0534714c2d64eb0"
+      },
+      "testPath": "language/literals/numeric/legacy-octal-integery-010-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/legacy-octal-integery-06-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-integery-06-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal literals are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal literals are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/numeric/legacy-octal-integery-06-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-integery-06-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/numeric/legacy-octal-integery-06-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 330,
+        "sha256": "38852c2395a24b42bc4933eec96466ca9c7ec0bcc6e68018e70d254074329c4a"
+      },
+      "testPath": "language/literals/numeric/legacy-octal-integery-06-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/legacy-octal-integery-07-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "legacy-octal-integery-07-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal literals are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal literals are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/numeric/legacy-octal-integery-07-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "legacy-octal-integery-07-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/numeric/legacy-octal-integery-07-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 330,
+        "sha256": "64f2b21b6b099f1d94cfdae6a5e6a0ce7b706a5b0c1bc74a363a842850d58569"
+      },
+      "testPath": "language/literals/numeric/legacy-octal-integery-07-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/non-octal-decimal-integer-strict.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "non-octal-decimal-integer-strict.js"
+      ],
+      "hostExitCode": 1,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "SyntaxError: Octal literals are not allowed in strict mode",
+          "name": "SyntaxError"
+        },
+        "legacyResult": {
+          "errorMessage": "SyntaxError: Octal literals are not allowed in strict mode",
+          "resultType": "error",
+          "stringValue": "",
+          "success": false
+        },
+        "outcome": "fail",
+        "phase": "compile",
+        "printOutput": [],
+        "reason": "evaluation-failed",
+        "scenarioId": "language/literals/numeric/non-octal-decimal-integer-strict.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "non-octal-decimal-integer-strict.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "onlyStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": {
+          "phase": "parse",
+          "type": "SyntaxError"
+        },
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "negative expectation matched: parse SyntaxError",
+      "scenarioId": "language/literals/numeric/non-octal-decimal-integer-strict.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1068,
+        "sha256": "836487f2921c64de0cbfd5204b19be75e808c22d91b1a3ed31020e0f105f8026"
+      },
+      "testPath": "language/literals/numeric/non-octal-decimal-integer-strict.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/literals/numeric/non-octal-decimal-integer.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "non-octal-decimal-integer.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/literals/numeric/non-octal-decimal-integer.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "non-octal-decimal-integer.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [
+          "noStrict"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/literals/numeric/non-octal-decimal-integer.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 3855,
+        "sha256": "e02131b1c8af4d2159e28a0a76935ac34bdbcdd6ea7fa4f4eeff4402db15015f"
+      },
+      "testPath": "language/literals/numeric/non-octal-decimal-integer.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 14,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 14,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "language/expressions/assignment": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "language/expressions/delete": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "language/literals/numeric": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 10,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 10,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 10,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 10
+      }
+    },
+    "features": {
+      "(none)": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 14,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 14,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 14,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 14
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 14,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 14
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

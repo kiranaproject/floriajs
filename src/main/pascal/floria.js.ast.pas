@@ -70,6 +70,8 @@ type
     FStringVal: string;
     FNumberVal: Double;
     FBoolVal: Boolean;
+    FIsLegacyOctal: Boolean;
+    FIsLegacyOctalEscape: Boolean;
   public
     constructor CreateNumber(ANum: Double; ALine, ACol: Integer);
     constructor CreateBigInt(const ADigits: string; ALine, ACol: Integer);
@@ -83,6 +85,8 @@ type
     property ValueType: TFloriaJSType read FValueType;
     property StringVal: string read FStringVal;
     property NumberVal: Double read FNumberVal;
+    property IsLegacyOctal: Boolean read FIsLegacyOctal write FIsLegacyOctal;
+    property IsLegacyOctalEscape: Boolean read FIsLegacyOctalEscape write FIsLegacyOctalEscape;
     property BoolVal: Boolean read FBoolVal;
   end;
 
@@ -465,6 +469,7 @@ type
     FIterable: TFloriaJSExprNode;
     FBody: TFloriaJSStmtNode;
     FLabel: string;
+    FIsAwait: Boolean;
     { A destructuring pattern, when the loop binds more than one name:
       `for (const [k, v] of map)`. VarName is empty in that case. }
     FPattern: TFloriaJSExprNode;
@@ -478,6 +483,7 @@ type
     property VarName: string read FVarName;
     property Pattern: TFloriaJSExprNode read FPattern write FPattern;
     property IsOf: Boolean read FIsOf;
+    property IsAwait: Boolean read FIsAwait write FIsAwait;
     property Iterable: TFloriaJSExprNode read FIterable;
     property Body: TFloriaJSStmtNode read FBody;
     property LabelName: string read FLabel write FLabel;
@@ -645,6 +651,20 @@ type
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
   end;
 
+  { With Statement: with (object) statement }
+  TFloriaJSWithStmt = class(TFloriaJSStmtNode)
+  private
+    FObjectExpr: TFloriaJSExprNode;
+    FBody: TFloriaJSStmtNode;
+  public
+    constructor Create(AObjectExpr: TFloriaJSExprNode; ABody: TFloriaJSStmtNode;
+      ALine, ACol: Integer);
+    destructor Destroy(); override;
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+    property ObjectExpr: TFloriaJSExprNode read FObjectExpr;
+    property Body: TFloriaJSStmtNode read FBody;
+  end;
+
   { Break Statement: break; }
   TFloriaJSBreakStmt = class(TFloriaJSStmtNode)
   private
@@ -809,6 +829,7 @@ type
     procedure VisitTryStmt(ANode: TFloriaJSTryStmt);
     procedure VisitThrowStmt(ANode: TFloriaJSThrowStmt);
     procedure VisitDebuggerStmt(ANode: TFloriaJSDebuggerStmt);
+    procedure VisitWithStmt(ANode: TFloriaJSWithStmt);
     procedure VisitClass(ANode: TFloriaJSClassNode);
     procedure VisitTaggedTemplate(ANode: TFloriaJSTaggedTemplateExpr);
     procedure VisitBreakStmt(ANode: TFloriaJSBreakStmt);
@@ -1958,6 +1979,26 @@ begin
 end;
 
 { TFloriaJSDebuggerStmt }
+
+constructor TFloriaJSWithStmt.Create(AObjectExpr: TFloriaJSExprNode;
+  ABody: TFloriaJSStmtNode; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FObjectExpr := AObjectExpr;
+  FBody := ABody;
+end;
+
+destructor TFloriaJSWithStmt.Destroy();
+begin
+  FObjectExpr.Free();
+  FBody.Free();
+  inherited Destroy();
+end;
+
+procedure TFloriaJSWithStmt.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  AVisitor.VisitWithStmt(Self);
+end;
 
 constructor TFloriaJSDebuggerStmt.Create(ALine, ACol: Integer);
 begin

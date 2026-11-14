@@ -50,6 +50,33 @@ function FloriaJSMakeErrorResult(const AErrorMsg: string): TFloriaJSResult;
 `Evaluate` path copies only primitive projections of the result value into the
 record.
 
+For phase-aware hosts, `TFloriaJSDiagnosticResult` adds a separate record
+without changing the layout of `TFloriaJSResult`:
+
+```pascal
+TFloriaJSDiagnosticKind = (
+  fjdkSuccess,
+  fjdkParseError,
+  fjdkCompileError,
+  fjdkJavaScriptThrow,
+  fjdkHostException
+);
+
+TFloriaJSDiagnosticResult = record
+  Result: TFloriaJSResult;
+  Kind: TFloriaJSDiagnosticKind;
+  ErrorName: string;
+  Message: string;
+  SourceName: string;
+  Line: Integer;
+  Column: Integer;
+  HostExceptionClass: string;
+end;
+```
+
+Both record types are exported by the umbrella `floriajs` unit. Their enum
+values are declared in `floria.js.types`.
+
 ## `TFloriaJSEngine`
 
 ```pascal
@@ -247,6 +274,66 @@ if Res.Success then
   WriteLn(Res.StringValue);    // 3
 ```
 
+### Detailed execution diagnostics
+
+```pascal
+function EvaluateDetailed(const AScript: string;
+  const ASourceName: string = ''): TFloriaJSDiagnosticResult;
+function EvaluateFileDetailed(const AFileName: string): TFloriaJSDiagnosticResult;
+function ExecuteDetailed(const AScript: string;
+  const ASourceName: string = ''): TFloriaJSDiagnosticResult;
+function ExecuteFileDetailed(const AFileName: string): TFloriaJSDiagnosticResult;
+```
+
+These additive methods execute the source once and return both the legacy
+result and structured completion information. `ExecuteDetailed` and
+`ExecuteFileDetailed` forward to the default context; the `Evaluate` variants
+operate on a specific context. A missing default context is reported as
+`fjdkHostException`.
+
+`Result` preserves the existing success fields and error text. Its layout and
+messages are not augmented with filenames or phase prefixes. `SourceName` is
+kept separately and verbatim; it defaults to an empty string for script
+execution and is the supplied path for file execution.
+
+The completion classifications are:
+
+| `Kind` | Meaning |
+| --- | --- |
+| `fjdkSuccess` | Evaluation completed normally, including empty input. |
+| `fjdkParseError` | The lexer/parser reported errors before compilation. `ErrorName` is `SyntaxError`, and `Line`/`Column` contain the first parser error location. |
+| `fjdkCompileError` | Bytecode compilation raised the typed `EFloriaJSCompileError` early error. `ErrorName` is `SyntaxError`. |
+| `fjdkJavaScriptThrow` | An uncaught `EFloriaJSThrow` escaped the script. |
+| `fjdkHostException` | A Pascal host exception, file I/O failure, or missing default context prevented normal execution. |
+
+For a genuine JavaScript `TFloriaJSError`, `ErrorName` is copied from the error
+object's `Name` and `Message` from its `Message` property. `Result.ErrorMessage`
+retains the usual `Name: message` form. Primitive throws leave `ErrorName`
+empty; the runtime does not infer constructors from strings such as
+`"TypeError: handmade"`.
+
+Parse and compile errors have empty `HostExceptionClass`. JavaScript throws
+also leave it empty. Other Pascal exceptions expose `E.ClassName` there.
+Missing files use a synthetic host message with no exception class.
+`Line` and `Column` are zero when no structured location is available; Phase 1
+does not invent compiler or runtime instruction locations.
+
+All diagnostic fields are managed strings and integers, not heap references.
+They remain valid after later evaluations collect the thrown JavaScript
+objects. This also means host code need not pin anything to retain the result.
+
+```pascal
+Diag := Engine.ExecuteDetailed('throw new TypeError("boom");', 'example.js');
+if Diag.Kind = fjdkJavaScriptThrow then
+  WriteLn(Diag.SourceName, ': ', Diag.ErrorName, ': ', Diag.Message);
+// example.js: TypeError: boom
+```
+
+The original `TFloriaJSResult`, existing virtual method slots, `Evaluate`,
+`EvaluateFile`, `Execute`, and `ExecuteFile` are unchanged. Compiler early
+errors now use `EFloriaJSCompileError`, a subclass of `Exception`, with the
+same legacy messages so existing broad exception handlers remain compatible.
+
 ### `EvaluateBytecode`
 
 ```pascal
@@ -303,6 +390,25 @@ end;
 If you forget to release a pinned object it will not be reclaimed until the
 context is reset or destroyed. That is safe, but it is a leak for long-lived
 contexts.
+
+### `EvaluateReentrant`
+
+```pascal
+function EvaluateReentrant(const AScript: string): TFloriaJSValue;
+```
+
+Use this from a native callback, such as `$262.evalScript`. It compiles and
+executes in the current global environment but deliberately:
+
+- does not run `Heap.Collect()`, because the caller's VM frame may still hold
+  live values that the standalone `Evaluate` path would consider unreferenced;
+- does not drain Promise jobs, because microtasks must run after the calling
+  script finishes, not at the nested call boundary;
+- does not pin the returned object. The VM receives the value as a normal
+  native-call result.
+
+Parse and compile errors are thrown as JavaScript `SyntaxError` objects, so a
+surrounding `try`/`catch` can handle them. Runtime throws propagate unchanged.
 
 ### `Call`
 
@@ -371,15 +477,23 @@ console output.
 
 `setTimeout`, `clearTimeout`, `setInterval`, and `clearInterval` are installed
 by the standard library, but the runtime does not run a wall-clock event loop.
-The host must call:
+Timer state belongs to the context's heap. Pump the owner context:
 
 ```pascal
-procedure FloriaJSProcessTimers(AHeap: TFloriaJSHeap);
+Context.PumpTimers();          // fire due timers, then drain Promise jobs
+Context.HasPendingTimers();
+Context.PendingTimerCount();
+Context.NextTimerDelayMS();    // -1 none, 0 due, else milliseconds
+Context.HasPendingWork();      // pending timers or queued Promise jobs
 ```
 
-periodically (for example from the UI event loop). Timer state is currently
-process-wide, so use one timer queue per process or add host-side isolation if
-you embed several independent contexts.
+`FloriaJSProcessTimers(AHeap)` remains available as a compatibility wrapper
+around the same heap-owned queue. Because registries are per heap, pumping one
+context cannot execute another context's callbacks. Zero-delay callbacks are
+queued only as timers (never also as Promise jobs), fire once per pump pass,
+and preserve their arguments. `clearTimeout`/`clearInterval` cancel pending
+work, including a timer that is due but has not started. Pending timers are
+not treated as completed async work by the Test262 host.
 
 ## Error objects and exceptions
 

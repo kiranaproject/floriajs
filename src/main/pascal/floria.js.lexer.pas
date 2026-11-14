@@ -25,6 +25,7 @@ type
     { Special }
     tkEOF,
     tkError,
+    tkReserved,
     tkComment,
 
     { Literals }
@@ -151,6 +152,8 @@ type
     { Set when the literal carries a BigInt suffix (`123n`); Text then holds the
       canonical decimal digits. }
     IsBigInt: Boolean;
+    IsLegacyOctal: Boolean;
+    IsLegacyOctalEscape: Boolean;
     BigIntValue: string;
     Line: Integer;
     Column: Integer;
@@ -245,6 +248,9 @@ begin
     'extends':    Result := tkExtends;
     'super':      Result := tkSuper;
     'static':     Result := tkStatic;
+    'enum':       Result := tkReserved;
+    'export':     Result := tkReserved;
+    'import':     Result := tkReserved;
   else
     Result := tkIdentifier;
   end;
@@ -367,6 +373,8 @@ begin
   Result.Text := AText;
   Result.NumberValue := 0.0;
   Result.IsBigInt := False;
+  Result.IsLegacyOctal := False;
+  Result.IsLegacyOctalEscape := False;
   Result.BigIntValue := '';
   Result.Line := AStartLine;
   Result.Column := AStartCol;
@@ -381,6 +389,10 @@ begin
   Result.Kind := tkError;
   Result.Text := AMessage;
   Result.NumberValue := 0.0;
+  Result.IsBigInt := False;
+  Result.IsLegacyOctal := False;
+  Result.IsLegacyOctalEscape := False;
+  Result.BigIntValue := '';
   Result.Line := AStartLine;
   Result.Column := AStartCol;
   Result.StartPos := AStartPos;
@@ -390,19 +402,37 @@ end;
 function TFloriaJSLexer.ScanIdentifierOrKeyword(): TFloriaJSToken;
 var
   startPos, startCol, startLine: Integer;
-  txt: string;
+  txt, hexCode: string;
   kind: TFloriaJSTokenKind;
+  valInt: Integer;
 begin
   startPos := FPos;
   startLine := FLine;
   startCol := FColumn;
+  txt := '';
 
-  while (not IsAtEnd()) and IsIdentPart(PeekChar()) do
-    AdvanceChar();
+  while not IsAtEnd() do
+  begin
+    if (PeekChar() = '\') and (PeekNextChar() = 'u') then
+    begin
+      AdvanceChar();
+      AdvanceChar();
+      hexCode := AdvanceChar();
+      hexCode := hexCode + AdvanceChar();
+      hexCode := hexCode + AdvanceChar();
+      hexCode := hexCode + AdvanceChar();
+      if TryStrToInt('$' + hexCode, valInt) then
+        AppendUTF8CodePoint(txt, LongWord(valInt))
+      else
+        Break;
+    end
+    else if IsIdentPart(PeekChar()) then
+      txt := txt + AdvanceChar()
+    else
+      Break;
+  end;
 
-  txt := Copy(FSource, startPos, FPos - startPos);
   kind := CheckKeyword(txt);
-
   Result := MakeToken(kind, txt, startLine, startCol, startPos);
 end;
 
@@ -420,6 +450,7 @@ var
   numStr: string;
   val: Double;
   hasFraction, hasExponent: Boolean;
+  i: Integer;
 begin
   hasFraction := False;
   hasExponent := False;
@@ -549,6 +580,30 @@ begin
   { Remove numeric separators }
   numStr := StringReplace(numStr, '_', '', [rfReplaceAll]);
 
+  { A leading zero followed by another digit is a legacy octal/decimal literal.
+    Strict mode rejects it; sloppy mode keeps the historical octal value when
+    every digit is 0-7. }
+  if (Length(numStr) > 1) and (numStr[1] = '0') and
+     (numStr[2] in ['0'..'9']) and (not hasFraction) and (not hasExponent) then
+  begin
+    Result := MakeToken(tkNumber, numStr, startLine, startCol, startPos);
+    Result.IsLegacyOctal := True;
+    val := 0.0;
+    hasFraction := False;
+    for i := 2 to Length(numStr) do
+      if numStr[i] in ['8', '9'] then
+        hasFraction := True;
+    if not hasFraction then
+    begin
+      for i := 2 to Length(numStr) do
+        val := val * 8.0 + (Ord(numStr[i]) - Ord('0'));
+    end
+    else if not JSTryStrToNumber(numStr, val) then
+      val := 0.0;
+    Result.NumberValue := val;
+    Exit;
+  end;
+
   if HasBigIntSuffix() then
   begin
     { A BigInt literal must be an integer: `1.5n` and `1e3n` are SyntaxErrors. }
@@ -575,11 +630,13 @@ var
   sb: string;
   c, esc: Char;
   hexCode: string;
-  valInt: Integer;
+  valInt, i, maxDigits: Integer;
+  legacyOctalEscape: Boolean;
 begin
   startPos := FPos;
   startLine := FLine;
   startCol := FColumn;
+  legacyOctalEscape := False;
 
   AdvanceChar(); { Consume opening quote }
   sb := '';
@@ -590,6 +647,7 @@ begin
     if c = AQuote then
     begin
       Result := MakeToken(tkString, sb, startLine, startCol, startPos);
+      Result.IsLegacyOctalEscape := legacyOctalEscape;
       Exit;
     end
     else if c = '\' then
@@ -605,13 +663,52 @@ begin
         'b':  sb := sb + #8;
         'f':  sb := sb + #12;
         'v':  sb := sb + #11;
-        '0':  sb := sb + #0;
+        '0':
+        begin
+          if PeekChar() in ['0'..'9'] then
+            legacyOctalEscape := True;
+          if PeekChar() in ['0'..'7'] then
+          begin
+            valInt := 0;
+            i := 1;
+            while (i < 3) and (PeekChar() in ['0'..'7']) do
+            begin
+              valInt := valInt * 8 + (Ord(AdvanceChar()) - Ord('0'));
+              Inc(i);
+            end;
+            sb := sb + Chr(valInt);
+          end
+          else
+            sb := sb + #0;
+        end;
+        '1'..'7':
+        begin
+          legacyOctalEscape := True;
+          valInt := Ord(esc) - Ord('0');
+          if esc in ['4'..'7'] then
+            maxDigits := 2
+          else
+            maxDigits := 3;
+          i := 1;
+          while (i < maxDigits) and (PeekChar() in ['0'..'7']) do
+          begin
+            valInt := valInt * 8 + (Ord(AdvanceChar()) - Ord('0'));
+            Inc(i);
+          end;
+          sb := sb + Chr(valInt);
+        end;
+        '8', '9':
+        begin
+          legacyOctalEscape := True;
+          sb := sb + esc;
+        end;
         '\':  sb := sb + '\';
         '''': sb := sb + '''';
         '"':  sb := sb + '"';
         'x':
         begin
-          hexCode := AdvanceChar() + AdvanceChar();
+          hexCode := AdvanceChar();
+          hexCode := hexCode + AdvanceChar();
           if TryStrToInt('$' + hexCode, valInt) then
             sb := sb + Chr(valInt)
           else
@@ -619,7 +716,10 @@ begin
         end;
         'u':
         begin
-          hexCode := AdvanceChar() + AdvanceChar() + AdvanceChar() + AdvanceChar();
+          hexCode := AdvanceChar();
+          hexCode := hexCode + AdvanceChar();
+          hexCode := hexCode + AdvanceChar();
+          hexCode := hexCode + AdvanceChar();
           if TryStrToInt('$' + hexCode, valInt) then
             AppendUTF8CodePoint(sb, LongWord(valInt))
           else
@@ -678,6 +778,8 @@ begin
     begin
       if IsAtEnd() then Break;
       esc := AdvanceChar();
+      if (esc in ['1'..'9']) or ((esc = '0') and (PeekChar() in ['0'..'9'])) then
+        Exit(MakeError('SyntaxError: Octal escape sequences are not allowed in template literals', startLine, startCol, startPos));
       case esc of
         '`': sb := sb + '`';
         '$': sb := sb + '$';
@@ -825,7 +927,7 @@ begin
     end;
 
     { Identifiers and Keywords }
-    if IsIdentStart(c) then
+    if IsIdentStart(c) or ((c = '\') and (PeekNextChar() = 'u')) then
       Exit(ScanIdentifierOrKeyword());
 
     { Numbers (including leading dot floats like .5) }
@@ -1066,6 +1168,7 @@ begin
   case AKind of
     tkEOF:            Result := 'EOF';
     tkError:          Result := 'Error';
+    tkReserved:       Result := 'Reserved';
     tkComment:        Result := 'Comment';
     tkIdentifier:     Result := 'Identifier';
     tkNumber:         Result := 'Number';

@@ -1,0 +1,270 @@
+# Phase 6 curated synchronous corpus for the pinned Test262 revision.
+# Paths are relative to the upstream test/ directory. Lines beginning with
+# '#' are documentation, not test paths. This list is deliberately small and
+# reviewed; it is not a conformance sample and not the full Test262 suite.
+#
+# It extends the Phase 0 smoke corpus into a few adjacent language and
+# built-in areas. Known failures are retained rather than filtered out, so a
+# reviewed baseline records real gaps instead of hiding them.
+
+# Arithmetic, references, NaN propagation, and early assignment errors.
+language/expressions/addition/S11.6.1_A1.js
+language/expressions/addition/S11.6.1_A2.1_T2.js
+language/expressions/addition/S11.6.1_A2.1_T3.js
+language/expressions/addition/S11.6.1_A4_T1.js
+language/expressions/assignment/S11.13.1_A3.1.js
+language/expressions/assignment/S11.13.1_A4_T1.js
+language/expressions/assignment/target-null.js
+language/expressions/assignment/target-string.js
+language/expressions/assignment/target-number.js
+
+# Logical operators and statement completion.
+language/expressions/logical-and/S11.11.1_A3_T1.js
+language/expressions/logical-and/S11.11.1_A4_T1.js
+language/statements/if/S12.5_A1.1_T1.js
+language/statements/if/cptn-else-false-nrml.js
+language/statements/for/12.6.3_2-3-a-ii-1.js
+language/statements/try/12.14-3.js
+language/statements/try/12.14-4.js
+language/statements/try/12.14-6.js
+
+# Arrays, objects, and basic constructed values.
+built-ins/Array/S15.4.1_A1.1_T1.js
+built-ins/Array/S15.4.2.1_A1.1_T1.js
+built-ins/Array/S15.4.3_A1.1_T1.js
+built-ins/Array/S15.4.5.2_A1_T1.js
+built-ins/Object/keys/15.2.3.14-1-1.js
+built-ins/Object/keys/15.2.3.14-2-2.js
+
+# Limited asynchronous completion via already-resolved promises and queued
+# microtasks. The Phase 7 host requires an explicit done-print message.
+built-ins/Promise/all/S25.4.4.1_A2.3_T3.js
+built-ins/Promise/all/S25.4.4.1_A7.2_T1.js
+built-ins/Promise/resolve/resolve-non-obj.js
+built-ins/Promise/resolve/S25.4.4.5_A2.2_T1.js
+built-ins/Promise/resolve/S25.4.4.5_A2.3_T1.js
+built-ins/Promise/resolve/S25.4.4.5_A4.1_T1.js
+
+# $262.evalScript re-entrant evaluation through the Test262 host API.
+language/global-code/script-decl-func-dups.js
+language/global-code/script-decl-lex-deletion.js
+
+# Phase 10.1: temporal dead zone and restricted-production ASI.
+language/statements/let/block-local-use-before-initialization-in-prior-statement.js
+language/statements/let/block-local-use-before-initialization-in-declaration-statement.js
+language/statements/let/block-local-closure-get-before-initialization.js
+language/statements/let/block-local-closure-set-before-initialization.js
+language/statements/const/block-local-use-before-initialization-in-prior-statement.js
+language/statements/const/block-local-use-before-initialization-in-declaration-statement.js
+language/statements/return/12.9-1.js
+
+# Phase 10.4: object-to-primitive coercion.
+language/expressions/addition/coerce-bigint-to-string.js
+
+# Phase 10.3: live global object and this.
+language/expressions/this/11.1.1-1.js
+
+# Phase 10.5: property descriptors through propertyHelper.js.
+language/global-code/decl-func.js
+language/global-code/decl-lex.js
+language/global-code/script-decl-func.js
+
+# Phase 10.6: UTF-16 string semantics (legacy string type corpus).
+language/types/string/S8.4_A10.js
+language/types/string/S8.4_A11.js
+language/types/string/S8.4_A12.js
+language/types/string/S8.4_A13_T1.js
+language/types/string/S8.4_A13_T2.js
+language/types/string/S8.4_A13_T3.js
+language/types/string/S8.4_A14_T1.js
+language/types/string/S8.4_A14_T2.js
+language/types/string/S8.4_A14_T3.js
+language/types/string/S8.4_A1.js
+language/types/string/S8.4_A2.js
+language/types/string/S8.4_A3.js
+language/types/string/S8.4_A4.js
+language/types/string/S8.4_A5.js
+language/types/string/S8.4_A6.1.js
+language/types/string/S8.4_A6.2.js
+language/types/string/S8.4_A7.1.js
+language/types/string/S8.4_A7.2.js
+language/types/string/S8.4_A7.3.js
+language/types/string/S8.4_A7.4.js
+language/types/string/S8.4_A8.js
+language/types/string/S8.4_A9_T1.js
+language/types/string/S8.4_A9_T2.js
+language/types/string/S8.4_A9_T3.js
+
+# Phase 10.7: async suspension and async iteration.
+language/statements/for-await-of/head-await-using-init.js
+language/statements/for-await-of/head-const-init.js
+language/statements/for-await-of/head-let-init.js
+language/statements/for-await-of/head-using-init.js
+language/statements/for-await-of/head-var-init.js
+language/statements/for-await-of/iterator-close-throw-get-method-abrupt.js
+language/statements/for-await-of/iterator-close-throw-get-method-non-callable.js
+
+# Phase 10.8: binary data, Reflect, and weak collections.
+built-ins/ArrayBuffer/init-zero.js
+built-ins/ArrayBuffer/zero-length.js
+built-ins/ArrayBuffer/isView/arg-is-typedarray.js
+built-ins/ArrayBuffer/prototype/byteLength/return-bytelength.js
+built-ins/DataView/constructor.js
+built-ins/DataView/buffer-reference.js
+built-ins/DataView/prototype/buffer/return-buffer.js
+built-ins/Reflect/object-prototype.js
+built-ins/WeakMap/empty-iterable.js
+built-ins/WeakSet/empty-iterable.js
+
+# Phase 10.9: static module linking and evaluation.
+language/module-code/eval-export-cls-semi.js
+language/module-code/eval-export-dflt-fun-named-semi.js
+language/module-code/eval-export-dflt-cls-named-semi.js
+language/module-code/eval-export-fun-semi.js
+language/module-code/eval-gtbndng-local-bndng-cls.js
+language/module-code/eval-gtbndng-local-bndng-const.js
+language/module-code/eval-gtbndng-local-bndng-let.js
+language/module-code/eval-gtbndng-local-bndng-var.js
+language/module-code/instn-local-bndng-export-cls.js
+language/module-code/instn-local-bndng-export-const.js
+language/module-code/instn-local-bndng-export-fun.js
+language/module-code/instn-local-bndng-export-let.js
+language/module-code/instn-local-bndng-export-var.js
+language/module-code/export-default-function-declaration-binding.js
+language/module-code/export-default-function-declaration-binding-exists.js
+
+# Phase 10.10: isolated realms (cross-realm intrinsic propagation remains partial).
+built-ins/Array/prototype/concat/create-proto-from-ctor-realm-array.js
+built-ins/Array/prototype/filter/create-proto-from-ctor-realm-array.js
+built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js
+built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js
+built-ins/Array/prototype/splice/create-proto-from-ctor-realm-array.js
+built-ins/WeakMap/proto-from-ctor-realm.js
+built-ins/WeakSet/proto-from-ctor-realm.js
+
+# Phase 10.10 follow-up: cross-realm intrinsic selection.
+built-ins/Array/from/proto-from-ctor-realm.js
+built-ins/Array/of/proto-from-ctor-realm.js
+built-ins/Array/proto-from-ctor-realm-one.js
+built-ins/Array/proto-from-ctor-realm-two.js
+built-ins/Array/proto-from-ctor-realm-zero.js
+built-ins/Array/length/define-own-prop-length-overflow-realm.js
+built-ins/ArrayBuffer/proto-from-ctor-realm.js
+built-ins/DataView/proto-from-ctor-realm.js
+built-ins/Promise/proto-from-ctor-realm.js
+built-ins/String/proto-from-ctor-realm.js
+built-ins/Array/prototype/concat/create-proto-from-ctor-realm-non-array.js
+built-ins/Array/prototype/map/create-proto-from-ctor-realm-non-array.js
+
+# Phase 10.10 follow-up: async generators.
+language/statements/async-generator/generator-created-after-decl-inst.js
+language/statements/async-generator/params-trailing-comma-multiple.js
+language/statements/async-generator/params-trailing-comma-single.js
+language/statements/async-generator/return-undefined-implicit-and-explicit.js
+language/statements/async-generator/yield-spread-arr-multiple.js
+language/statements/async-generator/yield-spread-arr-single.js
+language/statements/async-generator/yield-spread-obj.js
+language/expressions/async-generator/expression-yield-as-operand.js
+language/expressions/async-generator/expression-yield-as-statement.js
+language/expressions/async-generator/expression-yield-star-before-newline.js
+language/expressions/async-generator/generator-created-after-decl-inst.js
+language/expressions/async-generator/name.js
+
+# Phase 10.10 follow-up: Symbol.toPrimitive and ToString.
+language/expressions/addition/coerce-symbol-to-prim-err.js
+language/expressions/addition/coerce-symbol-to-prim-invocation.js
+language/expressions/addition/coerce-symbol-to-prim-return-obj.js
+language/expressions/addition/coerce-symbol-to-prim-return-prim.js
+language/expressions/addition/get-symbol-to-prim-err.js
+
+# Phase 10.10 follow-up: strict-only early errors.
+language/literals/numeric/legacy-octal-integer-strict.js
+language/literals/numeric/legacy-octal-integer.js
+language/literals/numeric/legacy-octal-integery-000-strict.js
+language/literals/numeric/legacy-octal-integery-005-strict.js
+language/literals/numeric/legacy-octal-integery-01-strict.js
+language/literals/numeric/legacy-octal-integery-010-strict.js
+language/literals/numeric/legacy-octal-integery-06-strict.js
+language/literals/numeric/legacy-octal-integery-07-strict.js
+language/literals/numeric/non-octal-decimal-integer-strict.js
+language/literals/numeric/non-octal-decimal-integer.js
+language/expressions/delete/identifier-strict.js
+language/expressions/delete/identifier-strict-recursive.js
+language/expressions/assignment/id-arguments-strict.js
+language/expressions/assignment/id-eval-strict.js
+
+# Phase 10.10 follow-up: live module bindings and cycles.
+language/module-code/instn-iee-iee-cycle.js
+language/module-code/instn-named-iee-cycle.js
+language/module-code/instn-star-iee-cycle.js
+
+# Phase 10.10 follow-up: SharedArrayBuffer and Atomics.
+built-ins/Atomics/add/good-views.js
+built-ins/Atomics/load/good-views.js
+built-ins/Atomics/store/good-views.js
+built-ins/Atomics/compareExchange/good-views.js
+built-ins/Atomics/exchange/good-views.js
+built-ins/SharedArrayBuffer/prototype/byteLength/return-bytelength.js
+
+# Phase 10.10 follow-up: Proxy traps.
+built-ins/Proxy/get/trap-is-undefined.js
+built-ins/Proxy/get/trap-is-not-callable.js
+built-ins/Proxy/get/return-is-abrupt.js
+built-ins/Proxy/set/trap-is-undefined.js
+built-ins/Proxy/set/trap-is-not-callable.js
+built-ins/Proxy/ownKeys/trap-is-undefined.js
+built-ins/Proxy/revocable/revoke-returns-undefined.js
+
+# Phase 10.10 follow-up: cooperative agents.
+built-ins/Atomics/notify/notify-with-no-agents-waiting.js
+built-ins/Atomics/notify/notify-with-no-matching-agents-waiting.js
+built-ins/Atomics/wait/false-for-timeout-agent.js
+
+# Phase 10.10 follow-up: Proxy apply/construct.
+built-ins/Proxy/apply/call-parameters.js
+built-ins/Proxy/apply/call-result.js
+built-ins/Proxy/construct/call-parameters.js
+built-ins/Proxy/construct/call-result.js
+built-ins/Proxy/construct/trap-is-undefined.js
+
+# Phase 10.10 follow-up: strict octal escape sequences.
+language/literals/string/legacy-octal-escape-sequence.js
+language/literals/string/legacy-octal-escape-sequence-strict.js
+language/literals/string/legacy-non-octal-escape-sequence-8-strict.js
+language/literals/string/legacy-non-octal-escape-sequence-9-strict.js
+
+# Phase 10.10 follow-up: BigInt atomics and waitAsync.
+built-ins/Atomics/add/bigint/good-views.js
+built-ins/Atomics/load/bigint/good-views.js
+built-ins/Atomics/store/bigint/good-views.js
+built-ins/Atomics/compareExchange/bigint/good-views.js
+built-ins/Atomics/exchange/bigint/good-views.js
+built-ins/Atomics/waitAsync/value-not-equal-agent.js
+
+# Phase 10.10 follow-up: import.meta, dynamic import, and JSON attributes.
+language/import/import-attributes/json-value-boolean.js
+language/import/import-attributes/json-value-null.js
+language/import/import-attributes/json-value-number.js
+language/import/import-attributes/json-value-string.js
+language/import/import-attributes/json-via-namespace.js
+
+# Phase 10.10 follow-up: Proxy invariants.
+built-ins/Proxy/deleteProperty/targetdesc-is-not-configurable.js
+built-ins/Proxy/get/accessor-get-is-undefined-throws.js
+built-ins/Proxy/get/not-same-value-configurable-false-writable-false-throws.js
+built-ins/Proxy/has/return-false-targetdesc-not-configurable.js
+built-ins/Proxy/ownKeys/return-all-non-configurable-keys.js
+
+# Phase 10.10 follow-up: strict reserved words.
+language/future-reserved-words/implements-strict.js
+language/future-reserved-words/interface-strict.js
+language/future-reserved-words/package-strict.js
+language/future-reserved-words/private-strict.js
+language/future-reserved-words/protected-strict.js
+language/future-reserved-words/public-strict.js
+
+# Phase 10.10 follow-up: with statement.
+language/statements/with/12.10-0-1.js
+language/statements/with/12.10-0-10.js
+language/statements/with/12.10-2-1.js
+language/statements/with/12.10-2-2.js

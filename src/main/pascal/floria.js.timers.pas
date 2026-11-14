@@ -5,8 +5,8 @@
 {   Provides standard setTimeout, clearTimeout, setInterval, and           }
 {   clearInterval timer scheduling primitives.                             }
 {                                                                          }
-{   Copyright (c) 2026 Dio Affriza                                         }
-{   SPDX-License-Identifier: MPL-2.0                                       }
+{   Copyright (c) 2026 Dio Affriza                                          }
+{   SPDX-License-Identifier: MPL-2.0                                        }
 {                                                                          }
 { ************************************************************************** }
 
@@ -29,6 +29,39 @@ type
     DueMS: Double;
     Active: Boolean;
     Repeats: Boolean;
+    Running: Boolean;
+  end;
+
+  { One timer queue owned by one heap (and therefore by one context). Native
+    timer functions are methods of this object, so they always schedule into
+    the queue of the context that created them. }
+  TFloriaJSTimerRegistry = class
+  private
+    FHeap: TFloriaJSHeap;
+    FTimers: array of TFloriaJSTimer;
+    FCount: Integer;
+    FNextId: Integer;
+    function CurrentMS(): Double;
+    function AllocTimerId(): Integer;
+    function FindIndex(AId: Integer): Integer;
+    procedure ReleaseEntry(var AEntry: TFloriaJSTimer);
+    function Schedule(const AArgs: array of TFloriaJSValue; ARepeats: Boolean): TFloriaJSValue;
+  public
+    constructor Create(AHeap: TFloriaJSHeap);
+    destructor Destroy(); override;
+
+    function SetTimeout(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function SetInterval(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function ClearTimer(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+
+    procedure Register(AEnv: TFloriaJSEnvironment);
+    procedure ProcessDue();
+    function PendingCount(): Integer;
+    function HasPending(): Boolean;
+    { -1 when no timer is pending, 0 when a timer is already due, otherwise
+      the whole-millisecond delay to the next due timer. }
+    function NextDelayMS(): Integer;
+    procedure ClearAll();
   end;
 
 procedure FloriaJSRegisterTimers(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
@@ -36,29 +69,62 @@ procedure FloriaJSProcessTimers(AHeap: TFloriaJSHeap);
 
 implementation
 
-var
-  GTimers: array of TFloriaJSTimer;
-  GTimerCount: Integer = 0;
-  GNextTimerId: Integer = 1;
-  GSharedTimerHeap: TFloriaJSHeap = nil;
+constructor TFloriaJSTimerRegistry.Create(AHeap: TFloriaJSHeap);
+begin
+  inherited Create();
+  FHeap := AHeap;
+  FCount := 0;
+  FNextId := 1;
+  SetLength(FTimers, 0);
+end;
 
-function CurrentMS(): Double;
+destructor TFloriaJSTimerRegistry.Destroy();
+begin
+  ClearAll();
+  inherited Destroy();
+end;
+
+function TFloriaJSTimerRegistry.CurrentMS(): Double;
 begin
   Result := (Now() - 25569.0) * 86400000.0;
 end;
 
-function AllocTimerId(): Integer;
+function TFloriaJSTimerRegistry.AllocTimerId(): Integer;
 begin
-  Inc(GNextTimerId);
-  Result := GNextTimerId;
+  Result := FNextId;
+  Inc(FNextId);
+  if FNextId < 1 then
+    FNextId := 1;
 end;
 
-function JSSetTimeout(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+function TFloriaJSTimerRegistry.FindIndex(AId: Integer): Integer;
+var
+  i: Integer;
+begin
+  Result := -1;
+  for i := 0 to FCount - 1 do
+    if FTimers[i].Id = AId then
+      Exit(i);
+end;
+
+procedure TFloriaJSTimerRegistry.ReleaseEntry(var AEntry: TFloriaJSTimer);
+var
+  i: Integer;
+begin
+  JSReleaseValue(AEntry.Callback);
+  for i := 0 to High(AEntry.Args) do
+    JSReleaseValue(AEntry.Args[i]);
+  AEntry.Callback := JSMakeUndefined();
+  SetLength(AEntry.Args, 0);
+  AEntry.Active := False;
+end;
+
+function TFloriaJSTimerRegistry.Schedule(const AArgs: array of TFloriaJSValue;
+  ARepeats: Boolean): TFloriaJSValue;
 var
   id, i, argCount: Integer;
   delay: Double;
-  job: TFloriaJSPromiseJob;
-  heap: TFloriaJSHeap;
+  entry: TFloriaJSTimer;
 begin
   if (Length(AArgs) = 0) or not AArgs[0].IsFunction() then
     Exit(JSMakeNumber(0));
@@ -66,140 +132,227 @@ begin
   delay := 0.0;
   if Length(AArgs) > 1 then
     delay := AArgs[1].ToNumber();
-  if delay < 0.0 then delay := 0.0;
+  { NaN and negative delays are treated as zero, matching timer scheduling
+    rather than leaving a timer that can never become due. }
+  if (delay <> delay) or (delay < 0.0) then
+    delay := 0.0;
 
   id := AllocTimerId();
 
-  if GTimerCount >= Length(GTimers) then
-    SetLength(GTimers, (GTimerCount + 1) * 2);
-
-  GTimers[GTimerCount].Id := id;
-  GTimers[GTimerCount].Callback := AArgs[0];
+  entry := Default(TFloriaJSTimer);
+  entry.Id := id;
+  entry.Callback := AArgs[0];
   JSRetainValue(AArgs[0]);
-  GTimers[GTimerCount].DelayMS := delay;
-  GTimers[GTimerCount].DueMS := CurrentMS() + delay;
-  GTimers[GTimerCount].Active := True;
-  GTimers[GTimerCount].Repeats := False;
+  entry.DelayMS := delay;
+  entry.DueMS := CurrentMS() + delay;
+  entry.Active := True;
+  entry.Repeats := ARepeats;
+  entry.Running := False;
 
   argCount := Length(AArgs) - 2;
   if argCount > 0 then
   begin
-    SetLength(GTimers[GTimerCount].Args, argCount);
+    SetLength(entry.Args, argCount);
     for i := 0 to argCount - 1 do
     begin
-      GTimers[GTimerCount].Args[i] := AArgs[i + 2];
+      entry.Args[i] := AArgs[i + 2];
       JSRetainValue(AArgs[i + 2]);
     end;
   end
   else
-    SetLength(GTimers[GTimerCount].Args, 0);
+    SetLength(entry.Args, 0);
 
-  Inc(GTimerCount);
-
-  // If delay is 0, also enqueue as a promise job for immediate microtask execution
-  heap := GSharedTimerHeap;
-  if (delay <= 0) and (heap <> nil) then
-  begin
-    job.OnFulfilled := AArgs[0];
-    job.OnRejected := JSMakeUndefined();
-    job.OnFinally := JSMakeUndefined();
-    job.Value := JSMakeUndefined();
-    job.Child := nil;
-    heap.EnqueuePromiseJob(job);
-  end;
+  if FCount >= Length(FTimers) then
+    SetLength(FTimers, (FCount + 1) * 2);
+  FTimers[FCount] := entry;
+  Inc(FCount);
 
   Result := JSMakeNumber(id);
 end;
 
-function JSClearTimeout(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
-var
-  id, i, j: Integer;
+function TFloriaJSTimerRegistry.SetTimeout(const AArgs: array of TFloriaJSValue;
+  AThis: TFloriaJSValue): TFloriaJSValue;
 begin
-  if Length(AArgs) = 0 then Exit(JSMakeUndefined());
+  Result := Schedule(AArgs, False);
+end;
+
+function TFloriaJSTimerRegistry.SetInterval(const AArgs: array of TFloriaJSValue;
+  AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := Schedule(AArgs, True);
+end;
+
+function TFloriaJSTimerRegistry.ClearTimer(const AArgs: array of TFloriaJSValue;
+  AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  id, index: Integer;
+begin
+  if Length(AArgs) = 0 then
+    Exit(JSMakeUndefined());
   id := Round(AArgs[0].ToNumber());
-
-  for i := 0 to GTimerCount - 1 do
+  index := FindIndex(id);
+  if index >= 0 then
   begin
-    if GTimers[i].Id = id then
-    begin
-      if GTimers[i].Active then
-      begin
-        GTimers[i].Active := False;
-        JSReleaseValue(GTimers[i].Callback);
-        for j := 0 to High(GTimers[i].Args) do
-          JSReleaseValue(GTimers[i].Args[j]);
-        SetLength(GTimers[i].Args, 0);
-      end;
-      Break;
-    end;
+    FTimers[index].Active := False;
+    { A callback that is already running must not have its argument values
+      released underneath it. ProcessDue releases them after invocation. }
+    if not FTimers[index].Running then
+      ReleaseEntry(FTimers[index]);
   end;
-
   Result := JSMakeUndefined();
 end;
 
-function JSSetInterval(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+procedure TFloriaJSTimerRegistry.ProcessDue();
 var
-  res: TFloriaJSValue;
-  id: Integer;
+  nowTime: Double;
+  i, snapshot: Integer;
+  callback: TFloriaJSValue;
+  callbackArgs: array of TFloriaJSValue;
+begin
+  nowTime := CurrentMS();
+  { Timers scheduled by a callback are handled by the next pump pass. A
+    fixed snapshot also keeps a zero-delay callback chain from trapping the
+    whole pump in one invocation. }
+  snapshot := FCount;
+  i := 0;
+  while i < snapshot do
+  begin
+    if FTimers[i].Active and (nowTime >= FTimers[i].DueMS) then
+    begin
+      callback := FTimers[i].Callback;
+      callbackArgs := FTimers[i].Args;
+      FTimers[i].Running := True;
+      { A non-repeating timer is removed from the active set before its
+        callback runs, so a nested pump or a clearTimeout() call cannot make
+        it execute twice. }
+      if not FTimers[i].Repeats then
+        FTimers[i].Active := False;
+      try
+        if (FHeap <> nil) and callback.IsFunction() then
+          FHeap.InvokeFunction(callback, callbackArgs, JSMakeUndefined());
+      finally
+        FTimers[i].Running := False;
+        if FTimers[i].Repeats then
+        begin
+          if FTimers[i].Active then
+            FTimers[i].DueMS := CurrentMS() + FTimers[i].DelayMS
+          else
+            ReleaseEntry(FTimers[i]);
+        end
+        else
+          ReleaseEntry(FTimers[i]);
+      end;
+    end;
+    Inc(i);
+  end;
+
+  { Drop inactive entries after the pass. Timers scheduled by callbacks remain
+    active and are retained in their scheduling order. }
+  snapshot := 0;
+  for i := 0 to FCount - 1 do
+    if FTimers[i].Active then
+    begin
+      if snapshot <> i then
+        FTimers[snapshot] := FTimers[i];
+      Inc(snapshot);
+    end;
+  FCount := snapshot;
+end;
+
+function TFloriaJSTimerRegistry.PendingCount(): Integer;
+var
   i: Integer;
 begin
-  res := JSSetTimeout(AArgs, AThis);
-  id := Round(res.NumVal);
-  for i := 0 to GTimerCount - 1 do
+  Result := 0;
+  for i := 0 to FCount - 1 do
+    if FTimers[i].Active then
+      Inc(Result);
+end;
+
+function TFloriaJSTimerRegistry.HasPending(): Boolean;
+begin
+  Result := PendingCount() > 0;
+end;
+
+function TFloriaJSTimerRegistry.NextDelayMS(): Integer;
+var
+  i: Integer;
+  delay: Double;
+  best: Double;
+begin
+  best := 0.0;
+  Result := -1;
+  for i := 0 to FCount - 1 do
   begin
-    if GTimers[i].Id = id then
+    if not FTimers[i].Active then
+      Continue;
+    delay := FTimers[i].DueMS - CurrentMS();
+    if delay <= 0.0 then
+      Exit(0);
+    if (Result < 0) or (delay < best) then
     begin
-      GTimers[i].Repeats := True;
-      Break;
+      best := delay;
+      Result := Round(delay);
+      if Result < 1 then
+        Result := 1;
     end;
   end;
-  Result := res;
+end;
+
+procedure TFloriaJSTimerRegistry.ClearAll();
+var
+  i: Integer;
+begin
+  for i := 0 to FCount - 1 do
+    ReleaseEntry(FTimers[i]);
+  SetLength(FTimers, 0);
+  FCount := 0;
+end;
+
+procedure TFloriaJSTimerRegistry.Register(AEnv: TFloriaJSEnvironment);
+begin
+  if (AEnv = nil) or (FHeap = nil) then
+    Exit;
+  AEnv.Define('setTimeout', JSMakeFunction(
+    FHeap.NewNativeMethod('setTimeout', @Self.SetTimeout)));
+  AEnv.Define('clearTimeout', JSMakeFunction(
+    FHeap.NewNativeMethod('clearTimeout', @Self.ClearTimer)));
+  AEnv.Define('setInterval', JSMakeFunction(
+    FHeap.NewNativeMethod('setInterval', @Self.SetInterval)));
+  AEnv.Define('clearInterval', JSMakeFunction(
+    FHeap.NewNativeMethod('clearInterval', @Self.ClearTimer)));
+end;
+
+function RegistryOf(AHeap: TFloriaJSHeap): TFloriaJSTimerRegistry;
+begin
+  Result := nil;
+  if (AHeap <> nil) and (AHeap.TimerRegistry <> nil) then
+    Result := TFloriaJSTimerRegistry(AHeap.TimerRegistry);
+end;
+
+procedure FloriaJSRegisterTimers(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
+var
+  registry: TFloriaJSTimerRegistry;
+begin
+  if (AEnv = nil) or (AHeap = nil) then
+    Exit;
+
+  registry := RegistryOf(AHeap);
+  if registry = nil then
+  begin
+    registry := TFloriaJSTimerRegistry.Create(AHeap);
+    AHeap.TimerRegistry := registry;
+  end;
+  registry.Register(AEnv);
 end;
 
 procedure FloriaJSProcessTimers(AHeap: TFloriaJSHeap);
 var
-  nowTime: Double;
-  i, j: Integer;
-  cb: TFloriaJSValue;
+  registry: TFloriaJSTimerRegistry;
 begin
-  nowTime := CurrentMS();
-
-  for i := 0 to GTimerCount - 1 do
-  begin
-    if GTimers[i].Active and (nowTime >= GTimers[i].DueMS) then
-    begin
-      cb := GTimers[i].Callback;
-      if (AHeap <> nil) and cb.IsFunction() then
-        AHeap.InvokeFunction(cb, GTimers[i].Args, JSMakeUndefined());
-
-      if GTimers[i].Repeats then
-        GTimers[i].DueMS := nowTime + GTimers[i].DelayMS
-      else
-      begin
-        GTimers[i].Active := False;
-        JSReleaseValue(GTimers[i].Callback);
-        for j := 0 to High(GTimers[i].Args) do
-          JSReleaseValue(GTimers[i].Args[j]);
-        SetLength(GTimers[i].Args, 0);
-      end;
-    end;
-  end;
+  registry := RegistryOf(AHeap);
+  if registry <> nil then
+    registry.ProcessDue();
 end;
-
-procedure FloriaJSRegisterTimers(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
-begin
-  if (AEnv = nil) or (AHeap = nil) then Exit;
-
-  GSharedTimerHeap := AHeap;
-  AEnv.Define('setTimeout', JSMakeFunction(AHeap.NewNativeFunction('setTimeout', @JSSetTimeout)));
-  AEnv.Define('clearTimeout', JSMakeFunction(AHeap.NewNativeFunction('clearTimeout', @JSClearTimeout)));
-  AEnv.Define('setInterval', JSMakeFunction(AHeap.NewNativeFunction('setInterval', @JSSetInterval)));
-  AEnv.Define('clearInterval', JSMakeFunction(AHeap.NewNativeFunction('clearInterval', @JSClearTimeout)));
-end;
-
-initialization
-
-finalization
-  SetLength(GTimers, 0);
 
 end.

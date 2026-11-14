@@ -1,0 +1,17 @@
+language/literals/string/legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-3-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-4-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-5-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-6-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-7-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-8-non-strict.js
+language/literals/string/legacy-non-octal-escape-sequence-8-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-8-strict.js
+language/literals/string/legacy-non-octal-escape-sequence-9-non-strict.js
+language/literals/string/legacy-non-octal-escape-sequence-9-strict-explicit-pragma.js
+language/literals/string/legacy-non-octal-escape-sequence-9-strict.js
+language/literals/string/legacy-non-octal-escape-sequence-strict.js
+language/literals/string/legacy-octal-escape-sequence-prologue-strict.js
+language/literals/string/legacy-octal-escape-sequence-strict.js
+language/literals/string/legacy-octal-escape-sequence.js

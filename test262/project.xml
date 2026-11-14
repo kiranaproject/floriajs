@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <name>floria-test262-host</name>
+  <version>0.0.1</version>
+  <author>Dio Affriza</author>
+  <license>MPL-2.0</license>
+
+  <build>
+    <mainSource>floria.test262.host.pas</mainSource>
+    <executableName>floria-test262-host</executableName>
+    <projectType>application</projectType>
+    <outputDirectory>target</outputDirectory>
+
+    <!-- Prefer this checkout's sources over any installed floriajs units. -->
+    <manualUnitPaths>true</manualUnitPaths>
+    <unitPaths>
+      <path>src/main/pascal</path>
+      <path>../src/main/pascal</path>
+    </unitPaths>
+  </build>
+
+  <dependencies>
+    <dependency>
+      <name>floriajs</name>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>
+  </dependencies>
+</project>

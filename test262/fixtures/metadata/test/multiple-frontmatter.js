@@ -1,0 +1,6 @@
+/*---
+flags: [noStrict]
+---*/
+/*---
+flags: [raw]
+---*/

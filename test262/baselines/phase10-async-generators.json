@@ -1,0 +1,3285 @@
+{
+  "baseline": true,
+  "engine": {
+    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
+    "workingTreeDirty": true
+  },
+  "host": {
+    "bytes": 2044800,
+    "sha256": "5991e6123e8094d339ee5867c90fc1e3aa00f12b555bd61246ea4e3c93580986"
+  },
+  "kind": "floriajs-test262-report",
+  "options": {
+    "allowUnpinned": false,
+    "listFile": "config/async-generator-tests.txt",
+    "selection": [
+      "language/statements/async-generator/generator-created-after-decl-inst.js",
+      "language/statements/async-generator/params-trailing-comma-multiple.js",
+      "language/statements/async-generator/params-trailing-comma-single.js",
+      "language/statements/async-generator/return-undefined-implicit-and-explicit.js",
+      "language/statements/async-generator/yield-promise-reject-next.js",
+      "language/statements/async-generator/yield-spread-arr-multiple.js",
+      "language/statements/async-generator/yield-spread-arr-single.js",
+      "language/statements/async-generator/yield-spread-obj.js",
+      "language/statements/async-generator/yield-star-async-next.js",
+      "language/statements/async-generator/yield-star-async-return.js",
+      "language/statements/async-generator/yield-star-async-throw.js",
+      "language/expressions/async-generator/default-proto.js",
+      "language/expressions/async-generator/expression-yield-as-operand.js",
+      "language/expressions/async-generator/expression-yield-as-statement.js",
+      "language/expressions/async-generator/expression-yield-newline.js",
+      "language/expressions/async-generator/expression-yield-star-before-newline.js",
+      "language/expressions/async-generator/generator-created-after-decl-inst.js",
+      "language/expressions/async-generator/name.js"
+    ],
+    "timeoutSeconds": 5.0
+  },
+  "platform": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-43-generic",
+    "system": "Linux"
+  },
+  "policy": {
+    "name": "floriajs-diagnostic-subset",
+    "sha256": "71e9fbae8426986e06563eb937501bd1bbaa3a7f10905536b65c0ab561f70efa",
+    "status": "phase-10.10-atomics-complete"
+  },
+  "records": [
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/default-proto.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "default-proto.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/async-generator/default-proto.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "default-proto.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration",
+          "Symbol"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/async-generator/default-proto.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2021,
+        "sha256": "be10bf1d96afff51d2c3a39968f75e7361d560c773090097ff641e56d65a7334"
+      },
+      "testPath": "language/expressions/async-generator/default-proto.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/default-proto.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "default-proto.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/async-generator/default-proto.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "default-proto.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration",
+          "Symbol"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/async-generator/default-proto.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2021,
+        "sha256": "be10bf1d96afff51d2c3a39968f75e7361d560c773090097ff641e56d65a7334"
+      },
+      "testPath": "language/expressions/async-generator/default-proto.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/expression-yield-as-operand.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "expression-yield-as-operand.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/expressions/async-generator/expression-yield-as-operand.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expression-yield-as-operand.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/expressions/async-generator/expression-yield-as-operand.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1033,
+        "sha256": "fd862fcee2cf4630d1d900512c4adfe91528e5efd8347592b67a30e11f65087c"
+      },
+      "testPath": "language/expressions/async-generator/expression-yield-as-operand.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/expression-yield-as-operand.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "expression-yield-as-operand.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/expressions/async-generator/expression-yield-as-operand.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expression-yield-as-operand.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/expressions/async-generator/expression-yield-as-operand.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1033,
+        "sha256": "fd862fcee2cf4630d1d900512c4adfe91528e5efd8347592b67a30e11f65087c"
+      },
+      "testPath": "language/expressions/async-generator/expression-yield-as-operand.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/expression-yield-as-statement.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "expression-yield-as-statement.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/expressions/async-generator/expression-yield-as-statement.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expression-yield-as-statement.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/expressions/async-generator/expression-yield-as-statement.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1500,
+        "sha256": "2c456c0bffe2b5aae0b401088e0ece92f987e859cc7df2c62f6c87b4b49e4c44"
+      },
+      "testPath": "language/expressions/async-generator/expression-yield-as-statement.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/expression-yield-as-statement.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "expression-yield-as-statement.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/expressions/async-generator/expression-yield-as-statement.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expression-yield-as-statement.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/expressions/async-generator/expression-yield-as-statement.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1500,
+        "sha256": "2c456c0bffe2b5aae0b401088e0ece92f987e859cc7df2c62f6c87b4b49e4c44"
+      },
+      "testPath": "language/expressions/async-generator/expression-yield-as-statement.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/expression-yield-newline.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "expression-yield-newline.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/expressions/async-generator/expression-yield-newline.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expression-yield-newline.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/expressions/async-generator/expression-yield-newline.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 790,
+        "sha256": "d1ca7ba151d012be4b15634d47602339e79dda8105ab8b1f02532f568c612a1d"
+      },
+      "testPath": "language/expressions/async-generator/expression-yield-newline.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/expression-yield-newline.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "expression-yield-newline.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/expressions/async-generator/expression-yield-newline.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expression-yield-newline.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/expressions/async-generator/expression-yield-newline.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 790,
+        "sha256": "d1ca7ba151d012be4b15634d47602339e79dda8105ab8b1f02532f568c612a1d"
+      },
+      "testPath": "language/expressions/async-generator/expression-yield-newline.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/expression-yield-star-before-newline.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "expression-yield-star-before-newline.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/expressions/async-generator/expression-yield-star-before-newline.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expression-yield-star-before-newline.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/expressions/async-generator/expression-yield-star-before-newline.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 574,
+        "sha256": "132be8c5e0a2cb71ea0002aea93800829ce5487e4717a215b66bf9ac87240ab2"
+      },
+      "testPath": "language/expressions/async-generator/expression-yield-star-before-newline.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/expression-yield-star-before-newline.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "expression-yield-star-before-newline.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/expressions/async-generator/expression-yield-star-before-newline.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "expression-yield-star-before-newline.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/expressions/async-generator/expression-yield-star-before-newline.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 574,
+        "sha256": "132be8c5e0a2cb71ea0002aea93800829ce5487e4717a215b66bf9ac87240ab2"
+      },
+      "testPath": "language/expressions/async-generator/expression-yield-star-before-newline.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/generator-created-after-decl-inst.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "generator-created-after-decl-inst.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/async-generator/generator-created-after-decl-inst.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "generator-created-after-decl-inst.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/async-generator/generator-created-after-decl-inst.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 874,
+        "sha256": "0d47c2d617b6897535920cd4be93bc7c8c06e91f9bfda037a87a7db2448395cf"
+      },
+      "testPath": "language/expressions/async-generator/generator-created-after-decl-inst.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/generator-created-after-decl-inst.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "generator-created-after-decl-inst.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/async-generator/generator-created-after-decl-inst.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "generator-created-after-decl-inst.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/async-generator/generator-created-after-decl-inst.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 874,
+        "sha256": "0d47c2d617b6897535920cd4be93bc7c8c06e91f9bfda037a87a7db2448395cf"
+      },
+      "testPath": "language/expressions/async-generator/generator-created-after-decl-inst.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "propertyHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/name.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "propertyHelper.js",
+        "--test",
+        "name.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "boolean",
+          "stringValue": "true",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/async-generator/name.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "name.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "propertyHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/async-generator/name.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1403,
+        "sha256": "0795b7b0518ef8eadfde4eaae6e80e49fef08593d00a693fffe2e71a85d34949"
+      },
+      "testPath": "language/expressions/async-generator/name.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "propertyHelper.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/expressions/async-generator/name.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "propertyHelper.js",
+        "--test",
+        "name.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "boolean",
+          "stringValue": "true",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/expressions/async-generator/name.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "name.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [
+          "propertyHelper.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/expressions/async-generator/name.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1403,
+        "sha256": "0795b7b0518ef8eadfde4eaae6e80e49fef08593d00a693fffe2e71a85d34949"
+      },
+      "testPath": "language/expressions/async-generator/name.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/generator-created-after-decl-inst.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "generator-created-after-decl-inst.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/async-generator/generator-created-after-decl-inst.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "generator-created-after-decl-inst.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/async-generator/generator-created-after-decl-inst.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 868,
+        "sha256": "ce82c756d9e86f0563a1b4dac394aafdc5949daf6b7c0270b0e750b1e127aab4"
+      },
+      "testPath": "language/statements/async-generator/generator-created-after-decl-inst.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/generator-created-after-decl-inst.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--test",
+        "generator-created-after-decl-inst.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [],
+        "reason": "",
+        "scenarioId": "language/statements/async-generator/generator-created-after-decl-inst.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "generator-created-after-decl-inst.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "",
+      "scenarioId": "language/statements/async-generator/generator-created-after-decl-inst.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 868,
+        "sha256": "ce82c756d9e86f0563a1b4dac394aafdc5949daf6b7c0270b0e750b1e127aab4"
+      },
+      "testPath": "language/statements/async-generator/generator-created-after-decl-inst.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/params-trailing-comma-multiple.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "params-trailing-comma-multiple.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/params-trailing-comma-multiple.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "params-trailing-comma-multiple.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/params-trailing-comma-multiple.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1294,
+        "sha256": "1f763017cd2aacef4b0346fbb3fe3101f72513c9e38ef0fa6ab83696e8d37660"
+      },
+      "testPath": "language/statements/async-generator/params-trailing-comma-multiple.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/params-trailing-comma-multiple.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "params-trailing-comma-multiple.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/params-trailing-comma-multiple.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "params-trailing-comma-multiple.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/params-trailing-comma-multiple.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1294,
+        "sha256": "1f763017cd2aacef4b0346fbb3fe3101f72513c9e38ef0fa6ab83696e8d37660"
+      },
+      "testPath": "language/statements/async-generator/params-trailing-comma-multiple.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/params-trailing-comma-single.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "params-trailing-comma-single.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/params-trailing-comma-single.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "params-trailing-comma-single.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/params-trailing-comma-single.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1258,
+        "sha256": "184c159efa5a64c8f016e26addb80c8c570fce9501b910e9959e73b59c8e566d"
+      },
+      "testPath": "language/statements/async-generator/params-trailing-comma-single.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/params-trailing-comma-single.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "params-trailing-comma-single.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/params-trailing-comma-single.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "params-trailing-comma-single.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/params-trailing-comma-single.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1258,
+        "sha256": "184c159efa5a64c8f016e26addb80c8c570fce9501b910e9959e73b59c8e566d"
+      },
+      "testPath": "language/statements/async-generator/params-trailing-comma-single.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "compareArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/return-undefined-implicit-and-explicit.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "compareArray.js",
+        "--test",
+        "return-undefined-implicit-and-explicit.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/return-undefined-implicit-and-explicit.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "return-undefined-implicit-and-explicit.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "compareArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/return-undefined-implicit-and-explicit.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2304,
+        "sha256": "c098706621623114a96578462d96a39fb399f3c255a6dd7873195c03b2f72ba6"
+      },
+      "testPath": "language/statements/async-generator/return-undefined-implicit-and-explicit.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "compareArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/return-undefined-implicit-and-explicit.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "compareArray.js",
+        "--test",
+        "return-undefined-implicit-and-explicit.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "object",
+          "stringValue": "[object Object]",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/return-undefined-implicit-and-explicit.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "return-undefined-implicit-and-explicit.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "compareArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/return-undefined-implicit-and-explicit.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 2304,
+        "sha256": "c098706621623114a96578462d96a39fb399f3c255a6dd7873195c03b2f72ba6"
+      },
+      "testPath": "language/statements/async-generator/return-undefined-implicit-and-explicit.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-promise-reject-next.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-promise-reject-next.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-promise-reject-next.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-promise-reject-next.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-promise-reject-next.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1253,
+        "sha256": "8f2a4b6638b5fbdb4195bf75ba0a84a8c5df76b8963e57d5679c4e0b54bf9df3"
+      },
+      "testPath": "language/statements/async-generator/yield-promise-reject-next.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-promise-reject-next.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-promise-reject-next.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-promise-reject-next.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-promise-reject-next.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-promise-reject-next.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1253,
+        "sha256": "8f2a4b6638b5fbdb4195bf75ba0a84a8c5df76b8963e57d5679c4e0b54bf9df3"
+      },
+      "testPath": "language/statements/async-generator/yield-promise-reject-next.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "compareArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-spread-arr-multiple.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "compareArray.js",
+        "--test",
+        "yield-spread-arr-multiple.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-spread-arr-multiple.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-spread-arr-multiple.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "compareArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-spread-arr-multiple.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1167,
+        "sha256": "5a8f25c47c70907fd40ebddd4b14712301c8f1421cbe5ec1b83a140b9dfabdb5"
+      },
+      "testPath": "language/statements/async-generator/yield-spread-arr-multiple.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js",
+        "compareArray.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-spread-arr-multiple.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--harness",
+        "compareArray.js",
+        "--test",
+        "yield-spread-arr-multiple.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-spread-arr-multiple.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-spread-arr-multiple.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [
+          "compareArray.js"
+        ],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-spread-arr-multiple.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1167,
+        "sha256": "5a8f25c47c70907fd40ebddd4b14712301c8f1421cbe5ec1b83a140b9dfabdb5"
+      },
+      "testPath": "language/statements/async-generator/yield-spread-arr-multiple.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-spread-arr-single.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-spread-arr-single.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-spread-arr-single.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-spread-arr-single.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-spread-arr-single.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1259,
+        "sha256": "f8eb7097427758e7ca4ffdcb6d3c7c9e3fa6a4b8eb3299a0324688030baacb83"
+      },
+      "testPath": "language/statements/async-generator/yield-spread-arr-single.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-spread-arr-single.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-spread-arr-single.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-spread-arr-single.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-spread-arr-single.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-spread-arr-single.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1259,
+        "sha256": "f8eb7097427758e7ca4ffdcb6d3c7c9e3fa6a4b8eb3299a0324688030baacb83"
+      },
+      "testPath": "language/statements/async-generator/yield-spread-arr-single.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-spread-obj.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-spread-obj.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-spread-obj.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-spread-obj.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "object-spread",
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-spread-obj.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1186,
+        "sha256": "bb0fd4e6a36f9474e730316eee87939260d1185b3b2b582a93c602eee5802e3f"
+      },
+      "testPath": "language/statements/async-generator/yield-spread-obj.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-spread-obj.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-spread-obj.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-spread-obj.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-spread-obj.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "object-spread",
+          "async-iteration"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-spread-obj.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 1186,
+        "sha256": "bb0fd4e6a36f9474e730316eee87939260d1185b3b2b582a93c602eee5802e3f"
+      },
+      "testPath": "language/statements/async-generator/yield-spread-obj.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-star-async-next.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-star-async-next.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-star-async-next.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-star-async-next.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.iterator",
+          "async-iteration",
+          "Symbol.asyncIterator"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-star-async-next.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 7186,
+        "sha256": "bfc17148948a46d94498fb332936989e1009dbea0f6fa8ce2e3c45b6ebfcec64"
+      },
+      "testPath": "language/statements/async-generator/yield-star-async-next.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-star-async-next.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-star-async-next.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-star-async-next.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-star-async-next.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "Symbol.iterator",
+          "async-iteration",
+          "Symbol.asyncIterator"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-star-async-next.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 7186,
+        "sha256": "bfc17148948a46d94498fb332936989e1009dbea0f6fa8ce2e3c45b6ebfcec64"
+      },
+      "testPath": "language/statements/async-generator/yield-star-async-next.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-star-async-return.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-star-async-return.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-star-async-return.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-star-async-return.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration",
+          "Symbol.asyncIterator"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-star-async-return.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 7905,
+        "sha256": "e76d22b0de53fdc0422c537ddc9020ffe278f83b46fa90a5e8f8eb9b5365e0da"
+      },
+      "testPath": "language/statements/async-generator/yield-star-async-return.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-star-async-return.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-star-async-return.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-star-async-return.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-star-async-return.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration",
+          "Symbol.asyncIterator"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-star-async-return.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 7905,
+        "sha256": "e76d22b0de53fdc0422c537ddc9020ffe278f83b46fa90a5e8f8eb9b5365e0da"
+      },
+      "testPath": "language/statements/async-generator/yield-star-async-return.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-star-async-throw.js::non-strict",
+        "--variant",
+        "non-strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-star-async-throw.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-star-async-throw.js::non-strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-star-async-throw.js",
+        "sourceRole": "test",
+        "variant": "non-strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration",
+          "Symbol.asyncIterator"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-star-async-throw.js::non-strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 7927,
+        "sha256": "c5fbc7e6f8c816421bbc5ad1350e7e2659eb53f26478cbd49f47cb8f423b6abf"
+      },
+      "testPath": "language/statements/async-generator/yield-star-async-throw.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "non-strict"
+    },
+    {
+      "executionPhase": "synchronous",
+      "harness": [
+        "assert.js",
+        "sta.js",
+        "doneprintHandle.js"
+      ],
+      "hostCommand": [
+        "floria-test262-host",
+        "--scenario-id",
+        "language/statements/async-generator/yield-star-async-throw.js::strict",
+        "--variant",
+        "strict",
+        "--strict",
+        "--async",
+        "--harness",
+        "assert.js",
+        "--harness",
+        "sta.js",
+        "--harness",
+        "doneprintHandle.js",
+        "--test",
+        "yield-star-async-throw.js"
+      ],
+      "hostExitCode": 0,
+      "hostResult": {
+        "consoleOutput": [],
+        "error": {
+          "column": 0,
+          "hostExceptionClass": "",
+          "line": 0,
+          "message": "",
+          "name": ""
+        },
+        "legacyResult": {
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
+        },
+        "outcome": "pass",
+        "phase": "success",
+        "printOutput": [
+          "Test262:AsyncTestComplete"
+        ],
+        "reason": "async-complete",
+        "scenarioId": "language/statements/async-generator/yield-star-async-throw.js::strict",
+        "schemaVersion": 1,
+        "sourceIndex": 0,
+        "sourceName": "yield-star-async-throw.js",
+        "sourceRole": "test",
+        "variant": "strict"
+      },
+      "metadata": {
+        "features": [
+          "async-iteration",
+          "Symbol.asyncIterator"
+        ],
+        "flags": [
+          "generated",
+          "async"
+        ],
+        "hasFrontmatter": true,
+        "includes": [],
+        "locale": [],
+        "negative": null,
+        "nonDeterministic": false
+      },
+      "outcome": "pass",
+      "policyName": "floriajs-diagnostic-subset",
+      "preparationOnly": false,
+      "reason": "async-complete",
+      "scenarioId": "language/statements/async-generator/yield-star-async-throw.js::strict",
+      "schemaVersion": 1,
+      "source": {
+        "bytes": 7927,
+        "sha256": "c5fbc7e6f8c816421bbc5ad1350e7e2659eb53f26478cbd49f47cb8f423b6abf"
+      },
+      "testPath": "language/statements/async-generator/yield-star-async-throw.js",
+      "upstream": {
+        "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+        "packageVersion": "5.0.0",
+        "revisionVerified": true
+      },
+      "variant": "strict"
+    }
+  ],
+  "runnerVersion": "0.6.0",
+  "schemaVersion": 1,
+  "summary": {
+    "attemptedPassRate": 1.0,
+    "coverage": {
+      "attempted": 36,
+      "fail": 0,
+      "infrastructure": 0,
+      "pass": 36,
+      "skipped": 0,
+      "unsupported": 0
+    },
+    "directories": {
+      "language/expressions/async-generator": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 14,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 14,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 14,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 14
+      },
+      "language/statements/async-generator": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 22,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 22,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 22,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 22
+      }
+    },
+    "features": {
+      "(none)": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "Symbol": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "Symbol.asyncIterator": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 6,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 6,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 6,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 6
+      },
+      "Symbol.iterator": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      },
+      "async-iteration": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 34,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 34,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 34,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 34
+      },
+      "object-spread": {
+        "attemptedPassRate": 1.0,
+        "coverage": {
+          "attempted": 2,
+          "fail": 0,
+          "infrastructure": 0,
+          "pass": 2,
+          "skipped": 0,
+          "unsupported": 0
+        },
+        "outcomes": {
+          "crash": 0,
+          "fail": 0,
+          "harness-error": 0,
+          "pass": 2,
+          "skipped": 0,
+          "timeout": 0,
+          "unsupported": 0
+        },
+        "total": 2
+      }
+    },
+    "outcomes": {
+      "crash": 0,
+      "fail": 0,
+      "harness-error": 0,
+      "pass": 36,
+      "skipped": 0,
+      "timeout": 0,
+      "unsupported": 0
+    },
+    "total": 36
+  },
+  "upstream": {
+    "actualRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "expectedRevision": "2e58f87d8350ad51224617a041c6e041d52f8444",
+    "packageVersion": "5.0.0",
+    "revisionVerified": true
+  }
+}

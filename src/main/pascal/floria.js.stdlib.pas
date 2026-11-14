@@ -22,7 +22,7 @@ uses
   floria.js.symbol, floria.js.date, floria.js.uri, floria.js.collections,
   floria.js.number, floria.js.lexer, floria.js.ast, floria.js.parser,
   floria.js.bytecode, floria.js.compiler,
-  floria.js.timers, floria.js.regexp;
+  floria.js.timers, floria.js.regexp, floria.js.utf16, floria.js.binary;
 
 var
   { The heap the standard library was registered against. Native functions are
@@ -123,7 +123,7 @@ begin
   if Length(AArgs) = 0 then
     Result := JSMakeString('')
   else
-    Result := JSMakeString(AArgs[0].ToString());
+    Result := JSMakeString(JSToString(AArgs[0]));
 end;
 
 function JSBooleanConst(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -395,7 +395,7 @@ end;
   specifies, because silently truncating would lose data. }
 function JSBigIntCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
-  v: TFloriaJSValue;
+  v, fn, converted: TFloriaJSValue;
   text: string;
   d: Double;
   i, start: Integer;
@@ -423,6 +423,24 @@ begin
       raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('RangeError',
         'The number ' + JSNumberToStr(d) + ' cannot be converted to a BigInt because it is not an integer')));
     Exit(JSMakeBigInt(BigIntNormalize(FloatToStrF(d, ffFixed, 0, 0))));
+  end;
+
+  if v.IsObject() then
+  begin
+    fn := v.AsObject().GetProperty('valueOf');
+    if fn.IsFunction() and (v.ObjVal.Heap <> nil) then
+    begin
+      converted := v.ObjVal.Heap.InvokeFunction(fn, [], v);
+      if not converted.IsObject() then
+        Exit(JSBigIntCtor([converted], AThis));
+    end;
+    fn := v.AsObject().GetProperty('toString');
+    if fn.IsFunction() and (v.ObjVal.Heap <> nil) then
+    begin
+      converted := v.ObjVal.Heap.InvokeFunction(fn, [], v);
+      if not converted.IsObject() then
+        Exit(JSBigIntCtor([converted], AThis));
+    end;
   end;
 
   if v.IsString() then
@@ -532,7 +550,7 @@ begin
   for i := 0 to Length(AArgs) - 1 do
   begin
     code := Trunc(AArgs[i].ToNumber()) and $FFFF;
-    AppendUTF8CodePoint(sb, LongWord(code));
+    sb := sb + JSUTF16FromCharCode(LongWord(code));
   end;
   Result := JSMakeString(sb);
 end;
@@ -551,9 +569,7 @@ begin
     cp := Trunc(AArgs[i].ToNumber());
     if (cp < 0) or (cp > $10FFFF) then
       raise EFloriaJSThrow.Create(JSMakeString('RangeError: Invalid code point ' + IntToStr(cp)));
-    { Astral code points are kept as a single character: this runtime works on
-      UTF-8 bytes, so a surrogate pair would encode as two characters. }
-    AppendUTF8CodePoint(sb, LongWord(cp));
+    sb := sb + JSUTF16FromCodePoint(LongWord(cp));
   end;
   Result := JSMakeString(sb);
 end;
@@ -725,6 +741,7 @@ var
   promiseCtor, bigIntFn: TFloriaJSFunction;
   numberObj, stringObj, funcObj: TFloriaJSFunction;
   errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
+  i: Integer;
 begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
 
@@ -800,6 +817,9 @@ begin
   { `Promise` is a constructor: `new Promise(executor)` builds a promise and
     returns it, while the statics hang off the same function object. }
   promiseCtor := AHeap.NewNativeMethod('Promise', @AHeap.PromiseConstructor);
+  promiseCtor.IntrinsicName := 'Promise';
+  promiseCtor.SetProperty('prototype', JSMakeObject(AHeap.GetPromisePrototype()));
+  AHeap.GetPromisePrototype().SetProperty('constructor', JSMakeFunction(promiseCtor));
   promiseObj := promiseCtor;
   promiseObj.SetProperty('resolve', JSMakeFunction(AHeap.NewNativeMethod('resolve', @AHeap.PromiseResolve)));
   promiseObj.SetProperty('reject', JSMakeFunction(AHeap.NewNativeMethod('reject', @AHeap.PromiseReject)));
@@ -809,27 +829,38 @@ begin
 
   // 4. Error
   errCtor := AHeap.NewNativeMethod('Error', @AHeap.ErrorCtor);
+  errCtor.IntrinsicName := 'Error';
   errCtor.SetProperty('prototype', JSMakeObject(AHeap.GetErrorPrototype()));
+  AHeap.GetErrorPrototype().SetProperty('constructor', JSMakeFunction(errCtor));
   AEnv.Define('Error', JSMakeFunction(errCtor));
 
   typeErrCtor := AHeap.NewNativeMethod('TypeError', @AHeap.TypeErrorCtor);
+  typeErrCtor.IntrinsicName := 'TypeError';
   typeErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetTypeErrorPrototype()));
+  AHeap.GetTypeErrorPrototype().SetProperty('constructor', JSMakeFunction(typeErrCtor));
   AEnv.Define('TypeError', JSMakeFunction(typeErrCtor));
 
   rangeErrCtor := AHeap.NewNativeMethod('RangeError', @AHeap.RangeErrorCtor);
+  rangeErrCtor.IntrinsicName := 'RangeError';
   rangeErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetRangeErrorPrototype()));
+  AHeap.GetRangeErrorPrototype().SetProperty('constructor', JSMakeFunction(rangeErrCtor));
   AEnv.Define('RangeError', JSMakeFunction(rangeErrCtor));
 
   refErrCtor := AHeap.NewNativeMethod('ReferenceError', @AHeap.ReferenceErrorCtor);
+  refErrCtor.IntrinsicName := 'ReferenceError';
   refErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetReferenceErrorPrototype()));
+  AHeap.GetReferenceErrorPrototype().SetProperty('constructor', JSMakeFunction(refErrCtor));
   AEnv.Define('ReferenceError', JSMakeFunction(refErrCtor));
 
   syntaxErrCtor := AHeap.NewNativeMethod('SyntaxError', @AHeap.SyntaxErrorCtor);
+  syntaxErrCtor.IntrinsicName := 'SyntaxError';
   syntaxErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetSyntaxErrorPrototype()));
+  AHeap.GetSyntaxErrorPrototype().SetProperty('constructor', JSMakeFunction(syntaxErrCtor));
   AEnv.Define('SyntaxError', JSMakeFunction(syntaxErrCtor));
 
   // 4b. Function
   funcObj := AHeap.NewNativeFunction('Function', @JSFunctionCtor);
+  funcObj.IntrinsicName := 'Function';
   funcObj.SetProperty('prototype', JSMakeObject(AHeap.GetFunctionPrototype()));
   AHeap.GetFunctionPrototype().SetProperty('constructor', JSMakeFunction(funcObj));
   AEnv.Define('Function', JSMakeFunction(funcObj));
@@ -845,6 +876,7 @@ begin
 
   // 6. Number constructor and static methods
   numberObj := AHeap.NewNativeFunction('Number', @JSNumberConst);
+  numberObj.IntrinsicName := 'Number';
   numberObj.SetProperty('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSNumberIsNaN)));
   numberObj.SetProperty('isFinite', JSMakeFunction(AHeap.NewNativeFunction('isFinite', @JSNumberIsFinite)));
   numberObj.SetProperty('isInteger', JSMakeFunction(AHeap.NewNativeFunction('isInteger', @JSNumberIsInteger)));
@@ -867,6 +899,7 @@ begin
   AEnv.Define('BigInt', JSMakeFunction(bigIntFn));
 
   stringObj := AHeap.NewNativeFunction('String', @JSStringConst);
+  stringObj.IntrinsicName := 'String';
   { Publish the shared string prototype so String.prototype methods and
     prototype-chain checks see the same methods primitive strings use. }
   stringObj.SetProperty('prototype', JSMakeObject(AHeap.GetStringPrototype()));
@@ -880,49 +913,33 @@ begin
   FloriaJSRegisterDate(AEnv, AHeap);
   FloriaJSRegisterURI(AEnv, AHeap);
   FloriaJSRegisterCollections(AEnv, AHeap);
+  FloriaJSRegisterBinary(AEnv, AHeap);
+  { WeakMap/WeakSet currently use the Map/Set storage model: keys are strong
+    and primitives are accepted. The API surface is available; true weakness is
+    future work. }
+  AEnv.Define('WeakMap', AEnv.GetDefault('Map', JSMakeUndefined()));
+  AEnv.Define('WeakSet', AEnv.GetDefault('Set', JSMakeUndefined()));
   FloriaJSRegisterTimers(AEnv, AHeap);
   FloriaJSRegisterRegExp(AEnv, AHeap);
 
   // 8. globalThis
-  globalObj := AHeap.NewObject();
-  globalObj.SetProperty('globalThis', JSMakeObject(globalObj));
-  globalObj.SetProperty('NaN', JSMakeNumber(NaN));
-  globalObj.SetProperty('Infinity', JSMakeNumber(Infinity));
-  globalObj.SetProperty('undefined', JSMakeUndefined());
-  globalObj.SetProperty('Math', JSMakeObject(mathObj));
-  globalObj.SetProperty('console', JSMakeObject(consoleObj));
-  globalObj.SetProperty('Array', AEnv.GetDefault('Array', JSMakeUndefined()));
-  globalObj.SetProperty('Object', AEnv.GetDefault('Object', JSMakeUndefined()));
-  globalObj.SetProperty('Function', JSMakeFunction(funcObj));
-  globalObj.SetProperty('Number', JSMakeFunction(numberObj));
-  globalObj.SetProperty('String', AEnv.GetDefault('String', JSMakeUndefined()));
-  globalObj.SetProperty('Boolean', AEnv.GetDefault('Boolean', JSMakeUndefined()));
-  globalObj.SetProperty('JSON', AEnv.GetDefault('JSON', JSMakeUndefined()));
-  globalObj.SetProperty('Promise', JSMakeFunction(promiseCtor));
-  globalObj.SetProperty('Error', JSMakeFunction(errCtor));
-  globalObj.SetProperty('TypeError', JSMakeFunction(typeErrCtor));
-  globalObj.SetProperty('RangeError', JSMakeFunction(rangeErrCtor));
-  globalObj.SetProperty('ReferenceError', JSMakeFunction(refErrCtor));
-  globalObj.SetProperty('SyntaxError', JSMakeFunction(syntaxErrCtor));
-  globalObj.SetProperty('URIError', AEnv.GetDefault('URIError', JSMakeUndefined()));
-  globalObj.SetProperty('Symbol', AEnv.GetDefault('Symbol', JSMakeUndefined()));
-  globalObj.SetProperty('Date', AEnv.GetDefault('Date', JSMakeUndefined()));
-  globalObj.SetProperty('Map', AEnv.GetDefault('Map', JSMakeUndefined()));
-  globalObj.SetProperty('Set', AEnv.GetDefault('Set', JSMakeUndefined()));
-  globalObj.SetProperty('RegExp', AEnv.GetDefault('RegExp', JSMakeUndefined()));
-  globalObj.SetProperty('encodeURIComponent', AEnv.GetDefault('encodeURIComponent', JSMakeUndefined()));
-  globalObj.SetProperty('decodeURIComponent', AEnv.GetDefault('decodeURIComponent', JSMakeUndefined()));
-  globalObj.SetProperty('encodeURI', AEnv.GetDefault('encodeURI', JSMakeUndefined()));
-  globalObj.SetProperty('decodeURI', AEnv.GetDefault('decodeURI', JSMakeUndefined()));
-  globalObj.SetProperty('setTimeout', AEnv.GetDefault('setTimeout', JSMakeUndefined()));
-  globalObj.SetProperty('clearTimeout', AEnv.GetDefault('clearTimeout', JSMakeUndefined()));
-  globalObj.SetProperty('setInterval', AEnv.GetDefault('setInterval', JSMakeUndefined()));
-  globalObj.SetProperty('clearInterval', AEnv.GetDefault('clearInterval', JSMakeUndefined()));
-  globalObj.SetProperty('parseInt', AEnv.GetDefault('parseInt', JSMakeUndefined()));
-  globalObj.SetProperty('parseFloat', AEnv.GetDefault('parseFloat', JSMakeUndefined()));
-  globalObj.SetProperty('isNaN', AEnv.GetDefault('isNaN', JSMakeUndefined()));
-  globalObj.SetProperty('isFinite', AEnv.GetDefault('isFinite', JSMakeUndefined()));
-  AEnv.Define('globalThis', JSMakeObject(globalObj));
+  if AEnv.DelegateObject <> nil then
+  begin
+    { The live global object is the environment's delegate. It already holds
+      every var/function and built-in binding as an own property. }
+    AEnv.DelegateObject.SetPropertyNonEnumerable('globalThis',
+      JSMakeObject(AEnv.DelegateObject));
+  end
+  else
+  begin
+    { Compatibility for callers that register the standard library into an
+      environment without a global-object delegate. }
+    globalObj := AHeap.NewObject();
+    for i := 0 to AEnv.GetBindingCount() - 1 do
+      globalObj.SetProperty(AEnv.GetBindingName(i), AEnv.GetBindingValue(i));
+    globalObj.SetProperty('globalThis', JSMakeObject(globalObj));
+    AEnv.Define('globalThis', JSMakeObject(globalObj));
+  end;
 end;
 
 end.

@@ -52,7 +52,10 @@ type
     opDefineConst,       // Define const variable into current environment: Imm = const index (name), pops value
     opDefineLet,         // Define let variable into current environment: Imm = const index (name), pops value
     opDeclareVar,        // Declare var into current environment if not present: Imm = const index (name)
+    opDeclareLet,        // Declare uninitialized let binding: Imm = const index (name)
+    opDeclareConst,      // Declare uninitialized const binding: Imm = const index (name)
     opPushEnv,           // Push child environment on current call frame
+    opPushWith,          // Pop object -> push environment delegating to it
     opPopEnv,            // Pop child environment from current call frame
 
     // Objects & Arrays
@@ -140,6 +143,10 @@ type
     // Iteration Helpers
     opForInInit,         // Pop obj -> Push array of enumerable keys
     opForOfInit,         // Pop iterable -> push iterator
+    opForAwaitInit,      // Pop iterable -> push sync or async iterator
+    opSetYieldStar,      // Pop iterator -> remember it for yield* delegation
+    opClearYieldStar,    // Forget the current yield* iterator
+    opYieldStarDoneJump, // Jump when the delegated iterator completed
     opForOfNext,         // Peek iterator; push next value, or jump to Imm when done
     opAssertIterable,    // Peek iterable -> throw TypeError if not array/string
 
@@ -170,6 +177,9 @@ type
     FIsArrow: Boolean;
     FIsAsync: Boolean;
     FIsGenerator: Boolean;
+    FIsAsyncGenerator: Boolean;
+    FIsNamedExpression: Boolean;
+    FIsStrict: Boolean;
     FRefCount: Integer;
 
     procedure EnsureCodeCapacity();
@@ -220,8 +230,11 @@ type
     property Name: string read FName write FName;
     property IsArrow: Boolean read FIsArrow write FIsArrow;
     property IsAsync: Boolean read FIsAsync write FIsAsync;
+    property IsAsyncGenerator: Boolean read FIsAsyncGenerator write FIsAsyncGenerator;
+    property IsNamedExpression: Boolean read FIsNamedExpression write FIsNamedExpression;
     { A generator body runs on demand and suspends at `yield`. }
     property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
+    property IsStrict: Boolean read FIsStrict write FIsStrict;
   end;
 
 function FloriaJSOpcodeToString(AOp: TFloriaJSOpcode): string;
@@ -256,7 +269,10 @@ begin
     opDefineConst:      Result := 'DEFINE_CONST';
     opDefineLet:        Result := 'DEFINE_LET';
     opDeclareVar:       Result := 'DECLARE_VAR';
+    opDeclareLet:       Result := 'DECLARE_LET';
+    opDeclareConst:     Result := 'DECLARE_CONST';
     opPushEnv:          Result := 'PUSH_ENV';
+    opPushWith:         Result := 'PUSH_WITH';
     opPopEnv:           Result := 'POP_ENV';
     opNewObject:        Result := 'NEW_OBJECT';
     opNewArray:         Result := 'NEW_ARRAY';
@@ -327,6 +343,10 @@ begin
     opPopTry:           Result := 'POP_TRY';
     opForInInit:        Result := 'FOR_IN_INIT';
     opForOfInit:        Result := 'FOR_OF_INIT';
+    opForAwaitInit:     Result := 'FOR_AWAIT_INIT';
+    opSetYieldStar:     Result := 'SET_YIELD_STAR';
+    opClearYieldStar:   Result := 'CLEAR_YIELD_STAR';
+    opYieldStarDoneJump: Result := 'YIELD_STAR_DONE_JUMP';
     opForOfNext:        Result := 'FOR_OF_NEXT';
     opAssertIterable:   Result := 'ASSERT_ITERABLE';
     opHalt:             Result := 'HALT';
@@ -355,6 +375,10 @@ begin
   FSubFunctions := TFPList.Create();
   FIsArrow := False;
   FIsAsync := False;
+  FIsGenerator := False;
+  FIsAsyncGenerator := False;
+  FIsNamedExpression := False;
+  FIsStrict := False;
 end;
 
 destructor TFloriaJSBytecode.Destroy();
@@ -600,7 +624,7 @@ begin
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opLoadLoc, opStoreLoc, opSetLoc:
       comment := '; ' + GetLocalName(inst.Imm);
-    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opDefineHidden, opDefineGetterHidden, opDefineSetterHidden, opDeleteEnv:
+    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opDeclareLet, opDeclareConst, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opDefineHidden, opDefineGetterHidden, opDefineSetterHidden, opDeleteEnv:
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
       comment := Format('-> %04d', [inst.Imm]);
