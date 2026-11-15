@@ -1,8 +1,8 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
-    "workingTreeDirty": true
+    "revision": "518f2ba020cb659bcc2c8c7eb114d52d1d87fdcd",
+    "workingTreeDirty": false
   },
   "host": {
     "bytes": 2044960,
@@ -11,7 +11,9 @@
   "kind": "floriajs-test262-report",
   "options": {
     "allowUnpinned": false,
-    "listFile": "config/curated-tests.txt",
+    "jobs": 4,
+    "listFile": "curated-tests.txt",
+    "maxDurationSeconds": 0.0,
     "selection": [
       "language/expressions/addition/S11.6.1_A1.js",
       "language/expressions/addition/S11.6.1_A2.1_T2.js",
@@ -227,8 +229,8 @@
   },
   "policy": {
     "name": "floriajs-diagnostic-subset",
-    "sha256": "26c1644b88ab4c5436ee2b7f6ef0630a6e3705ad2c41293d394c3cdde7ed63fb",
-    "status": "phase-10.10-modules-text-json"
+    "sha256": "fd810f619ac193d5fe3a54911a0ec3f198d1aa803d21b5fccc294fcc80f93da1",
+    "status": "phase-10.10-complete"
   },
   "records": [
     {
@@ -28106,7 +28108,7 @@
       "variant": "strict"
     }
   ],
-  "runnerVersion": "0.6.0",
+  "runnerVersion": "0.7.0",
   "schemaVersion": 1,
   "summary": {
     "attemptedPassRate": 0.9548,

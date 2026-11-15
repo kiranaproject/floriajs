@@ -2,15 +2,17 @@
 
 FloriaJS implements a practical JavaScript subset for embedded scripts and FTML handlers; it is **not currently a conforming ECMAScript implementation**. The work in `test262/` is intended to measure compatibility, not to claim full Test262 support.
 
-## Current status: Phase 10.10 complete
+## Current status: Phase 11 complete
 
-Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and limited-async runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and basic async generators. This is still a diagnostic adapter, not a conformance certification. In particular:
+Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. This is still a diagnostic adapter, not a conformance certification. In particular:
 
 - no conformance percentage or official Test262 verdict is published;
 - no upstream test suite is vendored in this repository;
 - no execution-engine behaviour is changed by this phase.
 
 The implementation proposal is in `scratch/roadmap-proposal.md`. The exact baseline and smoke-review scope are recorded in `test262/baselines/phase0.md`.
+
+The per-phase result sections later in this document are historical records: they describe what was true when each phase landed. For current behaviour, use this status section, [language support](language-support.md), and the latest reviewed baselines. Statements in older phase sections such as “still unsupported” may have been resolved by a later phase.
 
 ## Pinned upstream material
 
@@ -22,6 +24,16 @@ The initial revision is:
 - committer timestamp: 2026-11-11
 
 The full hash lives in `test262/config/test262-revision.txt`. The runner fails clearly if its checkout does not match that hash; silently running a moving upstream branch would make baselines incomparable. Change the pin only together with a reviewed baseline update.
+
+To review a candidate upstream update without editing the pin:
+
+```sh
+cd test262
+bash tools/review_upstream_update.sh <candidate-sha>          # dry run
+bash tools/review_upstream_update.sh <candidate-sha> --apply  # write the pin
+```
+
+The review script requires the candidate to exist locally, prints the commit and the `test/`/`harness/`/`package.json` diff, and refuses to write the pin unless the checkout `HEAD` already equals the candidate. After applying, rerun `ci_extended.sh`, regenerate every affected baseline, and update this page and [language support](language-support.md) for any new gaps. CI never fetches a moving branch on its own.
 
 The default checkout location is `test262/.upstream/`; generated reports belong in `test262/results/`. Both are ignored by Git.
 
@@ -46,7 +58,8 @@ The initial policy in `test262/config/feature-policy.json` is deliberately limit
 | `$262.global` | The live global object (the same object as `globalThis`). |
 | `$262.evalScript` | Re-entrant evaluation with no nested heap collection or microtask drain; runtime throws propagate, parse errors become `SyntaxError`. |
 | `$262.createRealm` | Returns a separate context-owned realm with its own heap, global object, intrinsics, timers, and output. |
-| `$262.agent`, `$262.detachArrayBuffer`, `$262.gc` | Unsupported; no fake stubs or success results. Tests referencing them are `unsupported`. |
+| `$262.agent` | Cooperative single-threaded agents that switch only at explicit agent/Atomics calls; waiters are resolved by `Atomics.notify`. |
+| `$262.detachArrayBuffer`, `$262.gc` | Unsupported; no fake stubs or success results. Tests referencing them are `unsupported`. |
 
 For eligible non-raw tests, the planned evaluation order in one fresh host process is:
 
@@ -69,9 +82,8 @@ The policy must not disguise the following existing differences as passes:
 - TDZ is implemented for program/block/function/switch/classic-for scopes, but not for `for…in`/`for…of` bindings or catch parameters;
 - `$262.global`/`globalThis` are live, but global lexical bindings are still not object properties (as designed);
 - `Symbol.toPrimitive` is consulted first; some built-ins still use the simpler object-to-string conversion;
-- agents are cooperative rather than preemptive; `WeakMap`/`WeakSet` are not truly weak; module linking uses live getters and supports star-export cycles;
-- realms are isolated and cross-realm intrinsic selection works for the supported constructors; `String.prototype.concat` calls a user-supplied `toString`, but general object-to-string coercion is still incomplete;
-- incomplete asynchronous suspension/resumption.
+- agents are cooperative rather than preemptive; `WeakMap`/`WeakSet` are not truly weak; module linking uses live getters and supports star-export cycles; `Atomics.waitAsync` waiters are resolved by `Atomics.notify`, including across cooperative agents;
+- realms are isolated and cross-realm intrinsic selection works for the supported constructors; `String.prototype.concat` calls a user-supplied `toString`, but general object-to-string coercion is still incomplete.
 
 The complete feature list and intentional embedded trade-offs are documented in [language support](language-support.md). A missing prerequisite should be classified as unsupported rather than automatically treated as a specification-mandated early error.
 
@@ -358,7 +370,7 @@ Async function bodies are now true resumable state machines rather than synchron
 - `for await (... of ...)` parses and executes over `Symbol.asyncIterator` iterators and sync iterables; each iteration awaits the step result and the produced value.
 - `Symbol.asyncIterator` is defined.
 
-Validation: **258 FPCUnit tests** (two new async tests), **90 documentation claims**, curated corpus **147 records — 131 pass, 16 fail** (attempted pass rate 131/147 = 89.12%). Seven upstream `for await` tests were added and pass. Async generator functions (`async function*`) remain unsupported, and the `async-iteration` feature tag still skips them while allowing ordinary `for await` tests.
+Validation: **258 FPCUnit tests** (two new async tests), **90 documentation claims**, curated corpus **147 records — 131 pass, 16 fail** (attempted pass rate 131/147 = 89.12%). Seven upstream `for await` tests were added and pass. Async generator functions (`async function*`) were not yet supported at this point; a later phase added them.
 
 ## Phase 10.8 result
 
@@ -396,12 +408,27 @@ Realms are now exposed through the diagnostic host:
 - `$262.createRealm()` creates a genuinely separate `TFloriaJSContext`: its own heap, global object, intrinsics, timer registry, and output list.
 - The returned realm object exposes `global` and `evalScript`; `evalScript` evaluates re-entrantly in the realm that owns the receiver.
 - Realm bindings and global properties do not leak into the caller realm, and caller bindings do not leak into the realm.
-- `$262.agent` remains absent. There is no agent or concurrency support, and no stub is returned.
+- `$262.agent` provides cooperative single-threaded agents; it is not a preemptive thread implementation.
 
 Validation: **271 FPCUnit tests** (eleven new realm/async-generator/coercion/strict/binary/proxy tests), **90 documentation claims**, host fixtures **36 checks + 1 timeout**, focused realm corpus **50 records — 50 pass** (100%), focused async-generator corpus **36 records — 36 pass** (100%), focused `Symbol.toPrimitive` corpus **10 records — 10 pass** (100%), focused strict early-error corpus **14 records — 14 pass** (100%), focused strict-escape corpus **18 records — 18 pass** (100%), focused module-cycle corpus **7 records — 7 pass** (100%), focused SharedArrayBuffer/Atomics corpus **30 records — 30 pass** (100%), focused BigInt Atomics corpus **18 records — 18 pass** (100%), focused import-attributes corpus **10 records — 10 pass** (100%), focused Proxy corpus **46 records — 44 pass, 2 fail** (attempted pass rate 44/46 = 95.65%), focused Proxy-invariant corpus **21 records — 21 pass** (100%), focused reserved-word corpus **85 records — 85 pass** (100%), focused with-statement corpus **14 records — 14 pass** (100%), focused agent corpus **14 records — 14 pass** (100%), curated corpus **354 records — 338 pass, 16 fail** (attempted pass rate 338/354 = 95.48%). Twelve cross-realm, twelve async-generator, five `Symbol.toPrimitive`, fourteen strict early-error, four strict-escape, three module-cycle, six SharedArrayBuffer/Atomics, six BigInt Atomics, five import-attribute, twelve Proxy, five Proxy-invariant, six reserved-word, four with-statement, and three agent tests were added to the curated corpus.
 
 Limitations: module exports are live getters, named imports are rewritten to live property reads, and star-export cycles are supported. Exported `let`/`const` keep their TDZ. `import.meta`, dynamic `import()` for relative specifiers, JSON import attributes, and text modules are supported. JSON module objects/arrays are stable and extensible. Cross-realm intrinsic selection is implemented for Array, ArrayBuffer, DataView, Promise, String, typed arrays, and array species. `Symbol.toPrimitive` is consulted before `valueOf`/`toString`, and property keys, `String()`, and `String.prototype.concat` use the full ToString path. Some built-ins still use the simpler conversion. Strict mode now rejects legacy octal literals, legacy octal escape sequences, `delete` of identifiers, `eval`/`arguments` bindings, and the strict future reserved words (`implements`, `interface`, `package`, `private`, `protected`, `public`, `static`, `yield`, `let`). Async generators support `yield`, `await`, `for await`, and `yield*`; yielded promises are awaited, sent values are forwarded to the inner iterator, and the async-generator prototype chain is present. `yield*` forwards `return`/`throw`, adopts thenables, and passes the exact ordering tests. `SharedArrayBuffer`, BigInt typed arrays, and the core `Atomics` operations are implemented; `Atomics.wait` is single-threaded and returns `timed-out` when no other agent can notify. `Atomics.waitAsync` returns the expected result shape and resolves registered waiters when `Atomics.notify` is called, including across cooperative agents. `Proxy` supports the core property traps, `apply`/`construct`, `Proxy.revocable`, and the main property invariants; the `with` statement is supported in sloppy mode and rejected in strict mode. `$262.agent` uses a cooperative single-threaded scheduler; real preemptive concurrency remains unsupported.
 
+## Phase 11 result — scale reporting and CI
+
+The diagnostic runner now scales without sharing runtime state:
+
+- `--jobs N` executes up to `N` scenarios concurrently, each in a separate host process. Records remain in plan order, so sequential and parallel reports are identical after elapsed-time fields are removed.
+- `--max-duration SECONDS` adds a global deadline. Scenarios that would cross it are bounded and reported as `timeout`; already-running hosts are killed by their per-scenario timeout.
+- `tools/results.py markdown` renders deterministic Markdown with overall, per-directory, and per-feature coverage plus a non-passing scenario list.
+- `tools/ci_smoke.sh` remains the short pull-request gate. `TEST262_JOBS` enables bounded parallelism; the curated Markdown summary is written to `results/ci/`.
+- `tools/ci_extended.sh` is the longer scheduled/manual diagnostic with a larger timeout, a global deadline, separate `results/extended/` output, and a combined Markdown summary.
+- `.github/workflows/test262-extended.yml` runs the extended job weekly or on manual dispatch and uploads its reports.
+- `tools/review_upstream_update.sh` prints the upstream diff and a review checklist; `--apply` writes the pin only when the checkout is already at the candidate revision.
+- Reports record `jobs` and `maxDurationSeconds` alongside the pinned revisions, policy hash, and host hash.
+
+Validation: adapter fixtures pass (including Markdown rendering and sequential/parallel equivalence); `ci_smoke.sh` passes with no regressions; `ci_extended.sh` completes all 16 reviewed corpora under a 600-second global budget with **742 records — 724 pass, 18 known fail**. Markdown summaries are diagnostic views, not conformance certificates.
+
 ## Next phase
 
-Phase 10 is complete. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+Phase 10 and Phase 11 are complete. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

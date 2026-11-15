@@ -182,7 +182,7 @@ class MetadataFixtures(unittest.TestCase):
         self.assertEqual(len(records), 2)
         normal, strict = records
         self.assertEqual(normal["outcome"], "unsupported")
-        self.assertIn("module support", normal["reason"])
+        self.assertIn("resolution", normal["reason"])
         self.assertEqual(normal["hostCommand"], [])
         self.assertEqual(strict["outcome"], "unsupported")
         self.assertEqual(strict["variant"], "strict")

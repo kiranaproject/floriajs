@@ -21,7 +21,7 @@ import subprocess
 import sys
 from typing import Any, Iterable
 
-RUNNER_VERSION = "0.6.0"
+RUNNER_VERSION = "0.7.0"
 REPORT_KIND = "floriajs-test262-report"
 SCHEMA_VERSION = 1
 
@@ -493,6 +493,120 @@ def format_diff(diff: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _md_cell(value: Any) -> str:
+    text = "" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def _md_rate(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value) * 100:.2f}%"
+
+
+def _md_bucket_row(name: str, bucket_info: dict[str, Any]) -> str:
+    coverage = bucket_info["coverage"]
+    return (
+        f"| {_md_cell(name)} | {bucket_info['total']} | {coverage['attempted']} | "
+        f"{coverage['pass']} | {coverage['fail']} | {coverage['skipped']} | "
+        f"{coverage['unsupported']} | {coverage['infrastructure']} | "
+        f"{_md_rate(bucket_info['attemptedPassRate'])} |"
+    )
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    """Render a stable Markdown summary from a JSON report.
+
+    This is a diagnostic view, not a conformance certificate. It deliberately
+    keeps attempted, skipped, unsupported, and infrastructure outcomes in
+    separate columns.
+    """
+    summary = report.get("summary")
+    if not isinstance(summary, dict):
+        summary = summarize(list(report.get("records") or []))
+    coverage = summary["coverage"]
+    options = report.get("options") or {}
+    engine = report.get("engine") or {}
+    upstream = report.get("upstream") or {}
+    policy = report.get("policy") or {}
+    host = report.get("host") or {}
+
+    lines = [
+        "# Test262 diagnostic report",
+        "",
+        "This report measures the reviewed FloriaJS corpus. It is not a full",
+        "ECMAScript conformance result.",
+        "",
+        "## Run metadata",
+        "",
+        f"- Runner: `{_md_cell(report.get('runnerVersion'))}`",
+        f"- Generated: `{_md_cell(report.get('generatedAt'))}`",
+        f"- Engine revision: `{_md_cell(engine.get('revision') or 'unknown')}`"
+        f" (working tree dirty: `{_md_cell(engine.get('workingTreeDirty'))}`)",
+        f"- Upstream revision: `{_md_cell(upstream.get('actualRevision') or upstream.get('expectedRevision') or 'unpinned')}`",
+        f"- Policy: `{_md_cell(policy.get('name'))}` / `{_md_cell(policy.get('status'))}`",
+        f"- Host SHA-256: `{_md_cell((host.get('sha256') or 'unknown')[:16])}...`",
+        f"- Selection: `{_md_cell(options.get('listFile') or 'explicit tests')}`",
+        f"- Per-test timeout: `{_md_cell(options.get('timeoutSeconds'))}` s; "
+        f"jobs: `{_md_cell(options.get('jobs', 1))}`; "
+        f"global deadline: `{_md_cell(options.get('maxDurationSeconds', 0))}` s",
+        "",
+        "## Overall",
+        "",
+        "| Total | Attempted | Pass | Fail | Skipped | Unsupported | Infrastructure | Attempted pass rate |",
+        "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        f"| {summary['total']} | {coverage['attempted']} | {coverage['pass']} | "
+        f"{coverage['fail']} | {coverage['skipped']} | {coverage['unsupported']} | "
+        f"{coverage['infrastructure']} | {_md_rate(summary['attemptedPassRate'])} |",
+        "",
+        "`Attempted pass rate` is `pass / (pass + fail)`. Infrastructure outcomes",
+        "(harness errors, timeouts, crashes) are never folded into `fail`.",
+        "",
+        "## Per directory",
+        "",
+        "| Directory | Total | Attempted | Pass | Fail | Skipped | Unsupported | Infrastructure | Rate |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for name, info in sorted((summary.get("directories") or {}).items()):
+        lines.append(_md_bucket_row(name, info))
+
+    lines.extend([
+        "",
+        "## Per feature",
+        "",
+        "| Feature | Total | Attempted | Pass | Fail | Skipped | Unsupported | Infrastructure | Rate |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ])
+    for name, info in sorted((summary.get("features") or {}).items()):
+        lines.append(_md_bucket_row(name, info))
+
+    problems = [
+        record for record in report.get("records") or []
+        if record.get("outcome") in {"fail", "harness-error", "timeout", "crash"}
+    ]
+    lines.extend(["", "## Non-passing scenarios", ""])
+    if problems:
+        lines.extend([
+            "| Scenario | Variant | Outcome | Reason |",
+            "| --- | --- | --- | --- |",
+        ])
+        for record in problems:
+            lines.append(
+                f"| {_md_cell(record.get('testPath') or record.get('scenarioId'))} | "
+                f"{_md_cell(record.get('variant'))} | {_md_cell(record.get('outcome'))} | "
+                f"{_md_cell(record.get('reason'))} |"
+            )
+    else:
+        lines.append("None.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_markdown(path: Path, report: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_markdown(report), encoding="utf-8")
+
+
 def _print_summary(report: dict[str, Any]) -> None:
     summary = report["summary"]
     print(json.dumps(summary, indent=2, sort_keys=True, ensure_ascii=False))
@@ -511,6 +625,12 @@ def main(argv: list[str] | None = None) -> int:
     normalize_parser.add_argument("input", type=Path)
     normalize_parser.add_argument("output", type=Path)
 
+    markdown_parser = subparsers.add_parser(
+        "markdown", help="render a deterministic Markdown summary of a report"
+    )
+    markdown_parser.add_argument("input", type=Path)
+    markdown_parser.add_argument("output", type=Path)
+
     compare_parser = subparsers.add_parser("compare", help="compare a report with a baseline")
     compare_parser.add_argument("baseline", type=Path)
     compare_parser.add_argument("current", type=Path)
@@ -525,6 +645,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "normalize":
             write_report(args.output, baseline_report(load_report(args.input)))
+            return 0
+        if args.command == "markdown":
+            write_markdown(args.output, load_report(args.input))
             return 0
         baseline = load_report(args.baseline)
         current = load_report(args.current)

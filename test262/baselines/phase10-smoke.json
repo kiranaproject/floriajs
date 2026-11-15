@@ -1,17 +1,19 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
-    "workingTreeDirty": true
+    "revision": "518f2ba020cb659bcc2c8c7eb114d52d1d87fdcd",
+    "workingTreeDirty": false
   },
   "host": {
-    "bytes": 1976512,
-    "sha256": "754b899882a675464340a30328fe169fd8656721ff91b70a1b5fc78ba8284932"
+    "bytes": 2044960,
+    "sha256": "e6586d3021375c904efdad1585887a0b3bc593968cf8804e7305bac0c3820add"
   },
   "kind": "floriajs-test262-report",
   "options": {
     "allowUnpinned": false,
-    "listFile": "config/smoke-tests.txt",
+    "jobs": 4,
+    "listFile": "smoke-tests.txt",
+    "maxDurationSeconds": 0.0,
     "selection": [
       "language/expressions/addition/S11.6.1_A2.1_T1.js",
       "language/statements/function/S13.2.1_A6_T1.js",
@@ -32,8 +34,8 @@
   },
   "policy": {
     "name": "floriajs-diagnostic-subset",
-    "sha256": "a8d890cda2fa2dcce7980ca0dacabec1aea6c7769a5a796598be5a52a078c566",
-    "status": "phase-10.9-modules"
+    "sha256": "fd810f619ac193d5fe3a54911a0ec3f198d1aa803d21b5fccc294fcc80f93da1",
+    "status": "phase-10.10-complete"
   },
   "records": [
     {
@@ -1156,7 +1158,7 @@
       "variant": "strict"
     }
   ],
-  "runnerVersion": "0.6.0",
+  "runnerVersion": "0.7.0",
   "schemaVersion": 1,
   "summary": {
     "attemptedPassRate": 1.0,

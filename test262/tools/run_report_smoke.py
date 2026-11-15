@@ -63,17 +63,19 @@ class ReportFixtures(unittest.TestCase):
             self.assertEqual(written, records)
             self.assertEqual(report["kind"], "floriajs-test262-report")
             self.assertEqual(report["schemaVersion"], 1)
-            self.assertEqual(report["runnerVersion"], "0.6.0")
+            self.assertEqual(report["runnerVersion"], "0.7.0")
             self.assertTrue(report["engine"]["revision"])
             self.assertIsInstance(report["engine"]["workingTreeDirty"], bool)
             self.assertFalse(report["upstream"]["revisionVerified"])
             self.assertEqual(report["policy"]["name"], "floriajs-diagnostic-subset")
-            self.assertEqual(report["policy"]["status"], "phase-10.10-modules-text-json")
+            self.assertEqual(report["policy"]["status"], "phase-10.10-complete")
             self.assertTrue(report["policy"]["sha256"])
             self.assertTrue(report["host"]["sha256"])
             self.assertTrue(report["platform"]["system"])
             self.assertTrue(report["platform"]["python"])
             self.assertEqual(report["options"]["timeoutSeconds"], 2)
+            self.assertEqual(report["options"]["jobs"], 1)
+            self.assertEqual(report["options"]["maxDurationSeconds"], 0.0)
             self.assertTrue(report["options"]["allowUnpinned"])
             self.assertEqual(report["options"]["selection"], CASES)
 
@@ -171,6 +173,39 @@ class ReportFixtures(unittest.TestCase):
             )
             self.assertEqual(process.returncode, 3)
             self.assertIn("REGRESSIONS", process.stdout)
+
+    def test_markdown_summary_keeps_outcomes_separate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            report_path = base / "report.json"
+            markdown_path = base / "report.md"
+            process = run_runner(["--report", str(report_path), *CASES])
+            self.assertIn(process.returncode, {0, 2})
+
+            rendered = subprocess.run(
+                [
+                    sys.executable,
+                    str(RESULTS),
+                    "markdown",
+                    str(report_path),
+                    str(markdown_path),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+            self.assertEqual(rendered.returncode, 0, rendered.stderr)
+            text = markdown_path.read_text(encoding="utf-8")
+            self.assertIn("# Test262 diagnostic report", text)
+            self.assertIn("not a full", text)
+            self.assertIn("Attempted pass rate", text)
+            self.assertIn("| . |", text)
+            self.assertIn("WeakRef", text)
+            self.assertIn("## Non-passing scenarios", text)
+            self.assertIn("include-error.js", text)
+            # Infrastructure and semantic failures stay in their own columns.
+            self.assertIn("Infrastructure", text)
 
     def test_missing_checkout_fails_without_executing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

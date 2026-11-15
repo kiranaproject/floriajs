@@ -1,17 +1,19 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
-    "workingTreeDirty": true
+    "revision": "518f2ba020cb659bcc2c8c7eb114d52d1d87fdcd",
+    "workingTreeDirty": false
   },
   "host": {
-    "bytes": 2043440,
-    "sha256": "e11173bfaf4264ae37eec2813e89a16c4ea8fc05da57a3756f40e490e14e2f56"
+    "bytes": 2044960,
+    "sha256": "e6586d3021375c904efdad1585887a0b3bc593968cf8804e7305bac0c3820add"
   },
   "kind": "floriajs-test262-report",
   "options": {
     "allowUnpinned": false,
-    "listFile": "config/reserved-word-tests.txt",
+    "jobs": 4,
+    "listFile": "reserved-word-tests.txt",
+    "maxDurationSeconds": 0.0,
     "selection": [
       "language/future-reserved-words/_implements.js",
       "language/future-reserved-words/abstract.js",
@@ -79,8 +81,8 @@
   },
   "policy": {
     "name": "floriajs-diagnostic-subset",
-    "sha256": "5edd83b0a653044a726f2b4844596ccebef34662274bc9f06c04e68725ed8e65",
-    "status": "phase-10.10-proxy-invariants"
+    "sha256": "fd810f619ac193d5fe3a54911a0ec3f198d1aa803d21b5fccc294fcc80f93da1",
+    "status": "phase-10.10-complete"
   },
   "records": [
     {
@@ -6574,7 +6576,7 @@
       "variant": "strict"
     }
   ],
-  "runnerVersion": "0.6.0",
+  "runnerVersion": "0.7.0",
   "schemaVersion": 1,
   "summary": {
     "attemptedPassRate": 1.0,

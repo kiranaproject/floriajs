@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "policyName": "floriajs-diagnostic-subset",
-  "status": "phase-10.10-modules-text-json",
+  "status": "phase-10.10-complete",
   "upstream": {
     "repository": "https://github.com/tc39/test262.git",
     "revisionFile": "test262-revision.txt",
@@ -44,8 +44,11 @@
       ]
     },
     "module": {
-      "action": "skip",
-      "reason": "ECMAScript modules and module resolution are not implemented"
+      "action": "run",
+      "runVariants": [
+        "module"
+      ],
+      "reason": "ECMAScript modules are lowered by the diagnostic bundler"
     },
     "async": {
       "action": "run",
@@ -76,12 +79,12 @@
     "pendingWork": "TFloriaJSContext.HasPendingWork / PendingTimerCount / NextTimerDelayMS"
   },
   "hostApi": {
-    "$262.global": "the existing globalThis snapshot; not a live global object",
+    "$262.global": "the live global object (the same object as globalThis)",
     "$262.evalScript": "re-entrant evaluation without heap collection or microtask drain",
     "$262.gc": "unsupported: collection is unsafe while a native callback holds live values",
     "$262.detachArrayBuffer": "unsupported: ArrayBuffer detachment is not implemented",
     "$262.createRealm": "a separate context-owned realm with its own heap, global object, intrinsics, timers, and output",
-    "$262.agent": "unsupported: no agent or concurrency support"
+    "$262.agent": "cooperative single-threaded agents; waiters are resolved by Atomics.notify"
   },
   "negativeVerdicts": {
     "acceptedParsePhases": [
@@ -89,7 +92,7 @@
       "compile"
     ],
     "runtimePhase": "runtime",
-    "resolutionReason": "negative resolution expectations require module support",
+    "resolutionReason": "negative resolution expectations are not classified by the diagnostic bundler",
     "dontEvaluateMarker": "Test262: This statement should not be evaluated.",
     "unsupportedParseErrorPatterns": [
       "not supported",
@@ -132,8 +135,7 @@
     "incomplete-object-to-string-in-some-builtins",
     "atomics-wait-is-single-threaded",
     "agents-are-cooperative-not-preemptive",
-    "proxy-with-statement-test-incomplete",
-    "waitasync-agent-notification-incomplete"
+    "proxy-with-statement-test-incomplete"
   ],
   "outcomes": [
     "pass",

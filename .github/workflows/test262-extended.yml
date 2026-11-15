@@ -1,0 +1,37 @@
+name: Test262 extended diagnostic
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 0"
+
+jobs:
+  test262-extended:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TEST262_JOBS: "4"
+      TEST262_TIMEOUT: "10"
+      TEST262_MAX_DURATION: "3600"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Free Pascal and PyYAML
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fpc
+          python3 -m pip install -r test262/requirements.txt
+
+      - name: Run extended Test262 diagnostic
+        run: bash test262/tools/ci_extended.sh
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test262-extended-results
+          path: test262/results/extended/

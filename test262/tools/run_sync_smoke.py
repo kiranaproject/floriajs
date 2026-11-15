@@ -121,6 +121,29 @@ class SynchronousSmoke(unittest.TestCase):
         self.assertEqual(records[1]["variant"], "strict")
         self.assertIn("--strict", records[1]["hostCommand"])
 
+    def test_parallel_execution_is_deterministic(self) -> None:
+        sequential, status, _ = self.execute(extra=["--list", str(SMOKE_LIST)])
+        parallel, parallel_status, _ = self.execute(
+            extra=["--list", str(SMOKE_LIST), "--jobs", "4"]
+        )
+        self.assertEqual(status, 0)
+        self.assertEqual(parallel_status, 0)
+        self.assertEqual(len(sequential), 15)
+        self.assertEqual(without_duration(sequential), without_duration(parallel))
+        self.assertEqual(
+            [record["scenarioId"] for record in sequential],
+            [record["scenarioId"] for record in parallel],
+        )
+
+    def test_global_deadline_bounds_the_run(self) -> None:
+        records, status, _ = self.execute(
+            "local/infinite-loop.js",
+            extra=["--timeout", "2", "--max-duration", "0.1"],
+        )
+        self.assertEqual(status, 2)
+        self.assertEqual(records[0]["outcome"], "timeout")
+        self.assertIn("global run deadline", records[0]["reason"])
+
     def test_external_timeout_is_classified_and_reaped(self) -> None:
         records, status, _ = self.execute("local/infinite-loop.js", extra=["--timeout", "0.1"])
         self.assertEqual(status, 2)

@@ -12,6 +12,8 @@ REPO="$(cd "$TEST262/.." && pwd)"
 ROOT="${TEST262_ROOT:-${1:-$TEST262/.upstream}}"
 HOST="$TEST262/target/floria-test262-host"
 RESULTS="$TEST262/results/ci"
+JOBS="${TEST262_JOBS:-1}"
+MAX_DURATION="${TEST262_MAX_DURATION:-0}"
 
 if [[ ! -d "$ROOT/test" || ! -d "$ROOT/harness" ]]; then
   echo "Test262 checkout missing at $ROOT; fetching the pinned revision." >&2
@@ -50,6 +52,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/smoke-tests.txt" \
   --report "$RESULTS/smoke-report.json" \
   --output "$RESULTS/smoke.jsonl" \
@@ -61,6 +65,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/with-tests.txt" \
   --report "$RESULTS/with-report.json" \
   --output "$RESULTS/with.jsonl" \
@@ -72,6 +78,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/reserved-word-tests.txt" \
   --report "$RESULTS/reserved-word-report.json" \
   --output "$RESULTS/reserved-word.jsonl" \
@@ -83,6 +91,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/proxy-invariant-tests.txt" \
   --report "$RESULTS/proxy-invariant-report.json" \
   --output "$RESULTS/proxy-invariant.jsonl" \
@@ -94,6 +104,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/import-attributes-tests.txt" \
   --report "$RESULTS/import-attributes-report.json" \
   --output "$RESULTS/import-attributes.jsonl" \
@@ -105,6 +117,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/bigint-atomics-tests.txt" \
   --report "$RESULTS/bigint-atomics-report.json" \
   --output "$RESULTS/bigint-atomics.jsonl" \
@@ -116,6 +130,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/strict-escape-tests.txt" \
   --report "$RESULTS/strict-escape-report.json" \
   --output "$RESULTS/strict-escape.jsonl" \
@@ -127,6 +143,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/agent-tests.txt" \
   --report "$RESULTS/agent-report.json" \
   --output "$RESULTS/agent.jsonl" \
@@ -138,6 +156,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/proxy-tests.txt" \
   --report "$RESULTS/proxy-report.json" \
   --output "$RESULTS/proxy.jsonl" \
@@ -149,6 +169,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/atomics-tests.txt" \
   --report "$RESULTS/atomics-report.json" \
   --output "$RESULTS/atomics.jsonl" \
@@ -160,6 +182,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/module-cycle-tests.txt" \
   --report "$RESULTS/module-cycle-report.json" \
   --output "$RESULTS/module-cycle.jsonl" \
@@ -171,6 +195,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/strict-early-errors-tests.txt" \
   --report "$RESULTS/strict-early-errors-report.json" \
   --output "$RESULTS/strict-early-errors.jsonl" \
@@ -182,6 +208,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/to-primitive-tests.txt" \
   --report "$RESULTS/to-primitive-report.json" \
   --output "$RESULTS/to-primitive.jsonl" \
@@ -193,6 +221,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/async-generator-tests.txt" \
   --report "$RESULTS/async-generator-report.json" \
   --output "$RESULTS/async-generator.jsonl" \
@@ -204,6 +234,8 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/realm-tests.txt" \
   --report "$RESULTS/realm-report.json" \
   --output "$RESULTS/realm.jsonl" \
@@ -215,10 +247,17 @@ python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
   --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/curated-tests.txt" \
   --report "$RESULTS/curated-report.json" \
   --output "$RESULTS/curated.jsonl" \
   --baseline "$TEST262/baselines/phase10-curated.json" \
   --fail-on-regression >/dev/null
+
+python3 "$TEST262/tools/results.py" markdown \
+  "$RESULTS/curated-report.json" \
+  "$RESULTS/curated-summary.md"
+echo "Markdown summary: $RESULTS/curated-summary.md"
 
 echo "Test262 CI smoke passed."

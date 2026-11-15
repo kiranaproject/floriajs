@@ -1,17 +1,19 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "d4b226d255e169b24e09d7635cdd6bd06e88eac4",
-    "workingTreeDirty": true
+    "revision": "518f2ba020cb659bcc2c8c7eb114d52d1d87fdcd",
+    "workingTreeDirty": false
   },
   "host": {
-    "bytes": 2026544,
-    "sha256": "7f51099188fc4a0b5c8913ddd6ca61704404fa7dc510f0405fdde4ee8436caa0"
+    "bytes": 2044960,
+    "sha256": "e6586d3021375c904efdad1585887a0b3bc593968cf8804e7305bac0c3820add"
   },
   "kind": "floriajs-test262-report",
   "options": {
     "allowUnpinned": false,
-    "listFile": "config/strict-escape-tests.txt",
+    "jobs": 4,
+    "listFile": "strict-escape-tests.txt",
+    "maxDurationSeconds": 0.0,
     "selection": [
       "language/literals/string/legacy-non-octal-escape-sequence-1-strict-explicit-pragma.js",
       "language/literals/string/legacy-non-octal-escape-sequence-2-strict-explicit-pragma.js",
@@ -41,8 +43,8 @@
   },
   "policy": {
     "name": "floriajs-diagnostic-subset",
-    "sha256": "83905a52b4a963e1f6aced79f9a996c2470e91e3249ffe687068d5c8c13441a6",
-    "status": "phase-10.10-proxy-complete"
+    "sha256": "fd810f619ac193d5fe3a54911a0ec3f198d1aa803d21b5fccc294fcc80f93da1",
+    "status": "phase-10.10-complete"
   },
   "records": [
     {
@@ -1460,7 +1462,7 @@
       "variant": "non-strict"
     }
   ],
-  "runnerVersion": "0.6.0",
+  "runnerVersion": "0.7.0",
   "schemaVersion": 1,
   "summary": {
     "attemptedPassRate": 1.0,

@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 from modules import ModuleError, build_bundle
 from prepare_test262 import global_error, selection
@@ -52,7 +54,7 @@ def execution_result(plan: dict, outcome: str, reason: str,
 NEGATIVE_DEFAULTS = {
     "acceptedParsePhases": ["parse", "compile"],
     "runtimePhase": "runtime",
-    "resolutionReason": "negative resolution expectations require module support",
+    "resolutionReason": "negative resolution expectations are not classified by the diagnostic bundler",
     "dontEvaluateMarker": "Test262: This statement should not be evaluated.",
     "unsupportedParseErrorPatterns": ["not supported", "unsupported"],
 }
@@ -158,7 +160,8 @@ def apply_negative_verdict(plan: dict, result: dict, config: dict) -> dict:
     )
 
 
-def execute_module_plan(plan: dict, timeout: float) -> dict:
+def execute_module_plan(plan: dict, timeout: float,
+                        deadline: float | None = None) -> dict:
     entry = Path(plan["source"]["name"])
     root = Path(plan["upstream"]["root"])
     try:
@@ -174,7 +177,7 @@ def execute_module_plan(plan: dict, timeout: float) -> dict:
             command = list(plan["hostCommand"][:-1]) + [str(bundle_path)]
             execution = dict(plan)
             execution["hostCommand"] = command
-            result = execute_plan(execution, timeout)
+            result = execute_plan(execution, timeout, deadline)
     except OSError as error:
         return execution_result(plan, "harness-error", f"module bundle: {error}")
 
@@ -186,7 +189,25 @@ def execute_module_plan(plan: dict, timeout: float) -> dict:
     return result
 
 
-def execute_plan(plan: dict, timeout: float) -> dict:
+def remaining_timeout(timeout: float, deadline: float | None) -> float:
+    """Return the effective timeout, bounded by an optional global deadline."""
+    if deadline is None:
+        return timeout
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return 0.0
+    return min(timeout, remaining)
+
+
+def execute_plan(plan: dict, timeout: float,
+                 deadline: float | None = None) -> dict:
+    effective_timeout = remaining_timeout(timeout, deadline)
+    if effective_timeout <= 0:
+        return execution_result(
+            plan,
+            "timeout",
+            "global run deadline was reached before the scenario started",
+        )
     try:
         process = subprocess.run(
             plan["hostCommand"],
@@ -194,14 +215,17 @@ def execute_plan(plan: dict, timeout: float) -> dict:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            timeout=timeout,
+            timeout=effective_timeout,
             check=False,
         )
     except subprocess.TimeoutExpired as error:
+        reason = f"scenario exceeded its {effective_timeout:g}-second deadline and was killed"
+        if deadline is not None and effective_timeout < timeout:
+            reason += " (bounded by the global run deadline)"
         return execution_result(
             plan,
             "timeout",
-            f"scenario exceeded its {timeout:g}-second deadline and was killed",
+            reason,
             {
                 "stdout": partial_text(error.stdout),
                 "stderr": partial_text(error.stderr),
@@ -250,6 +274,18 @@ def main() -> int:
     parser.add_argument("--list", type=Path, help="file containing test/relative paths")
     parser.add_argument("--timeout", type=float, default=5.0, help="per-scenario deadline in seconds")
     parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="number of scenarios to execute concurrently (each in its own process)",
+    )
+    parser.add_argument(
+        "--max-duration",
+        type=float,
+        default=0.0,
+        help="optional global deadline in seconds for the whole run; 0 disables it",
+    )
+    parser.add_argument(
         "--allow-unpinned",
         action="store_true",
         help="allow a fixture root; never use this for official conformance results",
@@ -265,6 +301,11 @@ def main() -> int:
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    if args.jobs < 1:
+        parser.error("--jobs must be at least 1")
+    if args.max_duration < 0:
+        parser.error("--max-duration must be zero or positive")
+    deadline = time.monotonic() + args.max_duration if args.max_duration > 0 else None
 
     policy: dict | None = None
     policy_name = "unloaded-policy"
@@ -300,18 +341,23 @@ def main() -> int:
             if not host.is_file() or not os.access(host, os.X_OK):
                 raise PlanningError(f"host is not an executable file: {host}")
         negative_config = negative_policy(policy)
-        records: list[dict] = []
-        for plan in plans:
-            if plan["outcome"] == "planned":
-                if plan.get("moduleBundle"):
-                    result = execute_module_plan(plan, args.timeout)
-                else:
-                    result = execute_plan(plan, args.timeout)
-                records.append(apply_negative_verdict(plan, result, negative_config))
-            else:
+
+        def run_plan(plan: dict) -> dict:
+            if plan["outcome"] != "planned":
                 result = execution_result(plan, plan["outcome"], plan["reason"])
                 result["hostCommand"] = []
-                records.append(result)
+                return result
+            if plan.get("moduleBundle"):
+                result = execute_module_plan(plan, args.timeout, deadline)
+            else:
+                result = execute_plan(plan, args.timeout, deadline)
+            return apply_negative_verdict(plan, result, negative_config)
+
+        if args.jobs > 1 and len(plans) > 1:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                records = list(pool.map(run_plan, plans))
+        else:
+            records = [run_plan(plan) for plan in plans]
     except (PlanningError, OSError, ValueError) as error:
         records = [global_error(policy_name, error)]
 
@@ -331,6 +377,8 @@ def main() -> int:
         platform_info=platform_metadata(),
         options={
             "timeoutSeconds": args.timeout,
+            "jobs": args.jobs,
+            "maxDurationSeconds": args.max_duration,
             "allowUnpinned": args.allow_unpinned,
             "selection": tests,
             "listFile": str(args.list) if args.list else None,

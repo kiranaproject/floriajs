@@ -35,6 +35,8 @@ Other options:
 - `--policy PATH` changes the frozen feature policy.
 - `--revision PATH` changes the required pinned commit file.
 - `--timeout SECONDS` sets an independent external deadline for each scenario.
+- `--jobs N` executes up to `N` scenarios concurrently, each in its own host process. Records stay in plan order, so reports are deterministic.
+- `--max-duration SECONDS` sets an optional global deadline for the whole run; `0` disables it. A scenario that would cross the deadline gets a bounded per-scenario timeout and is reported as `timeout`.
 - `--output PATH` writes the scenario records as JSONL.
 - `--report PATH` writes a complete report: metadata, summary, and records.
 - `--baseline PATH` compares the run with a reviewed baseline report.
@@ -87,7 +89,7 @@ When metadata contains `negative`, the runner compares the host's actual complet
 - the error must come from the test source, not a harness file;
 - `phase: parse` accepts an actual `parse` or `compile` phase, both of which represent early errors;
 - `phase: runtime` requires an actual runtime throw;
-- `phase: resolution` is reported as `unsupported` because module linking is not implemented;
+- `phase: resolution` is reported as `unsupported` because the diagnostic bundler does not classify module-link failures as resolution errors;
 - the constructor name must match `negative.type` exactly.
 
 Normal completion, a wrong phase, or a wrong type is a `fail` with a reason that states both the expectation and the actual completion. Harness failures are never converted into negative passes.
@@ -109,7 +111,7 @@ Before checking completion, the host pumps the owner context: due timers run, th
 
 A synchronous throw still wins over any completion message and keeps its normal `fail`/`harness-error` classification. `raw` + `async` is planned as `unsupported` because a raw scenario injects no done-print harness.
 
-This is limited support: async-function bodies still run synchronously, and only Promise microtasks are drained. Timers, agents, externally resolved promises, and async iteration remain out of scope until later phases.
+This is still limited support: the host has no internal async deadline, so pending work is killed by the external per-scenario deadline. Async functions, timers, cooperative agents, and async iteration are supported; externally resolved promises and real preemptive threads are not.
 
 ## Reports, summaries, and baselines
 
@@ -174,12 +176,23 @@ python3 tools/run_test262.py --root .upstream --list config/smoke-tests.txt \
 python3 tools/run_test262.py --root .upstream --list config/curated-tests.txt \
   --baseline baselines/phase10-curated.json --fail-on-regression
 
-# Optional broader diagnostic run from an explicit path list.
+# Optional broader diagnostic run with bounded parallelism and a deadline.
 python3 tools/run_test262.py --root /path/to/pinned/test262 \
-  --list /path/to/explicit-paths.txt --timeout 10 --report results/full-report.json
+  --list /path/to/explicit-paths.txt --timeout 10 --jobs 4 \
+  --max-duration 3600 --report results/full-report.json
 ```
 
+Each worker launches a separate host process; no VM context, heap, or runtime state is shared between scenarios. The report records `jobs` and `maxDurationSeconds` in its options.
+
 The broader run writes a report but does not compare against a reviewed baseline automatically. Expanding the corpus requires reviewing the new results and updating a baseline deliberately.
+
+Render a stable Markdown summary from any report:
+
+```sh
+python3 tools/results.py markdown results/full-report.json results/full-report.md
+```
+
+The summary keeps `pass`, `fail`, `skipped`, `unsupported`, and infrastructure outcomes in separate columns, includes per-directory and per-feature coverage, and lists non-passing scenarios. It is a diagnostic view, not a conformance certificate.
 
 ## Exit statuses and reproducibility
 
@@ -201,8 +214,10 @@ python3 tools/run_sync_smoke.py --root /path/to/test262
 
 The integration fixture verifies:
 
-- eight upstream non-strict passes plus seven strict passes;
+- all 15 reviewed smoke records pass, including both variants;
 - repeatability after removing elapsed-time fields;
+- parallel (`--jobs`) output matches sequential output;
+- a bounded global deadline terminates pending work;
 - exact `assert.js` → `sta.js` order and harmless metadata comments;
 - a deliberately failing assertion versus an include/harness exception;
 - a missing include as a setup error;
@@ -215,16 +230,24 @@ The checked-in `run_host_smoke.py`, `run_metadata_smoke.py`, `run_negative_smoke
 
 ## CI
 
-`tools/ci_smoke.sh` is the deterministic entrypoint. It:
+`tools/ci_smoke.sh` is the deterministic, short pull-request entrypoint. It:
 
 1. fetches the pinned revision into a sparse checkout if `.upstream/` is absent;
 2. builds the host with `pasbuild`, falling back to `fpc`;
-3. runs all five adapter fixture suites;
-4. runs the smoke and curated corpora against `baselines/phase10-smoke.json` and `baselines/phase10-curated.json` with `--fail-on-regression`;
-5. writes generated reports to `test262/results/ci/`, which is ignored by Git.
+3. runs all adapter fixture suites;
+4. runs every reviewed corpus against its baseline with `--fail-on-regression`;
+5. writes generated reports and a Markdown summary to `test262/results/ci/`, which is ignored by Git.
+
+`TEST262_JOBS` controls worker parallelism (default `1` locally; the GitHub workflow sets `4`). `TEST262_MAX_DURATION` optionally bounds the whole run.
 
 The GitHub Actions workflow invokes exactly that script. A local run looks like:
 
 ```sh
 bash test262/tools/ci_smoke.sh
+```
+
+`tools/ci_extended.sh` is the longer-running companion for scheduled or manually dispatched diagnostics. It uses a larger per-scenario timeout, the same bounded parallelism, a global deadline, separate `results/extended/` output, and a combined Markdown summary. It is intentionally not part of the pull-request gate:
+
+```sh
+bash test262/tools/ci_extended.sh
 ```
