@@ -48,7 +48,7 @@ One host invocation:
 
 1. Creates one engine and one default context.
 2. Registers a native `print` callback with a dedicated captured-output channel.
-3. Installs `$262.global` and `$262.evalScript`. Unsupported members are not fabricated.
+3. Installs `$262.global`, `$262.evalScript`, `$262.createRealm`, and the cooperative `$262.agent` surface. Unsupported members are not fabricated.
 4. Reads and evaluates each `--harness` file once in argument order.
 5. Stops immediately if a harness file fails.
 6. Reads and evaluates `--test` once in that same context.
@@ -66,7 +66,7 @@ The `$262` object exposes only capabilities that actually exist:
 - `$262.evalScript(source)` evaluates the source re-entrantly in the current global environment and returns its completion value. It deliberately skips heap collection and Promise-job draining while the caller's VM frame holds live values, and it does not pin the returned value. Runtime throws propagate to JavaScript; parse/compile errors become catchable `SyntaxError`s.
 - `$262.createRealm()` creates a separate context with its own heap, global object, intrinsics, timer registry, and output list. The returned object exposes `global` and `evalScript`; the latter evaluates in the realm that owns the receiver.
 
-`$262.agent`, `$262.detachArrayBuffer`, and `$262.gc` remain absent. Collection from a native callback is unsafe while VM values are live, and the other capabilities need semantics FloriaJS does not have. The planner marks tests that reference these members as `unsupported` rather than pretending success. Strict and module semantics are not simulated.
+`$262.detachArrayBuffer` and `$262.gc` remain absent. Collection from a native callback is unsafe while VM values are live, and detaching an array buffer needs semantics FloriaJS does not have. `$262.agent` is present but cooperative: agents run in separate contexts and switch only at explicit agent/Atomics calls, so there is no preemptive thread concurrency. The planner marks tests that reference missing members as `unsupported` rather than pretending success.
 
 In `--async` mode, the host recognizes exactly these completion lines in the captured print channel:
 
@@ -75,7 +75,7 @@ In `--async` mode, the host recognizes exactly these completion lines in the cap
 - multiple completion lines → `fail` with reason `async-completion-repeated`;
 - no completion line → the host remains pending and is killed by the external supervisor as `timeout`.
 
-The host does not have an internal async deadline. This is intentional: a script that merely returns from `EvaluateDetailed()` cannot pass without printing completion. The async pump runs this context's due timers and then drains Promise jobs, including jobs queued by timer callbacks. Pending timers are never treated as completion; a far-future timer therefore ends as `timeout`. Agents and async iteration remain unsupported.
+The host does not have an internal async deadline. This is intentional: a script that merely returns from `EvaluateDetailed()` cannot pass without printing completion. The async pump runs this context's due timers and then drains Promise jobs, including jobs queued by timer callbacks and cooperative agents. Pending timers are never treated as completion; a far-future timer therefore ends as `timeout`. Async iteration and `for await` are supported; agents remain cooperative and single-threaded.
 
 ## Result object
 
@@ -137,8 +137,9 @@ The fixture checker uses only Python's standard library and authored files in `f
 - ordered harness evaluation in one context and exactly-once source execution;
 - harness failure short-circuiting, missing files, and directory I/O failures;
 - raw-mode rules and invalid argument/status handling;
-- `$262.global` equality with the existing global snapshot and `evalScript` return/error propagation;
+- `$262.global` equality with the existing global snapshot, `evalScript` return/error propagation, and `createRealm` isolation;
 - `evalScript` re-entrancy and absence of premature microtask draining;
+- cooperative `$262.agent` start/report/broadcast/leave behavior;
 - strict-mode undeclared assignment, duplicate parameters, and class-body strictness;
 - `$262`'s deliberately limited surface, with unsupported members absent;
 - async chained completion, failure, repeated completion, and missing completion;

@@ -28,11 +28,11 @@ them.
 | `break` / `continue` with labels | Yes | Labels work on `for`, `for…in`, `for…of`, `while`, and labeled statements. |
 | `return` | Yes | Not allowed outside a function (raises). |
 | Empty statement (`;`) | Yes | Treated as an empty block. |
-| `with` | No | Rejected at parse time with a clear error; it never runs as an undeclared name. |
+| `with` | Yes (sloppy) | Supported in sloppy mode, including boxed primitives. Strict mode rejects it as a `SyntaxError`. |
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
 | `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, and `super`. Methods are non-enumerable. Class fields are not supported. |
 | Generators (`function*`, `yield`) | Yes | `function*` bodies run lazily and suspend at `yield`; `yield*` delegates. Generator objects implement `next()`, `return()`, and `Symbol.iterator`, and may be resumed by a later script. |
-| `for await` | Yes | Async iteration over async iterators and sync iterables; each step awaits the iterator result. Async generator functions (`async function*`) remain unsupported. |
+| `for await` | Yes | Async iteration over async iterators and sync iterables; each step awaits the iterator result. `async function*` is supported, including `yield`, `await`, and `yield*`. |
 
 Automatic semicolon insertion covers the restricted productions and statement
 boundaries:
@@ -506,7 +506,7 @@ are grouped by cause, because the three groups have different answers:
 | Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. | Reuses the FPC regex engine instead of shipping one. |
 | `Object.freeze` / `seal` | Now update per-property `writable`/`configurable` flags. Frozen objects reject writes, additions, and deletes; sealed objects reject additions and deletes while retaining writability. |
 | `Object.defineProperty` | Honours `value`, `writable`, `enumerable`, `configurable`, `get`, and `set`. Existing non-configurable properties cannot be converted between data and accessor forms. Accessor descriptors do not use `writable`. |
-| `Symbol` property keys | Symbols are primitives, but `obj[sym]` stores under the string form `Symbol(description)`; not real symbol-keyed properties. | Would require a separate symbol-keyed property table. |
+| Agents | `$262.agent` runs cooperative single-threaded agents that switch only at explicit agent/Atomics calls; there is no preemptive thread concurrency. `Atomics.waitAsync` waiters are resolved by `Atomics.notify` across agents. |
 
 ### Missing features
 
@@ -516,15 +516,11 @@ work.
 
 | Area | Current behaviour |
 | :--- | :--- |
-| Async generators | `async function*` supports `yield`, `await`, `for await`, and `yield*`. Yielded promises are awaited, sent values are forwarded to the inner iterator, and the async-generator prototype chain is present. `yield*` forwards `return`/`throw`, adopts thenables, and passes the exact ordering tests. |
 | `Array.prototype.keys` / `entries` | Not implemented. `values()` and `Symbol.iterator` are. |
 | `Object.fromEntries` | Not implemented. `Object.entries` is. |
 | `String.prototype.localeCompare` / `normalize` | Not implemented. |
 | Function `toString` | Returns `function <name>() { [native code] }` for user functions too; the original source is not retained. |
 | `Intl`, `eval`, `alert` | Not defined. Reading them throws `ReferenceError`. |
-| Agents | `$262.agent` supports cooperative agents with `start`, `report`, `getReport`, `broadcast`, `receiveBroadcast`, `sleep`, `monotonicNow`, `leave`, and `getSharedArrayBuffer`. Agents are single-threaded and switch only at explicit agent/Atomics calls; real preemptive concurrency is not implemented. `Atomics.waitAsync` waiters are resolved by `Atomics.notify`, including across cooperative agents. |
-| Proxy | `new Proxy` and `Proxy.revocable` support `get`, `set`, `has`, `deleteProperty`, `ownKeys`, `getOwnPropertyDescriptor`, `apply`, and `construct` traps, with the main property invariants. The `with`-statement invariant test remains unsupported. |
-| `with` | Supported in sloppy mode; rejected in strict mode. |
 
 ### Known gaps
 
@@ -544,6 +540,7 @@ work.
 | `this` | Top-level `this` is the global object. A plain call of a non-strict function receives the global object; a strict function keeps `this === undefined`. Methods, `new`, and lexical `this` in arrows behave normally. |
 | Detached `prototype.constructor` | `Foo.prototype.constructor === Foo` works, but the back-reference is a weak registration. After `var p = Foo.prototype; Foo.prototype = {}`, `p.constructor` is `Object` rather than `Foo`. |
 | Modules | Static relative `import`/`export` declarations are lowered into a diagnostic bundle with module-scoped function bodies. Exports are live getters, named imports are rewritten to live property reads, star-export cycles are supported, and exported `let`/`const` keep their TDZ. Specifiers must be relative; `import.meta`, dynamic import for relative specifiers, and JSON import attributes are supported. Text modules are supported; full module records are not implemented. |
+| Proxy | `new Proxy` and `Proxy.revocable` support `get`, `set`, `has`, `deleteProperty`, `ownKeys`, `getOwnPropertyDescriptor`, `apply`, and `construct` traps with the main property invariants. The `with`-statement invariant test remains unsupported. |
 | Realms | `$262.createRealm()` in the diagnostic host creates a genuinely separate context with its own heap, global object, intrinsics, timers, and output. Cross-realm intrinsic selection works for the supported constructors and array species. |
 
 TDZ hoisting is implemented for program bodies, ordinary blocks, function
@@ -558,8 +555,8 @@ Unimplemented syntax and APIs are listed once, in
 this page does not repeat it, so the two cannot drift apart.
 
 Static `import`/`export` is handled by the diagnostic module bundler; it is not
-a spec-complete module loader. `$262.createRealm()` is available in the
-diagnostic host; agents remain unsupported.
+a spec-complete module loader. `$262.createRealm()` and `$262.agent` are
+available in the diagnostic host; agents are cooperative and single-threaded.
 
 ## Verifying behaviour
 

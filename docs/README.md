@@ -50,6 +50,16 @@ Implemented and covered by the test suite:
   `static`, `extends`, and `super`. Methods are non-enumerable.
 - Generators: `function*`, `yield`, `yield*`, and the generator object
   (`next`/`return`/`Symbol.iterator`).
+- Async iteration: `for await` over async iterators and sync iterables, and
+  `async function*` generators with `yield`, `await`, and `yield*`.
+- Modules: static relative `import`/`export` through the diagnostic bundler,
+  plus `import.meta`, dynamic `import()`, JSON/text import attributes, and
+  live bindings.
+- Binary and concurrency data: `ArrayBuffer`, `SharedArrayBuffer`, `DataView`,
+  BigInt typed arrays, and core `Atomics`; the diagnostic host also provides
+  cooperative `$262.agent` agents.
+- Reflection: `Proxy` and `Reflect` traps, `WeakMap`/`WeakSet` with
+  Map/Set-backed storage, and real `Symbol`-keyed properties.
 - BigInt: `123n` literals in decimal and every radix, arbitrary-precision
   arithmetic and comparison, and `BigInt()` conversion.
 - Function metadata: `fn.length`, `fn.name` (including inference for anonymous
@@ -79,11 +89,11 @@ Implemented and covered by the test suite:
 - FTML: component instantiation, IDs, compiled reactive property bindings,
   dependency tracking, anchors, signals, and document lifecycle management.
 
-Not implemented yet (see the [roadmap](roadmap.md)):
+Not implemented yet (see [language support](language-support.md) for details):
 
-- `for await`, and `import`/`export`.
-- Convenience methods such as `String.fromCharCode`, `Array.prototype.flat`,
-  and `Object.is`.
+- `Array.prototype.keys`/`entries`, `Object.fromEntries`, and
+  `String.prototype.localeCompare`/`normalize`.
+- `Intl`, `eval`, and `alert`.
 - A JIT/AOT compiler, hidden classes/inline caches, and persistent bytecode
   caching. The VM is currently a pure interpreter.
 

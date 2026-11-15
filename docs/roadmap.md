@@ -10,18 +10,19 @@ then performance.
 
 ## Current snapshot
 
-At the time this roadmap was written:
+Last refreshed 2026-11-15:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **223 tests pass** with `pasbuild test`.
+- Test suite: **271 tests pass** with `pasbuild test`.
 - Benchmark suite: **15 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **12 file-based workloads**, geometric mean **4.3x** Node; `--check` guards a 25% ratio regression.
-- Gap scan: **186 probes OK / 8 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
-  Some errors are expected (`throw`, unsupported `yield`); the probe harness is
-  not an ECMAScript conformance suite.
-- Unit count: 26 units.
-- Documentation claims: **71 checked, 0 failing** with
+- Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
+  The expected errors are deliberate (`throw`, `const`/`for const` reassignment,
+  `alert`, calling a non-function, and an invalid assignment target); the probe
+  harness is not an ECMAScript conformance suite.
+- Unit count: 28 units.
+- Documentation claims: **90 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -1394,22 +1395,23 @@ JIT availability.
 These are deliberate embedded-runtime trade-offs. Keep them documented rather
 than “fixing” them accidentally:
 
-1. **UTF-8 byte strings.** `String.length`, indexing, `charAt`, and string
-   iteration operate on native UTF-8 bytes, not UTF-16 code units.
-2. **`globalThis` snapshot.** It exposes standard globals but is not a live
-   proxy for later variable declarations or assignments. This preserves
-   sandboxing.
-3. **No object-to-primitive coercion for loose equality.** Recommend `===`.
-   `[1] == 1` remains `false`.
-4. **No ES modules.** `import`/`export` are deferred until a host module/package
-   specification exists.
-5. **`with`** remains unsupported and should fail clearly.
+1. **UTF-8 internal strings.** Storage is UTF-8; the JavaScript boundary
+   exposes UTF-16 code units for `length`, indexing, `charAt`, and iteration.
+   Regular-expression matching still operates on the UTF-8 representation.
+2. **Interpreter only.** No JIT/AOT, hidden classes, inline caches, or
+   persistent bytecode cache. The optional performance work is P3.
+3. **Cooperative agents.** `$262.agent` is single-threaded and switches only at
+   explicit agent/Atomics calls; real preemptive thread concurrency is not
+   implemented.
+4. **WeakMap/WeakSet storage.** They expose the Map/Set API but use strong
+   storage, so they do not provide true weak-reference semantics.
+5. **RegExp engine.** Backed by Pascal `RegExpr`; lookbehind, named groups, and
+   Unicode property escapes are not guaranteed.
 6. **Full ECMAScript conformance** is not a goal; the target is a practical
    embedded UI runtime.
 
-`with` is rejected at parse time rather than at run time, so unsupported syntax
-fails loudly as the policy above requires. `debugger` is a supported no-op
-keyword, so it is not deferred.
+Unsupported syntax still fails loudly at parse time. `debugger` is a supported
+no-op keyword, not deferred.
 
 ---
 
