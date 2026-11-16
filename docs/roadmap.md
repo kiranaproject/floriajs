@@ -15,8 +15,8 @@ Last refreshed 2026-11-15:
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
 - Test suite: **276 tests pass** with `pasbuild test`.
-- Benchmark suite: **15 workloads** with a checked-in baseline; `--check` guards a 20% regression.
-- Node comparison: **12 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
+- Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
+- Node comparison: **13 file-based workloads**, geometric mean **6.0x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   The expected errors are deliberate (`throw`, `const`/`for const` reassignment,
   `alert`, calling a non-function, and an invalid assignment target); the probe
@@ -1472,12 +1472,32 @@ Benchmark effects were within run-to-run noise: calls, loops, property access,
 and FTML stayed at their P3-02 levels, with no regression over 20%. The smaller
 value is primarily a cache/stack improvement and the foundation for P3-04.
 
-### [ ] P3-04 — Object shapes and inline caches
+### [x] P3-04 — Object shapes and inline caches
 
-- Add shape/hidden-class transitions for ordinary objects.
-- Add monomorphic property caches at bytecode sites.
-- Preserve prototype-chain and getter/setter semantics.
-- Do not change observable key enumeration order.
+Ordinary objects now carry a monotonic **shape token**. Adding an own property
+takes an interned `(parent shape, key)` transition; deleting a property issues a
+fresh token so every cache that named the old key sequence is invalidated.
+Enumeration still walks the original property array, so key order is unchanged.
+
+Bytecode now has per-instruction **monomorphic property caches** for named and
+computed-string sites. A cache entry records `(shape token, key, index)`. On a
+hit, the VM reads or writes the own property slot directly, without a name
+search. Caches are used only for own data properties; getters, setters,
+non-writable properties, inherited properties, arrays, functions, and proxies
+fall back to the normal property path. Attribute changes are validated on every
+hit, so freezing/sealing or an accessor replacement cannot bypass semantics.
+
+A new `prop/many-5k` workload exercises a 40-property object. Measured
+back-to-back:
+
+| workload | before P3-04 | after P3-04 | change |
+| :--- | ---: | ---: | ---: |
+| `prop/many-5k` | 18.83 | 17.21 | -8.6% |
+
+Small-object access (`prop/read-write-5k`, `prop/computed-2k`) stayed within
+run-to-run noise: at five properties the linear search is already cheap, so the
+cache mainly helps deeper shapes. The Node geometric mean is **6.0x** and the
+new `prop_many` ratio is **5.7x**.
 
 ### [ ] P3-05 — FTML reactive fast path
 

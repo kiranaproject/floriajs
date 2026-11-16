@@ -353,6 +353,7 @@ type
     procedure TestSlotLocalsAndEnvironmentFallback();
     procedure TestArrayNumericKeyFastPath();
     procedure TestCompactValueRepresentation();
+    procedure TestInlinePropertyCaches();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7471,6 +7472,36 @@ begin
   AssertFalse('zero is falsy', value.BoolVal);
   value := JSMakeNumber(2);
   AssertTrue('non-zero number is truthy', value.BoolVal);
+end;
+
+procedure TFloriaJSPhase10Test.TestInlinePropertyCaches();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var o = { a: 1, b: 2 };' +
+      'var total = 0;' +
+      'for (var i = 0; i < 100; i++) { total = total + o.a; o.b = i; }' +
+      'delete o.a;' +
+      'o.c = 3;' +
+      'total = total + o.c + o.b;' +
+      'var base = { inherited: 7 };' +
+      'var child = Object.create(base);' +
+      'child.own = 1;' +
+      'var accessor = { _x: 1, get x() { return this._x; }, set x(v) { this._x = v; } };' +
+      'accessor.x = 5;' +
+      '[total, child.inherited, accessor.x, Object.keys(o).join(":"),' +
+      ' Object.keys(accessor).join(":")].join(",");'
+    );
+    AssertTrue('inline property cache script succeeds', res.Success);
+    AssertEquals('caches preserve shape changes, prototypes, accessors, and key order',
+      '202,7,5,b:c,_x:x', res.StringValue);
+  finally
+    engine.Free();
+  end;
 end;
 
 { TFloriaJSPriority1Test }

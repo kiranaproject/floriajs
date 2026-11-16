@@ -121,6 +121,9 @@ type
     FHeap: TFloriaJSHeap;
     FHeapOwned: Boolean;
     FPinned: Boolean;
+    { Monotonic shape token: changes whenever the own-property key sequence
+      changes. Inline caches use it to validate a property index. }
+    FShapeId: Int64;
     function FindPropertyIndex(const AName: string): Integer;
     function FindWellKnownSymbolIndex(const AName: string): Integer;
     procedure SetPrototype(AProto: TFloriaJSObject);
@@ -178,6 +181,13 @@ type
     procedure FreezeProperties();
     procedure SealProperties();
     function  GetPropertyCount(): Integer; virtual;
+    { Shape and own-property helpers used by the VM's inline caches. }
+    function  ShapeId(): Int64; inline;
+    function  IndexOfOwnProperty(const AName: string): Integer; inline;
+    function  OwnPropertyHasGetter(AIndex: Integer): Boolean; inline;
+    function  OwnPropertyIsWritable(AIndex: Integer): Boolean; inline;
+    function  OwnPropertyValue(AIndex: Integer): TFloriaJSValue; inline;
+    procedure SetOwnPropertyValue(AIndex: Integer; const AValue: TFloriaJSValue); inline;
     function  GetEnumerablePropertyCount(): Integer; virtual;
     function  GetEnumerablePropertyKey(AIndex: Integer): string; virtual;
     function  GetPropertyKey(AIndex: Integer): string; virtual;
@@ -1279,6 +1289,53 @@ begin
   if IsPromise() then Result := TFloriaJSPromise(ObjVal) else Result := nil;
 end;
 
+var
+  GShapeTransitions: TStringList;
+  GNextShapeId: Int64 = 0;
+  GLastShapeParent: Int64 = -1;
+  GLastShapeKey: string = '';
+  GLastShapeChild: Int64 = 0;
+
+function AllocateShapeId(): Int64;
+begin
+  Inc(GNextShapeId);
+  Result := GNextShapeId;
+end;
+
+function ShapeTransition(AParentShape: Int64; const AKey: string): Int64;
+var
+  key: string;
+  idx: Integer;
+begin
+  { Property keys can contain almost anything; if one contains the separator,
+    fall back to a fresh token rather than mixing up two shapes. }
+  if Pos(#0, AKey) > 0 then
+    Exit(AllocateShapeId());
+  { Object literals and repeated constructors add the same key to the same
+    parent shape back to back, so remember the last transition. }
+  if (AParentShape = GLastShapeParent) and (AKey = GLastShapeKey) then
+    Exit(GLastShapeChild);
+  if GShapeTransitions = nil then
+  begin
+    GShapeTransitions := TStringList.Create;
+    GShapeTransitions.Sorted := True;
+    GShapeTransitions.Duplicates := dupIgnore;
+    GShapeTransitions.NameValueSeparator := #0;
+  end;
+  key := IntToStr(AParentShape) + #0 + AKey;
+  idx := GShapeTransitions.IndexOf(key);
+  if idx >= 0 then
+    Result := StrToInt64(GShapeTransitions.ValueFromIndex[idx])
+  else
+  begin
+    Result := AllocateShapeId();
+    GShapeTransitions.Add(key + #0 + IntToStr(Result));
+  end;
+  GLastShapeParent := AParentShape;
+  GLastShapeKey := AKey;
+  GLastShapeChild := Result;
+end;
+
 { TFloriaJSObject }
 
 constructor TFloriaJSObject.Create(AProto: TFloriaJSObject);
@@ -1289,6 +1346,7 @@ begin
   FHeap := nil;
   FHeapOwned := True;
   FPinned := False;
+  FShapeId := 0;
   FIsFrozen := False;
   FIsSealed := False;
   FIsExtensible := True;
@@ -1522,6 +1580,7 @@ begin
   FProperties[FPropCount].Writable := True;
   FProperties[FPropCount].Configurable := True;
   JSRetainValue(AValue);
+  FShapeId := ShapeTransition(FShapeId, AName);
   Inc(FPropCount);
 end;
 
@@ -1601,6 +1660,7 @@ begin
   FProperties[FPropCount].Writable := True;
   FProperties[FPropCount].Configurable := True;
   JSRetainValue(AGetter);
+  FShapeId := ShapeTransition(FShapeId, AName);
   Inc(FPropCount);
 end;
 
@@ -1637,6 +1697,7 @@ begin
   FProperties[FPropCount].Writable := True;
   FProperties[FPropCount].Configurable := True;
   JSRetainValue(ASetter);
+  FShapeId := ShapeTransition(FShapeId, AName);
   Inc(FPropCount);
 end;
 
@@ -1673,6 +1734,9 @@ begin
   FProperties[FPropCount].Value := JSMakeUndefined();
   FProperties[FPropCount].Getter := JSMakeUndefined();
   FProperties[FPropCount].Setter := JSMakeUndefined();
+  { Deleting changes the key sequence; invalidate every cache that named this
+    shape. A fresh token is simpler and safe. }
+  FShapeId := AllocateShapeId();
   Result := True;
 end;
 
@@ -1893,6 +1957,47 @@ end;
 function TFloriaJSObject.GetPropertyCount(): Integer;
 begin
   Result := FPropCount;
+end;
+
+function TFloriaJSObject.ShapeId(): Int64;
+begin
+  Result := FShapeId;
+end;
+
+function TFloriaJSObject.IndexOfOwnProperty(const AName: string): Integer;
+begin
+  Result := FindPropertyIndex(AName);
+end;
+
+function TFloriaJSObject.OwnPropertyHasGetter(AIndex: Integer): Boolean;
+begin
+  Result := (AIndex >= 0) and (AIndex < FPropCount) and FProperties[AIndex].HasGetter;
+end;
+
+function TFloriaJSObject.OwnPropertyIsWritable(AIndex: Integer): Boolean;
+begin
+  Result := (AIndex >= 0) and (AIndex < FPropCount) and
+    (not FProperties[AIndex].HasGetter) and
+    (not FProperties[AIndex].HasSetter) and
+    FProperties[AIndex].Writable and (not IsFrozen);
+end;
+
+function TFloriaJSObject.OwnPropertyValue(AIndex: Integer): TFloriaJSValue;
+begin
+  if (AIndex >= 0) and (AIndex < FPropCount) then
+    Result := FProperties[AIndex].Value
+  else
+    Result := JSMakeUndefined();
+end;
+
+procedure TFloriaJSObject.SetOwnPropertyValue(AIndex: Integer;
+  const AValue: TFloriaJSValue);
+begin
+  if (AIndex < 0) or (AIndex >= FPropCount) then
+    Exit;
+  JSReleaseValue(FProperties[AIndex].Value);
+  FProperties[AIndex].Value := AValue;
+  JSRetainValue(AValue);
 end;
 
 { The number of enumerable own properties, which is what `Object.keys`,
@@ -6013,6 +6118,8 @@ initialization
   GLiveHeaps := TFPList.Create;
 
 finalization
+  if GShapeTransitions <> nil then
+    FreeAndNil(GShapeTransitions);
   if GLiveHeaps <> nil then
   begin
     while GLiveHeaps.Count > 0 do

@@ -176,6 +176,14 @@ type
     FLocalNames: TStringList;
     FArgNames: TStringList;
     FSubFunctions: TFPList;
+    { One inline property cache per instruction index. The shape token makes
+      the cached index valid only while the object's key sequence is unchanged. }
+    FPropCacheShape: array of Int64;
+    FPropCacheIndex: array of Int32;
+    { Computed-string property sites cache the key text as well. }
+    FKeyCacheShape: array of Int64;
+    FKeyCacheIndex: array of Int32;
+    FKeyCacheKey: array of string;
     FIsArrow: Boolean;
     FIsAsync: Boolean;
     FIsGenerator: Boolean;
@@ -229,6 +237,14 @@ type
     { Instruction Access }
     function  GetInstruction(AIndex: Integer): TFloriaJSInstruction;
     function  GetInstructionCount(): Integer;
+
+    function  LookupPropertyCache(AIP: Integer; AShape: Int64;
+      out AIndex: Integer): Boolean;
+    procedure StorePropertyCache(AIP: Integer; AShape: Int64; AIndex: Integer);
+    function  LookupKeyPropertyCache(AIP: Integer; AShape: Int64;
+      const AKey: string; out AIndex: Integer): Boolean;
+    procedure StoreKeyPropertyCache(AIP: Integer; AShape: Int64;
+      const AKey: string; AIndex: Integer);
 
     { Disassembly / Debug }
     function  Disassemble(): string;
@@ -595,6 +611,90 @@ end;
 function TFloriaJSBytecode.GetInstructionCount(): Integer;
 begin
   Result := FCodeCount;
+end;
+
+function TFloriaJSBytecode.LookupPropertyCache(AIP: Integer; AShape: Int64;
+  out AIndex: Integer): Boolean;
+var
+  i, oldLen: Integer;
+begin
+  AIndex := -1;
+  if AIP < 0 then
+    Exit(False);
+  if AIP >= System.Length(FPropCacheShape) then
+  begin
+    oldLen := System.Length(FPropCacheShape);
+    SetLength(FPropCacheShape, AIP + 1);
+    SetLength(FPropCacheIndex, AIP + 1);
+    for i := oldLen to AIP do
+      FPropCacheShape[i] := -1;
+  end;
+  Result := (FPropCacheShape[AIP] = AShape) and (AShape >= 0);
+  if Result then
+    AIndex := FPropCacheIndex[AIP];
+end;
+
+procedure TFloriaJSBytecode.StorePropertyCache(AIP: Integer; AShape: Int64;
+  AIndex: Integer);
+var
+  i, oldLen: Integer;
+begin
+  if AIP < 0 then
+    Exit;
+  if AIP >= System.Length(FPropCacheShape) then
+  begin
+    oldLen := System.Length(FPropCacheShape);
+    SetLength(FPropCacheShape, AIP + 1);
+    SetLength(FPropCacheIndex, AIP + 1);
+    for i := oldLen to AIP do
+      FPropCacheShape[i] := -1;
+  end;
+  FPropCacheShape[AIP] := AShape;
+  FPropCacheIndex[AIP] := AIndex;
+end;
+
+function TFloriaJSBytecode.LookupKeyPropertyCache(AIP: Integer; AShape: Int64;
+  const AKey: string; out AIndex: Integer): Boolean;
+var
+  i, oldLen: Integer;
+begin
+  AIndex := -1;
+  if AIP < 0 then
+    Exit(False);
+  if AIP >= System.Length(FKeyCacheShape) then
+  begin
+    oldLen := System.Length(FKeyCacheShape);
+    SetLength(FKeyCacheShape, AIP + 1);
+    SetLength(FKeyCacheIndex, AIP + 1);
+    SetLength(FKeyCacheKey, AIP + 1);
+    for i := oldLen to AIP do
+      FKeyCacheShape[i] := -1;
+  end;
+  Result := (FKeyCacheShape[AIP] = AShape) and (AShape >= 0) and
+    (FKeyCacheKey[AIP] = AKey);
+  if Result then
+    AIndex := FKeyCacheIndex[AIP];
+end;
+
+procedure TFloriaJSBytecode.StoreKeyPropertyCache(AIP: Integer; AShape: Int64;
+  const AKey: string; AIndex: Integer);
+var
+  i, oldLen: Integer;
+begin
+  if AIP < 0 then
+    Exit;
+  if AIP >= System.Length(FKeyCacheShape) then
+  begin
+    oldLen := System.Length(FKeyCacheShape);
+    SetLength(FKeyCacheShape, AIP + 1);
+    SetLength(FKeyCacheIndex, AIP + 1);
+    SetLength(FKeyCacheKey, AIP + 1);
+    for i := oldLen to AIP do
+      FKeyCacheShape[i] := -1;
+  end;
+  FKeyCacheShape[AIP] := AShape;
+  FKeyCacheIndex[AIP] := AIndex;
+  FKeyCacheKey[AIP] := AKey;
 end;
 
 function TFloriaJSBytecode.Disassemble(): string;

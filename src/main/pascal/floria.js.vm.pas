@@ -1197,7 +1197,8 @@ var
   intrinsicName: string;
   propName, varName, propKeyStr, pName, restName, evalText: string;
   argc, i, j, callBaseBP, asyncInitialFP: Integer;
-  idx64: Int64;
+  idx64, shapeId: Int64;
+  cacheIdx, instIP: Integer;
   args: array of TFloriaJSValue;
   fn: TFloriaJSFunction;
   subCode: TFloriaJSBytecode;
@@ -1234,7 +1235,8 @@ begin
       Continue;
     end;
 
-    inst := curFrame^.Bytecode.GetInstruction(curFrame^.IP);
+    instIP := curFrame^.IP;
+    inst := curFrame^.Bytecode.GetInstruction(instIP);
     Inc(curFrame^.IP);
 
       case inst.Op of
@@ -1531,6 +1533,27 @@ begin
             objVal := Pop();
             if objVal.IsArray() and JSArrayIndexFromNumber(propVal, idx64) then
               Push(TFloriaJSArray(objVal.ObjVal).GetElementByIndex(idx64))
+            else if objVal.IsObject() and (objVal.Kind = fjstObject) and
+                    (not (objVal.ObjVal is TFloriaJSProxy)) and propVal.IsString() then
+            begin
+              propKeyStr := propVal.StrVal;
+              currObj := objVal.AsObject();
+              shapeId := currObj.ShapeId();
+              if curFrame^.Bytecode.LookupKeyPropertyCache(instIP, shapeId,
+                   propKeyStr, cacheIdx) and
+                 (cacheIdx >= 0) and
+                 (not currObj.OwnPropertyHasGetter(cacheIdx)) then
+                Push(currObj.OwnPropertyValue(cacheIdx))
+              else
+              begin
+                cacheIdx := currObj.IndexOfOwnProperty(propKeyStr);
+                if (cacheIdx >= 0) and
+                   (not currObj.OwnPropertyHasGetter(cacheIdx)) then
+                  curFrame^.Bytecode.StoreKeyPropertyCache(instIP, shapeId,
+                    propKeyStr, cacheIdx);
+                Push(GetMemberValue(objVal, propKeyStr));
+              end;
+            end
             else
               Push(GetMemberValue(objVal, JSPropertyKeyName(propVal)));
           end;
@@ -1539,7 +1562,26 @@ begin
           begin
             propName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             objVal := Pop();
-            Push(GetMemberValue(objVal, propName));
+            if objVal.IsObject() and (objVal.Kind = fjstObject) and
+               (not (objVal.ObjVal is TFloriaJSProxy)) then
+            begin
+              currObj := objVal.AsObject();
+              shapeId := currObj.ShapeId();
+              if curFrame^.Bytecode.LookupPropertyCache(instIP, shapeId, cacheIdx) and
+                 (cacheIdx >= 0) and
+                 (not currObj.OwnPropertyHasGetter(cacheIdx)) then
+                Push(currObj.OwnPropertyValue(cacheIdx))
+              else
+              begin
+                cacheIdx := currObj.IndexOfOwnProperty(propName);
+                if (cacheIdx >= 0) and
+                   (not currObj.OwnPropertyHasGetter(cacheIdx)) then
+                  curFrame^.Bytecode.StorePropertyCache(instIP, shapeId, cacheIdx);
+                Push(GetMemberValue(objVal, propName));
+              end;
+            end
+            else
+              Push(GetMemberValue(objVal, propName));
           end;
 
         opSetProp:
@@ -1549,6 +1591,28 @@ begin
             objVal := Pop();
             if objVal.IsArray() and JSArrayIndexFromNumber(propVal, idx64) then
               TFloriaJSArray(objVal.ObjVal).SetElementByIndex(idx64, val)
+            else if objVal.IsObject() and (objVal.Kind = fjstObject) and
+                    (not (objVal.ObjVal is TFloriaJSProxy)) and propVal.IsString() then
+            begin
+              propKeyStr := propVal.StrVal;
+              currObj := objVal.AsObject();
+              shapeId := currObj.ShapeId();
+              if curFrame^.Bytecode.LookupKeyPropertyCache(instIP, shapeId,
+                   propKeyStr, cacheIdx) and
+                 (cacheIdx >= 0) and
+                 currObj.OwnPropertyIsWritable(cacheIdx) then
+                currObj.SetOwnPropertyValue(cacheIdx, val)
+              else
+              begin
+                SetMemberValue(objVal, propKeyStr, val);
+                shapeId := currObj.ShapeId();
+                cacheIdx := currObj.IndexOfOwnProperty(propKeyStr);
+                if (cacheIdx >= 0) and
+                   currObj.OwnPropertyIsWritable(cacheIdx) then
+                  curFrame^.Bytecode.StoreKeyPropertyCache(instIP, shapeId,
+                    propKeyStr, cacheIdx);
+              end;
+            end
             else
               SetMemberValue(objVal, JSPropertyKeyName(propVal), val);
             Push(val);
@@ -1559,7 +1623,27 @@ begin
             propName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Pop();
             objVal := Pop();
-            SetMemberValue(objVal, propName, val);
+            if objVal.IsObject() and (objVal.Kind = fjstObject) and
+               (not (objVal.ObjVal is TFloriaJSProxy)) then
+            begin
+              currObj := objVal.AsObject();
+              shapeId := currObj.ShapeId();
+              if curFrame^.Bytecode.LookupPropertyCache(instIP, shapeId, cacheIdx) and
+                 (cacheIdx >= 0) and
+                 currObj.OwnPropertyIsWritable(cacheIdx) then
+                currObj.SetOwnPropertyValue(cacheIdx, val)
+              else
+              begin
+                SetMemberValue(objVal, propName, val);
+                shapeId := currObj.ShapeId();
+                cacheIdx := currObj.IndexOfOwnProperty(propName);
+                if (cacheIdx >= 0) and
+                   currObj.OwnPropertyIsWritable(cacheIdx) then
+                  curFrame^.Bytecode.StorePropertyCache(instIP, shapeId, cacheIdx);
+              end;
+            end
+            else
+              SetMemberValue(objVal, propName, val);
             Push(val);
           end;
 
@@ -1581,6 +1665,24 @@ begin
             objVal := Pop();
             if objVal.IsNull() or objVal.IsUndefined() then
               Push(JSMakeUndefined())
+            else if objVal.IsObject() and (objVal.Kind = fjstObject) and
+                    (not (objVal.ObjVal is TFloriaJSProxy)) then
+            begin
+              currObj := objVal.AsObject();
+              shapeId := currObj.ShapeId();
+              if curFrame^.Bytecode.LookupPropertyCache(instIP, shapeId, cacheIdx) and
+                 (cacheIdx >= 0) and
+                 (not currObj.OwnPropertyHasGetter(cacheIdx)) then
+                Push(currObj.OwnPropertyValue(cacheIdx))
+              else
+              begin
+                cacheIdx := currObj.IndexOfOwnProperty(propName);
+                if (cacheIdx >= 0) and
+                   (not currObj.OwnPropertyHasGetter(cacheIdx)) then
+                  curFrame^.Bytecode.StorePropertyCache(instIP, shapeId, cacheIdx);
+                Push(GetMemberValue(objVal, propName));
+              end;
+            end
             else
               Push(GetMemberValue(objVal, propName));
           end;
