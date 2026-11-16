@@ -350,6 +350,7 @@ type
     procedure TestProxyHasFallsBackToTarget();
     procedure TestLargeArrayIndices();
     procedure TestEvalDirectAndIndirect();
+    procedure TestSlotLocalsAndEnvironmentFallback();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7398,6 +7399,30 @@ begin
     AssertTrue('eval lexical scope script succeeds', res.Success);
     AssertEquals('eval let/const stay scoped while var reaches the caller',
       'undefined,ok,3,undefined', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestSlotLocalsAndEnvironmentFallback();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function f(a, b) { var c = 2; return a + b + c; }' +
+      'function g(a) { return function() { return a; }; }' +
+      'function h(a) { eval("a = a + 1"); return a; }' +
+      'function k(a) { return arguments[0] + ":" + arguments.length; }' +
+      'function t(a) { return typeof a; }' +
+      'function d(a) { return delete a; }' +
+      '[f(1, 2), g(7)(), h(4), k(3), t(9), d(1)].join(",");'
+    );
+    AssertTrue('slot locals script succeeds', res.Success);
+    AssertEquals('slots, closures, eval, arguments, typeof, and delete agree',
+      '5,7,5,3:1,number,false', res.StringValue);
   finally
     engine.Free();
   end;

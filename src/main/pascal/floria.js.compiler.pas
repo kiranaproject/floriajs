@@ -51,6 +51,12 @@ type
     FEnvDepth: Integer;
     FParamNames: TStrings;
     FCatchParam: string;
+    { Names resolved to frame slots for this function body. Nil means every
+      user identifier uses the environment. }
+    FSlotNames: TStringList;
+
+    function  IsSlotName(const AName: string): Boolean;
+    function  SlotIndex(const AName: string): Integer;
 
     procedure PushLoopContext(const ALabel: string = ''; AIsLoop: Boolean = True);
     procedure PopLoopContext(ABreakTarget: Integer);
@@ -161,13 +167,30 @@ begin
   FEnvDepth := 0;
   FParamNames := nil;
   FCatchParam := '';
+  FSlotNames := nil;
 end;
 
 destructor TFloriaJSCompiler.Destroy();
 begin
+  if FSlotNames <> nil then
+    FSlotNames.Free();
   SetLength(FLoopStack, 0);
   SetLength(FTryStack, 0);
   inherited Destroy();
+end;
+
+function TFloriaJSCompiler.IsSlotName(const AName: string): Boolean;
+begin
+  Result := ((Length(AName) > 0) and (AName[1] = '$')) or
+    ((FSlotNames <> nil) and (FSlotNames.IndexOf(AName) >= 0));
+end;
+
+function TFloriaJSCompiler.SlotIndex(const AName: string): Integer;
+begin
+  if IsSlotName(AName) then
+    Result := FBytecode.FindLocal(AName)
+  else
+    Result := -1;
 end;
 
 procedure TFloriaJSCompiler.PushLoopContext(const ALabel: string; AIsLoop: Boolean);
@@ -285,6 +308,245 @@ begin
     for i := 0 to TFloriaJSArrayExpr(APattern).GetElementCount() - 1 do
       CollectPatternNames(TFloriaJSArrayExpr(APattern).GetElement(i), ANames);
   end;
+end;
+
+function ExprNeedsEnvironment(AExpr: TFloriaJSExprNode): Boolean; forward;
+function StmtNeedsEnvironment(AStmt: TFloriaJSStmtNode): Boolean; forward;
+
+function IsEvalIdentifier(AExpr: TFloriaJSExprNode): Boolean;
+begin
+  if AExpr is TFloriaJSIdentifierExpr then
+    Exit(TFloriaJSIdentifierExpr(AExpr).Name = 'eval');
+  if AExpr is TFloriaJSGroupExpr then
+    Exit(IsEvalIdentifier(TFloriaJSGroupExpr(AExpr).Expression));
+  Result := False;
+end;
+
+function ExprNeedsEnvironment(AExpr: TFloriaJSExprNode): Boolean;
+var
+  i: Integer;
+  call: TFloriaJSCallExpr;
+  obj: TFloriaJSObjectExpr;
+  arr: TFloriaJSArrayExpr;
+  tpl: TFloriaJSTaggedTemplateExpr;
+begin
+  if AExpr = nil then
+    Exit(False);
+  if AExpr is TFloriaJSLiteralExpr then
+    Exit(False);
+  if AExpr is TFloriaJSIdentifierExpr then
+    Exit(TFloriaJSIdentifierExpr(AExpr).Name = 'eval');
+  if AExpr is TFloriaJSUnaryExpr then
+    Exit(ExprNeedsEnvironment(TFloriaJSUnaryExpr(AExpr).Operand));
+  if AExpr is TFloriaJSBinaryExpr then
+    Exit(ExprNeedsEnvironment(TFloriaJSBinaryExpr(AExpr).Left) or
+      ExprNeedsEnvironment(TFloriaJSBinaryExpr(AExpr).Right));
+  if AExpr is TFloriaJSConditionalExpr then
+    Exit(ExprNeedsEnvironment(TFloriaJSConditionalExpr(AExpr).Condition) or
+      ExprNeedsEnvironment(TFloriaJSConditionalExpr(AExpr).Consequent) or
+      ExprNeedsEnvironment(TFloriaJSConditionalExpr(AExpr).Alternate));
+  if AExpr is TFloriaJSAssignExpr then
+    Exit(ExprNeedsEnvironment(TFloriaJSAssignExpr(AExpr).Target) or
+      ExprNeedsEnvironment(TFloriaJSAssignExpr(AExpr).Value));
+  if AExpr is TFloriaJSMemberExpr then
+  begin
+    if ExprNeedsEnvironment(TFloriaJSMemberExpr(AExpr).Target) then
+      Exit(True);
+    if TFloriaJSMemberExpr(AExpr).Computed then
+      Exit(ExprNeedsEnvironment(TFloriaJSMemberExpr(AExpr).PropertyExpr));
+    Exit(False);
+  end;
+  if AExpr is TFloriaJSCallExpr then
+  begin
+    call := TFloriaJSCallExpr(AExpr);
+    if IsEvalIdentifier(call.Callee) then
+      Exit(True);
+    if ExprNeedsEnvironment(call.Callee) then
+      Exit(True);
+    for i := 0 to call.GetArgumentCount() - 1 do
+      if ExprNeedsEnvironment(call.GetArgument(i)) then
+        Exit(True);
+    Exit(False);
+  end;
+  if AExpr is TFloriaJSArrayExpr then
+  begin
+    arr := TFloriaJSArrayExpr(AExpr);
+    for i := 0 to arr.GetElementCount() - 1 do
+      if ExprNeedsEnvironment(arr.GetElement(i)) then
+        Exit(True);
+    Exit(False);
+  end;
+  if AExpr is TFloriaJSSpreadExpr then
+    Exit(ExprNeedsEnvironment(TFloriaJSSpreadExpr(AExpr).Expression));
+  if AExpr is TFloriaJSGroupExpr then
+    Exit(ExprNeedsEnvironment(TFloriaJSGroupExpr(AExpr).Expression));
+  if AExpr is TFloriaJSObjectExpr then
+  begin
+    obj := TFloriaJSObjectExpr(AExpr);
+    for i := 0 to obj.GetPropertyCount() - 1 do
+    begin
+      if ExprNeedsEnvironment(obj.GetPropertyKeyExpr(i)) then
+        Exit(True);
+      if ExprNeedsEnvironment(obj.GetPropertyValue(i)) then
+        Exit(True);
+    end;
+    Exit(False);
+  end;
+  if AExpr is TFloriaJSTaggedTemplateExpr then
+  begin
+    tpl := TFloriaJSTaggedTemplateExpr(AExpr);
+    if ExprNeedsEnvironment(tpl.Tag) then
+      Exit(True);
+    for i := 0 to tpl.GetExpressionCount() - 1 do
+      if ExprNeedsEnvironment(tpl.GetExpression(i)) then
+        Exit(True);
+    Exit(False);
+  end;
+  { Function expressions, classes, and any construct not explicitly handled
+    above keep the environment so a closure cannot see a stale slot copy. }
+  Result := True;
+end;
+
+function StmtNeedsEnvironment(AStmt: TFloriaJSStmtNode): Boolean;
+var
+  i: Integer;
+  block: TFloriaJSBlockStmt;
+  varStmt: TFloriaJSVarStmt;
+  ifStmt: TFloriaJSIfStmt;
+  whileStmt: TFloriaJSWhileStmt;
+  forStmt: TFloriaJSForStmt;
+  forInOf: TFloriaJSForInOfStmt;
+  switchStmt: TFloriaJSSwitchStmt;
+  switchCase: TFloriaJSSwitchCase;
+  tryStmt: TFloriaJSTryStmt;
+  labeledStmt: TFloriaJSLabeledStmt;
+  j: Integer;
+begin
+  if AStmt = nil then
+    Exit(False);
+  if AStmt is TFloriaJSExprStmt then
+    Exit(ExprNeedsEnvironment(TFloriaJSExprStmt(AStmt).Expression));
+  if AStmt is TFloriaJSVarStmt then
+  begin
+    varStmt := TFloriaJSVarStmt(AStmt);
+    for i := 0 to varStmt.GetDeclaratorCount() - 1 do
+    begin
+      if varStmt.GetDeclaratorName(i) = 'eval' then
+        Exit(True);
+      if ExprNeedsEnvironment(varStmt.GetDeclaratorPattern(i)) or
+         ExprNeedsEnvironment(varStmt.GetDeclaratorInit(i)) then
+        Exit(True);
+    end;
+    Exit(False);
+  end;
+  if AStmt is TFloriaJSBlockStmt then
+  begin
+    block := TFloriaJSBlockStmt(AStmt);
+    for i := 0 to block.GetStatementCount() - 1 do
+      if StmtNeedsEnvironment(block.GetStatement(i)) then
+        Exit(True);
+    Exit(False);
+  end;
+  if AStmt is TFloriaJSIfStmt then
+  begin
+    ifStmt := TFloriaJSIfStmt(AStmt);
+    Exit(ExprNeedsEnvironment(ifStmt.Condition) or
+      StmtNeedsEnvironment(ifStmt.Consequent) or
+      StmtNeedsEnvironment(ifStmt.Alternate));
+  end;
+  if AStmt is TFloriaJSReturnStmt then
+    Exit(ExprNeedsEnvironment(TFloriaJSReturnStmt(AStmt).Argument));
+  if AStmt is TFloriaJSWhileStmt then
+  begin
+    whileStmt := TFloriaJSWhileStmt(AStmt);
+    Exit(ExprNeedsEnvironment(whileStmt.Condition) or
+      StmtNeedsEnvironment(whileStmt.Body));
+  end;
+  if AStmt is TFloriaJSForStmt then
+  begin
+    forStmt := TFloriaJSForStmt(AStmt);
+    if forStmt.Init <> nil then
+    begin
+      if forStmt.Init is TFloriaJSStmtNode then
+      begin
+        if StmtNeedsEnvironment(TFloriaJSStmtNode(forStmt.Init)) then
+          Exit(True);
+      end
+      else if forStmt.Init is TFloriaJSExprNode then
+        if ExprNeedsEnvironment(TFloriaJSExprNode(forStmt.Init)) then
+          Exit(True);
+    end;
+    Exit(ExprNeedsEnvironment(forStmt.Test) or
+      ExprNeedsEnvironment(forStmt.Update) or
+      StmtNeedsEnvironment(forStmt.Body));
+  end;
+  if AStmt is TFloriaJSForInOfStmt then
+  begin
+    forInOf := TFloriaJSForInOfStmt(AStmt);
+    Exit((forInOf.VarName = 'eval') or
+      ExprNeedsEnvironment(forInOf.Iterable) or
+      ExprNeedsEnvironment(forInOf.Pattern) or
+      StmtNeedsEnvironment(forInOf.Body));
+  end;
+  if AStmt is TFloriaJSSwitchStmt then
+  begin
+    switchStmt := TFloriaJSSwitchStmt(AStmt);
+    if ExprNeedsEnvironment(switchStmt.Discriminant) then
+      Exit(True);
+    for i := 0 to switchStmt.GetCaseCount() - 1 do
+    begin
+      switchCase := switchStmt.GetCase(i);
+      if ExprNeedsEnvironment(switchCase.Test) then
+        Exit(True);
+      for j := 0 to switchCase.GetStatementCount() - 1 do
+        if StmtNeedsEnvironment(switchCase.GetStatement(j)) then
+          Exit(True);
+    end;
+    Exit(False);
+  end;
+  if AStmt is TFloriaJSTryStmt then
+  begin
+    tryStmt := TFloriaJSTryStmt(AStmt);
+    Exit(StmtNeedsEnvironment(tryStmt.Block) or
+      StmtNeedsEnvironment(tryStmt.CatchBlock) or
+      StmtNeedsEnvironment(tryStmt.FinallyBlock));
+  end;
+  if AStmt is TFloriaJSThrowStmt then
+    Exit(ExprNeedsEnvironment(TFloriaJSThrowStmt(AStmt).Expression));
+  if AStmt is TFloriaJSDebuggerStmt then
+    Exit(False);
+  if AStmt is TFloriaJSBreakStmt then
+    Exit(False);
+  if AStmt is TFloriaJSContinueStmt then
+    Exit(False);
+  if AStmt is TFloriaJSLabeledStmt then
+  begin
+    labeledStmt := TFloriaJSLabeledStmt(AStmt);
+    Exit(StmtNeedsEnvironment(labeledStmt.Body));
+  end;
+  { With statements and nested function declarations need the environment.
+    Unknown statements are treated conservatively as well. }
+  Result := True;
+end;
+
+function ParamsAreSimple(AParams: TStringList): Boolean;
+var
+  i: Integer;
+begin
+  if AParams = nil then
+    Exit(True);
+  for i := 0 to AParams.Count - 1 do
+    if (AParams.Strings[i] = '') or (AParams.Objects[i] <> nil) or
+       ((Length(AParams.Strings[i]) >= 3) and
+        (Copy(AParams.Strings[i], 1, 3) = '...')) then
+      Exit(False);
+  Result := True;
+end;
+
+function FunctionBodyCanUseSlots(ABody: TFloriaJSStmtNode;
+  AParams: TStringList): Boolean;
+begin
+  Result := ParamsAreSimple(AParams) and not StmtNeedsEnvironment(ABody);
 end;
 
 procedure CollectVarNamesFromStmt(AStmt: TFloriaJSStmtNode; ANames: TStringList);
@@ -828,6 +1090,7 @@ var
   rootScope: TFloriaJSDeclarationScope;
   strict: Boolean;
   seenParams: TStringList;
+  slotSafe: Boolean;
 begin
   strict := AInheritedStrict;
   if ABody is TFloriaJSBlockStmt then
@@ -896,6 +1159,7 @@ begin
     compiler.FParamNames := AParams;
     compiler.CompileParametersPrologue(AParams);
 
+    slotSafe := FunctionBodyCanUseSlots(ABody, AParams);
     fnNames := TStringList.Create();
     try
       if ABody is TFloriaJSBlockStmt then
@@ -912,13 +1176,44 @@ begin
       varNames := TStringList.Create();
       try
         CollectVarNamesFromStmt(ABody, varNames);
-        for i := 0 to varNames.Count - 1 do
+        if slotSafe then
         begin
-          vName := varNames[i];
-          if (fnNames.IndexOf(vName) < 0) and
-             ((AParams = nil) or (AParams.IndexOf(vName) < 0)) then
-            compiler.FBytecode.Emit(opDeclareVar, compiler.FBytecode.AddStringConstant(vName));
-        end;
+          { Parameters and var bindings live in frame slots. The VM still
+            pushes the argument values into the first slots, so no environment
+            mirror is needed. }
+          compiler.FSlotNames := TStringList.Create();
+          if AParams <> nil then
+            for i := 0 to AParams.Count - 1 do
+            begin
+              pName := AParams[i];
+              if (pName <> '') and (compiler.FSlotNames.IndexOf(pName) < 0) then
+              begin
+                compiler.FSlotNames.Add(pName);
+                subCode.AddLocal(pName);
+              end;
+            end;
+          for i := 0 to varNames.Count - 1 do
+          begin
+            vName := varNames[i];
+            if (compiler.FSlotNames.IndexOf(vName) < 0) then
+            begin
+              compiler.FSlotNames.Add(vName);
+              subCode.AddLocal(vName);
+            end;
+          end;
+          subCode.LocalsInEnv := False;
+          { Only a direct reference to `arguments` can observe it: there are
+            no nested functions and no eval/with in a slot-safe body. }
+          subCode.NeedsArguments := False;
+        end
+        else
+          for i := 0 to varNames.Count - 1 do
+          begin
+            vName := varNames[i];
+            if (fnNames.IndexOf(vName) < 0) and
+               ((AParams = nil) or (AParams.IndexOf(vName) < 0)) then
+              compiler.FBytecode.Emit(opDeclareVar, compiler.FBytecode.AddStringConstant(vName));
+          end;
       finally
         varNames.Free();
       end;
@@ -1094,15 +1389,17 @@ begin
       (AIdent.Name = 'static') or (AIdent.Name = 'yield') or
       (AIdent.Name = 'let')) then
     raise EFloriaJSCompileError.Create('SyntaxError: Unexpected reserved word in strict mode');
+  if AIdent.Name = 'arguments' then
+    FBytecode.NeedsArguments := True;
   if AIdent.Name = 'undefined' then
     FBytecode.Emit(opUndefined, 0, AIdent.Line)
   else if AIdent.Name = 'NaN' then
     FBytecode.Emit(opConst, FBytecode.AddConstant(JSMakeNumber(NaN)), AIdent.Line)
   else if AIdent.Name = 'Infinity' then
     FBytecode.Emit(opConst, FBytecode.AddConstant(JSMakeNumber(Infinity)), AIdent.Line)
-  else if (Length(AIdent.Name) > 0) and (AIdent.Name[1] = '$') then
+  else if IsSlotName(AIdent.Name) then
   begin
-    locIdx := FBytecode.FindLocal(AIdent.Name);
+    locIdx := SlotIndex(AIdent.Name);
     if locIdx >= 0 then
       FBytecode.Emit(opLoadLoc, locIdx, AIdent.Line)
     else
@@ -1157,9 +1454,9 @@ begin
             FBytecode.Emit(opConst, FBytecode.AddConstant(JSMakeNumber(NaN)), ident.Line)
           else if ident.Name = 'Infinity' then
             FBytecode.Emit(opConst, FBytecode.AddConstant(JSMakeNumber(Infinity)), ident.Line)
-          else if (Length(ident.Name) > 0) and (ident.Name[1] = '$') then
+          else if IsSlotName(ident.Name) then
           begin
-            locIdx := FBytecode.FindLocal(ident.Name);
+            locIdx := SlotIndex(ident.Name);
             if locIdx >= 0 then
               FBytecode.Emit(opLoadLoc, locIdx, ident.Line)
             else
@@ -1220,9 +1517,12 @@ begin
           { A bare identifier is a binding, not a property: it must not be read,
             because an undeclared name is not an error here. Declared bindings
             are non-deletable (false) and unknown names answer true. }
-          FBytecode.Emit(opDeleteEnv,
-            FBytecode.AddStringConstant(TFloriaJSIdentifierExpr(targetNode).Name),
-            AUnary.Line);
+          if IsSlotName(TFloriaJSIdentifierExpr(targetNode).Name) then
+            FBytecode.Emit(opFalse, 0, AUnary.Line)
+          else
+            FBytecode.Emit(opDeleteEnv,
+              FBytecode.AddStringConstant(TFloriaJSIdentifierExpr(targetNode).Name),
+              AUnary.Line);
         end
         else
         begin
@@ -1248,9 +1548,9 @@ begin
         begin
           ident := TFloriaJSIdentifierExpr(targetNode);
           CheckStrictRestrictedName(ident.Name, FIsStrictMode);
-          if (Length(ident.Name) > 0) and (ident.Name[1] = '$') then
+          if IsSlotName(ident.Name) then
           begin
-            locIdx := FBytecode.FindLocal(ident.Name);
+            locIdx := SlotIndex(ident.Name);
             if AUnary.IsPrefix then
             begin
               if locIdx >= 0 then
@@ -1471,9 +1771,9 @@ begin
     ident := TFloriaJSIdentifierExpr(targetNode);
     CheckStrictRestrictedName(ident.Name, FIsStrictMode);
 
-    if (Length(ident.Name) > 0) and (ident.Name[1] = '$') then
+    if IsSlotName(ident.Name) then
     begin
-      locIdx := FBytecode.FindLocal(ident.Name);
+      locIdx := SlotIndex(ident.Name);
 
       if AAssign.Op in [tkNullishAssign, tkAndAssign, tkOrAssign] then
       begin
@@ -2492,8 +2792,8 @@ begin
     ident := TFloriaJSIdentifierExpr(APattern);
     if AKind = tkAssign then
     begin
-      locIdx := FBytecode.FindLocal(ident.Name);
-      if (Length(ident.Name) > 0) and (ident.Name[1] = '$') and (locIdx >= 0) then
+      locIdx := SlotIndex(ident.Name);
+      if (IsSlotName(ident.Name)) and (locIdx >= 0) then
         FBytecode.Emit(opSetLoc, locIdx, ident.Line)
       else
       begin
@@ -2504,12 +2804,17 @@ begin
     end
     else
     begin
-      nameIdx := FBytecode.AddStringConstant(ident.Name);
-      case AKind of
-        tkConst: FBytecode.Emit(opDefineConst, nameIdx, ident.Line);
-        tkLet:   FBytecode.Emit(opDefineLet, nameIdx, ident.Line);
+      if (AKind = tkVar) and IsSlotName(ident.Name) then
+        FBytecode.Emit(opSetLoc, SlotIndex(ident.Name), ident.Line)
       else
-        FBytecode.Emit(opDefineEnv, nameIdx, ident.Line);
+      begin
+        nameIdx := FBytecode.AddStringConstant(ident.Name);
+        case AKind of
+          tkConst: FBytecode.Emit(opDefineConst, nameIdx, ident.Line);
+          tkLet:   FBytecode.Emit(opDefineLet, nameIdx, ident.Line);
+        else
+          FBytecode.Emit(opDefineEnv, nameIdx, ident.Line);
+        end;
       end;
     end;
   end
@@ -2651,8 +2956,13 @@ begin
         else
         begin
           CompileExpr(declInit);
-          nameIdx := FBytecode.AddStringConstant(declName);
-          FBytecode.Emit(opStoreEnv, nameIdx, AVar.Line);
+          if IsSlotName(declName) then
+            FBytecode.Emit(opStoreLoc, SlotIndex(declName), AVar.Line)
+          else
+          begin
+            nameIdx := FBytecode.AddStringConstant(declName);
+            FBytecode.Emit(opStoreEnv, nameIdx, AVar.Line);
+          end;
           FBytecode.Emit(opPop);
         end;
       end;
@@ -3021,7 +3331,10 @@ begin
   else
   begin
     { The value is on the stack; store it and drop it. }
-    FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
+    if IsSlotName(AForInOf.VarName) then
+      FBytecode.Emit(opStoreLoc, SlotIndex(AForInOf.VarName), AForInOf.Line)
+    else
+      FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
     FBytecode.Emit(opPop);
   end;
 
@@ -3090,7 +3403,10 @@ begin
       FBytecode.Emit(opDefineLet, nameIdx, AForInOf.Line)
     else
     begin
-      FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
+      if IsSlotName(AForInOf.VarName) then
+        FBytecode.Emit(opStoreLoc, SlotIndex(AForInOf.VarName), AForInOf.Line)
+      else
+        FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
       FBytecode.Emit(opPop);
     end;
   end;
@@ -3187,7 +3503,10 @@ begin
   end
   else
   begin
-    FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
+    if IsSlotName(AForInOf.VarName) then
+      FBytecode.Emit(opStoreLoc, SlotIndex(AForInOf.VarName), AForInOf.Line)
+    else
+      FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
     FBytecode.Emit(opPop);
   end;
 

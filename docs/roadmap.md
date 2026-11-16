@@ -16,7 +16,7 @@ Last refreshed 2026-11-15:
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
 - Test suite: **276 tests pass** with `pasbuild test`.
 - Benchmark suite: **15 workloads** with a checked-in baseline; `--check` guards a 20% regression.
-- Node comparison: **12 file-based workloads**, geometric mean **7.2x** Node; `--check` guards a 25% ratio regression.
+- Node comparison: **12 file-based workloads**, geometric mean **6.7x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   The expected errors are deliberate (`throw`, `const`/`for const` reassignment,
   `alert`, calling a non-function, and an invalid assignment target); the probe
@@ -1294,7 +1294,7 @@ FTML binding updates) plus strings, arithmetic, and allocation. Each workload is
 compiled once and executed many times, so the numbers describe the interpreter
 rather than the parser.
 
-**Baseline after P3-01 (this machine, `bench/baseline.txt`):**
+**Baseline after P3-01 (recorded during that task):**
 
 | workload | us/op | ops/s |
 | :--- | ---: | ---: |
@@ -1321,7 +1321,7 @@ machines in a way absolute microseconds are not. The workloads live in
 with the `ExecuteFile` API, so the interpreter is exercised the way a host uses
 it rather than through a string built for the occasion.
 
-Current ratios on this machine (geometric mean **7.2x**, slowest
+Ratios at P3-01 (geometric mean **7.2x**, slowest
 `call_recursive` at **46.8x**):
 
 | workload | floriajs us | Node us | ratio |
@@ -1385,12 +1385,54 @@ P3-01 is complete. The remaining dispatch cost is dominated by per-opcode work
 inside the switch and by the value/environment representation, which later P3
 tasks address.
 
-### [ ] P3-02 — Resolve user variables to slots
+### [x] P3-02 — Resolve user variables to slots
 
-Currently only parameters/temporaries use VM local slots; user identifiers still
-walk string-keyed environments. Add a compiler scope analysis that resolves
-function/block locals to frame slots and emits `LOAD_LOC`/`STORE_LOC`, with an
-environment fallback for closures and FTML delegate-object environments.
+A conservative compiler scope analysis now resolves function parameters and
+function-scoped `var` bindings to frame slots when the body is safe:
+
+- simple parameter list only (no defaults, destructuring, or rest);
+- no nested function/arrow/class declarations or expressions;
+- no direct `eval` call and no `with` statement.
+
+For a slot-safe body the compiler emits `LOAD_LOC` / `STORE_LOC` / `SET_LOC`
+for identifier reads, assignments, updates, `typeof`, `delete`, `var`
+initializers, destructuring targets, and `for…in`/`for…of` bindings. The VM
+skips mirroring those parameters and vars into the environment, and only builds
+the `arguments` object when the body actually references `arguments`.
+
+Environment fallback remains for closures, `eval`, `with`, default/destructured/
+rest parameters, named function expressions, block-scoped `let`/`const` (TDZ and
+per-iteration copies), and unbound lookups through FTML delegate-object
+environments.
+
+**Measured effect (P3-01 → P3-02).** Negative percentages are faster:
+
+| workload | P3-01 | P3-02 | change |
+| :--- | ---: | ---: | ---: |
+| `loop/count-10k` | 10.64 | 10.66 | +0.1% |
+| `loop/nested-100x100` | 10.84 | 10.85 | +0.0% |
+| `loop/while-10k` | 10.52 | 10.54 | +0.2% |
+| `call/plain-1k` | 16.77 | 13.83 | -17.5% |
+| `call/noargs-1k` | 17.42 | 16.40 | -5.9% |
+| `call/recursive-fib-16` | 10.80 | 5.53 | -48.8% |
+| `prop/read-write-5k` | 11.44 | 11.39 | -0.5% |
+| `prop/computed-2k` | 11.63 | 11.63 | +0.0% |
+| `prop/array-write-5k` | 63.28 | 62.69 | -0.9% |
+| `string/concat-2k` | 10.90 | 11.23 | +3.0% |
+| `arith/mixed-10k` | 11.58 | 11.76 | +1.6% |
+| `object/alloc-2k` | 21.21 | 19.87 | -6.4% |
+| `binding/unbound-write` | 2.75 | 2.51 | -8.7% |
+| `binding/bound-1-level` | 15.98 | 15.80 | -1.1% |
+| `binding/bound-3-levels` | 45.48 | 43.78 | -3.7% |
+
+The call path is the main win: recursion nearly halves because parameters and
+locals no longer walk environments, and the unused `arguments` object is no
+longer allocated. The remaining call cost is dominated by frame setup and
+environment creation for functions that still need it.
+
+Node comparison after P3-02: **6.7x** geometric mean (from 7.2x),
+`call_recursive` **28.5x** (from 46.8x), slowest `prop_array_write` at **34.8x**.
+`bench/run_bench.sh --check` passes.
 
 ### [ ] P3-03 — Value representation
 

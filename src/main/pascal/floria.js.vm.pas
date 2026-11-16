@@ -344,6 +344,7 @@ var
   subCode: TFloriaJSBytecode;
   callEnv: TFloriaJSEnvironment;
   argsArr: TFloriaJSArray;
+  argsCopy: TFloriaJSValueArray;
   i: Integer;
 begin
   subCode := TFloriaJSBytecode(AFn.Bytecode);
@@ -356,17 +357,18 @@ begin
   if AFn.IsNamedExpression then
     callEnv.Define(AFn.Name, JSMakeFunction(AFn), True);
 
-  for i := 0 to subCode.GetArgumentCount() - 1 do
-  begin
-    if i < Length(AArgs) then
-      callEnv.Define(subCode.GetArgumentName(i), AArgs[i], False)
-    else
-      callEnv.Define(subCode.GetArgumentName(i), JSMakeUndefined(), False);
-  end;
+  if subCode.LocalsInEnv then
+    for i := 0 to subCode.GetArgumentCount() - 1 do
+    begin
+      if i < Length(AArgs) then
+        callEnv.Define(subCode.GetArgumentName(i), AArgs[i], False)
+      else
+        callEnv.Define(subCode.GetArgumentName(i), JSMakeUndefined(), False);
+    end;
   if not AFn.IsArrow then
   begin
     callEnv.Define('this', AThisVal);
-    if FHeap <> nil then
+    if (FHeap <> nil) and subCode.NeedsArguments then
     begin
       argsArr := FHeap.NewArray();
       for i := 0 to High(AArgs) do
@@ -380,6 +382,10 @@ begin
     Result.Prototype := FHeap.GetAsyncGeneratorPrototype();
   Result.Bytecode := subCode;
   Result.SetEnv(callEnv);
+  SetLength(argsCopy, Length(AArgs));
+  for i := 0 to High(AArgs) do
+    argsCopy[i] := AArgs[i];
+  Result.Args := argsCopy;
   Result.ThisVal := AThisVal;
   Result.Runner := @RunGenerator;
 end;
@@ -2083,28 +2089,29 @@ begin
               if fn.IsNamedExpression then
                 callEnv.Define(fn.Name, JSMakeFunction(fn), True);
 
-              for i := 0 to subCode.GetArgumentCount() - 1 do
-              begin
-                pName := subCode.GetArgumentName(i);
-                if (Length(pName) >= 3) and (Copy(pName, 1, 3) = '...') then
+              if subCode.LocalsInEnv then
+                for i := 0 to subCode.GetArgumentCount() - 1 do
                 begin
-                  restName := Copy(pName, 4, Length(pName));
-                  restArr := FHeap.NewArray();
-                  for j := i to argc - 1 do
-                    restArr.Push(args[j]);
-                  callEnv.Define(restName, JSMakeObject(restArr), False);
-                  Break;
-                end
-                else if i < argc then
-                  callEnv.Define(pName, args[i], False)
-                else
-                  callEnv.Define(pName, JSMakeUndefined(), False);
-              end;
+                  pName := subCode.GetArgumentName(i);
+                  if (Length(pName) >= 3) and (Copy(pName, 1, 3) = '...') then
+                  begin
+                    restName := Copy(pName, 4, Length(pName));
+                    restArr := FHeap.NewArray();
+                    for j := i to argc - 1 do
+                      restArr.Push(args[j]);
+                    callEnv.Define(restName, JSMakeObject(restArr), False);
+                    Break;
+                  end
+                  else if i < argc then
+                    callEnv.Define(pName, args[i], False)
+                  else
+                    callEnv.Define(pName, JSMakeUndefined(), False);
+                end;
 
               if not fn.IsArrow then
               begin
                 callEnv.Define('this', thisVal);
-                if FHeap <> nil then
+                if (FHeap <> nil) and subCode.NeedsArguments then
                 begin
                   arrObj := FHeap.NewArray();
                   for i := 0 to argc - 1 do
@@ -2276,16 +2283,17 @@ begin
               if fn.IsNamedExpression then
                 callEnv.Define(fn.Name, JSMakeFunction(fn), True);
 
-              for i := 0 to subCode.GetArgumentCount() - 1 do
-              begin
-                if i < argc then
-                  callEnv.Define(subCode.GetArgumentName(i), args[i], False)
-                else
-                  callEnv.Define(subCode.GetArgumentName(i), JSMakeUndefined(), False);
-              end;
+              if subCode.LocalsInEnv then
+                for i := 0 to subCode.GetArgumentCount() - 1 do
+                begin
+                  if i < argc then
+                    callEnv.Define(subCode.GetArgumentName(i), args[i], False)
+                  else
+                    callEnv.Define(subCode.GetArgumentName(i), JSMakeUndefined(), False);
+                end;
 
               callEnv.Define('this', objVal);
-              if FHeap <> nil then
+              if (FHeap <> nil) and subCode.NeedsArguments then
               begin
                 arrObj := FHeap.NewArray();
                 for i := 0 to argc - 1 do
@@ -2635,18 +2643,19 @@ begin
       callEnv.Define(fn.Name, JSMakeFunction(fn), True);
 
     argc := Length(AArgs);
-    for i := 0 to subCode.GetArgumentCount() - 1 do
-    begin
-      if i < argc then
-        callEnv.Define(subCode.GetArgumentName(i), AArgs[i], False)
-      else
-        callEnv.Define(subCode.GetArgumentName(i), JSMakeUndefined(), False);
-    end;
+    if subCode.LocalsInEnv then
+      for i := 0 to subCode.GetArgumentCount() - 1 do
+      begin
+        if i < argc then
+          callEnv.Define(subCode.GetArgumentName(i), AArgs[i], False)
+        else
+          callEnv.Define(subCode.GetArgumentName(i), JSMakeUndefined(), False);
+      end;
 
     if not fn.IsArrow then
     begin
       callEnv.Define('this', effectiveThis);
-      if FHeap <> nil then
+      if (FHeap <> nil) and subCode.NeedsArguments then
       begin
         arrObj := FHeap.NewArray();
         for i := 0 to argc - 1 do

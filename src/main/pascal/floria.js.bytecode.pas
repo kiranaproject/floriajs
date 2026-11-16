@@ -181,6 +181,11 @@ type
     FIsGenerator: Boolean;
     FIsAsyncGenerator: Boolean;
     FIsNamedExpression: Boolean;
+    { False when the compiler resolved parameters and var declarations to
+      frame slots, so the VM does not need to mirror them into the environment. }
+    FLocalsInEnv: Boolean;
+    { False when no code in this function can observe the arguments object. }
+    FNeedsArguments: Boolean;
     FIsStrict: Boolean;
     FRefCount: Integer;
 
@@ -234,6 +239,8 @@ type
     property IsAsync: Boolean read FIsAsync write FIsAsync;
     property IsAsyncGenerator: Boolean read FIsAsyncGenerator write FIsAsyncGenerator;
     property IsNamedExpression: Boolean read FIsNamedExpression write FIsNamedExpression;
+    property LocalsInEnv: Boolean read FLocalsInEnv write FLocalsInEnv;
+    property NeedsArguments: Boolean read FNeedsArguments write FNeedsArguments;
     { A generator body runs on demand and suspends at `yield`. }
     property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
     property IsStrict: Boolean read FIsStrict write FIsStrict;
@@ -382,6 +389,8 @@ begin
   FIsGenerator := False;
   FIsAsyncGenerator := False;
   FIsNamedExpression := False;
+  FLocalsInEnv := True;
+  FNeedsArguments := True;
   FIsStrict := False;
 end;
 
