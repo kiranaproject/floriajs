@@ -1,12 +1,12 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "9fd171543c4c869464b7763bd6c391c9415dbfe6",
+    "revision": "34398dbf6873e5374c39e83cf129e937932b129c",
     "workingTreeDirty": false
   },
   "host": {
-    "bytes": 2050128,
-    "sha256": "88d2f30f4ba25641a734a9056323ed3b79b3fae4c77a85cd14dd828127f3430f"
+    "bytes": 2054800,
+    "sha256": "a0fcd451b188ca7c33ae3f4564adfce728ae125b55e53c6f7a1b562884ffa031"
   },
   "kind": "floriajs-test262-report",
   "options": {
@@ -665,8 +665,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "number",
-          "stringValue": "1",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -740,8 +740,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "number",
-          "stringValue": "1",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -965,8 +965,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -1039,8 +1039,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "number",
-          "stringValue": "1",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -1114,8 +1114,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "number",
-          "stringValue": "1",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",

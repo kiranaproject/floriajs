@@ -1,12 +1,12 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "9fd171543c4c869464b7763bd6c391c9415dbfe6",
+    "revision": "34398dbf6873e5374c39e83cf129e937932b129c",
     "workingTreeDirty": false
   },
   "host": {
-    "bytes": 2050128,
-    "sha256": "88d2f30f4ba25641a734a9056323ed3b79b3fae4c77a85cd14dd828127f3430f"
+    "bytes": 2054800,
+    "sha256": "a0fcd451b188ca7c33ae3f4564adfce728ae125b55e53c6f7a1b562884ffa031"
   },
   "kind": "floriajs-test262-report",
   "options": {
@@ -11881,26 +11881,26 @@
         "--test",
         "S11.6.1_A1.js"
       ],
-      "hostExitCode": 1,
+      "hostExitCode": 0,
       "hostResult": {
         "consoleOutput": [],
         "error": {
           "column": 0,
           "hostExceptionClass": "",
           "line": 0,
-          "message": "eval is not defined",
-          "name": "ReferenceError"
+          "message": "",
+          "name": ""
         },
         "legacyResult": {
-          "errorMessage": "ReferenceError: eval is not defined",
-          "resultType": "error",
-          "stringValue": "",
-          "success": false
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
         },
-        "outcome": "fail",
-        "phase": "runtime",
+        "outcome": "pass",
+        "phase": "success",
         "printOutput": [],
-        "reason": "evaluation-failed",
+        "reason": "",
         "scenarioId": "language/expressions/addition/S11.6.1_A1.js::non-strict",
         "schemaVersion": 1,
         "sourceIndex": 0,
@@ -11917,10 +11917,10 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "outcome": "fail",
+      "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
-      "reason": "evaluation-failed",
+      "reason": "",
       "scenarioId": "language/expressions/addition/S11.6.1_A1.js::non-strict",
       "schemaVersion": 1,
       "source": {
@@ -11956,26 +11956,26 @@
         "--test",
         "S11.6.1_A1.js"
       ],
-      "hostExitCode": 1,
+      "hostExitCode": 0,
       "hostResult": {
         "consoleOutput": [],
         "error": {
           "column": 0,
           "hostExceptionClass": "",
           "line": 0,
-          "message": "eval is not defined",
-          "name": "ReferenceError"
+          "message": "",
+          "name": ""
         },
         "legacyResult": {
-          "errorMessage": "ReferenceError: eval is not defined",
-          "resultType": "error",
-          "stringValue": "",
-          "success": false
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
         },
-        "outcome": "fail",
-        "phase": "runtime",
+        "outcome": "pass",
+        "phase": "success",
         "printOutput": [],
-        "reason": "evaluation-failed",
+        "reason": "",
         "scenarioId": "language/expressions/addition/S11.6.1_A1.js::strict",
         "schemaVersion": 1,
         "sourceIndex": 0,
@@ -11992,10 +11992,10 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "outcome": "fail",
+      "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
-      "reason": "evaluation-failed",
+      "reason": "",
       "scenarioId": "language/expressions/addition/S11.6.1_A1.js::strict",
       "schemaVersion": 1,
       "source": {
@@ -12117,8 +12117,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -12266,8 +12266,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -12415,8 +12415,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -13407,8 +13407,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "number",
-          "stringValue": "1",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -13482,8 +13482,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "number",
-          "stringValue": "1",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -13556,8 +13556,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "number",
-          "stringValue": "1",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -13631,8 +13631,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "number",
-          "stringValue": "1",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -15384,8 +15384,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -15533,8 +15533,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -22805,8 +22805,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -22867,26 +22867,26 @@
         "--test",
         "cptn-else-false-nrml.js"
       ],
-      "hostExitCode": 1,
+      "hostExitCode": 0,
       "hostResult": {
         "consoleOutput": [],
         "error": {
           "column": 0,
           "hostExceptionClass": "",
           "line": 0,
-          "message": "eval is not defined",
-          "name": "ReferenceError"
+          "message": "",
+          "name": ""
         },
         "legacyResult": {
-          "errorMessage": "ReferenceError: eval is not defined",
-          "resultType": "error",
-          "stringValue": "",
-          "success": false
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
         },
-        "outcome": "fail",
-        "phase": "runtime",
+        "outcome": "pass",
+        "phase": "success",
         "printOutput": [],
-        "reason": "evaluation-failed",
+        "reason": "",
         "scenarioId": "language/statements/if/cptn-else-false-nrml.js::non-strict",
         "schemaVersion": 1,
         "sourceIndex": 0,
@@ -22903,10 +22903,10 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "outcome": "fail",
+      "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
-      "reason": "evaluation-failed",
+      "reason": "",
       "scenarioId": "language/statements/if/cptn-else-false-nrml.js::non-strict",
       "schemaVersion": 1,
       "source": {
@@ -22942,26 +22942,26 @@
         "--test",
         "cptn-else-false-nrml.js"
       ],
-      "hostExitCode": 1,
+      "hostExitCode": 0,
       "hostResult": {
         "consoleOutput": [],
         "error": {
           "column": 0,
           "hostExceptionClass": "",
           "line": 0,
-          "message": "eval is not defined",
-          "name": "ReferenceError"
+          "message": "",
+          "name": ""
         },
         "legacyResult": {
-          "errorMessage": "ReferenceError: eval is not defined",
-          "resultType": "error",
-          "stringValue": "",
-          "success": false
+          "errorMessage": "",
+          "resultType": "undefined",
+          "stringValue": "undefined",
+          "success": true
         },
-        "outcome": "fail",
-        "phase": "runtime",
+        "outcome": "pass",
+        "phase": "success",
         "printOutput": [],
-        "reason": "evaluation-failed",
+        "reason": "",
         "scenarioId": "language/statements/if/cptn-else-false-nrml.js::strict",
         "schemaVersion": 1,
         "sourceIndex": 0,
@@ -22978,10 +22978,10 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "outcome": "fail",
+      "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
-      "reason": "evaluation-failed",
+      "reason": "",
       "scenarioId": "language/statements/if/cptn-else-false-nrml.js::strict",
       "schemaVersion": 1,
       "source": {
@@ -24599,8 +24599,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -24748,8 +24748,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -25046,8 +25046,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -26125,8 +26125,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -26274,8 +26274,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -26423,8 +26423,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -26572,8 +26572,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -26721,8 +26721,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -26870,8 +26870,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -27615,8 +27615,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -27764,8 +27764,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -27913,8 +27913,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -28062,8 +28062,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "string",
-          "stringValue": "use strict",
+          "resultType": "undefined",
+          "stringValue": "undefined",
           "success": true
         },
         "outcome": "pass",
@@ -28109,12 +28109,12 @@
   "runnerVersion": "0.7.0",
   "schemaVersion": 1,
   "summary": {
-    "attemptedPassRate": 0.9887,
+    "attemptedPassRate": 1.0,
     "coverage": {
       "attempted": 354,
-      "fail": 4,
+      "fail": 0,
       "infrastructure": 0,
-      "pass": 350,
+      "pass": 354,
       "skipped": 0,
       "unsupported": 0
     },
@@ -29044,20 +29044,20 @@
         "total": 4
       },
       "language/expressions/addition": {
-        "attemptedPassRate": 0.9,
+        "attemptedPassRate": 1.0,
         "coverage": {
           "attempted": 20,
-          "fail": 2,
+          "fail": 0,
           "infrastructure": 0,
-          "pass": 18,
+          "pass": 20,
           "skipped": 0,
           "unsupported": 0
         },
         "outcomes": {
           "crash": 0,
-          "fail": 2,
+          "fail": 0,
           "harness-error": 0,
-          "pass": 18,
+          "pass": 20,
           "skipped": 0,
           "timeout": 0,
           "unsupported": 0
@@ -29380,20 +29380,20 @@
         "total": 14
       },
       "language/statements/if": {
-        "attemptedPassRate": 0.5,
+        "attemptedPassRate": 1.0,
         "coverage": {
           "attempted": 4,
-          "fail": 2,
+          "fail": 0,
           "infrastructure": 0,
-          "pass": 2,
+          "pass": 4,
           "skipped": 0,
           "unsupported": 0
         },
         "outcomes": {
           "crash": 0,
-          "fail": 2,
+          "fail": 0,
           "harness-error": 0,
-          "pass": 2,
+          "pass": 4,
           "skipped": 0,
           "timeout": 0,
           "unsupported": 0
@@ -29508,20 +29508,20 @@
     },
     "features": {
       "(none)": {
-        "attemptedPassRate": 0.9793,
+        "attemptedPassRate": 1.0,
         "coverage": {
           "attempted": 193,
-          "fail": 4,
+          "fail": 0,
           "infrastructure": 0,
-          "pass": 189,
+          "pass": 193,
           "skipped": 0,
           "unsupported": 0
         },
         "outcomes": {
           "crash": 0,
-          "fail": 4,
+          "fail": 0,
           "harness-error": 0,
-          "pass": 189,
+          "pass": 193,
           "skipped": 0,
           "timeout": 0,
           "unsupported": 0
@@ -29972,9 +29972,9 @@
     },
     "outcomes": {
       "crash": 0,
-      "fail": 4,
+      "fail": 0,
       "harness-error": 0,
-      "pass": 350,
+      "pass": 354,
       "skipped": 0,
       "timeout": 0,
       "unsupported": 0
