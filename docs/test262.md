@@ -2,9 +2,9 @@
 
 FloriaJS implements a practical JavaScript subset for embedded scripts and FTML handlers; it is **not currently a conforming ECMAScript implementation**. The work in `test262/` is intended to measure compatibility, not to claim full Test262 support.
 
-## Current status: Phase 12 complete
+## Current status: Phase 13 complete
 
-Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the recorded curated gaps for boxed String objects, Promise.all microtask ordering, Proxy `has` fallback, and large array indices; `eval` remains absent. This is still a diagnostic adapter, not a conformance certification. In particular:
+Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the recorded curated gaps for boxed String objects, Promise.all microtask ordering, Proxy `has` fallback, and large array indices. Phase 13 adds direct and indirect `eval`, Unicode whitespace handling, and CR line-terminator tracking; the curated corpus now passes completely. This is still a diagnostic adapter, not a conformance certification. In particular:
 
 - no conformance percentage or official Test262 verdict is published;
 - no upstream test suite is vendored in this repository;
@@ -441,6 +441,21 @@ The recorded curated failures are now closed except for `eval`:
 
 Validation: **275 FPCUnit tests**, **90 documentation claims**, focused Proxy corpus **46 records — 46 pass**, curated corpus **354 records — 350 pass, 4 fail** (attempted pass rate 98.87%), extended diagnostic **742 records — 738 pass, 4 fail**. The four remaining failures are `eval`.
 
+## Phase 13 result — eval and lexical whitespace
+
+The last curated gap is closed:
+
+- `eval` is a real intrinsic function. A syntactic call to the identifier `eval` runs in the caller's environment and returns the evaluated completion value. A shadowed `eval` binding falls back to a normal call.
+- Indirect eval (`var e = eval; e(source)`) and `Reflect`-style calls run in the global environment.
+- Non-string arguments are returned unchanged; parse and compile errors become catchable `SyntaxError` objects.
+- Strict eval gets its own variable environment, so its `var` declarations do not leak into the caller. Non-strict direct eval shares the caller's environment, including `var` declarations.
+- Evaluation is re-entrant: it skips heap collection and microtask draining while the caller's VM frame still holds live values.
+- The lexer now treats U+00A0 as whitespace and U+2028/U+2029 as line terminators, and tracks CR (including CRLF) as a line terminator so ASI works in evaluated source.
+- `if` statements reset the top-level completion value to `undefined` when neither branch produces one, matching eval completion semantics.
+- Limitation: non-strict eval's `let`/`const` declarations use the caller's environment rather than a separate transient eval lexical scope.
+
+Validation: **276 FPCUnit tests**, **90 documentation claims**, curated corpus **354 records — 354 pass** (100%), extended diagnostic **742 records — 742 pass** (100%).
+
 ## Next phase
 
-Phase 10, Phase 11, and Phase 12 are complete. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+Phase 10, Phase 11, Phase 12, and Phase 13 are complete. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

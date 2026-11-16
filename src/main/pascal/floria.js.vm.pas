@@ -87,6 +87,9 @@ type
     function  InvokeNative(const AFn: TFloriaJSFunction; const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
     function  HeapConstructor(const AFuncVal: TFloriaJSValue; const AArgs: TFloriaJSValueArray): TFloriaJSValue;
     procedure HeapJobRunner(const AJob: TFloriaJSPromiseJob);
+    function  EvalIndirect(const ASource: string): TFloriaJSValue;
+    function  EvalSource(const ASource: string; AEnv: TFloriaJSEnvironment;
+      const AThis: TFloriaJSValue): TFloriaJSValue;
     function  RunGenerator(AGen: TFloriaJSGenerator; const ASent: TFloriaJSValue;
       out AValue: TFloriaJSValue; out ADone: Boolean): Boolean;
     function  MakeGenerator(AFn: TFloriaJSFunction; const AArgs: array of TFloriaJSValue;
@@ -133,6 +136,9 @@ type
 
 implementation
 
+uses
+  floria.js.parser, floria.js.compiler, floria.js.ast;
+
 { TFloriaJSVM }
 
 constructor TFloriaJSVM.Create(AHeap: TFloriaJSHeap; AGlobalEnv: TFloriaJSEnvironment);
@@ -174,6 +180,7 @@ begin
   begin
     FHeap.SetFunctionInvoker(@HeapInvoker);
     FHeap.SetConstructInvoker(@HeapConstructor);
+    FHeap.SetEvalInvoker(@EvalIndirect);
     { Without this the queue filled up and was silently dropped, so no `.then`,
       `.catch`, or `.finally` callback ever ran. }
     FHeap.SetJobRunner(@HeapJobRunner);
@@ -196,6 +203,80 @@ begin
       Result := JSMakeUndefined();
   finally
     JSSetActiveRealmHeap(savedHeap);
+  end;
+end;
+
+function TFloriaJSVM.EvalIndirect(const ASource: string): TFloriaJSValue;
+begin
+  Result := EvalSource(ASource, FGlobalEnv, JSMakeUndefined());
+end;
+
+function TFloriaJSVM.EvalSource(const ASource: string; AEnv: TFloriaJSEnvironment;
+  const AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  parser: TFloriaJSParser;
+  prog: TFloriaJSProgram;
+  code: TFloriaJSBytecode;
+  compiler: TFloriaJSCompiler;
+  evalEnv: TFloriaJSEnvironment;
+begin
+  if Length(Trim(ASource)) = 0 then
+    Exit(JSMakeUndefined());
+  if AEnv = nil then
+    AEnv := FGlobalEnv;
+
+  parser := TFloriaJSParser.Create(ASource);
+  try
+    prog := parser.ParseProgram();
+    try
+      if parser.HasErrors() then
+        raise EFloriaJSThrow.Create(JSMakeObject(
+          FHeap.NewError('SyntaxError', parser.GetError(0))));
+
+      compiler := TFloriaJSCompiler.Create();
+      try
+        try
+          code := compiler.CompileProgram(prog);
+        except
+          on E: EFloriaJSCompileError do
+            raise EFloriaJSThrow.Create(JSMakeObject(
+              FHeap.NewError('SyntaxError', E.Message)));
+        end;
+      finally
+        compiler.Free();
+      end;
+
+      try
+        { Strict eval gets its own variable environment; non-strict direct eval
+          uses the caller's environment so `var` declarations are visible there.
+          The re-entrant path deliberately skips heap collection and microtask
+          draining while the caller's frame still holds live values. }
+        if code.IsStrict then
+        begin
+          evalEnv := TFloriaJSEnvironment.Create(AEnv, FHeap);
+          FHeap.TrackEnvironment(evalEnv);
+          try
+            Result := Execute(code, evalEnv, AThis);
+          finally
+            if evalEnv.Captured then
+              evalEnv.Detach()
+            else
+            begin
+              FHeap.Untrack(evalEnv);
+              evalEnv.Free();
+            end;
+          end;
+        end
+        else
+          Result := Execute(code, AEnv, AThis);
+      finally
+        code.Release();
+      end;
+    finally
+      prog.Free();
+    end;
+  finally
+    parser.Free();
   end;
 end;
 
@@ -785,6 +866,7 @@ begin
   begin
     FHeap.SetFunctionInvoker(nil);
     FHeap.SetConstructInvoker(nil);
+    FHeap.SetEvalInvoker(nil);
     FHeap.SetJobRunner(nil);
   end;
 
@@ -1076,7 +1158,7 @@ var
   savedNewTarget: TFloriaJSValue;
   savedConstructor: TFloriaJSFunction;
   intrinsicName: string;
-  propName, varName, propKeyStr, pName, restName: string;
+  propName, varName, propKeyStr, pName, restName, evalText: string;
   argc, i, j, callBaseBP, asyncInitialFP: Integer;
   args: array of TFloriaJSValue;
   fn: TFloriaJSFunction;
@@ -1840,9 +1922,9 @@ begin
           end;
 
         // Calls & Construction
-        opCall, opCallOpt, opCallSpread:
+        opCall, opCallOpt, opCallEval, opCallSpread, opCallEvalSpread:
           begin
-            if inst.Op = opCallSpread then
+            if (inst.Op = opCallSpread) or (inst.Op = opCallEvalSpread) then
             begin
               val := Pop();
               if val.IsObject() and (val.AsObject() is TFloriaJSArray) then
@@ -1873,6 +1955,28 @@ begin
             if (inst.Op = opCallOpt) and (calleeVal.IsNull() or calleeVal.IsUndefined()) then
             begin
               Push(JSMakeUndefined());
+              Continue;
+            end;
+
+            { A syntactic `eval(...)` call runs in the caller's environment when
+              the resolved value is still the intrinsic eval function. A local
+              binding with the same name falls through to a normal call. }
+            if (inst.Op in [opCallEval, opCallEvalSpread]) and calleeVal.IsFunction() and
+               (calleeVal.AsFunction().IntrinsicName = 'eval') then
+            begin
+              if argc > 0 then
+                val := args[0]
+              else
+                val := JSMakeUndefined();
+              if not val.IsString() then
+                Push(val)
+              else
+              begin
+                evalText := val.StrVal;
+                if curFrame^.Bytecode.IsStrict then
+                  evalText := '"use strict";' + #10 + evalText;
+                Push(EvalSource(evalText, curFrame^.Env, curFrame^.ThisVal));
+              end;
               Continue;
             end;
 

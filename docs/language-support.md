@@ -78,6 +78,7 @@ new Error("boom");   // SyntaxError: Illegal newline after throw
 | `bind` and `new` | Yes | A bound function is constructable exactly when its target is; `new Bound(...)` ignores the bound `this` and uses the target's prototype. Bound functions have no own `prototype`. |
 | Closures / recursion | Yes | Environments are reference-counted and reclaimed when unreachable. |
 | `async` / `await` | Yes | Async function bodies are resumable state machines: `await` suspends and resumes when the awaited promise settles, including timers and try/catch across awaits. |
+| `eval` | Yes | Direct `eval(source)` runs in the caller's environment and returns the completion value; indirect eval runs in global scope. Parse/compile errors become catchable `SyntaxError`s. Strict eval gets its own variable environment. |
 | Generators / `yield` | Yes | See the Generators section. |
 
 ## Operators
@@ -168,7 +169,7 @@ matching and byte-level lexer storage still use UTF-8 internally.
 | `URIError`, `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI` | URI helpers. |
 | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | Host timers. They require the owner context to pump timers (`Ctx.PumpTimers()` or the compatibility helper `FloriaJSProcessTimers(Ctx.Heap)`). |
 | `BigInt` | Conversion function. `new BigInt()` throws; it is not a constructor. |
-| `Intl`, `eval`, `alert` | Not defined. Reading them throws `ReferenceError`; only `typeof` yields `undefined`. |
+| `Intl` and `alert` | Not defined. Reading them throws `ReferenceError`; only `typeof` yields `undefined`. |
 
 ### Math
 
@@ -526,7 +527,7 @@ work.
 | `Object.fromEntries` | Not implemented. `Object.entries` is. |
 | `String.prototype.localeCompare` / `normalize` | Not implemented. |
 | Function `toString` | Returns `function <name>() { [native code] }` for user functions too; the original source is not retained. |
-| `Intl`, `eval`, `alert` | Not defined. Reading them throws `ReferenceError`. |
+| `Intl` and `alert` | Not defined. Reading them throws `ReferenceError`. |
 
 ### Known gaps
 
@@ -537,6 +538,7 @@ work.
 | `var` | Hoisted to function or script root. `let`/`const` are block-scoped. Cross-scope collisions raise `SyntaxError`. |
 | Classic `for` with `let`/`const` | Loop bindings are block-scoped and invisible after the loop. Each iteration gets a fresh binding, so closures capture per-iteration values; `var` loop bindings remain function/script scoped. |
 | `with` | Supported in sloppy mode; rejected as a `SyntaxError` in strict mode. Primitive objects are boxed. |
+| `eval` lexical scope | Direct eval in non-strict code uses the caller's environment for `var` and lexical declarations; it does not create a separate transient lexical scope for `let`/`const` introduced by the evaluated source. |
 | Loose equality | Objects are converted through `Symbol.toPrimitive` when present, otherwise `valueOf`/`toString`, for `+`, `==`, and relational operators. |
 | Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
 | `for…in` targets | A destructuring target is parsed but its names are **not bound**, so using them raises `ReferenceError`. Use a simple identifier. `for…of` accepts both. |

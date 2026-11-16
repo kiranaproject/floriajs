@@ -129,6 +129,8 @@ type
     // Function Calls & Construction
     opCall,              // Call: Imm = arg count, stack: [callee, this, arg0..argN-1]
     opCallOpt,           // Optional call: Imm = arg count
+    opCallEval,          // Direct eval call: Imm = arg count
+    opCallEvalSpread,    // Direct eval with spread args: stack [callee, this, argsArray]
     opCallSpread,        // Call with spread args array: stack: [callee, this, argsArray]
     opNew,               // Construct: Imm = arg count, stack: [ctor, arg0..argN-1]
     opNewSpread,         // Construct with spread args array: stack: [ctor, argsArray]
@@ -333,6 +335,8 @@ begin
     opJumpIfTruthyPeek: Result := 'JUMP_IF_TRUTHY_PEEK';
     opCall:             Result := 'CALL';
     opCallOpt:          Result := 'CALL_OPT';
+    opCallEval:         Result := 'CALL_EVAL';
+    opCallEvalSpread:   Result := 'CALL_EVAL_SPREAD';
     opCallSpread:       Result := 'CALL_SPREAD';
     opNew:              Result := 'NEW';
     opNewSpread:        Result := 'NEW_SPREAD';
@@ -628,7 +632,7 @@ begin
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
       comment := Format('-> %04d', [inst.Imm]);
-    opCall, opCallOpt, opNew:
+    opCall, opCallOpt, opCallEval, opNew:
       comment := Format('argc: %d', [inst.Imm]);
     opClosure:
       begin

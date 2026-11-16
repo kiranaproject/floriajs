@@ -735,11 +735,30 @@ begin
   Result := JSMakeBoolean((not IsNaN(d)) and (not IsInfinite(d)));
 end;
 
+function JSEvalGlobal(const AArgs: array of TFloriaJSValue;
+  AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+begin
+  { The direct-eval path is handled by the VM with the caller's environment.
+    This function is the intrinsic value for indirect calls and for code that
+    reads `eval` as a value. }
+  if Length(AArgs) = 0 then
+    Exit(JSMakeUndefined());
+  if not AArgs[0].IsString() then
+    Exit(AArgs[0]);
+  heap := JSActiveRealmHeap();
+  if (heap = nil) or (not heap.HasEvalInvoker()) then
+    raise EFloriaJSThrow.Create(JSMakeString(
+      'TypeError: eval is not available in this context'));
+  Result := heap.EvaluateSource(AArgs[0].StrVal);
+end;
+
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
   promiseCtor, bigIntFn: TFloriaJSFunction;
-  numberObj, stringObj, funcObj: TFloriaJSFunction;
+  numberObj, stringObj, funcObj, evalObj: TFloriaJSFunction;
   errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
   i: Integer;
 begin
@@ -864,6 +883,10 @@ begin
   funcObj.SetProperty('prototype', JSMakeObject(AHeap.GetFunctionPrototype()));
   AHeap.GetFunctionPrototype().SetProperty('constructor', JSMakeFunction(funcObj));
   AEnv.Define('Function', JSMakeFunction(funcObj));
+
+  evalObj := AHeap.NewNativeFunction('eval', @JSEvalGlobal);
+  evalObj.IntrinsicName := 'eval';
+  AEnv.Define('eval', JSMakeFunction(evalObj));
 
   // 5. Global Functions
   AEnv.Define('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));

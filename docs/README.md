@@ -93,7 +93,7 @@ Not implemented yet (see [language support](language-support.md) for details):
 
 - `Array.prototype.keys`/`entries`, `Object.fromEntries`, and
   `String.prototype.localeCompare`/`normalize`.
-- `Intl`, `eval`, and `alert`.
+- `Intl` and `alert`.
 - A JIT/AOT compiler, hidden classes/inline caches, and persistent bytecode
   caching. The VM is currently a pure interpreter.
 

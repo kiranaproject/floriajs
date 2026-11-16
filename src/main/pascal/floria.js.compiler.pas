@@ -69,7 +69,7 @@ type
     procedure CompileConditionalExpr(ACond: TFloriaJSConditionalExpr);
     procedure CompileMemberExpr(AMember: TFloriaJSMemberExpr);
     procedure CompileCallExpr(ACall: TFloriaJSCallExpr);
-    procedure CompileCallArgsAndInvoke(ACall: TFloriaJSCallExpr);
+    procedure CompileCallArgsAndInvoke(ACall: TFloriaJSCallExpr; ADirectEval: Boolean = False);
     procedure CompileOptionalChain(AExpr: TFloriaJSExprNode);
     procedure CompileObjectExpr(AObj: TFloriaJSObjectExpr);
     procedure CompileArrayExpr(AArr: TFloriaJSArrayExpr);
@@ -1695,7 +1695,7 @@ begin
   end;
 end;
 
-procedure TFloriaJSCompiler.CompileCallArgsAndInvoke(ACall: TFloriaJSCallExpr);
+procedure TFloriaJSCompiler.CompileCallArgsAndInvoke(ACall: TFloriaJSCallExpr; ADirectEval: Boolean);
 var
   arg: TFloriaJSExprNode;
   i, count: Integer;
@@ -1750,6 +1750,8 @@ begin
 
     if ACall.IsNew then
       FBytecode.Emit(opNewSpread, 0, ACall.Line)
+    else if ADirectEval then
+      FBytecode.Emit(opCallEvalSpread, 0, ACall.Line)
     else
       FBytecode.Emit(opCallSpread, 0, ACall.Line);
   end
@@ -1760,6 +1762,8 @@ begin
 
     if ACall.IsNew then
       FBytecode.Emit(opNew, count, ACall.Line)
+    else if ADirectEval then
+      FBytecode.Emit(opCallEval, count, ACall.Line)
     else
       FBytecode.Emit(opCall, count, ACall.Line);
   end;
@@ -1804,7 +1808,12 @@ begin
     FBytecode.Emit(opUndefined); // This value
   end;
 
-  CompileCallArgsAndInvoke(ACall);
+  { A syntactic call to the identifier `eval` is a direct eval. The VM checks
+    that the resolved value is still the intrinsic eval function before using
+    the caller's environment; a shadowed binding falls back to a normal call. }
+  CompileCallArgsAndInvoke(ACall,
+    (not ACall.IsNew) and (ACall.Callee is TFloriaJSIdentifierExpr) and
+    (TFloriaJSIdentifierExpr(ACall.Callee).Name = 'eval'));
 end;
 
 procedure TFloriaJSCompiler.CompileOptionalChain(AExpr: TFloriaJSExprNode);
@@ -2759,6 +2768,14 @@ procedure TFloriaJSCompiler.CompileIfStmt(AIf: TFloriaJSIfStmt);
 var
   elseJump, endJump: Integer;
 begin
+  { An IfStatement's completion value is undefined when neither branch
+    produces a value; it does not preserve the previous statement's value. }
+  if FIsTopLevel then
+  begin
+    FBytecode.Emit(opUndefined);
+    FBytecode.Emit(opSetLoc, FResultLoc);
+  end;
+
   CompileExpr(AIf.Condition);
   elseJump := FBytecode.Emit(opJumpIfFalse, 0, AIf.Line);
 

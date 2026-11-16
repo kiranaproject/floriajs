@@ -333,6 +333,13 @@ begin
   Inc(FPos);
   if Result = #10 then
   begin
+    { CRLF is one line terminator; do not count the LF after a CR twice. }
+    if (FPos < 2) or (FSource[FPos - 1] <> #13) then
+      Inc(FLine);
+    FColumn := 1;
+  end
+  else if Result = #13 then
+  begin
     Inc(FLine);
     FColumn := 1;
   end
@@ -356,6 +363,28 @@ begin
   while not IsAtEnd() do
   begin
     c := PeekChar();
+
+    { The source is stored as UTF-8. ECMAScript whitespace includes U+00A0,
+      and U+2028/U+2029 are line terminators. Consume their byte sequences so
+      the lexer does not treat the leading byte as an unknown character. }
+    if (c = #$C2) and (FPos + 1 <= FLength) and (FSource[FPos + 1] = #$A0) then
+    begin
+      AdvanceChar();
+      AdvanceChar();
+      Continue;
+    end;
+    if (c = #$E2) and (FPos + 2 <= FLength) and
+       (FSource[FPos + 1] = #$80) and
+       ((FSource[FPos + 2] = #$A8) or (FSource[FPos + 2] = #$A9)) then
+    begin
+      AdvanceChar();
+      AdvanceChar();
+      AdvanceChar();
+      Inc(FLine);
+      FColumn := 1;
+      Continue;
+    end;
+
     case c of
       ' ', #9, #11, #12, #13:
         AdvanceChar();

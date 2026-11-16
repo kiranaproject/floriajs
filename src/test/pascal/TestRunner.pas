@@ -349,6 +349,7 @@ type
     procedure TestPromiseAllMicrotaskOrdering();
     procedure TestProxyHasFallsBackToTarget();
     procedure TestLargeArrayIndices();
+    procedure TestEvalDirectAndIndirect();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7335,6 +7336,52 @@ begin
     AssertTrue('large array length script succeeds', res.Success);
     AssertEquals('array length accepts the 2^32-1 boundary',
       4294967295.0, res.NumberValue, 0.5);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestEvalDirectAndIndirect();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var out = [];' +
+      'var x = 5;' +
+      'out.push(eval("x + 1"));' +
+      'eval("var y = 7;");' +
+      'out.push(y);' +
+      'out.push(typeof eval("2; if (false) { } else { }"));' +
+      'out.push(eval("2; if (false) { } else { 3; }"));' +
+      'function f() { var local = 41; return eval("local + 1"); }' +
+      'out.push(f());' +
+      'function g() { var local = 1; var e = eval; return e("typeof local"); }' +
+      'out.push(g());' +
+      'function h() { "use strict"; eval("var strictLocal = 1;"); return typeof strictLocal; }' +
+      'out.push(h());' +
+      'function shadow(eval) { return eval("x"); }' +
+      'out.push(shadow(function(s) { return "shadow"; }));' +
+      'out.join(",");'
+    );
+    AssertTrue('eval script succeeds', res.Success);
+    AssertEquals('direct eval sees locals, creates vars, and respects shadowing',
+      '6,7,undefined,3,42,undefined,undefined,shadow', res.StringValue);
+
+    res := engine.Execute('try { eval("var"); ""; } catch (e) { e.name; }');
+    AssertTrue('eval syntax error script succeeds', res.Success);
+    AssertEquals('eval parse errors are catchable SyntaxErrors',
+      'SyntaxError', res.StringValue);
+
+    res := engine.Execute(
+      'try { eval("var x = missingValue\u000Dghjk"); ""; }' +
+      ' catch (e) { e.name; }'
+    );
+    AssertTrue('eval CR line terminator script succeeds', res.Success);
+    AssertEquals('CR terminates a variable statement via ASI',
+      'ReferenceError', res.StringValue);
   finally
     engine.Free();
   end;

@@ -80,6 +80,10 @@ type
   TFloriaJSConstructInvoker = function(const AFuncVal: TFloriaJSValue;
     const AArgs: TFloriaJSValueArray): TFloriaJSValue of object;
 
+  { Callback Used by the intrinsic eval function to parse and execute source
+    in the realm's global environment. The VM installs it. }
+  TFloriaJSSourceEvaluator = function(const ASource: string): TFloriaJSValue of object;
+
   { Property Key-Value Entry }
   TFloriaJSPropertyPair = record
     Key: string;
@@ -657,6 +661,7 @@ type
     FJobRunner: TFloriaJSJobRunner;
     FInvoker: TFloriaJSFunctionInvoker;
     FConstructInvoker: TFloriaJSConstructInvoker;
+    FEvalInvoker: TFloriaJSSourceEvaluator;
     FArrayPrototype: TFloriaJSObject;
     FStringPrototype: TFloriaJSObject;
     FNumberPrototype: TFloriaJSObject;
@@ -718,6 +723,9 @@ type
     function  InvokeFunction(const AFuncVal: TFloriaJSValue;
       const AArgs: array of TFloriaJSValue; const AThis: TFloriaJSValue): TFloriaJSValue;
     procedure SetConstructInvoker(AInvoker: TFloriaJSConstructInvoker);
+    procedure SetEvalInvoker(AInvoker: TFloriaJSSourceEvaluator);
+    function  HasEvalInvoker(): Boolean;
+    function  EvaluateSource(const ASource: string): TFloriaJSValue;
     function  ConstructFunction(const AFuncVal: TFloriaJSValue;
       const AArgs: TFloriaJSValueArray): TFloriaJSValue;
     function  ResolveConstructorTarget(const AFuncVal: TFloriaJSValue): TFloriaJSFunction;
@@ -3715,6 +3723,7 @@ begin
   FJobRunner := nil;
   FInvoker := nil;
   FConstructInvoker := nil;
+  FEvalInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
   FNumberPrototype := nil;
@@ -3776,6 +3785,7 @@ begin
   FJobRunner := nil;
   FInvoker := nil;
   FConstructInvoker := nil;
+  FEvalInvoker := nil;
   FArrayPrototype := nil;
   FStringPrototype := nil;
   FNumberPrototype := nil;
@@ -3980,6 +3990,24 @@ end;
 procedure TFloriaJSHeap.SetFunctionInvoker(AInvoker: TFloriaJSFunctionInvoker);
 begin
   FInvoker := AInvoker;
+end;
+
+procedure TFloriaJSHeap.SetEvalInvoker(AInvoker: TFloriaJSSourceEvaluator);
+begin
+  FEvalInvoker := AInvoker;
+end;
+
+function TFloriaJSHeap.HasEvalInvoker(): Boolean;
+begin
+  Result := Assigned(FEvalInvoker);
+end;
+
+function TFloriaJSHeap.EvaluateSource(const ASource: string): TFloriaJSValue;
+begin
+  if Assigned(FEvalInvoker) then
+    Result := FEvalInvoker(ASource)
+  else
+    Result := JSMakeUndefined();
 end;
 
 procedure TFloriaJSHeap.SetConstructInvoker(AInvoker: TFloriaJSConstructInvoker);
