@@ -630,10 +630,11 @@ var
 begin
   if AThis.IsString() then
     Exit(JSMakeString(AThis.StrVal));
+  if AThis.IsObject() and (AThis.ObjVal is TFloriaJSStringObject) then
+    Exit(JSMakeString(TFloriaJSStringObject(AThis.ObjVal).Value));
 
   { thisStringValue throws for anything other than a String primitive or a
-    String object. The diagnostic runtime has no String wrapper object, so the
-    primitive case is the supported path. }
+    String object. }
   errorHeap := JSActiveRealmHeap();
   if errorHeap = nil then
     errorHeap := FHeap;

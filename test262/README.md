@@ -2,7 +2,7 @@
 
 This directory holds the configuration and baselines for the proposed diagnostic Test262 adapter.
 
-**Current status:** Phases 0–11 are complete. The adapter covers the pinned metadata planner, single-scenario host, synchronous and asynchronous runner, negative verdicts, durable reports, reviewed baselines, timers, realms, modules, binary/Atomics data, Proxy, cooperative agents, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage summaries, a separate extended diagnostic job, and a reviewed upstream-update workflow. This remains a diagnostic adapter, not a full ECMAScript conformance certificate.
+**Current status:** Phases 0–12 are complete. The adapter covers the pinned metadata planner, single-scenario host, synchronous and asynchronous runner, negative verdicts, durable reports, reviewed baselines, timers, realms, modules, binary/Atomics data, Proxy, cooperative agents, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage summaries, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the curated boxed-String, Promise.all ordering, Proxy `has`, and large-array-index gaps; `eval` remains the only curated failure. This remains a diagnostic adapter, not a full ECMAScript conformance certificate.
 
 See the [Test262 support guide](../docs/test262.md) for current capabilities and gaps, the [runner guide](../docs/test262-runner.md) for commands, and [the Phase 10 baseline](baselines/phase10.md) for milestone details.
 

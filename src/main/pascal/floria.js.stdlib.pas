@@ -903,6 +903,8 @@ begin
   { Publish the shared string prototype so String.prototype methods and
     prototype-chain checks see the same methods primitive strings use. }
   stringObj.SetProperty('prototype', JSMakeObject(AHeap.GetStringPrototype()));
+  AHeap.GetStringPrototype().DefineDataProperty('constructor',
+    JSMakeFunction(stringObj), True, False, True);
   stringObj.SetProperty('fromCharCode', JSMakeFunction(AHeap.NewNativeFunction('fromCharCode', @JSStringFromCharCode)));
   stringObj.SetProperty('fromCodePoint', JSMakeFunction(AHeap.NewNativeFunction('fromCodePoint', @JSStringFromCodePoint)));
   AEnv.Define('String', JSMakeFunction(stringObj));

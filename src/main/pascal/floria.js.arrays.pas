@@ -1146,6 +1146,11 @@ begin
   { Publish the shared array prototype on the constructor, so instanceof and
     Array.prototype access go through the same object the arrays use. }
   arrayObj.SetProperty('prototype', JSMakeObject(proto));
+  { Array.prototype is itself array-like: it has a non-enumerable length and a
+    constructor back-reference. `new Proxy(Object.create(Array.prototype), {})`
+    relies on `"length" in target` walking to this property. }
+  proto.DefineDataProperty('length', JSMakeNumber(0), True, False, False);
+  proto.DefineDataProperty('constructor', JSMakeFunction(arrayObj), True, False, True);
   arrayObj.SetProperty('isArray', JSMakeFunction(AHeap.NewNativeFunction('isArray', @JSArrayIsArray)));
   arrayObj.SetProperty('from', JSMakeFunction(AHeap.NewNativeFunction('from', @JSArrayFrom)));
   arrayObj.SetProperty('of', JSMakeFunction(AHeap.NewNativeFunction('of', @JSArrayOf)));

@@ -230,7 +230,21 @@ type
     FElements: array of TFloriaJSValue;
     FPresent: array of Boolean;
     FCount: Integer;
+    { Logical length can exceed the dense range because ECMAScript array
+      indices go up to 2^32 - 2. Elements at or above DENSE_LIMIT live in the
+      overflow list instead of forcing a multi-gigabyte allocation. }
+    FLogicalLength: Int64;
+    FOverflowIndex: array of Int64;
+    FOverflowValue: array of TFloriaJSValue;
+    FOverflowCount: Integer;
     procedure GrowCapacity(AMinCapacity: Integer);
+    function  FindOverflowIndex(AIndex: Int64): Integer;
+    procedure SetOverflowElement(AIndex: Int64; const AValue: TFloriaJSValue);
+    function  GetOverflowElement(AIndex: Int64): TFloriaJSValue;
+    function  HasOverflowElement(AIndex: Int64): Boolean;
+    function  DeleteOverflowElement(AIndex: Int64): Boolean;
+    procedure TrimOverflow(ANewLength: Int64);
+    procedure RefreshLogicalLength();
   public
     constructor Create();
     destructor Destroy(); override;
@@ -251,6 +265,7 @@ type
     procedure SwapElements(AIndex, BIndex: Integer);
     function  Join(const ASeparator: string = ','): string;
     function  Length(): Integer;
+    function  LogicalLength(): Int64;
 
     function  GetProperty(const AName: string): TFloriaJSValue; override;
     function  GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
@@ -258,6 +273,17 @@ type
     function  DeleteProperty(const AName: string): Boolean; override;
     function  HasProperty(const AName: string): Boolean; override;
     function  HasOwnProperty(const AName: string): Boolean; override;
+  end;
+
+  { A boxed String object created by `new String(value)`. The primitive value
+    lives in the object so String.prototype.toString/valueOf and loose equality
+    can recover it, while prototype lookup still provides String methods. }
+  TFloriaJSStringObject = class(TFloriaJSObject)
+  private
+    FValue: string;
+  public
+    constructor Create(AProto: TFloriaJSObject; const AValue: string);
+    property Value: string read FValue;
   end;
 
   { Native Function Callbacks }
@@ -397,8 +423,12 @@ type
     Child: TFloriaJSPromise;
   end;
 
-  { Deferred Microtask that Runs One Promise Reaction }
+  { Deferred Microtask that Runs One Promise Reaction or settles a promise
+    that was completed synchronously by a combinator such as Promise.all. }
+  TFloriaJSPromiseJobKind = (pjkReaction, pjkFulfill, pjkReject);
+
   TFloriaJSPromiseJob = record
+    Kind: TFloriaJSPromiseJobKind;
     OnFulfilled: TFloriaJSValue;
     OnRejected: TFloriaJSValue;
     OnFinally: TFloriaJSValue;
@@ -406,6 +436,7 @@ type
     IsRejection: Boolean;
     Value: TFloriaJSValue;
     Child: TFloriaJSPromise;
+    Target: TFloriaJSPromise;
   end;
   PTFloriaJSPromiseJob = ^TFloriaJSPromiseJob;
 
@@ -653,6 +684,7 @@ type
     function  Untrack(AObj: TObject): Boolean;
     function  NewObject(AProto: TFloriaJSObject = nil; ANoProto: Boolean = False): TFloriaJSObject;
     function  NewArray(): TFloriaJSArray;
+    function  NewStringObject(AProto: TFloriaJSObject; const AValue: string): TFloriaJSStringObject;
     function  NewError(const AName, AMessage: string): TFloriaJSError;
     function  NewPromise(): TFloriaJSPromise;
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
@@ -716,6 +748,8 @@ type
 
     procedure SetJobRunner(ARunner: TFloriaJSJobRunner);
     procedure EnqueuePromiseJob(const AJob: TFloriaJSPromiseJob);
+    procedure EnqueuePromiseSettlement(APromise: TFloriaJSPromise;
+      const AValue: TFloriaJSValue; AIsRejection: Boolean);
     function  DequeuePromiseJob(out AJob: TFloriaJSPromiseJob): Boolean;
     function  HasPromiseJobs(): Boolean;
     procedure RunPendingJobs();
@@ -1905,6 +1939,13 @@ begin
   SetProperty('message', JSMakeString(AMessage));
 end;
 
+const
+  { Indices below this bound use the dense representation. Above it, an
+    overflow entry records the value without allocating every hole. }
+  ARRAY_DENSE_LIMIT = 100000;
+  { The largest valid ECMAScript array index (2^32 - 2). }
+  ARRAY_INDEX_LIMIT = 4294967294;
+
 { TFloriaJSArray }
 
 { TFloriaJSProxy }
@@ -2306,12 +2347,22 @@ begin
     FTarget.AsObject().GetKeys(AOutKeys);
 end;
 
+constructor TFloriaJSStringObject.Create(AProto: TFloriaJSObject; const AValue: string);
+begin
+  inherited Create(AProto);
+  FValue := AValue;
+end;
+
 constructor TFloriaJSArray.Create();
 begin
   inherited Create(nil);
   SetLength(FElements, 0);
   SetLength(FPresent, 0);
   FCount := 0;
+  FLogicalLength := 0;
+  SetLength(FOverflowIndex, 0);
+  SetLength(FOverflowValue, 0);
+  FOverflowCount := 0;
 end;
 
 destructor TFloriaJSArray.Destroy();
@@ -2325,7 +2376,106 @@ begin
   SetLength(FElements, 0);
   SetLength(FPresent, 0);
   FCount := 0;
+  if (Heap = nil) or (not Heap.IsClearing) then
+    for i := 0 to FOverflowCount - 1 do
+      JSReleaseValue(FOverflowValue[i]);
+  SetLength(FOverflowIndex, 0);
+  SetLength(FOverflowValue, 0);
+  FOverflowCount := 0;
+  FLogicalLength := 0;
   inherited Destroy();
+end;
+
+procedure TFloriaJSArray.RefreshLogicalLength();
+var
+  i: Integer;
+begin
+  FLogicalLength := FCount;
+  for i := 0 to FOverflowCount - 1 do
+    if FOverflowIndex[i] + 1 > FLogicalLength then
+      FLogicalLength := FOverflowIndex[i] + 1;
+end;
+
+function TFloriaJSArray.FindOverflowIndex(AIndex: Int64): Integer;
+var
+  i: Integer;
+begin
+  for i := 0 to FOverflowCount - 1 do
+    if FOverflowIndex[i] = AIndex then
+      Exit(i);
+  Result := -1;
+end;
+
+procedure TFloriaJSArray.SetOverflowElement(AIndex: Int64;
+  const AValue: TFloriaJSValue);
+var
+  idx: Integer;
+begin
+  idx := FindOverflowIndex(AIndex);
+  if idx >= 0 then
+  begin
+    JSReleaseValue(FOverflowValue[idx]);
+    FOverflowValue[idx] := AValue;
+    JSRetainValue(AValue);
+  end
+  else
+  begin
+    if FOverflowCount >= System.Length(FOverflowIndex) then
+    begin
+      SetLength(FOverflowIndex, FOverflowCount * 2 + 8);
+      SetLength(FOverflowValue, FOverflowCount * 2 + 8);
+    end;
+    FOverflowIndex[FOverflowCount] := AIndex;
+    FOverflowValue[FOverflowCount] := AValue;
+    JSRetainValue(AValue);
+    Inc(FOverflowCount);
+  end;
+  if AIndex + 1 > FLogicalLength then
+    FLogicalLength := AIndex + 1;
+end;
+
+function TFloriaJSArray.GetOverflowElement(AIndex: Int64): TFloriaJSValue;
+var
+  idx: Integer;
+begin
+  idx := FindOverflowIndex(AIndex);
+  if idx >= 0 then
+    Result := FOverflowValue[idx]
+  else
+    Result := JSMakeUndefined();
+end;
+
+function TFloriaJSArray.HasOverflowElement(AIndex: Int64): Boolean;
+begin
+  Result := FindOverflowIndex(AIndex) >= 0;
+end;
+
+function TFloriaJSArray.DeleteOverflowElement(AIndex: Int64): Boolean;
+var
+  idx: Integer;
+begin
+  idx := FindOverflowIndex(AIndex);
+  if idx < 0 then
+    Exit(True);
+  JSReleaseValue(FOverflowValue[idx]);
+  FOverflowValue[idx] := FOverflowValue[FOverflowCount - 1];
+  FOverflowIndex[idx] := FOverflowIndex[FOverflowCount - 1];
+  Dec(FOverflowCount);
+  Result := True;
+end;
+
+procedure TFloriaJSArray.TrimOverflow(ANewLength: Int64);
+var
+  i: Integer;
+begin
+  for i := FOverflowCount - 1 downto 0 do
+    if FOverflowIndex[i] >= ANewLength then
+    begin
+      JSReleaseValue(FOverflowValue[i]);
+      FOverflowValue[i] := FOverflowValue[FOverflowCount - 1];
+      FOverflowIndex[i] := FOverflowIndex[FOverflowCount - 1];
+      Dec(FOverflowCount);
+    end;
 end;
 
 procedure TFloriaJSArray.GrowCapacity(AMinCapacity: Integer);
@@ -2387,6 +2537,8 @@ begin
   FElements[AIndex] := AValue;
   FPresent[AIndex] := True;
   JSRetainValue(AValue);
+  if AIndex + 1 > FLogicalLength then
+    FLogicalLength := AIndex + 1;
 end;
 
 procedure TFloriaJSArray.Push(const AValue: TFloriaJSValue);
@@ -2396,6 +2548,8 @@ begin
   FPresent[FCount] := True;
   JSRetainValue(AValue);
   Inc(FCount);
+  if FCount > FLogicalLength then
+    FLogicalLength := FCount;
 end;
 
 procedure TFloriaJSArray.PushHole();
@@ -2404,6 +2558,8 @@ begin
   FElements[FCount] := JSMakeUndefined();
   FPresent[FCount] := False;
   Inc(FCount);
+  if FCount > FLogicalLength then
+    FLogicalLength := FCount;
 end;
 
 function TFloriaJSArray.Pop(): TFloriaJSValue;
@@ -2420,6 +2576,7 @@ begin
   FElements[FCount] := JSMakeUndefined();
   { The element that is removed gives up the reference it held. }
   JSReleaseValue(Result);
+  RefreshLogicalLength();
 end;
 
 function TFloriaJSArray.Shift(): TFloriaJSValue;
@@ -2441,6 +2598,7 @@ begin
   { The element that is shifted out gives up the reference it held. }
   JSReleaseValue(FElements[FCount]);
   FElements[FCount] := JSMakeUndefined();
+  RefreshLogicalLength();
 end;
 
 procedure TFloriaJSArray.Unshift(const AValue: TFloriaJSValue);
@@ -2458,6 +2616,8 @@ begin
   FPresent[0] := True;
   JSRetainValue(AValue);
   Inc(FCount);
+  if FCount > FLogicalLength then
+    FLogicalLength := FCount;
 end;
 
 procedure TFloriaJSArray.InsertAt(AIndex: Integer; const AValue: TFloriaJSValue);
@@ -2478,6 +2638,8 @@ begin
   FPresent[AIndex] := True;
   JSRetainValue(AValue);
   Inc(FCount);
+  if FCount > FLogicalLength then
+    FLogicalLength := FCount;
 end;
 
 procedure TFloriaJSArray.RemoveAt(AIndex: Integer);
@@ -2497,6 +2659,7 @@ begin
   Dec(FCount);
   FPresent[FCount] := False;
   FElements[FCount] := JSMakeUndefined();
+  RefreshLogicalLength();
 end;
 
 procedure TFloriaJSArray.MarkHole(AIndex: Integer);
@@ -2546,6 +2709,8 @@ begin
     end;
     FCount := ANewLength;
   end;
+  TrimOverflow(ANewLength);
+  RefreshLogicalLength();
 end;
 
 procedure TFloriaJSArray.SwapElements(AIndex, BIndex: Integer);
@@ -2592,6 +2757,11 @@ begin
   Result := FCount;
 end;
 
+function TFloriaJSArray.LogicalLength(): Int64;
+begin
+  Result := FLogicalLength;
+end;
+
 function TFloriaJSArray.GetProperty(const AName: string): TFloriaJSValue;
 begin
   Result := GetPropertyWithReceiver(AName, Self);
@@ -2599,29 +2769,31 @@ end;
 
 function TFloriaJSArray.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 var
-  idx: Integer;
+  idx: Int64;
 begin
   if AName = 'length' then
-    Exit(JSMakeNumber(FCount));
+    Exit(JSMakeNumber(FLogicalLength));
 
-  if TryStrToInt(AName, idx) then
-    Exit(GetElement(idx));
+  if TryStrToInt64(AName, idx) and (idx >= 0) and (idx <= ARRAY_INDEX_LIMIT) then
+  begin
+    if idx >= ARRAY_DENSE_LIMIT then
+      Exit(GetOverflowElement(idx));
+    Exit(GetElement(Integer(idx)));
+  end;
 
   Result := inherited GetPropertyWithReceiver(AName, AReceiver);
 end;
 
 procedure TFloriaJSArray.SetProperty(const AName: string; const AValue: TFloriaJSValue);
 var
-  idx: Integer;
+  idx: Int64;
   d: Double;
 begin
   if AName = 'length' then
   begin
     d := AValue.ToNumber();
-    { ECMAScript validates the requested length before applying it. The
-      engine's index type is a signed 32-bit integer, so lengths that would
-      not fit are rejected as well. }
-    if IsNaN(d) or (d < 0) or (d <> Int(d)) or (d > 2147483647.0) then
+    { ECMAScript array lengths are integers in [0, 2^32 - 1]. }
+    if IsNaN(d) or (d < 0) or (d <> Int(d)) or (d > 4294967295.0) then
     begin
       if JSActiveRealmHeap() <> nil then
         raise EFloriaJSThrow.Create(JSMakeObject(JSActiveRealmHeap().NewError('RangeError', 'Invalid array length')));
@@ -2629,13 +2801,22 @@ begin
         raise EFloriaJSThrow.Create(JSMakeObject(Heap.NewError('RangeError', 'Invalid array length')));
       Exit;
     end;
-    SetLengthTo(Trunc(d));
+    if d > 2147483647.0 then
+    begin
+      TrimOverflow(Trunc(d));
+      FLogicalLength := Trunc(d);
+    end
+    else
+      SetLengthTo(Trunc(d));
     Exit;
   end;
 
-  if TryStrToInt(AName, idx) then
+  if TryStrToInt64(AName, idx) and (idx >= 0) and (idx <= ARRAY_INDEX_LIMIT) then
   begin
-    SetElement(idx, AValue);
+    if idx >= ARRAY_DENSE_LIMIT then
+      SetOverflowElement(idx, AValue)
+    else
+      SetElement(Integer(idx), AValue);
     Exit;
   end;
 
@@ -2644,36 +2825,48 @@ end;
 
 function TFloriaJSArray.DeleteProperty(const AName: string): Boolean;
 var
-  idx: Integer;
+  idx: Int64;
 begin
   { `length` is not configurable. }
   if AName = 'length' then
     Exit(False);
 
-  if TryStrToInt(AName, idx) then
-    Exit(DeleteElement(idx));
+  if TryStrToInt64(AName, idx) and (idx >= 0) and (idx <= ARRAY_INDEX_LIMIT) then
+  begin
+    if idx >= ARRAY_DENSE_LIMIT then
+      Exit(DeleteOverflowElement(idx));
+    Exit(DeleteElement(Integer(idx)));
+  end;
 
   Result := inherited DeleteProperty(AName);
 end;
 
 function TFloriaJSArray.HasProperty(const AName: string): Boolean;
 var
-  idx: Integer;
+  idx: Int64;
 begin
   if AName = 'length' then Exit(True);
-  if TryStrToInt(AName, idx) then
-    Exit(HasElement(idx));
+  if TryStrToInt64(AName, idx) and (idx >= 0) and (idx <= ARRAY_INDEX_LIMIT) then
+  begin
+    if idx >= ARRAY_DENSE_LIMIT then
+      Exit(HasOverflowElement(idx));
+    Exit(HasElement(Integer(idx)));
+  end;
 
   Result := inherited HasProperty(AName);
 end;
 
 function TFloriaJSArray.HasOwnProperty(const AName: string): Boolean;
 var
-  idx: Integer;
+  idx: Int64;
 begin
   if AName = 'length' then Exit(True);
-  if TryStrToInt(AName, idx) then
-    Exit(HasElement(idx));
+  if TryStrToInt64(AName, idx) and (idx >= 0) and (idx <= ARRAY_INDEX_LIMIT) then
+  begin
+    if idx >= ARRAY_DENSE_LIMIT then
+      Exit(HasOverflowElement(idx));
+    Exit(HasElement(Integer(idx)));
+  end;
 
   Result := inherited HasOwnProperty(AName);
 end;
@@ -3382,6 +3575,7 @@ begin
 
   { Already settled: the reaction runs as a microtask. }
   if FHeap = nil then Exit;
+  job.Kind := pjkReaction;
   job.OnFulfilled := AOnFulfilled;
   job.OnRejected := AOnRejected;
   job.OnFinally := AOnFinally;
@@ -3389,6 +3583,7 @@ begin
   job.IsRejection := (FState = fjspRejected);
   job.Value := FResult;
   job.Child := AChild;
+  job.Target := nil;
   FHeap.EnqueuePromiseJob(job);
 end;
 
@@ -3401,6 +3596,7 @@ begin
   for i := 0 to FReactionCount - 1 do
   begin
     reaction := FReactions[i];
+    job.Kind := pjkReaction;
     job.OnFulfilled := reaction.OnFulfilled;
     job.OnRejected := reaction.OnRejected;
     job.OnFinally := reaction.OnFinally;
@@ -3408,6 +3604,7 @@ begin
     job.IsRejection := (FState = fjspRejected);
     job.Value := FResult;
     job.Child := reaction.Child;
+    job.Target := nil;
     if FHeap <> nil then
       FHeap.EnqueuePromiseJob(job);
     { The job takes the references over from the reaction. }
@@ -3669,6 +3866,12 @@ begin
   Result := TFloriaJSArray(Track(TFloriaJSArray.Create()));
   if Result <> nil then
     Result.Prototype := GetArrayPrototype();
+end;
+
+function TFloriaJSHeap.NewStringObject(AProto: TFloriaJSObject;
+  const AValue: string): TFloriaJSStringObject;
+begin
+  Result := TFloriaJSStringObject(Track(TFloriaJSStringObject.Create(AProto, AValue)));
 end;
 
 function TFloriaJSHeap.GetArrayPrototype(): TFloriaJSObject;
@@ -4103,6 +4306,28 @@ begin
   JSRetainValue(AJob.Value);
   if AJob.Child <> nil then
     AJob.Child.Retain;
+  if AJob.Target <> nil then
+    AJob.Target.Retain;
+end;
+
+procedure TFloriaJSHeap.EnqueuePromiseSettlement(APromise: TFloriaJSPromise;
+  const AValue: TFloriaJSValue; AIsRejection: Boolean);
+var
+  job: TFloriaJSPromiseJob;
+begin
+  if APromise = nil then Exit;
+  job.Kind := pjkFulfill;
+  if AIsRejection then
+    job.Kind := pjkReject;
+  job.OnFulfilled := JSMakeUndefined();
+  job.OnRejected := JSMakeUndefined();
+  job.OnFinally := JSMakeUndefined();
+  job.IsFinally := False;
+  job.IsRejection := AIsRejection;
+  job.Value := AValue;
+  job.Child := nil;
+  job.Target := APromise;
+  EnqueuePromiseJob(job);
 end;
 
 function TFloriaJSHeap.DequeuePromiseJob(out AJob: TFloriaJSPromiseJob): Boolean;
@@ -4140,6 +4365,8 @@ begin
     JSReleaseValue(job.Value);
     if job.Child <> nil then
       job.Child.Release;
+    if job.Target <> nil then
+      job.Target.Release;
   end;
 end;
 
@@ -4885,7 +5112,7 @@ begin
 
       if elem.State = fjspRejected then
       begin
-        p.Reject(elem.ResultValue);
+        EnqueuePromiseSettlement(p, elem.ResultValue, True);
         Exit(JSMakePromise(p));
       end;
 
@@ -4901,7 +5128,10 @@ begin
   outArr := NewArray();
   for i := 0 to count - 1 do
     outArr.SetElement(i, values[i]);
-  p.Fulfill(JSMakeArray(outArr));
+  { Combinators settle their promise through the microtask queue. Settling it
+    here synchronously would make a subsequent `.then` run before reactions
+    that were registered on the input promises earlier. }
+  EnqueuePromiseSettlement(p, JSMakeArray(outArr), False);
   Result := JSMakePromise(p);
 end;
 

@@ -2,9 +2,9 @@
 
 FloriaJS implements a practical JavaScript subset for embedded scripts and FTML handlers; it is **not currently a conforming ECMAScript implementation**. The work in `test262/` is intended to measure compatibility, not to claim full Test262 support.
 
-## Current status: Phase 11 complete
+## Current status: Phase 12 complete
 
-Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. This is still a diagnostic adapter, not a conformance certification. In particular:
+Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the recorded curated gaps for boxed String objects, Promise.all microtask ordering, Proxy `has` fallback, and large array indices; `eval` remains absent. This is still a diagnostic adapter, not a conformance certification. In particular:
 
 - no conformance percentage or official Test262 verdict is published;
 - no upstream test suite is vendored in this repository;
@@ -429,6 +429,18 @@ The diagnostic runner now scales without sharing runtime state:
 
 Validation: adapter fixtures pass (including Markdown rendering and sequential/parallel equivalence); `ci_smoke.sh` passes with no regressions; `ci_extended.sh` completes all 16 reviewed corpora under a 600-second global budget with **742 records — 724 pass, 18 known fail**. Markdown summaries are diagnostic views, not conformance certificates.
 
+## Phase 12 result — curated conformance gaps
+
+The recorded curated failures are now closed except for `eval`:
+
+- `new String(value)` returns a real boxed String object with `String.prototype` as its prototype. `String.prototype.toString`/`valueOf` unwrap it, loose equality sees its primitive value, `typeof` is `"object"`, and `String.prototype.constructor` is `String`.
+- `Array.prototype` now has a non-enumerable `length` and `constructor`, so `new Proxy(Object.create(Array.prototype), {})` and `"length" in target` follow the prototype chain.
+- `Promise.all` settles its result through the microtask queue instead of synchronously. Reactions registered on input promises earlier now run in the specification order.
+- Array indices in `[0, 2^32 - 2]` extend `length`. Indices at or above the dense threshold are stored in an overflow list rather than forcing a multi-gigabyte allocation; `length` accepts the full `2^32 - 1` boundary.
+- `eval` remains absent and is the only remaining curated failure: four records (two tests in both variants). It is not approximated with global-only semantics.
+
+Validation: **275 FPCUnit tests**, **90 documentation claims**, focused Proxy corpus **46 records — 46 pass**, curated corpus **354 records — 350 pass, 4 fail** (attempted pass rate 98.87%). The four remaining failures are `eval`.
+
 ## Next phase
 
-Phase 10 and Phase 11 are complete. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+Phase 10, Phase 11, and Phase 12 are complete. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

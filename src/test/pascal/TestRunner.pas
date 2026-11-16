@@ -345,6 +345,10 @@ type
     procedure TestProxyTraps();
     procedure TestBigIntAtomicsAndWaitAsync();
     procedure TestProxyInvariants();
+    procedure TestBoxedStringObjects();
+    procedure TestPromiseAllMicrotaskOrdering();
+    procedure TestProxyHasFallsBackToTarget();
+    procedure TestLargeArrayIndices();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7232,6 +7236,105 @@ begin
     );
     AssertTrue('Proxy ownKeys invariant script succeeds', res.Success);
     AssertEquals('Proxy ownKeys invariant throws TypeError', 'TypeError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestBoxedStringObjects();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var s = new String("ABC");' +
+      '[typeof s, s.constructor === String, s.toString(), s.valueOf(),' +
+      ' s == "ABC", s === "ABC", String(s), Object.prototype.toString.call(s)].join(",");'
+    );
+    AssertTrue('boxed String script succeeds', res.Success);
+    AssertEquals('boxed String exposes its primitive value',
+      'object,true,ABC,ABC,true,false,ABC,[object String]', res.StringValue);
+
+    res := engine.Execute(
+      'var p = "rock";' +
+      'p.constructor === String;'
+    );
+    AssertTrue('primitive String constructor script succeeds', res.Success);
+    AssertTrue('primitive String constructor is String', res.BooleanValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestPromiseAllMicrotaskOrdering();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var sequence = [];' +
+      'var p1 = new Promise(function(resolve) { resolve({}); });' +
+      'Promise.all([p1]).then(function() { sequence.push(4); });' +
+      'p1.then(function() { sequence.push(3); })' +
+      '  .then(function() { sequence.push(5); });' +
+      'sequence.push(1);' +
+      'sequence.push(2);'
+    );
+    AssertTrue('Promise.all ordering script succeeds', res.Success);
+    res := engine.Execute('sequence.join(",");');
+    AssertEquals('Promise.all reactions follow the microtask order',
+      '1,2,3,4,5', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestProxyHasFallsBackToTarget();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var target = Object.create(Array.prototype);' +
+      'var p = new Proxy(target, {});' +
+      '("length" in p) + "," + ("foo" in p);'
+    );
+    AssertTrue('Proxy has fallback script succeeds', res.Success);
+    AssertEquals('Proxy has falls back to the prototype chain',
+      'true,false', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestLargeArrayIndices();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var a = [];' +
+      'a[0] = 1; a[1] = 1;' +
+      'a[2147483648] = 1;' +
+      'a[4294967294] = 1;' +
+      '[a.length, a[2147483648], a[4294967294], 2147483648 in a].join(",");'
+    );
+    AssertTrue('large array index script succeeds', res.Success);
+    AssertEquals('large array indices extend length without dense allocation',
+      '4294967295,1,1,true', res.StringValue);
+
+    res := engine.Execute('var b = []; b.length = 4294967295; b.length;');
+    AssertTrue('large array length script succeeds', res.Success);
+    AssertEquals('array length accepts the 2^32-1 boundary',
+      4294967295.0, res.NumberValue, 0.5);
   finally
     engine.Free();
   end;

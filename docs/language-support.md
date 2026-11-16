@@ -203,6 +203,9 @@ explicit `undefined`. `length = n` extends with holes or truncates the array,
 and invalid lengths raise `RangeError`.
 
 `flat`, `flatMap`, `fill`, `copyWithin`, `at`, and `values` are implemented.
+Array indices in `[0, 2^32 - 2]` extend `length`; very large sparse indices are
+stored in an overflow list instead of forcing a dense allocation. `length`
+accepts the full `2^32 - 1` boundary.
 
 Not implemented: `keys` and `entries`. `arr.toString()` returns comma-joined
 elements like `arr.join()`.
@@ -223,7 +226,10 @@ from code units and code points. `fromCharCode` treats each argument as a single
 Not implemented: `localeCompare`, `normalize`.
 
 `String.prototype` is the shared prototype used by primitive strings, so
-`String.prototype.charAt === "".charAt` is true.
+`String.prototype.charAt === "".charAt` is true. `new String(value)` creates a
+boxed String object: `typeof` is `"object"`, `toString`/`valueOf` return the
+primitive, loose equality compares the primitive value, and
+`String.prototype.constructor` is `String`.
 
 ### Object
 

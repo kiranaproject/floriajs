@@ -14,7 +14,7 @@ Last refreshed 2026-11-15:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **271 tests pass** with `pasbuild test`.
+- Test suite: **275 tests pass** with `pasbuild test`.
 - Benchmark suite: **15 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **12 file-based workloads**, geometric mean **4.3x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.

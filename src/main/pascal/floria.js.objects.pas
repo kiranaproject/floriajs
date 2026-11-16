@@ -547,6 +547,8 @@ begin
     Result := JSMakeString('[object Array]')
   else if AThis.IsFunction() then
     Result := JSMakeString('[object Function]')
+  else if AThis.IsObject() and (AThis.ObjVal is TFloriaJSStringObject) then
+    Result := JSMakeString('[object String]')
   else
     Result := JSMakeString('[object Object]');
 end;

@@ -281,6 +281,18 @@ procedure TFloriaJSVM.HeapJobRunner(const AJob: TFloriaJSPromiseJob);
 var
   handler, arg, resultValue: TFloriaJSValue;
 begin
+  if AJob.Kind <> pjkReaction then
+  begin
+    if AJob.Target <> nil then
+    begin
+      if AJob.Kind = pjkReject then
+        AJob.Target.Reject(AJob.Value)
+      else
+        AJob.Target.Fulfill(AJob.Value);
+    end;
+    Exit;
+  end;
+
   handler := JSMakeUndefined();
   if AJob.IsFinally then
     handler := AJob.OnFinally
@@ -2077,6 +2089,10 @@ begin
 
               if resVal.IsObject() then
                 Push(resVal)
+              else if (fn.IntrinsicName = 'String') and resVal.IsString() then
+                { `new String(value)` boxes the primitive instead of returning
+                  the generic object created above. }
+                Push(JSMakeObject(FHeap.NewStringObject(protoObj, resVal.StrVal)))
               else
                 Push(objVal);
             end
@@ -2592,13 +2608,27 @@ begin
     if protoObj = nil then
       protoObj := FHeap.GetObjectPrototype();
 
-    newObj := FHeap.NewObject(protoObj);
-    thisVal := JSMakeObject(newObj);
-    retVal := CallFunction(JSMakeFunction(fn), callArgs, thisVal);
-    if retVal.IsObject() then
-      Result := retVal
+    { `new String(value)` constructs a boxed String object. The native
+      constructor produces the primitive, so wrap it with the prototype chosen
+      by newTarget instead of returning the generic pre-created object. }
+    if fn.IntrinsicName = 'String' then
+    begin
+      retVal := CallFunction(JSMakeFunction(fn), callArgs, JSMakeUndefined());
+      if retVal.IsString() then
+        Result := JSMakeObject(FHeap.NewStringObject(protoObj, retVal.StrVal))
+      else
+        Result := retVal;
+    end
     else
-      Result := thisVal;
+    begin
+      newObj := FHeap.NewObject(protoObj);
+      thisVal := JSMakeObject(newObj);
+      retVal := CallFunction(JSMakeFunction(fn), callArgs, thisVal);
+      if retVal.IsObject() then
+        Result := retVal
+      else
+        Result := thisVal;
+    end;
   finally
     FHeap.CurrentConstructor := savedConstructor;
     FHeap.CurrentNewTarget := savedNewTarget;
