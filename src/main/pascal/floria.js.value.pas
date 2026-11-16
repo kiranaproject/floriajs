@@ -255,6 +255,10 @@ type
 
     function  GetElement(AIndex: Integer): TFloriaJSValue;
     procedure SetElement(AIndex: Integer; const AValue: TFloriaJSValue);
+    { Direct Int64 index paths used by the VM's numeric-key fast path. They
+      cover both the dense range and the sparse overflow list. }
+    function  GetElementByIndex(const AIndex: Int64): TFloriaJSValue;
+    procedure SetElementByIndex(const AIndex: Int64; const AValue: TFloriaJSValue);
     function  HasElement(AIndex: Integer): Boolean;
     procedure Push(const AValue: TFloriaJSValue);
     procedure PushHole();
@@ -850,6 +854,8 @@ function JSUnaryBitNot(const AVal: TFloriaJSValue): TFloriaJSValue;
 { The name a property is stored under. A symbol key gets a prefix that no real
   string key can contain, so it never collides and never enumerates. }
 function JSPropertyKeyName(const AVal: TFloriaJSValue): string;
+{ True when AVal is a Number that names an ECMAScript array index. }
+function JSArrayIndexFromNumber(const AVal: TFloriaJSValue; out AIndex: Int64): Boolean;
 
 { The heap of the native function currently executing. Native methods use it
   to create errors in the running function's realm rather than the receiver's. }
@@ -862,9 +868,6 @@ type
   TFloriaJSAtomicsYieldHook = procedure;
 procedure JSSetAtomicsYieldHook(AHook: TFloriaJSAtomicsYieldHook);
 procedure JSAtomicsYield();
-{ True when AName is the property key for the well-known symbol whose
-  description is ADescription, e.g. 'Symbol.iterator'. Accepts the raw symbol
-  key form and the legacy string spellings. }
 function JSIsWellKnownSymbolKey(const AName, ADescription: string): Boolean;
 function JSTypeOf(const AVal: TFloriaJSValue): string;
 
@@ -2511,6 +2514,25 @@ begin
     Result := FElements[AIndex]
   else
     Result := JSMakeUndefined();
+end;
+
+function TFloriaJSArray.GetElementByIndex(const AIndex: Int64): TFloriaJSValue;
+begin
+  if AIndex >= ARRAY_DENSE_LIMIT then
+    Result := GetOverflowElement(AIndex)
+  else if (AIndex >= 0) and (AIndex < FCount) and FPresent[AIndex] then
+    Result := FElements[AIndex]
+  else
+    Result := JSMakeUndefined();
+end;
+
+procedure TFloriaJSArray.SetElementByIndex(const AIndex: Int64;
+  const AValue: TFloriaJSValue);
+begin
+  if AIndex >= ARRAY_DENSE_LIMIT then
+    SetOverflowElement(AIndex, AValue)
+  else if (AIndex >= 0) and (AIndex <= High(Integer)) then
+    SetElement(Integer(AIndex), AValue);
 end;
 
 function TFloriaJSArray.HasElement(AIndex: Integer): Boolean;
@@ -5915,6 +5937,22 @@ begin
     Result := #1'sym:' + IntToStr(Trunc(AVal.NumVal)) + ':' + AVal.StrVal
   else
     Result := JSToString(AVal);
+end;
+
+{ True when AVal is a Number that names an ECMAScript array index. }
+function JSArrayIndexFromNumber(const AVal: TFloriaJSValue;
+  out AIndex: Int64): Boolean;
+var
+  d: Double;
+begin
+  AIndex := 0;
+  if not AVal.IsNumber() then
+    Exit(False);
+  d := AVal.NumVal;
+  if IsNaN(d) or (d < 0) or (d > 4294967294.0) then
+    Exit(False);
+  AIndex := Trunc(d);
+  Result := (d = AIndex);
 end;
 
 function JSIsWellKnownSymbolKey(const AName, ADescription: string): Boolean;

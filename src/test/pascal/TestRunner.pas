@@ -351,6 +351,7 @@ type
     procedure TestLargeArrayIndices();
     procedure TestEvalDirectAndIndirect();
     procedure TestSlotLocalsAndEnvironmentFallback();
+    procedure TestArrayNumericKeyFastPath();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7423,6 +7424,32 @@ begin
     AssertTrue('slot locals script succeeds', res.Success);
     AssertEquals('slots, closures, eval, arguments, typeof, and delete agree',
       '5,7,5,3:1,number,false', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestArrayNumericKeyFastPath();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var a = [];' +
+      'a[0] = "x"; a[2] = "z";' +
+      'a[1.5] = "fraction";' +
+      'a[-1] = "negative";' +
+      'a[4294967294] = "big";' +
+      'a[4294967295] = "not-an-index";' +
+      '[a.length, a[1], a[1.5], a[-1], a[4294967294], a[4294967295],' +
+      ' 0 in a, 1 in a].join(",");'
+    );
+    AssertTrue('array numeric key script succeeds', res.Success);
+    AssertEquals('numeric keys use the index path only when valid',
+      '4294967295,,fraction,negative,big,not-an-index,true,false',
+      res.StringValue);
   finally
     engine.Free();
   end;

@@ -16,7 +16,7 @@ Last refreshed 2026-11-15:
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
 - Test suite: **276 tests pass** with `pasbuild test`.
 - Benchmark suite: **15 workloads** with a checked-in baseline; `--check` guards a 20% regression.
-- Node comparison: **12 file-based workloads**, geometric mean **6.7x** Node; `--check` guards a 25% ratio regression.
+- Node comparison: **12 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   The expected errors are deliberate (`throw`, `const`/`for const` reassignment,
   `alert`, calling a non-function, and an invalid assignment target); the probe
@@ -1372,11 +1372,10 @@ share of total cost.
 
 **Two findings for later P3 tasks.**
 
-1. **Array element writes remain about five times slower than object writes**
+1. **Array element writes were about five times slower than object writes**
    (`prop/array-write-5k` at 63.3 us/op against `prop/read-write-5k` at 11.4).
-   A numeric index is still converted to a string and parsed back inside
-   `TFloriaJSArray.SetProperty`. P3-02 (slot resolution) does not address this;
-   it needs a numeric key path.
+   A numeric index was converted to a string and parsed back inside
+   `TFloriaJSArray.SetProperty`. This is fixed by the P3-02a follow-up below.
 2. **A binding write costs about 6x an unbound one, and compounds with depth**
    (2.75 us unbound, 15.98 us at one level, 45.48 us at three). That is the
    baseline P3-05 must beat.
@@ -1433,6 +1432,23 @@ environment creation for functions that still need it.
 Node comparison after P3-02: **6.7x** geometric mean (from 7.2x),
 `call_recursive` **28.5x** (from 46.8x), slowest `prop_array_write` at **34.8x**.
 `bench/run_bench.sh --check` passes.
+
+### [x] P3-02a — Numeric array key path (P3-02 follow-up)
+
+The VM now detects an array receiver paired with an exact numeric key in
+`opGetProp` / `opSetProp` / optional property access. It calls
+`TFloriaJSArray.GetElementByIndex` / `SetElementByIndex` directly, avoiding the
+number-to-string conversion and the string parse in `SetProperty`. The same
+methods cover the dense range and the sparse overflow list.
+
+Invalid array indices keep the ordinary property path: fractions, negative
+numbers, `NaN`, `Infinity`, and values at or above `2^32 - 1` are stored as
+normal string-keyed properties. Symbol keys are unchanged.
+
+**Measured effect:** `prop/array-write-5k` fell from **62.69 µs/op to
+11.27 µs/op (-82%)**, matching the object property-write path. The Node ratio
+for `prop_array_write` improved from **34.8x to 6.4x**, and the overall
+geometric mean from **6.7x to 5.9x**.
 
 ### [ ] P3-03 — Value representation
 

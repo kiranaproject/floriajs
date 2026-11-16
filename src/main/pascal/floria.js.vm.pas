@@ -1197,6 +1197,7 @@ var
   intrinsicName: string;
   propName, varName, propKeyStr, pName, restName, evalText: string;
   argc, i, j, callBaseBP, asyncInitialFP: Integer;
+  idx64: Int64;
   args: array of TFloriaJSValue;
   fn: TFloriaJSFunction;
   subCode: TFloriaJSBytecode;
@@ -1528,7 +1529,10 @@ begin
           begin
             propVal := Pop();
             objVal := Pop();
-            Push(GetMemberValue(objVal, JSPropertyKeyName(propVal)));
+            if objVal.IsArray() and JSArrayIndexFromNumber(propVal, idx64) then
+              Push(TFloriaJSArray(objVal.ObjVal).GetElementByIndex(idx64))
+            else
+              Push(GetMemberValue(objVal, JSPropertyKeyName(propVal)));
           end;
 
         opGetPropNamed:
@@ -1543,7 +1547,10 @@ begin
             val := Pop();
             propVal := Pop();
             objVal := Pop();
-            SetMemberValue(objVal, JSPropertyKeyName(propVal), val);
+            if objVal.IsArray() and JSArrayIndexFromNumber(propVal, idx64) then
+              TFloriaJSArray(objVal.ObjVal).SetElementByIndex(idx64, val)
+            else
+              SetMemberValue(objVal, JSPropertyKeyName(propVal), val);
             Push(val);
           end;
 
@@ -1562,6 +1569,8 @@ begin
             objVal := Pop();
             if objVal.IsNull() or objVal.IsUndefined() then
               Push(JSMakeUndefined())
+            else if objVal.IsArray() and JSArrayIndexFromNumber(propVal, idx64) then
+              Push(TFloriaJSArray(objVal.ObjVal).GetElementByIndex(idx64))
             else
               Push(GetMemberValue(objVal, JSPropertyKeyName(propVal)));
           end;
