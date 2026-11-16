@@ -439,7 +439,7 @@ The recorded curated failures are now closed except for `eval`:
 - Array indices in `[0, 2^32 - 2]` extend `length`. Indices at or above the dense threshold are stored in an overflow list rather than forcing a multi-gigabyte allocation; `length` accepts the full `2^32 - 1` boundary.
 - `eval` remains absent and is the only remaining curated failure: four records (two tests in both variants). It is not approximated with global-only semantics.
 
-Validation: **275 FPCUnit tests**, **90 documentation claims**, focused Proxy corpus **46 records — 46 pass**, curated corpus **354 records — 350 pass, 4 fail** (attempted pass rate 98.87%). The four remaining failures are `eval`.
+Validation: **275 FPCUnit tests**, **90 documentation claims**, focused Proxy corpus **46 records — 46 pass**, curated corpus **354 records — 350 pass, 4 fail** (attempted pass rate 98.87%), extended diagnostic **742 records — 738 pass, 4 fail**. The four remaining failures are `eval`.
 
 ## Next phase
 
