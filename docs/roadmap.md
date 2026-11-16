@@ -16,7 +16,7 @@ Last refreshed 2026-11-15:
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
 - Test suite: **276 tests pass** with `pasbuild test`.
 - Benchmark suite: **15 workloads** with a checked-in baseline; `--check` guards a 20% regression.
-- Node comparison: **12 file-based workloads**, geometric mean **4.3x** Node; `--check` guards a 25% ratio regression.
+- Node comparison: **12 file-based workloads**, geometric mean **7.2x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   The expected errors are deliberate (`throw`, `const`/`for const` reassignment,
   `alert`, calling a non-function, and an invalid assignment target); the probe
@@ -1274,11 +1274,13 @@ cross-script resumes, and 200-generator churn all work and free cleanly.
 The VM is a pure interpreter. These tasks are for later and must be measured
 against a checked-in benchmark, not guessed.
 
-### [ ] P3-01 — Reduce VM dispatch overhead
+### [x] P3-01 — Reduce VM dispatch overhead
 
-- Measure the per-instruction `try`/`except` cost.
-- Investigate routing JavaScript throws without wrapping every dispatch, or
-  reduce the wrapped region while preserving catch semantics.
+- Moved the per-instruction `try`/`except` frame outside the dispatch loop, so
+  `RunLoop` enters the exception frame once per call rather than once per
+  instruction. `HandleThrow` still applies the same JavaScript catch/finally
+  semantics, and `opYield`/`opAwait` leave `RunLoop` explicitly instead of
+  relying on `Break` out of the old single loop.
 - Benchmark loops, calls, property access, and FTML binding updates before and
   after.
 
@@ -1292,65 +1294,96 @@ FTML binding updates) plus strings, arithmetic, and allocation. Each workload is
 compiled once and executed many times, so the numbers describe the interpreter
 rather than the parser.
 
-**Baseline (this machine, `bench/baseline.txt`):**
+**Baseline after P3-01 (this machine, `bench/baseline.txt`):**
 
 | workload | us/op | ops/s |
 | :--- | ---: | ---: |
-| `loop/count-10k` | 5.47 | 182,775 |
-| `loop/while-10k` | 5.34 | 187,182 |
-| `call/plain-1k` | 11.64 | 85,889 |
-| `call/recursive-fib-16` | 10.58 | 94,551 |
-| `prop/read-write-5k` | 6.36 | 157,302 |
-| `prop/array-write-5k` | 60.40 | 16,556 |
-| `string/concat-2k` | 6.54 | 152,847 |
-| `arith/mixed-10k` | 7.13 | 140,347 |
-| `object/alloc-2k` | 13.47 | 74,262 |
-| `binding/unbound-write` | 2.80 | 357,600 |
-| `binding/bound-1-level` | 15.12 | 66,100 |
-| `binding/bound-3-levels` | 43.05 | 23,200 |
+| `loop/count-10k` | 10.64 | 93,945 |
+| `loop/nested-100x100` | 10.84 | 92,216 |
+| `loop/while-10k` | 10.52 | 95,073 |
+| `call/plain-1k` | 16.77 | 59,645 |
+| `call/noargs-1k` | 17.42 | 57,418 |
+| `call/recursive-fib-16` | 10.80 | 92,567 |
+| `prop/read-write-5k` | 11.44 | 87,413 |
+| `prop/computed-2k` | 11.63 | 86,014 |
+| `prop/array-write-5k` | 63.28 | 15,803 |
+| `string/concat-2k` | 10.90 | 91,713 |
+| `arith/mixed-10k` | 11.58 | 86,363 |
+| `object/alloc-2k` | 21.21 | 47,142 |
+| `binding/unbound-write` | 2.75 | 363,508 |
+| `binding/bound-1-level` | 15.98 | 62,572 |
+| `binding/bound-3-levels` | 45.48 | 21,989 |
 
 **Comparing against Node.** `bash bench/run_compare.sh` runs the same `.js`
 files under both engines and reports the ratio, which is portable across
 machines in a way absolute microseconds are not. The workloads live in
 `bench/workloads/` and `bench/runner/` is a Pasbuild sub-project that loads them
-with the new `ExecuteFile` API, so the interpreter is exercised the way a host
-uses it rather than through a string built for the occasion.
+with the `ExecuteFile` API, so the interpreter is exercised the way a host uses
+it rather than through a string built for the occasion.
 
-Current ratios on this machine (geometric mean **4.3x**, slowest
-`call_recursive` at **45x**):
+Current ratios on this machine (geometric mean **7.2x**, slowest
+`call_recursive` at **46.8x**):
 
-| workload | floriajs | Node | ratio |
+| workload | floriajs us | Node us | ratio |
 | :--- | ---: | ---: | ---: |
-| `loop_count` | 54.9 ms | 25.1 ms | 2.2x |
-| `loop_while` | 53.6 ms | 27.4 ms | 2.0x |
-| `call_plain` | 10.3 ms | 2.7 ms | 3.8x |
-| `call_recursive` | 26.9 ms | 0.59 ms | 45.4x |
-| `prop_read_write` | 34.6 ms | 9.1 ms | 3.8x |
-| `prop_array_write` | 335.1 ms | 10.8 ms | 30.9x |
-| `string_concat` | 13.2 ms | 5.4 ms | 2.4x |
-| `arith_mixed` | 66.3 ms | 26.1 ms | 2.5x |
+| `arith_mixed` | 114,114 | 24,135 | 4.7x |
+| `call_noargs` | 15,966 | 2,685 | 5.9x |
+| `call_plain` | 15,437 | 2,399 | 6.4x |
+| `call_recursive` | 27,817 | 594 | 46.8x |
+| `loop_count` | 102,367 | 23,826 | 4.3x |
+| `loop_nested` | 104,169 | 26,114 | 4.0x |
+| `loop_while` | 102,890 | 25,196 | 4.1x |
+| `object_alloc` | 36,398 | 7,173 | 5.1x |
+| `prop_array_write` | 310,799 | 9,159 | 33.9x |
+| `prop_computed` | 23,113 | 3,544 | 6.5x |
+| `prop_read_write` | 55,589 | 8,011 | 6.9x |
+| `string_concat` | 22,127 | 4,994 | 4.4x |
 
-A 45x gap on recursion and a 31x gap on array writes are where the dispatch
-work has the most to gain. Node's absolute numbers here are also modest because
-this is an older laptop (i5-6267U); the ratios are the part that transfers.
+A 47x gap on recursion and a 34x gap on array writes are still where the
+dispatch and property work has the most to gain. Node's absolute numbers here
+are also modest because this is an older laptop (i5-6267U); the ratios are the
+part that transfers.
 
-**Two findings that P3 should act on.**
+**Measured effect of P3-01.** The old and new interpreter were benchmarked
+back-to-back on the same machine. Negative percentages are faster:
 
-1. **Array element writes are about ten times slower than object writes**
-   (`prop/array-write-5k` at 60 us/op against `prop/read-write-5k` at 6.4).
-   A numeric index is converted to a string and then parsed back with
-   `TryStrToInt` inside `TFloriaJSArray.SetProperty`. Writing `a[i]` costs the
-   same as writing `a["" + i]`, which confirms the round trip is the cost.
-   P3-02 (slot resolution) does not address this; it needs a numeric key path.
+| workload | before P3-01 | after P3-01 | change |
+| :--- | ---: | ---: | ---: |
+| `loop/count-10k` | 10.74 | 10.64 | -0.9% |
+| `loop/nested-100x100` | 10.90 | 10.84 | -0.5% |
+| `loop/while-10k` | 10.72 | 10.52 | -1.9% |
+| `call/plain-1k` | 17.23 | 16.77 | -2.7% |
+| `call/noargs-1k` | 18.48 | 17.42 | -5.8% |
+| `call/recursive-fib-16` | 11.42 | 10.80 | -5.4% |
+| `prop/read-write-5k` | 12.21 | 11.44 | -6.3% |
+| `prop/computed-2k` | 12.45 | 11.63 | -6.6% |
+| `prop/array-write-5k` | 64.60 | 63.28 | -2.1% |
+| `string/concat-2k` | 11.68 | 10.90 | -6.7% |
+| `arith/mixed-10k` | 12.13 | 11.58 | -4.5% |
+| `object/alloc-2k` | 21.75 | 21.21 | -2.5% |
+| `binding/unbound-write` | 2.71 | 2.75 | +1.4% |
+| `binding/bound-1-level` | 16.45 | 15.98 | -2.8% |
+| `binding/bound-3-levels` | 45.17 | 45.48 | +0.7% |
 
-2. **A binding write costs about 5x an unbound one, and compounds with depth**
-   (2.8 us unbound, 15.1 us at one level, 43.0 us at three). That is the
+The gain is modest but consistent on dispatch-heavy work: calls improved 3–6%,
+property access and strings 2–7%, loops 1–2%. FTML binding changes were within
+measurement noise. The per-instruction wrapper was therefore a real but small
+share of total cost.
+
+**Two findings for later P3 tasks.**
+
+1. **Array element writes remain about five times slower than object writes**
+   (`prop/array-write-5k` at 63.3 us/op against `prop/read-write-5k` at 11.4).
+   A numeric index is still converted to a string and parsed back inside
+   `TFloriaJSArray.SetProperty`. P3-02 (slot resolution) does not address this;
+   it needs a numeric key path.
+2. **A binding write costs about 6x an unbound one, and compounds with depth**
+   (2.75 us unbound, 15.98 us at one level, 45.48 us at three). That is the
    baseline P3-05 must beat.
 
-**Measured cost of the dispatch wrapper.** Not yet separated: the suite measures
-end-to-end workload cost, not the `try`/`except` share of it. Isolating it needs
-a variant build with the wrapper removed, which is the first experiment this
-task should run.
+P3-01 is complete. The remaining dispatch cost is dominated by per-opcode work
+inside the switch and by the value/environment representation, which later P3
+tasks address.
 
 ### [ ] P3-02 — Resolve user variables to slots
 

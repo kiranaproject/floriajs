@@ -1205,7 +1205,14 @@ var
 begin
   while FFP > AInitialFP do
   begin
-    curFrame := @FFrames[FFP];
+    { Keep the exception frame outside the per-instruction dispatch loop.
+      Entering try/except once per RunLoop instead of once per instruction
+      removes the wrapper from the hot path while preserving JavaScript
+      catch/finally semantics through HandleThrow. }
+    try
+      while FFP > AInitialFP do
+      begin
+        curFrame := @FFrames[FFP];
     if curFrame^.IP >= curFrame^.Bytecode.GetInstructionCount() then
     begin
       // Implicit return undefined at end of bytecode
@@ -1223,7 +1230,6 @@ begin
     inst := curFrame^.Bytecode.GetInstruction(curFrame^.IP);
     Inc(curFrame^.IP);
 
-    try
       case inst.Op of
         opNop: ;
 
@@ -2538,10 +2544,16 @@ begin
               PopFrame();
           end;
       end;
+      end;
     except
       on E: EFloriaJSThrow do
         HandleThrow(E.Value);
     end;
+    { opYield/opAwait set this and break out of the dispatch loop. Leave
+      RunLoop entirely instead of re-entering the loop at the next
+      instruction. }
+    if FIsSuspending then
+      Break;
   end;
 
   if FSP > AInitialBaseBP then
