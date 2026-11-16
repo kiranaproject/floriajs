@@ -452,7 +452,7 @@ The last curated gap is closed:
 - Evaluation is re-entrant: it skips heap collection and microtask draining while the caller's VM frame still holds live values.
 - The lexer now treats U+00A0 as whitespace and U+2028/U+2029 as line terminators, and tracks CR (including CRLF) as a line terminator so ASI works in evaluated source.
 - `if` statements reset the top-level completion value to `undefined` when neither branch produces one, matching eval completion semantics.
-- Limitation: non-strict eval's `let`/`const` declarations use the caller's environment rather than a separate transient eval lexical scope.
+- Non-strict eval `var` declarations reach the caller's variable environment, while `let`/`const` declarations are scoped to the eval and disappear afterwards.
 
 Validation: **276 FPCUnit tests**, **90 documentation claims**, curated corpus **354 records — 354 pass** (100%), extended diagnostic **742 records — 742 pass** (100%).
 

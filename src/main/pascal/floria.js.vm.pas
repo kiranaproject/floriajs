@@ -28,6 +28,10 @@ type
     BaseBP: Integer;
     ThisVal: TFloriaJSValue;
     Env: TFloriaJSEnvironment;
+    { Target for var/function declarations. It differs from Env for a
+      non-strict eval, whose lexical declarations go to Env but whose var
+      declarations go to the caller's variable environment. }
+    VarEnv: TFloriaJSEnvironment;
     InitialEnv: TFloriaJSEnvironment;
     OwnsCallEnv: Boolean;
     IsConstructor: Boolean;
@@ -73,7 +77,7 @@ type
     FTryCapacity: Integer;
 
     procedure EnsureStackCapacity();
-    procedure PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer = 0; AIsConstructor: Boolean = False; AConstructedObj: TFloriaJSObject = nil; AOwnsCallEnv: Boolean = False);
+    procedure PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer = 0; AIsConstructor: Boolean = False; AConstructedObj: TFloriaJSObject = nil; AOwnsCallEnv: Boolean = False; AVarEnv: TFloriaJSEnvironment = nil);
     procedure PopFrame();
 
     procedure PushTryHandler(ACatchIP: Integer; AFrameIndex, AStackDepth: Integer; AEnv: TFloriaJSEnvironment);
@@ -88,7 +92,7 @@ type
     function  HeapConstructor(const AFuncVal: TFloriaJSValue; const AArgs: TFloriaJSValueArray): TFloriaJSValue;
     procedure HeapJobRunner(const AJob: TFloriaJSPromiseJob);
     function  EvalIndirect(const ASource: string): TFloriaJSValue;
-    function  EvalSource(const ASource: string; AEnv: TFloriaJSEnvironment;
+    function  EvalSource(const ASource: string; AEnv, AVarEnv: TFloriaJSEnvironment;
       const AThis: TFloriaJSValue): TFloriaJSValue;
     function  RunGenerator(AGen: TFloriaJSGenerator; const ASent: TFloriaJSValue;
       out AValue: TFloriaJSValue; out ADone: Boolean): Boolean;
@@ -124,7 +128,7 @@ type
 
     { Execution Entry Points }
     function  Execute(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment = nil): TFloriaJSValue;
-    function  Execute(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue): TFloriaJSValue;
+    function  Execute(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; AVarEnv: TFloriaJSEnvironment = nil): TFloriaJSValue;
     function  CallFunction(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
     function  CallFunction(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue; const AThisVal: TFloriaJSValue): TFloriaJSValue;
     function  ConstructObject(const AFuncVal: TFloriaJSValue; const AArgs: array of TFloriaJSValue): TFloriaJSValue;
@@ -208,10 +212,10 @@ end;
 
 function TFloriaJSVM.EvalIndirect(const ASource: string): TFloriaJSValue;
 begin
-  Result := EvalSource(ASource, FGlobalEnv, JSMakeUndefined());
+  Result := EvalSource(ASource, FGlobalEnv, FGlobalEnv, JSMakeUndefined());
 end;
 
-function TFloriaJSVM.EvalSource(const ASource: string; AEnv: TFloriaJSEnvironment;
+function TFloriaJSVM.EvalSource(const ASource: string; AEnv, AVarEnv: TFloriaJSEnvironment;
   const AThis: TFloriaJSValue): TFloriaJSValue;
 var
   parser: TFloriaJSParser;
@@ -253,10 +257,12 @@ begin
           draining while the caller's frame still holds live values. }
         if code.IsStrict then
         begin
+          { Strict eval has one fresh environment for var and lexical
+            declarations. }
           evalEnv := TFloriaJSEnvironment.Create(AEnv, FHeap);
           FHeap.TrackEnvironment(evalEnv);
           try
-            Result := Execute(code, evalEnv, AThis);
+            Result := Execute(code, evalEnv, AThis, evalEnv);
           finally
             if evalEnv.Captured then
               evalEnv.Detach()
@@ -268,7 +274,27 @@ begin
           end;
         end
         else
-          Result := Execute(code, AEnv, AThis);
+        begin
+          { Non-strict eval puts var/function declarations in the caller's
+            variable environment and lexical declarations in a fresh
+            environment that disappears after evaluation. }
+          evalEnv := TFloriaJSEnvironment.Create(AEnv, FHeap);
+          FHeap.TrackEnvironment(evalEnv);
+          try
+            if AVarEnv <> nil then
+              Result := Execute(code, evalEnv, AThis, AVarEnv)
+            else
+              Result := Execute(code, evalEnv, AThis, AEnv);
+          finally
+            if evalEnv.Captured then
+              evalEnv.Detach()
+            else
+            begin
+              FHeap.Untrack(evalEnv);
+              evalEnv.Free();
+            end;
+          end;
+        end;
       finally
         code.Release();
       end;
@@ -935,7 +961,7 @@ begin
   FTryCount := 0;
 end;
 
-procedure TFloriaJSVM.PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer; AIsConstructor: Boolean; AConstructedObj: TFloriaJSObject; AOwnsCallEnv: Boolean);
+procedure TFloriaJSVM.PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer; AIsConstructor: Boolean; AConstructedObj: TFloriaJSObject; AOwnsCallEnv: Boolean; AVarEnv: TFloriaJSEnvironment);
 begin
   if FFP + 1 >= FMaxCallDepth then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('RangeError', 'Maximum call stack size exceeded')));
@@ -955,6 +981,10 @@ begin
   else
     FFrames[FFP].ThisVal := AThis;
   FFrames[FFP].Env := AEnv;
+  if AVarEnv <> nil then
+    FFrames[FFP].VarEnv := AVarEnv
+  else
+    FFrames[FFP].VarEnv := AEnv;
   FFrames[FFP].InitialEnv := AEnv;
   FFrames[FFP].OwnsCallEnv := AOwnsCallEnv;
   FFrames[FFP].IsConstructor := AIsConstructor;
@@ -989,6 +1019,7 @@ begin
 
     FFrames[FFP].Bytecode := nil;
     FFrames[FFP].Env := nil;
+    FFrames[FFP].VarEnv := nil;
     FFrames[FFP].InitialEnv := nil;
     FFrames[FFP].ConstructedObj := nil;
     FFrames[FFP].ThisVal := JSMakeUndefined();
@@ -1119,7 +1150,7 @@ begin
   Result := Execute(ABytecode, AEnv, JSMakeUndefined());
 end;
 
-function TFloriaJSVM.Execute(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue): TFloriaJSValue;
+function TFloriaJSVM.Execute(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; AVarEnv: TFloriaJSEnvironment): TFloriaJSValue;
 var
   i, initialFP, initialBaseBP: Integer;
   savedHeap: TFloriaJSHeap;
@@ -1138,7 +1169,7 @@ begin
 
   savedHeap := JSActiveRealmHeap();
   JSSetActiveRealmHeap(FHeap);
-  PushFrame(ABytecode, AEnv, AThis, initialBaseBP);
+  PushFrame(ABytecode, AEnv, AThis, initialBaseBP, False, nil, False, AVarEnv);
   try
     Result := RunLoop(initialFP, initialBaseBP);
   finally
@@ -1318,8 +1349,8 @@ begin
           begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Pop();
-            if curFrame^.Env <> nil then
-              curFrame^.Env.Define(varName, val, False, bkVar)
+            if curFrame^.VarEnv <> nil then
+              curFrame^.VarEnv.Define(varName, val, False, bkVar)
             else if FGlobalEnv <> nil then
               FGlobalEnv.Define(varName, val, False, bkVar);
           end;
@@ -1359,8 +1390,8 @@ begin
         opDeclareVar:
           begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
-            if curFrame^.Env <> nil then
-              curFrame^.Env.DeclareVar(varName)
+            if curFrame^.VarEnv <> nil then
+              curFrame^.VarEnv.DeclareVar(varName)
             else if FGlobalEnv <> nil then
               FGlobalEnv.DeclareVar(varName);
           end;
@@ -1975,7 +2006,8 @@ begin
                 evalText := val.StrVal;
                 if curFrame^.Bytecode.IsStrict then
                   evalText := '"use strict";' + #10 + evalText;
-                Push(EvalSource(evalText, curFrame^.Env, curFrame^.ThisVal));
+                Push(EvalSource(evalText, curFrame^.Env, curFrame^.VarEnv,
+                  curFrame^.ThisVal));
               end;
               Continue;
             end;

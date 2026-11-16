@@ -7382,6 +7382,22 @@ begin
     AssertTrue('eval CR line terminator script succeeds', res.Success);
     AssertEquals('CR terminates a variable statement via ASI',
       'ReferenceError', res.StringValue);
+
+    res := engine.Execute(
+      'var scopes = [];' +
+      'function a() { eval("let t = 1;"); return typeof t; }' +
+      'scopes.push(a());' +
+      'function b() { eval("let u = 1;"); eval("let u = 2;"); return "ok"; }' +
+      'scopes.push(b());' +
+      'function c() { eval("var v = 3;"); return v; }' +
+      'scopes.push(c());' +
+      'eval("let w = 4;");' +
+      'scopes.push(typeof w);' +
+      'scopes.join(",");'
+    );
+    AssertTrue('eval lexical scope script succeeds', res.Success);
+    AssertEquals('eval let/const stay scoped while var reaches the caller',
+      'undefined,ok,3,undefined', res.StringValue);
   finally
     engine.Free();
   end;

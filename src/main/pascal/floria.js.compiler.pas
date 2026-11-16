@@ -3388,7 +3388,9 @@ begin
       CheckStrictRestrictedName(ATry.CatchParam, FIsStrictMode);
       FBytecode.Emit(opPushEnv);
       nameIdx := FBytecode.AddStringConstant(ATry.CatchParam);
-      FBytecode.Emit(opDefineEnv, nameIdx, ATry.Line);
+      { The catch parameter belongs to the new catch environment, not to the
+        frame's variable environment. }
+      FBytecode.Emit(opDefineLet, nameIdx, ATry.Line);
     end
     else
       FBytecode.Emit(opPop);
