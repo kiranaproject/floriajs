@@ -352,6 +352,7 @@ type
     procedure TestEvalDirectAndIndirect();
     procedure TestSlotLocalsAndEnvironmentFallback();
     procedure TestArrayNumericKeyFastPath();
+    procedure TestCompactValueRepresentation();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7453,6 +7454,23 @@ begin
   finally
     engine.Free();
   end;
+end;
+
+procedure TFloriaJSPhase10Test.TestCompactValueRepresentation();
+var
+  value: TFloriaJSValue;
+begin
+  AssertEquals('value record stays compact', 32, SizeOf(TFloriaJSValue));
+
+  value := JSMakeBoolean(True);
+  AssertTrue('boolean value is truthy', value.BoolVal);
+  value.BoolVal := False;
+  AssertFalse('boolean compatibility setter updates the value', value.BoolVal);
+
+  value := JSMakeNumber(0);
+  AssertFalse('zero is falsy', value.BoolVal);
+  value := JSMakeNumber(2);
+  AssertTrue('non-zero number is truthy', value.BoolVal);
 end;
 
 { TFloriaJSPriority1Test }

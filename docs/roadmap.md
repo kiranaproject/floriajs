@@ -1450,11 +1450,27 @@ normal string-keyed properties. Symbol keys are unchanged.
 for `prop_array_write` improved from **34.8x to 6.4x**, and the overall
 geometric mean from **6.7x to 5.9x**.
 
-### [ ] P3-03 — Value representation
+### [x] P3-03 — Value representation
 
-- Evaluate 64-bit NaN-boxed values or a tagged union.
-- Reduce `TFloriaJSValue` copying and stack footprint.
-- Keep compatibility with existing host factory helpers.
+Two representations were evaluated:
+
+- **64-bit NaN boxing** was rejected. Strings and BigInt values need managed
+  payloads, object/function values need a full pointer, and the public
+  `TFloriaJSValue` record plus the `JSMake*` factory helpers are part of the host
+  API. Packing all of that into a NaN payload would either lose managed-string
+  semantics or require a second side table.
+- **A compact tagged record** was chosen. The redundant cached `BoolVal` field
+  was removed; booleans now encode their state in `NumVal` (0/1). A read/write
+  `BoolVal` property remains for source compatibility, so existing host code
+  that reads the field still compiles.
+
+`SizeOf(TFloriaJSValue)` dropped from **40 bytes to 32 bytes (-20%)**, reducing
+stack and snapshot footprint. All `JSMake*` factories keep their signatures and
+now populate the compact layout directly.
+
+Benchmark effects were within run-to-run noise: calls, loops, property access,
+and FTML stayed at their P3-02 levels, with no regression over 20%. The smaller
+value is primarily a cache/stack improvement and the foundation for P3-04.
 
 ### [ ] P3-04 — Object shapes and inline caches
 

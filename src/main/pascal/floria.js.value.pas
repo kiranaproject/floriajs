@@ -37,9 +37,13 @@ type
   TFloriaJSValue = record
     Kind: TFloriaJSType;
     NumVal: Double;
-    BoolVal: Boolean;
     StrVal: string;
     ObjVal: TFloriaJSObject;
+
+    { Compatibility accessors for the old cached boolean slot. Booleans now
+      store 0/1 in NumVal, which removes eight bytes from every value. }
+    function GetBoolVal(): Boolean;
+    procedure SetBoolVal(AValue: Boolean);
 
     function IsUndefined(): Boolean;
     function IsNull(): Boolean;
@@ -63,6 +67,8 @@ type
     function AsArray(): TFloriaJSArray;
     function AsFunction(): TFloriaJSFunction;
     function AsPromise(): TFloriaJSPromise;
+
+    property BoolVal: Boolean read GetBoolVal write SetBoolVal;
   end;
 
   { Argument list used by the call helpers and by the bound-function wrapper. }
@@ -934,7 +940,6 @@ function JSMakeUndefined(): TFloriaJSValue;
 begin
   Result.Kind := fjstUndefined;
   Result.NumVal := 0.0;
-  Result.BoolVal := False;
   Result.StrVal := '';
   Result.ObjVal := nil;
 end;
@@ -943,7 +948,6 @@ function JSMakeNull(): TFloriaJSValue;
 begin
   Result.Kind := fjstNull;
   Result.NumVal := 0.0;
-  Result.BoolVal := False;
   Result.StrVal := '';
   Result.ObjVal := nil;
 end;
@@ -951,8 +955,10 @@ end;
 function JSMakeBoolean(ABool: Boolean): TFloriaJSValue;
 begin
   Result.Kind := fjstBoolean;
-  Result.NumVal := 0.0;
-  Result.BoolVal := ABool;
+  if ABool then
+    Result.NumVal := 1.0
+  else
+    Result.NumVal := 0.0;
   Result.StrVal := '';
   Result.ObjVal := nil;
 end;
@@ -961,10 +967,6 @@ function JSMakeNumber(ANum: Double): TFloriaJSValue;
 begin
   Result.Kind := fjstNumber;
   Result.NumVal := ANum;
-  if IsNaN(ANum) then
-    Result.BoolVal := False
-  else
-    Result.BoolVal := (ANum <> 0.0);
   Result.StrVal := '';
   Result.ObjVal := nil;
 end;
@@ -973,7 +975,6 @@ function JSMakeString(const AStr: string): TFloriaJSValue;
 begin
   Result.Kind := fjstString;
   Result.NumVal := 0.0;
-  Result.BoolVal := (AStr <> '');
   Result.StrVal := AStr;
   Result.ObjVal := nil;
 end;
@@ -988,7 +989,6 @@ begin
     Result.Kind := fjstObject;
 
   Result.NumVal := 0.0;
-  Result.BoolVal := (AObj <> nil);
   Result.StrVal := '';
   Result.ObjVal := AObj;
 end;
@@ -1000,7 +1000,6 @@ begin
   else
     Result.Kind := fjstObject;
   Result.NumVal := 0;
-  Result.BoolVal := False;
   Result.StrVal := '';
   Result.ObjVal := AProxy;
 end;
@@ -1009,7 +1008,6 @@ function JSMakeArray(AArr: TFloriaJSArray): TFloriaJSValue;
 begin
   Result.Kind := fjstArray;
   Result.NumVal := 0.0;
-  Result.BoolVal := (AArr <> nil);
   Result.StrVal := '';
   Result.ObjVal := AArr;
 end;
@@ -1018,7 +1016,6 @@ function JSMakeFunction(AFunc: TFloriaJSFunction): TFloriaJSValue;
 begin
   Result.Kind := fjstFunction;
   Result.NumVal := 0.0;
-  Result.BoolVal := (AFunc <> nil);
   Result.StrVal := '';
   Result.ObjVal := AFunc;
 end;
@@ -1030,7 +1027,6 @@ begin
   else
     Result.Kind := fjstUndefined;
   Result.NumVal := 0.0;
-  Result.BoolVal := (APromise <> nil);
   Result.StrVal := '';
   Result.ObjVal := APromise;
 end;
@@ -1042,7 +1038,6 @@ function JSMakeBigInt(const ADigits: string): TFloriaJSValue;
 begin
   Result.Kind := fjstBigInt;
   Result.NumVal := 0;
-  Result.BoolVal := ADigits <> '0';
   Result.StrVal := ADigits;
   Result.ObjVal := nil;
 end;
@@ -1051,12 +1046,29 @@ function JSMakeSymbol(const ADescription: string = ''; AId: Integer = 0): TFlori
 begin
   Result.Kind := fjstSymbol;
   Result.NumVal := AId;
-  Result.BoolVal := True;
   Result.StrVal := ADescription;
   Result.ObjVal := nil;
 end;
 
 { TFloriaJSValue Methods }
+
+function TFloriaJSValue.GetBoolVal(): Boolean;
+begin
+  if Kind = fjstBoolean then
+    Result := (NumVal <> 0.0)
+  else
+    Result := ToBoolean();
+end;
+
+procedure TFloriaJSValue.SetBoolVal(AValue: Boolean);
+begin
+  { Kept for source compatibility with older hosts. Boolean values encode
+    their state in NumVal now. }
+  if AValue then
+    NumVal := 1.0
+  else
+    NumVal := 0.0;
+end;
 
 function TFloriaJSValue.IsUndefined(): Boolean;
 begin
@@ -1124,7 +1136,7 @@ begin
     fjstUndefined, fjstNull:
       Result := False;
     fjstBoolean:
-      Result := BoolVal;
+      Result := (NumVal <> 0.0);
     fjstNumber:
       Result := (NumVal <> 0.0) and not IsNaN(NumVal);
     fjstString:
@@ -1154,7 +1166,7 @@ begin
     fjstNull:
       Result := 0.0;
     fjstBoolean:
-      if BoolVal then Result := 1.0 else Result := 0.0;
+      Result := NumVal;
     fjstNumber:
       Result := NumVal;
     fjstString:
@@ -1207,7 +1219,7 @@ begin
     fjstNull:
       Result := 'null';
     fjstBoolean:
-      if BoolVal then Result := 'true' else Result := 'false';
+      if NumVal <> 0.0 then Result := 'true' else Result := 'false';
     fjstNumber:
       { ECMAScript Number::toString: shortest round-tripping decimal with the
         standard fixed/scientific thresholds. }
@@ -5730,7 +5742,7 @@ begin
     fjstUndefined, fjstNull:
       Result := True;
     fjstBoolean:
-      Result := (ALeft.BoolVal = ARight.BoolVal);
+      Result := (ALeft.NumVal = ARight.NumVal);
     fjstNumber:
       if IsNaN(ALeft.NumVal) or IsNaN(ARight.NumVal) then
         Result := False
