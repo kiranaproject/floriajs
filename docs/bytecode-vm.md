@@ -120,8 +120,9 @@ Coverage:
   declarations bind in the enclosing function/top-level environment. Classic
   `for` headers with `let`/`const` get an outer loop environment and a fresh
   per-iteration environment for each body execution; `for…in`/`for…of` also
-  create per-iteration environments. Function calls get a call environment;
-  closures capture it.
+  create per-iteration environments. Function calls get a call environment
+  when they need one; slot-safe leaf functions skip it. Closures capture the
+  environment they need.
 - **Control flow**: loops and conditionals emit jumps patched after the body;
   `break`/`continue` are collected per loop context and patched to the right
   targets.
@@ -133,13 +134,14 @@ Coverage:
 
 ### Locals and environments
 
-The VM has stack local slots, and the compiler uses them for compiler
-temporaries and function parameters. User variables are still resolved through
+The VM has stack local slots. The compiler uses them for compiler temporaries
+and, in leaf functions with simple parameters and no closures/`eval`/`with`, for
+parameters and `var` bindings. Other variables are resolved through
 `TFloriaJSEnvironment` (`LOAD_ENV`/`STORE_ENV`/`DEFINE_ENV`) so closures,
-`var`/`let` scoping, destructuring, and delegate-object item scopes keep their
-current semantics. This is a pragmatic hybrid: bytecode removes AST dispatch
-and control-flow recursion, while environments remain the source of truth for
-name resolution.
+block scoping, destructuring, `eval`, and delegate-object item scopes keep their
+semantics. This is a pragmatic hybrid: slots remove name lookup from the hot
+leaf-function path, while environments remain the source of truth where
+dynamic scope is observable.
 
 ## VM
 
@@ -168,16 +170,16 @@ Internals:
 
 - **Value stack** (`FStack`/`FSP`): operands and temporary values.
 - **Call frames** (`FFrames`/`FFP`): bytecode, instruction pointer, base
-  stack pointer, `this`, environment, initial environment, ownership flag,
-  constructor flag/object.
+  stack pointer, `this`, lexical and variable environments, initial
+  environment, ownership flag, constructor flag/object.
 - **Try handlers** (`FTryHandlers`): catch instruction pointer, frame index,
   stack depth, and environment to restore.
-- **Environments**: each frame starts in a call environment (or the supplied
-  environment for a binding snippet) and can push child environments for
-  blocks.
-- **Calls**: `CallFunction` binds arguments, `this`, and `arguments` in a new
-  environment, pushes local slots, and runs a nested `RunLoop`. Native
-  callbacks are invoked directly.
+- **Environments**: a frame starts in the environment it needs (a call
+  environment, the supplied binding environment, or the enclosing environment
+  for a slot-safe leaf function) and can push child environments for blocks.
+- **Calls**: `CallFunction` pushes local slots and runs a nested `RunLoop`.
+  Functions that need environments bind parameters, `this`, and (only when
+  used) `arguments` there. Native callbacks are invoked directly.
 - **Errors**: `opThrow` and runtime errors call `HandleThrow`, which unwinds
   frames/stack to the nearest `PUSH_TRY` handler. Uncaught values are
   re-raised as `EFloriaJSThrow`.
@@ -259,20 +261,21 @@ slots for temporaries, jump-based control flow, and cached bytecode for
 bindings. The roadmap records roughly **3–4×** throughput improvement over the
 retired tree-walking evaluator on micro-benchmarks.
 
-It is still a **pure bytecode interpreter**:
+It is a **bytecode interpreter** with several hot-path reductions:
 
-- User-variable lookup still walks environments and compares names.
+- Leaf-function parameters and `var` bindings use frame slots; other variables
+  walk environments by name.
 - Property access uses shape tokens and per-site inline caches for own data
   properties, with linear fallback for prototypes, accessors, and unusual
   receivers.
 - The dispatch loop enters one Pascal `try`/`except` per run so a JavaScript
   throw can be routed to `HandleThrow`.
-- Leaf-function parameters and `var` bindings use frame slots; functions that
-  need closures or `eval` keep environments.
-- FTML binding expressions compile to AOT snippets; there is no machine-code
-  JIT and no persistent bytecode cache.
+- Simple FTML binding expressions compile to AOT snippets and run without a VM
+  frame.
+- There is no machine-code JIT and no persistent bytecode cache.
 
-Those are the subjects of the roadmap's later VM phases.
+The remaining optional performance work is the machine-code JIT described in
+the roadmap.
 
 ## Debugging and extending
 

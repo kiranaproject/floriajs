@@ -10,13 +10,13 @@ then performance.
 
 ## Current snapshot
 
-Last refreshed 2026-11-15:
+Last refreshed 2026-11-17:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **276 tests pass** with `pasbuild test`.
+- Test suite: **281 tests pass** with `pasbuild test`.
 - Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
-- Node comparison: **13 file-based workloads**, geometric mean **6.0x** Node; `--check` guards a 25% ratio regression.
+- Node comparison: **13 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
   The expected errors are deliberate (`throw`, `const`/`for const` reassignment,
   `alert`, calling a non-function, and an invalid assignment target); the probe
@@ -1271,8 +1271,9 @@ cross-script resumes, and 200-generator churn all work and free cleanly.
 
 ## Priority 3 — Performance and FTML fast paths
 
-The VM is a pure interpreter. These tasks are for later and must be measured
-against a checked-in benchmark, not guessed.
+The VM is a bytecode interpreter. Each task below was measured against the
+checked-in benchmark rather than guessed; the measured before/after results are
+recorded with the task. The optional machine-code JIT remains deferred.
 
 ### [x] P3-01 — Reduce VM dispatch overhead
 
@@ -1370,7 +1371,7 @@ property access and strings 2–7%, loops 1–2%. FTML binding changes were with
 measurement noise. The per-instruction wrapper was therefore a real but small
 share of total cost.
 
-**Two findings for later P3 tasks.**
+**Two findings that later P3 work addressed.**
 
 1. **Array element writes were about five times slower than object writes**
    (`prop/array-write-5k` at 63.3 us/op against `prop/read-write-5k` at 11.4).

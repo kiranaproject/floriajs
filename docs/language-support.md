@@ -505,11 +505,11 @@ are grouped by cause, because the three groups have different answers:
 
 | Area | Behaviour | Why |
 | :--- | :--- | :--- |
-| Execution engine | Pure bytecode interpreter with frame slots, object shape tokens, per-site property caches, and AOT FTML binding snippets. No machine-code JIT, full hidden-class transitions, or persistent bytecode cache. | Keeps the runtime embeddable and dependency-free. Optional work is P3. |
+| Execution engine | Bytecode interpreter with frame slots, object shape tokens, per-site property caches, and AOT FTML binding snippets. No machine-code JIT, full hidden-class transitions, or persistent bytecode cache. | Keeps the runtime embeddable and dependency-free. |
 | Timers | Require the host to call `Ctx.PumpTimers()`; no built-in event loop. Timer state is owned by the context's heap, so pumping one context cannot run another context's callbacks. | The host owns the main loop. |
 | Strings | Stored as UTF-8, but `length`, indexing, slicing, `charCodeAt`, and `for…of` expose UTF-16 code units. Regular-expression matching still operates on the UTF-8 representation. | Conversion happens at the JS boundary; the internal storage remains compact. |
 | `globalThis` | A live global object backed by the root environment. | Global lexical bindings intentionally stay out of the object. |
-| `Map`/`Set` storage | Lookup is linear rather than hash-based. | Simplicity; hashing is P3 work. |
+| `Map`/`Set` storage | Lookup is linear rather than hash-based. | Simplicity; hashing is not scheduled. |
 | Regular expressions | Backed by Pascal `RegExpr`; advanced ECMAScript features (lookbehind, named groups, Unicode property escapes) are not guaranteed. `lastIndex` is internal, not a JS property. | Reuses the FPC regex engine instead of shipping one. |
 | `Object.freeze` / `seal` | Now update per-property `writable`/`configurable` flags. Frozen objects reject writes, additions, and deletes; sealed objects reject additions and deletes while retaining writability. |
 | `Object.defineProperty` | Honours `value`, `writable`, `enumerable`, `configurable`, `get`, and `set`. Existing non-configurable properties cannot be converted between data and accessor forms. Accessor descriptors do not use `writable`. |

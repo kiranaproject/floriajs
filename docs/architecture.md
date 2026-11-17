@@ -168,10 +168,12 @@ function CompileFunctionBody(const AName: string; AParams: TStringList;
 
 - **Expressions** compile to postfix-style stack operations (`OP_CONST`,
   `OP_ADD`, `OP_GET_PROP_NAMED`, `OP_CALL`, …).
-- **Declarations** emit `DEFINE_ENV` into the current environment. Blocks with
-  `let`/`const` (or function declarations) emit `PUSH_ENV`/`POP_ENV`; plain
-  blocks with only `var`-style bindings do not create an extra scope, so `var`
-  binds in the enclosing function/top-level environment. There is no hoisting.
+- **Declarations** use frame slots for simple parameters and `var` bindings in
+  leaf functions, and `DEFINE_ENV` for lexical bindings, closures, `eval`, and
+  other environment-dependent cases. Blocks with `let`/`const` (or function
+  declarations) emit `PUSH_ENV`/`POP_ENV`; plain blocks with only `var`-style
+  bindings do not create an extra scope. `var` declarations hoist to the
+  function/program root; lexical declarations hoist within their block.
 - **Classic `for` declarations** of `let`/`const` create an outer loop
   environment plus a fresh per-iteration environment for the body, so closures
   capture per-iteration values. `for…in`/`for…of` also create per-iteration
@@ -189,10 +191,11 @@ function CompileFunctionBody(const AName: string; AParams: TStringList;
   getters/setters, `for…in`/`for…of`, and optional chaining** are lowered into
   the corresponding generic opcodes.
 
-The compiler uses VM local slots for parameters and compiler temporaries. User
-variables are still resolved through environments by name; this keeps closure,
-block-scope, and FTML delegate-object semantics unchanged while removing AST
-dispatch from the hot path.
+The compiler uses VM local slots for compiler temporaries and, in leaf
+functions with simple parameters and no closures/`eval`/`with`, for parameters
+and `var` bindings. Other user variables are resolved through environments by
+name, which keeps closure, block-scope, and FTML delegate-object semantics
+unchanged.
 
 ## Bytecode
 
@@ -220,14 +223,16 @@ calls/construction, exceptions, iteration, and VM control. See
 
 - **Value stack** for operands and temporaries.
 - **Call frames** storing bytecode, instruction pointer, base stack pointer,
-  `this`, environment, constructor state, and environment ownership.
+  `this`, lexical and variable environments, constructor state, and environment
+  ownership.
 - **Try-handler stack** storing catch targets, frame/stack depth, and the
   environment to restore.
 - **Environments** are created per call and per block scope as needed; the VM
   frees uncaptured environments when a frame or scope is popped.
-- **Calls** bind arguments, `this`, and `arguments` in a new environment,
-  reserve local slots, and execute the nested chunk. Native functions are
-  invoked directly.
+- **Calls** reserve local slots and execute the nested chunk. Functions that
+  need environments bind parameters, `this`, and (only when used) `arguments`
+  there; slot-safe leaf functions skip the environment and unused arguments
+  object. Native functions are invoked directly.
 - **Construction** (`new`) creates an object with the constructor's
   `prototype`, runs the constructor with the new object as `this`, and uses an
   explicitly returned object when there is one.
@@ -256,18 +261,21 @@ function ConstructObject(const AFuncVal: TFloriaJSValue;
 TFloriaJSValue = record
   Kind: TFloriaJSType;
   NumVal: Double;
-  BoolVal: Boolean;
   StrVal: string;
   ObjVal: TFloriaJSObject;
+
+  property BoolVal: Boolean read GetBoolVal write SetBoolVal;
 end;
 ```
+
+Booleans encode their state in `NumVal` (0/1); `BoolVal` is a compatibility
+property rather than separate storage, keeping the record at 32 bytes.
 
 - Primitive kinds: `undefined`, `null`, boolean, number, string, and symbol.
 - Heap kinds: object, array, function, error (and promises).
 - `Symbol` is a primitive kind (`fjstSymbol`) carrying its description and a
   unique id in the runtime.
-- The `JSMake*` factories initialise all fields; do not build values field by
-  field.
+- Use the `JSMake*` factories rather than building values field by field.
 - Object properties can be data or accessors. `GetPropertyWithReceiver`
   forwards the original receiver through prototype lookups so getters and
   methods see the right `this`.

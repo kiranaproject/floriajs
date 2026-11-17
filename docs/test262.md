@@ -2,7 +2,7 @@
 
 FloriaJS implements a practical JavaScript subset for embedded scripts and FTML handlers; it is **not currently a conforming ECMAScript implementation**. The work in `test262/` is intended to measure compatibility, not to claim full Test262 support.
 
-## Current status: Phase 13 complete
+## Current status: Phase 13 and P3 complete
 
 Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the recorded curated gaps for boxed String objects, Promise.all microtask ordering, Proxy `has` fallback, and large array indices. Phase 13 adds direct and indirect `eval`, Unicode whitespace handling, and CR line-terminator tracking; the curated corpus now passes completely. This is still a diagnostic adapter, not a conformance certification. In particular:
 
@@ -37,11 +37,11 @@ The review script requires the candidate to exist locally, prints the commit and
 
 The default checkout location is `test262/.upstream/`; generated reports belong in `test262/results/`. Both are ignored by Git.
 
-## Frozen execution policy
+## Execution policy
 
-The initial policy in `test262/config/feature-policy.json` is deliberately limited to diagnostic synchronous scenarios:
+The execution policy in `test262/config/feature-policy.json` covers these diagnostic scenarios:
 
-| Test metadata | Initial treatment |
+| Test metadata | Treatment |
 | --- | --- |
 | `raw` | Execute once in non-strict mode, unmodified and without injected harness files. |
 | `noStrict` | Execute once in non-strict mode with the standard harness. |
@@ -456,6 +456,22 @@ The last curated gap is closed:
 
 Validation: **276 FPCUnit tests**, **90 documentation claims**, curated corpus **354 records — 354 pass** (100%), extended diagnostic **742 records — 742 pass** (100%).
 
+## Performance phase (P3)
+
+The P3 performance work is complete and did not change Test262 outcomes:
+
+- function parameters and `var` bindings resolve to frame slots in leaf functions;
+- ordinary objects carry shape tokens with per-site inline property caches;
+- the dispatch exception frame is entered once per run;
+- numeric array keys take a direct index path;
+- `TFloriaJSValue` is 32 bytes;
+- simple FTML bindings compile to AOT snippets.
+
+Validation at the end of P3: **281 FPCUnit tests**, **90 documentation claims**,
+curated corpus **354 records — 354 pass**, extended diagnostic **742 records —
+742 pass**.
+
 ## Next phase
 
-Phase 10, Phase 11, Phase 12, and Phase 13 are complete. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+Phase 10, Phase 11, Phase 12, and Phase 13 are complete, as is the P3 performance
+work. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

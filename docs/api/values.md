@@ -10,14 +10,19 @@ lifetime rules at the end.
 TFloriaJSValue = record
   Kind: TFloriaJSType;
   NumVal: Double;
-  BoolVal: Boolean;
   StrVal: string;
   ObjVal: TFloriaJSObject;
+
+  property BoolVal: Boolean read GetBoolVal write SetBoolVal;
 end;
 ```
 
 Treat the record as opaque apart from the type checks and conversions below.
 Construct values with the `JSMake*` factories.
+
+Boolean values encode their state in `NumVal` (0/1). `BoolVal` remains a
+read/write compatibility property for host code that used the old cached
+field; it is not separate storage.
 
 ### Type predicates
 

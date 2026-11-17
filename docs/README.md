@@ -18,7 +18,7 @@ the quick-start example live in the top-level [README](../README.md).
 | [Bytecode VM](bytecode-vm.md) | Understand the opcode set, compiler output, stack machine, call frames, and how to extend it. |
 | [FTML guide](ftml.md) | Write declarative component markup with reactive property bindings, anchors, and signals. |
 | [Development guide](development.md) | Contribute code, run the test suite and gap scan, and add new built-ins safely. |
-| [Test262 support](test262.md) | Understand the diagnostic Test262 policy, pinned corpus, result vocabulary, limited async support, and current limitations. |
+| [Test262 support](test262.md) | Understand the diagnostic Test262 policy, pinned corpus, result vocabulary, async execution, and current limitations. |
 | [Test262 host](test262-host.md) | Build the single-scenario host and understand its CLI, JSON results, exit statuses, and fixture checks. |
 | [Test262 planner](test262-plan.md) | Parse metadata safely and prepare supported execution scenarios without assigning verdicts. |
 | [Test262 runner](test262-runner.md) | Execute supported synchronous Test262 scenarios, apply positive and negative verdicts, write reports, and compare reviewed baselines. |

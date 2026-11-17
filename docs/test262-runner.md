@@ -1,6 +1,6 @@
-# Test262 synchronous runner
+# Test262 runner
 
-`tools/run_test262.py` connects the Phase 3 metadata planner to the Phase 2 single-scenario host. It is the first path that actually evaluates upstream Test262 files, limited to supported synchronous scenarios. It does not claim that FloriaJS is a conforming ECMAScript implementation.
+`tools/run_test262.py` connects the Phase 3 metadata planner to the Phase 2 single-scenario host. It evaluates supported synchronous, asynchronous, and module Test262 scenarios. It does not claim that FloriaJS is a conforming ECMAScript implementation.
 
 ## Prerequisites
 
@@ -72,7 +72,7 @@ Host duration remains diagnostic only and must be ignored for semantic baseline 
 
 ### Outcomes
 
-- **`pass`:** the positive synchronous test completed normally, or a negative test produced the required error at the required phase with the required constructor name.
+- **`pass`:** the positive test completed normally, or a negative test produced the required error at the required phase with the required constructor name.
 - **`fail`:** an actual test assertion or uncaught JavaScript exception failed a positive test, or a negative test completed normally, threw at the wrong phase, or threw the wrong constructor. A deliberately failing `assert` is a `fail`, not a harness failure.
 - **`harness-error`:** harness evaluation, source I/O, missing include, Pascal host exception, or another setup problem occurred. Harness results include the failing harness role/index/filename.
 - **`skipped`:** module, `_FIXTURE`, or policy-excluded variants.
@@ -98,7 +98,7 @@ The Test262 `$DONOTEVALUATE()` sentinel is recognized explicitly. If it is reach
 
 A parse failure can also come from a syntax construct FloriaJS does not implement. The policy lists reviewed error-message fragments (`not supported`, `unsupported`) and, when a negative parse expectation fails for such a reason, the scenario is `unsupported` rather than a false `pass`. This is a conservative safeguard, not a complete semantic verification of every early error.
 
-### Limited async verdicts
+### Async verdicts
 
 An async scenario passes only on exactly one done-print completion:
 
