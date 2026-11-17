@@ -1376,9 +1376,9 @@ share of total cost.
    (`prop/array-write-5k` at 63.3 us/op against `prop/read-write-5k` at 11.4).
    A numeric index was converted to a string and parsed back inside
    `TFloriaJSArray.SetProperty`. This is fixed by the P3-02a follow-up below.
-2. **A binding write costs about 6x an unbound one, and compounds with depth**
-   (2.75 us unbound, 15.98 us at one level, 45.48 us at three). That is the
-   baseline P3-05 must beat.
+2. **A binding write cost about 6x an unbound one and compounded with depth**
+   (2.75 us unbound, 15.98 us at one level, 45.48 us at three). P3-05 later
+   improved this to 2.65 / 9.18 / 22.94 us.
 
 P3-01 is complete. The remaining dispatch cost is dominated by per-opcode work
 inside the switch and by the value/environment representation, which later P3
@@ -1499,14 +1499,36 @@ run-to-run noise: at five properties the linear search is already cheap, so the
 cache mainly helps deeper shapes. The Node geometric mean is **6.0x** and the
 new `prop_many` ratio is **5.7x**.
 
-### [ ] P3-05 — FTML reactive fast path
+### [x] P3-05 — FTML reactive fast path
 
-- Compile each binding into a small snippet.
-- Add a subscription-aware property opcode so dependency recording happens
-  during evaluation, not through proxy overhead.
-- Use direct field offsets for common item geometry (`x`, `y`, `width`,
-  `height`).
-- Target thousands of reactive updates per frame without allocation churn.
+Reactive bindings now avoid most per-update VM and dependency overhead:
+
+- **Cached dependency sets.** A binding keeps the dependencies recorded by its
+  first evaluations instead of clearing and rebuilding them on every update.
+  The set is a conservative superset: a property that is no longer read can
+  cause an extra re-evaluation, but no dependency is ever missed.
+- **Dependency index.** The manager maps `(item, property)` to the bindings
+  subscribed to it. `NotifyPropertyChanged` looks up only those bindings instead
+  of scanning every binding in the document. The index is released safely during
+  manager shutdown.
+- **Fast binding snippets.** Simple expressions built from a property member,
+  a literal, and `+`, `-`, `*`, or `/` evaluate directly through
+  `GetProperty`/`JSAdd`/`JSSubtract`/`JSMultiply`/`JSDivide`, without a VM frame.
+  Dependencies are recorded directly. Conditional, call, and other complex
+  expressions still use the cached bytecode path.
+- **Geometry cache.** `x`, `y`, `width`, and `height` keep their property-array
+  slot and current numeric value, so layout reads do not repeat a name search.
+
+**Measured effect (P3-04 → P3-05):**
+
+| workload | P3-04 | P3-05 | change |
+| :--- | ---: | ---: | ---: |
+| `binding/unbound-write` | 2.53 | 2.65 | +4.7% (noise) |
+| `binding/bound-1-level` | 15.87 | 9.18 | -42.1% |
+| `binding/bound-3-levels` | 43.87 | 22.94 | -47.7% |
+
+The three-level cascade now runs at roughly **43,600 updates/s** in this
+benchmark. Node comparison remains **5.9x** geometric mean.
 
 ### [ ] P3-06 — AOT/JIT (optional, platform-gated)
 

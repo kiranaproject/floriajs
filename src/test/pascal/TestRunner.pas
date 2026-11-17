@@ -144,6 +144,7 @@ type
     procedure TestCascadedBinding();
     procedure TestAssignmentBreaksBinding();
     procedure TestCycleGuard();
+    procedure TestFastAndFallbackBindings();
   end;
 
   { Test 10: FTML Engine & Full Document Runtime }
@@ -3344,6 +3345,45 @@ begin
       '}');
     AssertNotNull('Root loaded', root);
     AssertEquals('Status set to ready on completed', 'ready', root.GetPropertyAsString('status'));
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaFTMLBindingTest.TestFastAndFallbackBindings();
+var
+  engine: TFloriaFTMLEngine;
+  root, fast, fallback, chain: TFloriaFTMLItem;
+begin
+  engine := TFloriaFTMLEngine.Create();
+  try
+    root := engine.LoadString(
+      'Rectangle { id: root; width: 50;' +
+      '  Rectangle { id: fast; width: root.width + 10; }' +
+      '  Rectangle { id: fallback; width: root.width > 100 ? 1 : 2; }' +
+      '  Rectangle { id: chain; width: fast.width + 5; }' +
+      '}');
+    AssertNotNull('Loaded root for fast bindings', root);
+    fast := engine.FindItemById('fast');
+    fallback := engine.FindItemById('fallback');
+    chain := engine.FindItemById('chain');
+    AssertNotNull('Found fast binding item', fast);
+    AssertNotNull('Found fallback binding item', fallback);
+    AssertNotNull('Found chained binding item', chain);
+
+    AssertEquals('fast binding initial value', 60.0, fast.Width, 0.001);
+    AssertEquals('fallback binding initial value', 2.0, fallback.Width, 0.001);
+    AssertEquals('chained binding initial value', 65.0, chain.Width, 0.001);
+
+    root.Width := 150.0;
+    AssertEquals('fast binding updated without the VM', 160.0, fast.Width, 0.001);
+    AssertEquals('fallback binding updated through the VM', 1.0, fallback.Width, 0.001);
+    AssertEquals('chained binding follows the fast binding', 165.0, chain.Width, 0.001);
+
+    root.Width := 250.0;
+    AssertEquals('fast binding updated repeatedly', 260.0, fast.Width, 0.001);
+    AssertEquals('fallback binding updated repeatedly', 1.0, fallback.Width, 0.001);
+    AssertEquals('chained binding updated repeatedly', 265.0, chain.Width, 0.001);
   finally
     engine.Free();
   end;

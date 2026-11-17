@@ -103,7 +103,13 @@ type
     FAnchorTargets: TFPList;
     FIsResolvingAnchors: Boolean;
     FHeapId: Integer;
+    { Cached x/y/width/height values and their property-array slots. Geometry
+      reads are the hot path for reactive layout bindings. }
+    FGeomValue: array[0..3] of Double;
+    FGeomValid: array[0..3] of Boolean;
+    FGeomIndex: array[0..3] of Integer;
 
+    function  GeometrySlot(const AName: string): Integer; inline;
     procedure SetPropertyInternal(const AName: string; const AValue: TFloriaJSValue; AFromBinding: Boolean);
     function  GetChildrenAsJSArray(): TFloriaJSValue;
     function  FindSignalIndex(const ASignalName: string): Integer;
@@ -499,6 +505,12 @@ begin
   FBindingManager := nil;
   SetLength(FFTMLProperties, 0);
   FFTMLPropCount := 0;
+  FillChar(FGeomValue, SizeOf(FGeomValue), 0);
+  FillChar(FGeomValid, SizeOf(FGeomValid), 0);
+  FGeomIndex[0] := -1;
+  FGeomIndex[1] := -1;
+  FGeomIndex[2] := -1;
+  FGeomIndex[3] := -1;
   SetLength(FFTMLSignals, 0);
   FFTMLSignalCount := 0;
 
@@ -792,7 +804,7 @@ end;
 
 function TFloriaFTMLItem.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
 var
-  idx: Integer;
+  idx, geomSlot: Integer;
 begin
   // Special meta-properties
   if AName = 'id' then
@@ -886,6 +898,16 @@ begin
   if AName = 'Layout.alignment' then
     Exit(JSMakeString(GetAlignSelf()));
 
+  { Geometry reads are the hot path for layout bindings. Use the cached value
+    while still recording the dependency. }
+  geomSlot := GeometrySlot(AName);
+  if (geomSlot >= 0) and FGeomValid[geomSlot] then
+  begin
+    if FBindingManager <> nil then
+      FBindingManager.RecordPropertyRead(Self, AName);
+    Exit(JSMakeNumber(FGeomValue[geomSlot]));
+  end;
+
   // Record reactive property dependency if binding evaluation is active
   if FBindingManager <> nil then
     FBindingManager.RecordPropertyRead(Self, AName);
@@ -913,9 +935,18 @@ begin
   SetPropertyInternal(AName, AValue, True);
 end;
 
+function TFloriaFTMLItem.GeometrySlot(const AName: string): Integer;
+begin
+  if AName = 'x' then Exit(0);
+  if AName = 'y' then Exit(1);
+  if AName = 'width' then Exit(2);
+  if AName = 'height' then Exit(3);
+  Result := -1;
+end;
+
 procedure TFloriaFTMLItem.SetPropertyInternal(const AName: string; const AValue: TFloriaJSValue; AFromBinding: Boolean);
 var
-  idx: Integer;
+  idx, geomSlot: Integer;
   oldVal: TFloriaJSValue;
   valChanged: Boolean;
 begin
@@ -984,6 +1015,19 @@ begin
     JSReleaseValue(oldVal);
     FFTMLProperties[idx].Value := AValue;
     JSRetainValue(AValue);
+  end;
+
+  geomSlot := GeometrySlot(AName);
+  if geomSlot >= 0 then
+  begin
+    if AValue.IsNumber() then
+    begin
+      FGeomValue[geomSlot] := AValue.NumVal;
+      FGeomIndex[geomSlot] := idx;
+      FGeomValid[geomSlot] := True;
+    end
+    else
+      FGeomValid[geomSlot] := False;
   end;
 
   // Assignment from script or host explicitly breaks existing binding

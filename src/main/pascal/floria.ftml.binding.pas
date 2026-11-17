@@ -19,7 +19,7 @@ unit floria.ftml.binding;
 interface
 
 uses
-  Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.value,
+  Classes, SysUtils, floria.js.types, floria.js.lexer, floria.js.ast, floria.js.value,
   floria.js.env, floria.js.bytecode, floria.js.vm, floria.js.compiler,
   floria.ftml.types;
 
@@ -56,6 +56,9 @@ type
     function  HasDependency(ASourceItem: TFloriaFTMLItem; const APropName: string): Boolean;
 
     function  Evaluate(): TFloriaJSValue;
+    function  TryFastValue(AExpr: TFloriaJSExprNode;
+      out AValue: TFloriaJSValue): Boolean;
+    function  TryFastEvaluate(out AValue: TFloriaJSValue): Boolean;
 
     property TargetItem: TFloriaFTMLItem read FTargetItem;
     property TargetProperty: string read FTargetProperty;
@@ -76,8 +79,15 @@ type
     FBindings: TFPList;
     FCascadeDepth: Integer;
     FMaxCascadeDepth: Integer;
+    FDependencyIndex: TStringList;
+    FShuttingDown: Boolean;
 
     function GetBindingCount(): Integer;
+    function DependencyKey(AItem: TFloriaFTMLItem; const APropName: string): string;
+    procedure IndexDependency(ABinding: TFloriaFTMLBinding; AItem: TFloriaFTMLItem;
+      const APropName: string);
+    procedure UnindexDependency(ABinding: TFloriaFTMLBinding; AItem: TFloriaFTMLItem;
+      const APropName: string);
   public
     constructor Create(AVM: TFloriaJSVM = nil; ACompiler: TFloriaJSCompiler = nil);
     destructor Destroy(); override;
@@ -152,10 +162,18 @@ begin
   FDependencies[FDepCount].SourceItem := ASourceItem;
   FDependencies[FDepCount].PropertyName := APropName;
   Inc(FDepCount);
+  if FManager <> nil then
+    FManager.IndexDependency(Self, ASourceItem, APropName);
 end;
 
 procedure TFloriaFTMLBinding.ClearDependencies();
+var
+  i: Integer;
 begin
+  if FManager <> nil then
+    for i := 0 to FDepCount - 1 do
+      FManager.UnindexDependency(Self, FDependencies[i].SourceItem,
+        FDependencies[i].PropertyName);
   SetLength(FDependencies, 0);
   FDepCount := 0;
 end;
@@ -172,6 +190,82 @@ begin
   Result := False;
 end;
 
+function TFloriaFTMLBinding.TryFastValue(AExpr: TFloriaJSExprNode;
+  out AValue: TFloriaJSValue): Boolean;
+var
+  bin: TFloriaJSBinaryExpr;
+  member: TFloriaJSMemberExpr;
+  ident: TFloriaJSIdentifierExpr;
+  lit: TFloriaJSLiteralExpr;
+  leftVal, rightVal: TFloriaJSValue;
+  item: TFloriaFTMLItem;
+begin
+  AValue := JSMakeUndefined();
+  if AExpr = nil then
+    Exit(False);
+
+  if AExpr is TFloriaJSGroupExpr then
+    Exit(TryFastValue(TFloriaJSGroupExpr(AExpr).Expression, AValue));
+
+  if AExpr is TFloriaJSLiteralExpr then
+  begin
+    lit := TFloriaJSLiteralExpr(AExpr);
+    case lit.ValueType of
+      fjstNumber: AValue := JSMakeNumber(lit.NumberVal);
+      fjstString: AValue := JSMakeString(lit.StringVal);
+      fjstBoolean: AValue := JSMakeBoolean(lit.BoolVal);
+      fjstNull: AValue := JSMakeNull();
+      fjstUndefined: AValue := JSMakeUndefined();
+    else
+      Exit(False);
+    end;
+    Exit(True);
+  end;
+
+  if AExpr is TFloriaJSMemberExpr then
+  begin
+    member := TFloriaJSMemberExpr(AExpr);
+    if member.Computed or (not (member.Target is TFloriaJSIdentifierExpr)) then
+      Exit(False);
+    ident := TFloriaJSIdentifierExpr(member.Target);
+    if not FEnv.Get(ident.Name, leftVal) then
+      Exit(False);
+    if not (leftVal.IsObject() and (leftVal.ObjVal is TFloriaFTMLItem)) then
+      Exit(False);
+    item := TFloriaFTMLItem(leftVal.ObjVal);
+    AValue := item.GetProperty(member.PropertyName);
+    AddDependency(item, member.PropertyName);
+    Exit(True);
+  end;
+
+  if AExpr is TFloriaJSBinaryExpr then
+  begin
+    bin := TFloriaJSBinaryExpr(AExpr);
+    if not (bin.Op in [tkPlus, tkMinus, tkMultiply, tkDivide]) then
+      Exit(False);
+    if not TryFastValue(bin.Left, leftVal) then
+      Exit(False);
+    if not TryFastValue(bin.Right, rightVal) then
+      Exit(False);
+    case bin.Op of
+      tkPlus: AValue := JSAdd(leftVal, rightVal);
+      tkMinus: AValue := JSSubtract(leftVal, rightVal);
+      tkMultiply: AValue := JSMultiply(leftVal, rightVal);
+      tkDivide: AValue := JSDivide(leftVal, rightVal);
+    end;
+    Exit(True);
+  end;
+
+  Result := False;
+end;
+
+function TFloriaFTMLBinding.TryFastEvaluate(out AValue: TFloriaJSValue): Boolean;
+begin
+  if FExpression = nil then
+    Exit(False);
+  Result := TryFastValue(FExpression, AValue);
+end;
+
 function TFloriaFTMLBinding.Evaluate(): TFloriaJSValue;
 var
   newVal: TFloriaJSValue;
@@ -185,9 +279,10 @@ begin
 
   FIsEvaluating := True;
   try
-    // Dynamic dependency tracking: clear previous dependencies before evaluating
-    ClearDependencies();
-
+    { Dependencies are cached. Keeping the previous set is conservative: a
+      property that is no longer read may cause an extra re-evaluation, but it
+      can never miss one. This avoids tearing down and rebuilding the dependency
+      index on every update. }
     if FManager <> nil then
       FManager.PushActiveBinding(Self);
 
@@ -196,7 +291,12 @@ begin
         if (FBytecode = nil) and (FManager <> nil) and (FManager.Compiler <> nil) and (FExpression <> nil) then
           FBytecode := FManager.Compiler.CompileExpression(FExpression);
 
-        if (FBytecode <> nil) and (FManager <> nil) and (FManager.VM <> nil) then
+        if TryFastEvaluate(newVal) then
+        begin
+          { The snippet handled a simple member/arithmetic expression without a
+            VM frame; dependencies were recorded directly. }
+        end
+        else if (FBytecode <> nil) and (FManager <> nil) and (FManager.VM <> nil) then
           newVal := FManager.VM.Execute(FBytecode, FEnv)
         else
           newVal := JSMakeUndefined();
@@ -228,6 +328,11 @@ begin
   FBindings := TFPList.Create();
   FCascadeDepth := 0;
   FMaxCascadeDepth := 100;
+  FShuttingDown := False;
+  FDependencyIndex := TStringList.Create;
+  FDependencyIndex.Sorted := True;
+  FDependencyIndex.Duplicates := dupIgnore;
+  FDependencyIndex.NameValueSeparator := #0;
 end;
 
 destructor TFloriaFTMLBindingManager.Destroy();
@@ -237,13 +342,69 @@ begin
   if FActiveBindings <> nil then
     FreeAndNil(FActiveBindings);
 
+  FShuttingDown := True;
   if FBindings <> nil then
   begin
     for i := FBindings.Count - 1 downto 0 do
       TFloriaFTMLBinding(FBindings[i]).Free();
     FreeAndNil(FBindings);
   end;
+  if FDependencyIndex <> nil then
+  begin
+    for i := 0 to FDependencyIndex.Count - 1 do
+      FDependencyIndex.Objects[i].Free();
+    FreeAndNil(FDependencyIndex);
+  end;
   inherited Destroy();
+end;
+
+function TFloriaFTMLBindingManager.DependencyKey(AItem: TFloriaFTMLItem;
+  const APropName: string): string;
+begin
+  Result := IntToStr(PtrUInt(AItem)) + #0 + APropName;
+end;
+
+procedure TFloriaFTMLBindingManager.IndexDependency(ABinding: TFloriaFTMLBinding;
+  AItem: TFloriaFTMLItem; const APropName: string);
+var
+  key: string;
+  idx: Integer;
+  list: TFPList;
+begin
+  if FShuttingDown or (ABinding = nil) or (AItem = nil) then Exit;
+  key := DependencyKey(AItem, APropName);
+  idx := FDependencyIndex.IndexOf(key);
+  if idx < 0 then
+  begin
+    list := TFPList.Create();
+    FDependencyIndex.AddObject(key, list);
+  end
+  else
+    list := TFPList(FDependencyIndex.Objects[idx]);
+  if list.IndexOf(ABinding) < 0 then
+    list.Add(ABinding);
+end;
+
+procedure TFloriaFTMLBindingManager.UnindexDependency(ABinding: TFloriaFTMLBinding;
+  AItem: TFloriaFTMLItem; const APropName: string);
+var
+  key: string;
+  idx, pos: Integer;
+  list: TFPList;
+begin
+  if FShuttingDown or (ABinding = nil) or (AItem = nil) or (FDependencyIndex = nil) then Exit;
+  key := DependencyKey(AItem, APropName);
+  idx := FDependencyIndex.IndexOf(key);
+  if idx < 0 then Exit;
+  list := TFPList(FDependencyIndex.Objects[idx]);
+  pos := list.IndexOf(ABinding);
+  if pos >= 0 then
+    list.Delete(pos);
+  if list.Count = 0 then
+  begin
+    FDependencyIndex.Delete(idx);
+    list.Free();
+  end;
 end;
 
 procedure TFloriaFTMLBindingManager.RecordPropertyRead(AItem: TObject; const APropName: string);
@@ -260,7 +421,8 @@ var
   i: Integer;
   item: TFloriaFTMLItem;
   binding: TFloriaFTMLBinding;
-  depsToUpdate: TFPList;
+  depsToUpdate, source: TFPList;
+  idx: Integer;
 begin
   if not (AItem is TFloriaFTMLItem) then Exit;
   item := TFloriaFTMLItem(AItem);
@@ -271,15 +433,18 @@ begin
   Inc(FCascadeDepth);
   depsToUpdate := TFPList.Create();
   try
-    // Collect all active bindings dependent on (item, APropName)
-    for i := 0 to FBindings.Count - 1 do
+    idx := FDependencyIndex.IndexOf(DependencyKey(item, APropName));
+    if idx >= 0 then
     begin
-      binding := TFloriaFTMLBinding(FBindings[i]);
-      if binding.Enabled and (not binding.IsEvaluating) and binding.HasDependency(item, APropName) then
-        depsToUpdate.Add(binding);
+      source := TFPList(FDependencyIndex.Objects[idx]);
+      for i := 0 to source.Count - 1 do
+      begin
+        binding := TFloriaFTMLBinding(source[i]);
+        if binding.Enabled and (not binding.IsEvaluating) then
+          depsToUpdate.Add(binding);
+      end;
     end;
 
-    // Re-evaluate each dependent binding
     for i := 0 to depsToUpdate.Count - 1 do
     begin
       binding := TFloriaFTMLBinding(depsToUpdate[i]);
