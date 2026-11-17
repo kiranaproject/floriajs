@@ -505,7 +505,7 @@ are grouped by cause, because the three groups have different answers:
 
 | Area | Behaviour | Why |
 | :--- | :--- | :--- |
-| Execution engine | Pure bytecode interpreter; no JIT/AOT, hidden classes, inline caches, or persistent bytecode cache. | Keeps the runtime embeddable and dependency-free. Optional work is P3. |
+| Execution engine | Pure bytecode interpreter with frame slots, object shape tokens, per-site property caches, and AOT FTML binding snippets. No machine-code JIT, full hidden-class transitions, or persistent bytecode cache. | Keeps the runtime embeddable and dependency-free. Optional work is P3. |
 | Timers | Require the host to call `Ctx.PumpTimers()`; no built-in event loop. Timer state is owned by the context's heap, so pumping one context cannot run another context's callbacks. | The host owns the main loop. |
 | Strings | Stored as UTF-8, but `length`, indexing, slicing, `charCodeAt`, and `for…of` expose UTF-16 code units. Regular-expression matching still operates on the UTF-8 representation. | Conversion happens at the JS boundary; the internal storage remains compact. |
 | `globalThis` | A live global object backed by the root environment. | Global lexical bindings intentionally stay out of the object. |

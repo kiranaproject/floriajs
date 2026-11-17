@@ -33,6 +33,32 @@ type
     PropertyName: string;
   end;
 
+  { One postfix instruction in an ahead-of-time binding snippet. The snippet
+    is compiled once when the binding is created, so updates never walk the AST
+    or enter the bytecode VM. }
+  TFloriaFTMLSnippetKind = (
+    fskNumber,
+    fskString,
+    fskBoolean,
+    fskNull,
+    fskUndefined,
+    fskDependency,
+    fskAdd,
+    fskSubtract,
+    fskMultiply,
+    fskDivide,
+    fskModulo,
+    fskNegate,
+    fskUnaryPlus
+  );
+
+  TFloriaFTMLSnippetStep = record
+    Kind: TFloriaFTMLSnippetKind;
+    Number: Double;
+    Text: string;
+    ItemName: string;
+  end;
+
   { Reactive Property Binding Node }
   TFloriaFTMLBinding = class
   private
@@ -46,6 +72,11 @@ type
     FDepCount: Integer;
     FIsEvaluating: Boolean;
     FEnabled: Boolean;
+    FSnippet: array of TFloriaFTMLSnippetStep;
+    FSnippetCount: Integer;
+    FSnippetCompiled: Boolean;
+    function  CompileSnippet(AExpr: TFloriaJSExprNode): Boolean;
+    function  EvaluateSnippet(out AValue: TFloriaJSValue): Boolean;
   public
     constructor Create(AManager: TFloriaFTMLBindingManager; ATargetItem: TFloriaFTMLItem;
       const ATargetProperty: string; AExpr: TFloriaJSExprNode; AEnv: TFloriaJSEnvironment);
@@ -59,6 +90,7 @@ type
     function  TryFastValue(AExpr: TFloriaJSExprNode;
       out AValue: TFloriaJSValue): Boolean;
     function  TryFastEvaluate(out AValue: TFloriaJSValue): Boolean;
+    property SnippetCompiled: Boolean read FSnippetCompiled;
 
     property TargetItem: TFloriaFTMLItem read FTargetItem;
     property TargetProperty: string read FTargetProperty;
@@ -133,6 +165,9 @@ begin
   FDepCount := 0;
   FIsEvaluating := False;
   FEnabled := True;
+  FSnippetCount := 0;
+  SetLength(FSnippet, 0);
+  FSnippetCompiled := CompileSnippet(FExpression);
 end;
 
 destructor TFloriaFTMLBinding.Destroy();
@@ -188,6 +223,219 @@ begin
       Exit(True);
   end;
   Result := False;
+end;
+
+function TFloriaFTMLBinding.CompileSnippet(AExpr: TFloriaJSExprNode): Boolean;
+var
+  lit: TFloriaJSLiteralExpr;
+  member: TFloriaJSMemberExpr;
+  ident: TFloriaJSIdentifierExpr;
+  un: TFloriaJSUnaryExpr;
+  bin: TFloriaJSBinaryExpr;
+  step: TFloriaFTMLSnippetStep;
+
+  procedure Emit(AKind: TFloriaFTMLSnippetKind; ANumber: Double;
+    const AText, AItemName: string);
+  begin
+    if FSnippetCount >= Length(FSnippet) then
+    begin
+      if Length(FSnippet) = 0 then
+        SetLength(FSnippet, 8)
+      else
+        SetLength(FSnippet, Length(FSnippet) * 2);
+    end;
+    step.Kind := AKind;
+    step.Number := ANumber;
+    step.Text := AText;
+    step.ItemName := AItemName;
+    FSnippet[FSnippetCount] := step;
+    Inc(FSnippetCount);
+  end;
+
+  function CompileNode(ANode: TFloriaJSExprNode): Boolean;
+  begin
+    if ANode = nil then
+      Exit(False);
+
+    if ANode is TFloriaJSGroupExpr then
+      Exit(CompileNode(TFloriaJSGroupExpr(ANode).Expression));
+
+    if ANode is TFloriaJSLiteralExpr then
+    begin
+      lit := TFloriaJSLiteralExpr(ANode);
+      case lit.ValueType of
+        fjstNumber: Emit(fskNumber, lit.NumberVal, '', '');
+        fjstString: Emit(fskString, 0, lit.StringVal, '');
+        fjstBoolean: Emit(fskBoolean, 0, '', '');
+        fjstNull: Emit(fskNull, 0, '', '');
+        fjstUndefined: Emit(fskUndefined, 0, '', '');
+      else
+        Exit(False);
+      end;
+      if lit.ValueType = fjstBoolean then
+        FSnippet[FSnippetCount - 1].Number := Ord(lit.BoolVal);
+      Exit(True);
+    end;
+
+    if ANode is TFloriaJSMemberExpr then
+    begin
+      member := TFloriaJSMemberExpr(ANode);
+      if member.Computed or (not (member.Target is TFloriaJSIdentifierExpr)) then
+        Exit(False);
+      ident := TFloriaJSIdentifierExpr(member.Target);
+      Emit(fskDependency, 0, member.PropertyName, ident.Name);
+      Exit(True);
+    end;
+
+    if ANode is TFloriaJSUnaryExpr then
+    begin
+      un := TFloriaJSUnaryExpr(ANode);
+      if not (un.Op in [tkMinus, tkPlus]) then
+        Exit(False);
+      if not CompileNode(un.Operand) then
+        Exit(False);
+      if un.Op = tkMinus then
+        Emit(fskNegate, 0, '', '')
+      else
+        Emit(fskUnaryPlus, 0, '', '');
+      Exit(True);
+    end;
+
+    if ANode is TFloriaJSBinaryExpr then
+    begin
+      bin := TFloriaJSBinaryExpr(ANode);
+      if not (bin.Op in [tkPlus, tkMinus, tkMultiply, tkDivide, tkModulo]) then
+        Exit(False);
+      if not CompileNode(bin.Left) then
+        Exit(False);
+      if not CompileNode(bin.Right) then
+        Exit(False);
+      case bin.Op of
+        tkPlus: Emit(fskAdd, 0, '', '');
+        tkMinus: Emit(fskSubtract, 0, '', '');
+        tkMultiply: Emit(fskMultiply, 0, '', '');
+        tkDivide: Emit(fskDivide, 0, '', '');
+        tkModulo: Emit(fskModulo, 0, '', '');
+      end;
+      Exit(True);
+    end;
+
+    Result := False;
+  end;
+
+begin
+  FSnippetCount := 0;
+  SetLength(FSnippet, 0);
+  Result := CompileNode(AExpr);
+  if not Result then
+  begin
+    FSnippetCount := 0;
+    SetLength(FSnippet, 0);
+  end;
+end;
+
+function TFloriaFTMLBinding.EvaluateSnippet(out AValue: TFloriaJSValue): Boolean;
+var
+  stack: array of TFloriaJSValue;
+  sp, i: Integer;
+  itemVal: TFloriaJSValue;
+  item: TFloriaFTMLItem;
+  step: TFloriaFTMLSnippetStep;
+begin
+  Result := False;
+  AValue := JSMakeUndefined();
+  if (not FSnippetCompiled) or (FSnippetCount = 0) then
+    Exit;
+
+  SetLength(stack, FSnippetCount);
+  sp := 0;
+  for i := 0 to FSnippetCount - 1 do
+  begin
+    step := FSnippet[i];
+    case step.Kind of
+      fskNumber:
+        begin
+          stack[sp] := JSMakeNumber(step.Number);
+          Inc(sp);
+        end;
+      fskString:
+        begin
+          stack[sp] := JSMakeString(step.Text);
+          Inc(sp);
+        end;
+      fskBoolean:
+        begin
+          stack[sp] := JSMakeBoolean(step.Number <> 0);
+          Inc(sp);
+        end;
+      fskNull:
+        begin
+          stack[sp] := JSMakeNull();
+          Inc(sp);
+        end;
+      fskUndefined:
+        begin
+          stack[sp] := JSMakeUndefined();
+          Inc(sp);
+        end;
+      fskDependency:
+        begin
+          if not FEnv.Get(step.ItemName, itemVal) then
+            Exit(False);
+          if not (itemVal.IsObject() and (itemVal.ObjVal is TFloriaFTMLItem)) then
+            Exit(False);
+          item := TFloriaFTMLItem(itemVal.ObjVal);
+          stack[sp] := item.GetProperty(step.Text);
+          Inc(sp);
+          AddDependency(item, step.Text);
+        end;
+      fskAdd:
+        begin
+          if sp < 2 then Exit(False);
+          Dec(sp);
+          stack[sp - 1] := JSAdd(stack[sp - 1], stack[sp]);
+        end;
+      fskSubtract:
+        begin
+          if sp < 2 then Exit(False);
+          Dec(sp);
+          stack[sp - 1] := JSSubtract(stack[sp - 1], stack[sp]);
+        end;
+      fskMultiply:
+        begin
+          if sp < 2 then Exit(False);
+          Dec(sp);
+          stack[sp - 1] := JSMultiply(stack[sp - 1], stack[sp]);
+        end;
+      fskDivide:
+        begin
+          if sp < 2 then Exit(False);
+          Dec(sp);
+          stack[sp - 1] := JSDivide(stack[sp - 1], stack[sp]);
+        end;
+      fskModulo:
+        begin
+          if sp < 2 then Exit(False);
+          Dec(sp);
+          stack[sp - 1] := JSModulo(stack[sp - 1], stack[sp]);
+        end;
+      fskNegate:
+        begin
+          if sp < 1 then Exit(False);
+          stack[sp - 1] := JSSubtract(JSMakeNumber(0), stack[sp - 1]);
+        end;
+      fskUnaryPlus:
+        begin
+          if sp < 1 then Exit(False);
+          stack[sp - 1] := JSMakeNumber(stack[sp - 1].ToNumber());
+        end;
+    end;
+  end;
+
+  if sp <> 1 then
+    Exit(False);
+  AValue := stack[0];
+  Result := True;
 end;
 
 function TFloriaFTMLBinding.TryFastValue(AExpr: TFloriaJSExprNode;
@@ -291,10 +539,14 @@ begin
         if (FBytecode = nil) and (FManager <> nil) and (FManager.Compiler <> nil) and (FExpression <> nil) then
           FBytecode := FManager.Compiler.CompileExpression(FExpression);
 
-        if TryFastEvaluate(newVal) then
+        if FSnippetCompiled and EvaluateSnippet(newVal) then
         begin
-          { The snippet handled a simple member/arithmetic expression without a
+          { The precompiled snippet handled the update without an AST walk or a
             VM frame; dependencies were recorded directly. }
+        end
+        else if TryFastEvaluate(newVal) then
+        begin
+          { Compatibility fallback for anything the snippet compiler declined. }
         end
         else if (FBytecode <> nil) and (FManager <> nil) and (FManager.VM <> nil) then
           newVal := FManager.VM.Execute(FBytecode, FEnv)

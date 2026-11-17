@@ -94,8 +94,8 @@ Not implemented yet (see [language support](language-support.md) for details):
 - `Array.prototype.keys`/`entries`, `Object.fromEntries`, and
   `String.prototype.localeCompare`/`normalize`.
 - `Intl` and `alert`.
-- A JIT/AOT compiler, hidden classes/inline caches, and persistent bytecode
-  caching. The VM is currently a pure interpreter.
+- A machine-code JIT, full hidden-class transitions, and persistent bytecode
+  caching. AOT binding snippets and per-site property caches already exist.
 
 The runtime also keeps some non-standard semantics. The
 [language support](language-support.md#semantic-deviations) page groups them by

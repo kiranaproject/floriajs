@@ -1530,12 +1530,35 @@ Reactive bindings now avoid most per-update VM and dependency overhead:
 The three-level cascade now runs at roughly **43,600 updates/s** in this
 benchmark. Node comparison remains **5.9x** geometric mean.
 
-### [ ] P3-06 — AOT/JIT (optional, platform-gated)
+### [x] P3-06 — AOT binding snippets (stage 1)
 
-Ahead-of-time compile pure arithmetic/layout bindings to Pascal function
-pointers. A baseline machine-code JIT is optional and must be gated by
-platforms with writable/executable memory. Never make correctness depend on
-JIT availability.
+Pure arithmetic/layout bindings are compiled once into a small postfix snippet
+when the binding is created. Updates then execute the snippet directly, without
+an AST walk or a bytecode VM frame, and record their dependencies inline.
+
+The snippet compiler supports:
+- numeric, string, boolean, null, and undefined literals;
+- direct item property reads (`item.property`);
+- unary `+` and `-`;
+- binary `+`, `-`, `*`, `/`, and `%`.
+
+Anything else, including calls, conditionals, computed members, and nested
+members, falls back to the P3-05 fast evaluator or the cached bytecode path.
+
+**Measured effect (P3-05 → P3-06 stage 1):**
+
+| workload | P3-05 | P3-06 | change |
+| :--- | ---: | ---: | ---: |
+| `binding/bound-1-level` | 9.18 | 8.74 | -4.8% |
+| `binding/bound-3-levels` | 22.94 | 21.98 | -4.2% |
+
+The three-level cascade runs at roughly **45,500 updates/s**.
+
+**Stage 2 — machine-code JIT — remains optional and disabled.** It would emit a
+platform-gated x86-64 snippet for the same numeric subset, with the interpreter
+as an unconditional fallback. It is not enabled because stage 1 already removes
+the AST/VM overhead and a JIT would add writable/executable-memory requirements
+and platform-specific codegen risk.
 
 ---
 
@@ -1547,8 +1570,9 @@ than “fixing” them accidentally:
 1. **UTF-8 internal strings.** Storage is UTF-8; the JavaScript boundary
    exposes UTF-16 code units for `length`, indexing, `charAt`, and iteration.
    Regular-expression matching still operates on the UTF-8 representation.
-2. **Interpreter only.** No JIT/AOT, hidden classes, inline caches, or
-   persistent bytecode cache. The optional performance work is P3.
+2. **Machine-code JIT.** AOT binding snippets, object shape tokens, and inline
+   property caches are implemented. A platform-gated machine-code JIT (P3-06
+   stage 2) is not enabled; there is no persistent bytecode cache.
 3. **Cooperative agents.** `$262.agent` is single-threaded and switches only at
    explicit agent/Atomics calls; real preemptive thread concurrency is not
    implemented.

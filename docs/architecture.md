@@ -382,12 +382,12 @@ slots, compiles control flow to jumps, and caches compiled FTML bindings and
 signals. The roadmap records roughly **3–4×** throughput improvement over the
 retired tree walker.
 
-It remains a pure interpreter: user variables still resolve by name through
-environments, object properties use linear tables, function calls allocate a
-call environment and `arguments`, and each instruction is wrapped in a
-`try`/`except` for throw routing. Hidden classes, inline caches, persistent
-bytecode caching, and JIT/AOT compilation are future roadmap phases, not
-current features.
+It remains a pure bytecode interpreter, but the hot paths have been reduced:
+leaf-function parameters and `var` bindings resolve to frame slots, ordinary
+objects carry shape tokens with per-site property caches, the dispatch loop
+enters its `try`/`except` once per run instead of once per instruction, and
+simple FTML bindings compile to AOT snippets. A machine-code JIT and persistent
+bytecode caching remain future work.
 
 ## Design constraints
 

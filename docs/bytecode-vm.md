@@ -262,12 +262,15 @@ retired tree-walking evaluator on micro-benchmarks.
 It is still a **pure bytecode interpreter**:
 
 - User-variable lookup still walks environments and compares names.
-- Property access still uses linear property tables (no hidden classes or
-  inline caches).
-- Every dispatched instruction is wrapped in a Pascal `try`/`except` block so
-  a JavaScript throw can be routed to `HandleThrow`.
-- Function calls still allocate a call environment and an `arguments` array.
-- There is no JIT, no AOT bytecode cache, and no shape/feedback optimization.
+- Property access uses shape tokens and per-site inline caches for own data
+  properties, with linear fallback for prototypes, accessors, and unusual
+  receivers.
+- The dispatch loop enters one Pascal `try`/`except` per run so a JavaScript
+  throw can be routed to `HandleThrow`.
+- Leaf-function parameters and `var` bindings use frame slots; functions that
+  need closures or `eval` keep environments.
+- FTML binding expressions compile to AOT snippets; there is no machine-code
+  JIT and no persistent bytecode cache.
 
 Those are the subjects of the roadmap's later VM phases.
 
