@@ -1,18 +1,18 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "1f5bb28ce34112f48147ba55a126185e3ba956ec",
-    "workingTreeDirty": true
+    "revision": "4941e579c7763fe401a22f09cddc87628deebcdd",
+    "workingTreeDirty": false
   },
   "host": {
     "bytes": 2227712,
-    "sha256": "63d3af92fb3c0a5edf76f7d5d5e9e5793675745e9598757607a4c3a7275f5cda"
+    "sha256": "f45eae3384e3b572d04f16deed2247b0026402d20a1c4de98555c6c587c530a4"
   },
   "kind": "floriajs-test262-report",
   "options": {
     "allowUnpinned": false,
     "jobs": 4,
-    "listFile": "config/coercion-tests.txt",
+    "listFile": "coercion-tests.txt",
     "maxDurationSeconds": 0.0,
     "selection": [
       "built-ins/Array/prototype/join/call-with-boolean.js",
