@@ -517,8 +517,8 @@ are grouped by cause, because the three groups have different answers:
 
 ### Missing features
 
-Everything known to be absent. Nothing here is scheduled; the roadmap's Priority
-2 is complete, so these are deliberate or unplanned gaps rather than pending
+Everything known to be absent. Nothing here is scheduled; the roadmap's P0–P3
+work is complete, so these are deliberate or unplanned gaps rather than pending
 work.
 
 | Area | Current behaviour |
