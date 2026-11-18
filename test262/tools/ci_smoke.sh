@@ -255,6 +255,19 @@ python3 "$TEST262/tools/run_test262.py" \
   --baseline "$TEST262/baselines/phase10-library-gaps.json" \
   --fail-on-regression >/dev/null
 
+echo "== Reviewed upstream coercion corpus =="
+python3 "$TEST262/tools/run_test262.py" \
+  --root "$ROOT" \
+  --host "$HOST" \
+  --timeout 60 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
+  --list "$TEST262/config/coercion-tests.txt" \
+  --report "$RESULTS/coercion-report.json" \
+  --output "$RESULTS/coercion.jsonl" \
+  --baseline "$TEST262/baselines/phase10-coercion.json" \
+  --fail-on-regression >/dev/null
+
 echo "== Reviewed upstream curated corpus =="
 python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \

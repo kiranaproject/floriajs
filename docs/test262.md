@@ -2,7 +2,7 @@
 
 FloriaJS implements a practical JavaScript subset for embedded scripts and FTML handlers; it is **not currently a conforming ECMAScript implementation**. The work in `test262/` is intended to measure compatibility, not to claim full Test262 support.
 
-## Current status: Phase 13, P3, and library-gap work complete
+## Current status: Phase 13, P3, library-gap, and coercion work complete
 
 Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the recorded curated gaps for boxed String objects, Promise.all microtask ordering, Proxy `has` fallback, and large array indices. Phase 13 adds direct and indirect `eval`, Unicode whitespace handling, and CR line-terminator tracking; the curated corpus now passes completely. This is still a diagnostic adapter, not a conformance certification. In particular:
 
@@ -489,10 +489,44 @@ Along the way, iterator teardown, `\xNN` and legacy-octal escapes above 0x7F,
 and native-method constructability and `length` metadata were corrected.
 
 Focused corpus: `config/library-gaps-tests.txt` — **90 records, all pass**.
-Validation: **282 FPCUnit tests**, **90 documentation claims**, curated corpus
-**354 records — 354 pass**, extended diagnostic **832 records — 832 pass**.
+Validation at that point: **282 FPCUnit tests**, **90 documentation claims**,
+curated corpus **354 records — 354 pass**, extended diagnostic **832 records —
+832 pass**.
+
+## Coercion completeness closure
+
+The following coercion gaps are closed:
+
+- `Array.prototype.join`/`toString` convert each element with the full ToString
+  path, and `join` works on any array-like receiver (including strings and
+  plain objects), reading holes through the prototype chain.
+- `parseInt` and `parseFloat` convert their argument with ToString, honour the
+  ECMAScript whitespace set, and `parseInt` accumulates past 2^63 as a Number.
+- The URI helpers convert with ToString and implement UTF-8 percent encoding
+  and validation: overlong forms, surrogate halves, truncated sequences, and
+  out-of-range code points raise `URIError`. `decodeURI` preserves the source
+  spelling of reserved characters.
+- `Error` and its subclasses convert the message with ToString, define
+  `message` as an own non-enumerable property only when supplied, install
+  `options.cause`, and reject a Symbol message with `TypeError`.
+- The Proxy `has` invariant also throws for a non-extensible target, which
+  completes the `with`-statement cases.
+
+Along the way, boxed Number and Boolean objects, `Object.prototype.isPrototypeOf`,
+`Error`/`URIError` prototype chains, `Function.prototype.length`, and the sign of
+`1 / -0` were corrected, and the bitwise/shift compound assignments (`&=`, `|=`,
+`^=`, `<<=`, `>>=`, `>>>=`) were added to the lexer, parser, and compiler.
+
+Focused corpus: `config/coercion-tests.txt` — **608 records, all pass**. The
+corpus excludes lone-surrogate/noncharacter tests (UTF-8 storage cannot
+represent them), resizable-buffer tests, cross-realm `Error` prototype
+derivation, and two four-nested-loop URI tests that exceed the diagnostic
+timeout.
+
+Validation: **283 FPCUnit tests**, **106 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **1440 records — 1440 pass**.
 
 ## Next phase
 
 Phase 10, Phase 11, Phase 12, and Phase 13 are complete, as is the P3 performance
-work and the library/iteration gap closure. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+work, the library/iteration gap closure, and the coercion-completeness closure. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

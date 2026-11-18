@@ -62,6 +62,7 @@ CORPORA=(
   "async-generator|async-generator-tests|phase10-async-generators"
   "realm|realm-tests|phase10-realms"
   "library-gaps|library-gaps-tests|phase10-library-gaps"
+  "coercion|coercion-tests|phase10-coercion|60"
   "curated|curated-tests|phase10-curated"
 )
 
@@ -69,7 +70,10 @@ printf '# Extended Test262 diagnostic\n\n' > "$RESULTS/summary.md"
 printf 'Generated: `%s`\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RESULTS/summary.md"
 
 for entry in "${CORPORA[@]}"; do
-  IFS='|' read -r name list baseline <<< "$entry"
+  IFS='|' read -r name list baseline corpus_timeout <<< "$entry"
+  if [[ -z "${corpus_timeout:-}" ]]; then
+    corpus_timeout="$TIMEOUT"
+  fi
   NOW="$(date +%s)"
   REMAINING=$((MAX_DURATION - (NOW - START_TIME)))
   if (( REMAINING <= 0 )); then
@@ -80,7 +84,7 @@ for entry in "${CORPORA[@]}"; do
   python3 "$TEST262/tools/run_test262.py" \
     --root "$ROOT" \
     --host "$HOST" \
-    --timeout "$TIMEOUT" \
+    --timeout "$corpus_timeout" \
     --jobs "$JOBS" \
     --max-duration "$REMAINING" \
     --list "$TEST262/config/$list.txt" \

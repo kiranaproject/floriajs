@@ -52,6 +52,9 @@ type
     destructor Destroy(); override;
 
     procedure Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean = False; AKind: TFloriaJSBindingKind = bkVar);
+    { Defines a global built-in: a writable, non-enumerable, configurable data
+      property of the global object, as clauses 18-26 require. }
+    procedure DefineBuiltin(const AName: string; const AValue: TFloriaJSValue);
     { Creates an uninitialized block-scoped binding at scope entry. }
     procedure DeclareLexical(const AName: string; AIsConst: Boolean; AKind: TFloriaJSBindingKind);
     { Initializes a predeclared lexical binding. Returns False when the binding
@@ -174,6 +177,17 @@ begin
       Exit(i);
   end;
   Result := -1;
+end;
+
+procedure TFloriaJSEnvironment.DefineBuiltin(const AName: string;
+  const AValue: TFloriaJSValue);
+begin
+  if (FDelegateObject <> nil) and (FParent = nil) then
+  begin
+    FDelegateObject.DefineDataProperty(AName, AValue, True, False, True);
+    Exit;
+  end;
+  Define(AName, AValue, True);
 end;
 
 procedure TFloriaJSEnvironment.Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean; AKind: TFloriaJSBindingKind);

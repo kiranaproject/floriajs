@@ -595,10 +595,32 @@ begin
     Result := JSMakeString('[object Array]')
   else if AThis.IsFunction() then
     Result := JSMakeString('[object Function]')
+  else if AThis.IsObject() and (AThis.ObjVal is TFloriaJSError) then
+    Result := JSMakeString('[object Error]')
   else if AThis.IsObject() and (AThis.ObjVal is TFloriaJSStringObject) then
     Result := JSMakeString('[object String]')
+  else if AThis.IsObject() and (AThis.ObjVal is TFloriaJSNumberObject) then
+    Result := JSMakeString('[object Number]')
+  else if AThis.IsObject() and (AThis.ObjVal is TFloriaJSBooleanObject) then
+    Result := JSMakeString('[object Boolean]')
   else
     Result := JSMakeString('[object Object]');
+end;
+
+function JSObjectPrototypeIsPrototypeOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+begin
+  if (Length(AArgs) = 0) or (not AArgs[0].IsObject()) or (not AThis.IsObject()) then
+    Exit(JSMakeBoolean(False));
+  obj := AArgs[0].AsObject().Prototype;
+  while obj <> nil do
+  begin
+    if obj = AThis.AsObject() then
+      Exit(JSMakeBoolean(True));
+    obj := obj.Prototype;
+  end;
+  Result := JSMakeBoolean(False);
 end;
 
 function JSObjectPrototypePropertyIsEnumerable(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -895,6 +917,8 @@ begin
     JSMakeFunction(AHeap.NewNativeFunction('toString', @JSObjectPrototypeToString)));
   proto.SetProperty('propertyIsEnumerable',
     JSMakeFunction(AHeap.NewNativeFunction('propertyIsEnumerable', @JSObjectPrototypePropertyIsEnumerable)));
+  proto.SetProperty('isPrototypeOf',
+    JSMakeFunction(AHeap.NewNativeFunction('isPrototypeOf', @JSObjectPrototypeIsPrototypeOf)));
 
   objectObj := AHeap.NewNativeMethod('Object', AObjectCtor);
   objectObj.IntrinsicName := 'Object';

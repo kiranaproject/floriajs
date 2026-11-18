@@ -14,7 +14,7 @@ Last refreshed 2026-11-17:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **282 tests pass** with `pasbuild test`.
+- Test suite: **283 tests pass** with `pasbuild test`.
 - Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **13 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
@@ -22,7 +22,7 @@ Last refreshed 2026-11-17:
   `alert`, calling a non-function, and an invalid assignment target); the probe
   harness is not an ECMAScript conformance suite.
 - Unit count: 28 units.
-- Documentation claims: **90 checked, 0 failing** with
+- Documentation claims: **106 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -1575,6 +1575,22 @@ and platform-specific codegen risk.
 
 Focused corpus: `test262/config/library-gaps-tests.txt` — **90 records, all
 pass**.
+
+### [x] Coercion completeness (post-P3)
+
+- `Array.prototype.join`/`toString` element conversion through ToString, with a
+  generic array-like path that reads holes through the prototype chain.
+- `parseInt`/`parseFloat` through ToString, ECMAScript whitespace trimming, and
+  Number-precision accumulation for `parseInt`.
+- URI helpers through ToString with UTF-8 percent encoding and validation.
+- `Error` message construction through ToString, own non-enumerable `message`,
+  `options.cause`, and Symbol rejection.
+- Proxy `has` invariant for non-extensible targets (`with` cases).
+- Boxed Number/Boolean objects, `Object.prototype.isPrototypeOf`,
+  `Error`/`URIError` prototype chains, and the bitwise/shift compound
+  assignments (`&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`).
+
+Focused corpus: `test262/config/coercion-tests.txt` — **608 records, all pass**.
 
 ---
 

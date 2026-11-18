@@ -20,7 +20,7 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
-  floria.js.collections;
+  floria.js.collections, floria.js.utf16;
 
 procedure FloriaJSRegisterArray(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
 
@@ -330,19 +330,84 @@ end;
 
 { Non-mutating accessors }
 
+{ ToLength for the generic array-like path: negative and NaN become 0. }
+function JoinLength(const AValue: TFloriaJSValue): Integer;
+var
+  d: Double;
+begin
+  d := AValue.ToNumber();
+  if IsNaN(d) or (d <= 0) then
+    Exit(0);
+  if d >= 2147483647.0 then
+    Exit(2147483647);
+  Result := Trunc(d);
+end;
+
 function JSArrayJoin(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   arr: TFloriaJSArray;
   separator: string;
+  obj: TFloriaJSObject;
+  len, i: Integer;
+  elem: TFloriaJSValue;
+  sb: TStringBuilder;
+  heap: TFloriaJSHeap;
 begin
-  arr := ThisArray(AThis);
-  if arr = nil then Exit(JSMakeUndefined());
+  if AThis.IsNull() or AThis.IsUndefined() then
+  begin
+    heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Array.prototype.join called on null or undefined')));
+    Exit(JSMakeUndefined());
+  end;
 
   separator := ',';
   if (Length(AArgs) > 0) and not AArgs[0].IsUndefined() then
-    separator := AArgs[0].ToString();
+    separator := JSToString(AArgs[0]);
 
-  Result := JSMakeString(arr.Join(separator));
+  { The fast path for a real array. }
+  arr := AThis.AsArray();
+  if arr <> nil then
+    Exit(JSMakeString(arr.Join(separator)));
+
+  { join is intentionally generic: any array-like with a `length` and indexed
+    properties works, including strings and plain objects. }
+  if AThis.IsString() then
+  begin
+    sb := TStringBuilder.Create();
+    try
+      len := JSUTF16Length(AThis.StrVal);
+      for i := 0 to len - 1 do
+      begin
+        if i > 0 then sb.Append(separator);
+        sb.Append(JSUTF16CharAt(AThis.StrVal, i));
+      end;
+      Result := JSMakeString(sb.ToString());
+    finally
+      sb.Free();
+    end;
+    Exit;
+  end;
+
+  if not AThis.IsObject() then
+    Exit(JSMakeString(''));
+
+  obj := AThis.AsObject();
+  len := JoinLength(obj.GetProperty('length'));
+  sb := TStringBuilder.Create();
+  try
+    for i := 0 to len - 1 do
+    begin
+      if i > 0 then sb.Append(separator);
+      elem := obj.GetProperty(IntToStr(i));
+      if not (elem.IsUndefined() or elem.IsNull()) then
+        sb.Append(JSToString(elem));
+    end;
+    Result := JSMakeString(sb.ToString());
+  finally
+    sb.Free();
+  end;
 end;
 
 function JSArrayToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -1099,15 +1164,17 @@ begin
 end;
 
 procedure RegisterMethod(AHeap: TFloriaJSHeap; AProto: TFloriaJSObject;
-  const AName: string; AProc: TFloriaJSNativeProc);
+  const AName: string; AProc: TFloriaJSNativeProc; ALength: Integer = -1);
 var
   fn: TFloriaJSFunction;
 begin
   fn := AHeap.NewNativeFunction(AName, AProc);
-  { A prototype method is not a constructor and has no `prototype` property. }
+  { A prototype method is not a constructor, has no `prototype` property, is a
+    non-enumerable own property, and has a fixed `length`. }
   fn.NotConstructable := True;
   fn.SuppressPrototype := True;
-  AProto.SetProperty(AName, JSMakeFunction(fn));
+  fn.LengthOverride := ALength;
+  AProto.DefineDataProperty(AName, JSMakeFunction(fn), True, False, True);
 end;
 
 procedure FloriaJSRegisterArray(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
@@ -1122,7 +1189,7 @@ begin
   RegisterMethod(AHeap, proto, 'pop', @JSArrayPop);
   RegisterMethod(AHeap, proto, 'shift', @JSArrayShift);
   RegisterMethod(AHeap, proto, 'unshift', @JSArrayUnshift);
-  RegisterMethod(AHeap, proto, 'join', @JSArrayJoin);
+  RegisterMethod(AHeap, proto, 'join', @JSArrayJoin, 1);
   RegisterMethod(AHeap, proto, 'toString', @JSArrayToString);
   RegisterMethod(AHeap, proto, 'concat', @JSArrayConcat);
   RegisterMethod(AHeap, proto, 'reverse', @JSArrayReverse);

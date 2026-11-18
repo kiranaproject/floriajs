@@ -310,6 +310,25 @@ type
     property Value: string read FValue;
   end;
 
+  { A boxed Number, the object `new Number(x)` produces. Without it the
+    instance has no primitive value and valueOf/toString recurse. }
+  TFloriaJSNumberObject = class(TFloriaJSObject)
+  private
+    FValue: Double;
+  public
+    constructor Create(AProto: TFloriaJSObject; AValue: Double);
+    property Value: Double read FValue;
+  end;
+
+  { A boxed Boolean, the object `new Boolean(x)` produces. }
+  TFloriaJSBooleanObject = class(TFloriaJSObject)
+  private
+    FValue: Boolean;
+  public
+    constructor Create(AProto: TFloriaJSObject; AValue: Boolean);
+    property Value: Boolean read FValue;
+  end;
+
   { Native Function Callbacks }
   TFloriaJSNativeProc = function(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
   TFloriaJSNativeMethod = function(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue of object;
@@ -688,6 +707,8 @@ type
     FArrayPrototype: TFloriaJSObject;
     FStringPrototype: TFloriaJSObject;
     FNumberPrototype: TFloriaJSObject;
+    FBooleanPrototype: TFloriaJSObject;
+    FURIErrorPrototype: TFloriaJSObject;
     FPromisePrototype: TFloriaJSObject;
     FAsyncGeneratorPrototype: TFloriaJSObject;
     FFunctionPrototype: TFloriaJSObject;
@@ -713,6 +734,8 @@ type
     function  NewObject(AProto: TFloriaJSObject = nil; ANoProto: Boolean = False): TFloriaJSObject;
     function  NewArray(): TFloriaJSArray;
     function  NewStringObject(AProto: TFloriaJSObject; const AValue: string): TFloriaJSStringObject;
+    function  NewNumberObject(AProto: TFloriaJSObject; AValue: Double): TFloriaJSNumberObject;
+    function  NewBooleanObject(AProto: TFloriaJSObject; AValue: Boolean): TFloriaJSBooleanObject;
     function  NewError(const AName, AMessage: string): TFloriaJSError;
     function  NewPromise(): TFloriaJSPromise;
     function  NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
@@ -726,6 +749,7 @@ type
     function  GetArrayPrototype(): TFloriaJSObject;
     function  GetStringPrototype(): TFloriaJSObject;
     function  GetNumberPrototype(): TFloriaJSObject;
+    function  GetBooleanPrototype(): TFloriaJSObject;
     function  GetPromisePrototype(): TFloriaJSObject;
     function  GetAsyncGeneratorPrototype(): TFloriaJSObject;
     function  GetFunctionPrototype(): TFloriaJSObject;
@@ -735,6 +759,7 @@ type
     function  GetRangeErrorPrototype(): TFloriaJSObject;
     function  GetReferenceErrorPrototype(): TFloriaJSObject;
     function  GetSyntaxErrorPrototype(): TFloriaJSObject;
+    function  GetURIErrorPrototype(): TFloriaJSObject;
     function  ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     { Built-in units use helpers that need the heap (for example to create the
@@ -790,6 +815,8 @@ type
     function  PromiseReject(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseRace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  BuildError(const AName: string;
+      const AArgs: array of TFloriaJSValue): TFloriaJSError;
     function  ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  TypeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  RangeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -841,6 +868,9 @@ function JSHeapIsAlive(AHeap: TFloriaJSHeap; AHeapId: Integer): Boolean;
 { Binary Operations }
 function JSToPrimitive(const AValue: TFloriaJSValue; const AHint: string = 'default'): TFloriaJSValue;
 function JSToString(const AValue: TFloriaJSValue): string;
+{ Trims the ECMAScript WhiteSpace and LineTerminator set from both ends of a
+  UTF-8 string. SysUtils.Trim only knows ASCII whitespace. }
+function JSTrimWhitespace(const AText: string): string;
 function JSAdd(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 function JSSubtract(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 function JSMultiply(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
@@ -2064,10 +2094,10 @@ begin
   inherited Create(nil);
   FName := AName;
   FMessage := AMessage;
-  { The name and the message are readable from the script, just like they are
-    on an error object of JavaScript. }
-  SetProperty('name', JSMakeString(AName));
-  SetProperty('message', JSMakeString(AMessage));
+  { `name` belongs to the prototype, and `message` is an own non-enumerable
+    property present only when the constructor was given one. }
+  if AMessage <> '' then
+    SetPropertyNonEnumerable('message', JSMakeString(AMessage));
 end;
 
 const
@@ -2303,7 +2333,8 @@ begin
     Result := Heap.InvokeFunction(trap, args, FHandler).ToBoolean();
     if (not Result) and FTarget.IsObject() and
        FTarget.AsObject().HasOwnProperty(AName) and
-       (not FTarget.AsObject().PropertyIsConfigurable(AName)) then
+       ((not FTarget.AsObject().PropertyIsConfigurable(AName)) or
+        (not FTarget.AsObject().IsExtensible)) then
       raise EFloriaJSThrow.Create(JSMakeObject(
         Heap.NewError('TypeError', 'Proxy has invariant violated')));
     Exit;
@@ -2479,6 +2510,18 @@ begin
 end;
 
 constructor TFloriaJSStringObject.Create(AProto: TFloriaJSObject; const AValue: string);
+begin
+  inherited Create(AProto);
+  FValue := AValue;
+end;
+
+constructor TFloriaJSNumberObject.Create(AProto: TFloriaJSObject; AValue: Double);
+begin
+  inherited Create(AProto);
+  FValue := AValue;
+end;
+
+constructor TFloriaJSBooleanObject.Create(AProto: TFloriaJSObject; AValue: Boolean);
 begin
   inherited Create(AProto);
   FValue := AValue;
@@ -2884,6 +2927,7 @@ function TFloriaJSArray.Join(const ASeparator: string): string;
 var
   sb: TStringBuilder;
   i: Integer;
+  elem: TFloriaJSValue;
 begin
   if FCount = 0 then Exit('');
 
@@ -2892,9 +2936,20 @@ begin
     for i := 0 to FCount - 1 do
     begin
       if i > 0 then sb.Append(ASeparator);
-      { Holes and undefined/null elements render as an empty string. }
-      if FPresent[i] and not (FElements[i].IsUndefined() or FElements[i].IsNull()) then
-        sb.Append(FElements[i].ToString());
+      { Holes and undefined/null elements render as an empty string. An object
+        element is converted through its own toString/valueOf, not through a
+        generic placeholder. A hole still reads through the prototype chain. }
+      if FPresent[i] then
+      begin
+        if not (FElements[i].IsUndefined() or FElements[i].IsNull()) then
+          sb.Append(JSToString(FElements[i]));
+      end
+      else
+      begin
+        elem := GetProperty(IntToStr(i));
+        if not (elem.IsUndefined() or elem.IsNull()) then
+          sb.Append(JSToString(elem));
+      end;
     end;
     Result := sb.ToString();
   finally
@@ -2927,8 +2982,15 @@ begin
   if TryStrToInt64(AName, idx) and (idx >= 0) and (idx <= ARRAY_INDEX_LIMIT) then
   begin
     if idx >= ARRAY_DENSE_LIMIT then
-      Exit(GetOverflowElement(idx));
-    Exit(GetElement(Integer(idx)));
+    begin
+      if HasOverflowElement(idx) then
+        Exit(GetOverflowElement(idx));
+    end
+    else if HasElement(Integer(idx)) then
+      Exit(GetElement(Integer(idx)));
+    { A hole is not an own property, so the read continues up the prototype
+      chain. `Array.prototype[1] = 1` is visible through a hole. }
+    Exit(inherited GetPropertyWithReceiver(AName, AReceiver));
   end;
 
   Result := inherited GetPropertyWithReceiver(AName, AReceiver);
@@ -3154,8 +3216,19 @@ end;
 function JSNumberToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   radix: Integer;
+  numVal: Double;
+  isNumber: Boolean;
 begin
-  if AThis.IsNumber() then
+  isNumber := AThis.IsNumber();
+  if isNumber then
+    numVal := AThis.NumVal
+  else if AThis.IsObject() and (AThis.ObjVal is TFloriaJSNumberObject) then
+  begin
+    numVal := TFloriaJSNumberObject(AThis.ObjVal).Value;
+    isNumber := True;
+  end;
+
+  if isNumber then
   begin
     radix := 10;
     if (Length(AArgs) > 0) and (not AArgs[0].IsUndefined()) then
@@ -3173,15 +3246,50 @@ begin
           raise EConvertError.Create('toString() radix must be between 2 and 36');
       end;
     end;
-    Result := JSMakeString(JSNumberToRadixStr(AThis.NumVal, radix));
+    Result := JSMakeString(JSNumberToRadixStr(numVal, radix));
   end
   else
     Result := JSMakeString(AThis.ToString());
 end;
 
+function JSBooleanValueOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if AThis.IsBoolean() then
+    Exit(JSMakeBoolean(AThis.ToBoolean()));
+  if AThis.IsObject() and (AThis.ObjVal is TFloriaJSBooleanObject) then
+    Exit(JSMakeBoolean(TFloriaJSBooleanObject(AThis.ObjVal).Value));
+  if AThis.IsObject() and (AThis.ObjVal <> nil) and (AThis.ObjVal.Heap <> nil) then
+    raise EFloriaJSThrow.Create(JSMakeObject(AThis.ObjVal.Heap.NewError('TypeError',
+      'Boolean.prototype.valueOf requires that this be a Boolean')));
+  Result := JSMakeBoolean(False);
+end;
+
+function JSBooleanToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if AThis.IsBoolean() then
+    Exit(JSMakeString(AThis.ToString()));
+  if AThis.IsObject() and (AThis.ObjVal is TFloriaJSBooleanObject) then
+  begin
+    if TFloriaJSBooleanObject(AThis.ObjVal).Value then
+      Exit(JSMakeString('true'));
+    Exit(JSMakeString('false'));
+  end;
+  if AThis.IsObject() and (AThis.ObjVal <> nil) and (AThis.ObjVal.Heap <> nil) then
+    raise EFloriaJSThrow.Create(JSMakeObject(AThis.ObjVal.Heap.NewError('TypeError',
+      'Boolean.prototype.toString requires that this be a Boolean')));
+  Result := JSMakeString('false');
+end;
+
 function JSNumberValueOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 begin
-  Result := JSMakeNumber(AThis.ToNumber());
+  if AThis.IsNumber() then
+    Exit(JSMakeNumber(AThis.NumVal));
+  if AThis.IsObject() and (AThis.ObjVal is TFloriaJSNumberObject) then
+    Exit(JSMakeNumber(TFloriaJSNumberObject(AThis.ObjVal).Value));
+  if AThis.IsObject() and (AThis.ObjVal <> nil) and (AThis.ObjVal.Heap <> nil) then
+    raise EFloriaJSThrow.Create(JSMakeObject(AThis.ObjVal.Heap.NewError('TypeError',
+      'Number.prototype.valueOf requires that this be a Number')));
+  Result := JSMakeNumber(NaN);
 end;
 
 function JSFunctionToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -3210,13 +3318,13 @@ begin
     if nameVal.IsUndefined() then
       nameStr := 'Error'
     else
-      nameStr := nameVal.ToString();
+      nameStr := JSToString(nameVal);
 
     msgVal := AThis.AsObject().GetProperty('message');
     if msgVal.IsUndefined() then
       msgStr := ''
     else
-      msgStr := msgVal.ToString();
+      msgStr := JSToString(msgVal);
   end;
 
   if nameStr = '' then
@@ -3606,8 +3714,19 @@ end;
 { EFloriaJSThrow }
 
 constructor EFloriaJSThrow.Create(const AValue: TFloriaJSValue);
+var
+  text: string;
 begin
-  inherited Create(AValue.ToString());
+  { A thrown object reports through its own toString/valueOf, so a
+    Test262Error-style object keeps its message instead of collapsing to
+    `[object Object]`. A conversion that itself throws falls back to the
+    generic rendering; the original value is what the program observes. }
+  try
+    text := JSToString(AValue);
+  except
+    text := AValue.ToString();
+  end;
+  inherited Create(text);
   FValue := AValue;
 end;
 
@@ -3880,6 +3999,8 @@ begin
   FArrayPrototype := nil;
   FStringPrototype := nil;
   FNumberPrototype := nil;
+  FBooleanPrototype := nil;
+  FURIErrorPrototype := nil;
   FPromisePrototype := nil;
   FAsyncGeneratorPrototype := nil;
   FFunctionPrototype := nil;
@@ -3942,6 +4063,8 @@ begin
   FArrayPrototype := nil;
   FStringPrototype := nil;
   FNumberPrototype := nil;
+  FBooleanPrototype := nil;
+  FURIErrorPrototype := nil;
   FPromisePrototype := nil;
   FAsyncGeneratorPrototype := nil;
   FFunctionPrototype := nil;
@@ -4037,6 +4160,18 @@ begin
   Result := TFloriaJSStringObject(Track(TFloriaJSStringObject.Create(AProto, AValue)));
 end;
 
+function TFloriaJSHeap.NewNumberObject(AProto: TFloriaJSObject;
+  AValue: Double): TFloriaJSNumberObject;
+begin
+  Result := TFloriaJSNumberObject(Track(TFloriaJSNumberObject.Create(AProto, AValue)));
+end;
+
+function TFloriaJSHeap.NewBooleanObject(AProto: TFloriaJSObject;
+  AValue: Boolean): TFloriaJSBooleanObject;
+begin
+  Result := TFloriaJSBooleanObject(Track(TFloriaJSBooleanObject.Create(AProto, AValue)));
+end;
+
 function TFloriaJSHeap.GetArrayPrototype(): TFloriaJSObject;
 begin
   if FArrayPrototype = nil then
@@ -4095,12 +4230,41 @@ begin
   Result := FNumberPrototype;
 end;
 
+function TFloriaJSHeap.GetBooleanPrototype(): TFloriaJSObject;
+begin
+  if FBooleanPrototype = nil then
+  begin
+    FBooleanPrototype := NewObject(GetObjectPrototype());
+    FBooleanPrototype.Pin();
+    FBooleanPrototype.SetProperty('toString', JSMakeFunction(NewNativeFunction('toString', @JSBooleanToString)));
+    FBooleanPrototype.SetProperty('valueOf', JSMakeFunction(NewNativeFunction('valueOf', @JSBooleanValueOf)));
+  end;
+  Result := FBooleanPrototype;
+end;
+
+function TFloriaJSHeap.GetURIErrorPrototype(): TFloriaJSObject;
+begin
+  if FURIErrorPrototype = nil then
+  begin
+    FURIErrorPrototype := NewObject(GetErrorPrototype());
+    FURIErrorPrototype.Pin();
+    FURIErrorPrototype.SetPropertyNonEnumerable('name', JSMakeString('URIError'));
+    FURIErrorPrototype.SetPropertyNonEnumerable('message', JSMakeString(''));
+  end;
+  Result := FURIErrorPrototype;
+end;
+
 function TFloriaJSHeap.GetFunctionPrototype(): TFloriaJSObject;
 begin
   if FFunctionPrototype = nil then
   begin
     FFunctionPrototype := NewObject(GetObjectPrototype());
     FFunctionPrototype.Pin();
+    { Function.prototype is itself a function: it has its own `length` (0) and
+      `name` (''), which a function inherits when its own properties are
+      deleted. }
+    FFunctionPrototype.SetPropertyNonEnumerable('length', JSMakeNumber(0));
+    FFunctionPrototype.SetPropertyNonEnumerable('name', JSMakeString(''));
     FFunctionPrototype.SetProperty('call', JSMakeFunction(NewNativeFunction('call', @JSFunctionCall)));
     FFunctionPrototype.SetProperty('apply', JSMakeFunction(NewNativeFunction('apply', @JSFunctionApply)));
     FFunctionPrototype.SetProperty('bind', JSMakeFunction(NewNativeFunction('bind', @JSFunctionBind)));
@@ -4275,6 +4439,8 @@ begin
     Result := GetReferenceErrorPrototype()
   else if AIntrinsic = 'SyntaxError' then
     Result := GetSyntaxErrorPrototype()
+  else if AIntrinsic = 'URIError' then
+    Result := GetURIErrorPrototype()
   else
     Result := GetObjectPrototype();
 end;
@@ -4325,9 +4491,10 @@ begin
   begin
     FErrorPrototype := NewObject(GetObjectPrototype());
     FErrorPrototype.Pin();
-    FErrorPrototype.SetProperty('name', JSMakeString('Error'));
-    FErrorPrototype.SetProperty('message', JSMakeString(''));
-    FErrorPrototype.SetProperty('toString', JSMakeFunction(NewNativeFunction('toString', @JSErrorToString)));
+    FErrorPrototype.SetPropertyNonEnumerable('name', JSMakeString('Error'));
+    FErrorPrototype.SetPropertyNonEnumerable('message', JSMakeString(''));
+    FErrorPrototype.SetPropertyNonEnumerable('toString',
+      JSMakeFunction(NewNativeFunction('toString', @JSErrorToString)));
   end;
   Result := FErrorPrototype;
 end;
@@ -4338,8 +4505,8 @@ begin
   begin
     FTypeErrorPrototype := NewObject(GetErrorPrototype());
     FTypeErrorPrototype.Pin();
-    FTypeErrorPrototype.SetProperty('name', JSMakeString('TypeError'));
-    FTypeErrorPrototype.SetProperty('message', JSMakeString(''));
+    FTypeErrorPrototype.SetPropertyNonEnumerable('name', JSMakeString('TypeError'));
+    FTypeErrorPrototype.SetPropertyNonEnumerable('message', JSMakeString(''));
   end;
   Result := FTypeErrorPrototype;
 end;
@@ -4350,8 +4517,8 @@ begin
   begin
     FRangeErrorPrototype := NewObject(GetErrorPrototype());
     FRangeErrorPrototype.Pin();
-    FRangeErrorPrototype.SetProperty('name', JSMakeString('RangeError'));
-    FRangeErrorPrototype.SetProperty('message', JSMakeString(''));
+    FRangeErrorPrototype.SetPropertyNonEnumerable('name', JSMakeString('RangeError'));
+    FRangeErrorPrototype.SetPropertyNonEnumerable('message', JSMakeString(''));
   end;
   Result := FRangeErrorPrototype;
 end;
@@ -4362,8 +4529,8 @@ begin
   begin
     FReferenceErrorPrototype := NewObject(GetErrorPrototype());
     FReferenceErrorPrototype.Pin();
-    FReferenceErrorPrototype.SetProperty('name', JSMakeString('ReferenceError'));
-    FReferenceErrorPrototype.SetProperty('message', JSMakeString(''));
+    FReferenceErrorPrototype.SetPropertyNonEnumerable('name', JSMakeString('ReferenceError'));
+    FReferenceErrorPrototype.SetPropertyNonEnumerable('message', JSMakeString(''));
   end;
   Result := FReferenceErrorPrototype;
 end;
@@ -4374,8 +4541,8 @@ begin
   begin
     FSyntaxErrorPrototype := NewObject(GetErrorPrototype());
     FSyntaxErrorPrototype.Pin();
-    FSyntaxErrorPrototype.SetProperty('name', JSMakeString('SyntaxError'));
-    FSyntaxErrorPrototype.SetProperty('message', JSMakeString(''));
+    FSyntaxErrorPrototype.SetPropertyNonEnumerable('name', JSMakeString('SyntaxError'));
+    FSyntaxErrorPrototype.SetPropertyNonEnumerable('message', JSMakeString(''));
   end;
   Result := FSyntaxErrorPrototype;
 end;
@@ -4388,65 +4555,68 @@ begin
     'RangeError':     Result.Prototype := GetRangeErrorPrototype();
     'ReferenceError': Result.Prototype := GetReferenceErrorPrototype();
     'SyntaxError':    Result.Prototype := GetSyntaxErrorPrototype();
+    'URIError':       Result.Prototype := GetURIErrorPrototype();
   else
     Result.Prototype := GetErrorPrototype();
   end;
 end;
 
-function TFloriaJSHeap.ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+{ Builds an error object the way the public constructors do: `message` is an
+  own non-enumerable property only when the argument was supplied (and not
+  undefined), a Symbol message throws, and `options.cause` installs a
+  non-enumerable `cause` own property. }
+function TFloriaJSHeap.BuildError(const AName: string;
+  const AArgs: array of TFloriaJSValue): TFloriaJSError;
 var
   msg: string;
+  hasMsg: Boolean;
+  cause: TFloriaJSValue;
 begin
-  if Length(AArgs) > 0 then
-    msg := AArgs[0].ToString()
-  else
-    msg := '';
+  msg := '';
+  hasMsg := (Length(AArgs) > 0) and (not AArgs[0].IsUndefined());
+  if hasMsg then
+  begin
+    if AArgs[0].IsSymbol() then
+      raise EFloriaJSThrow.Create(JSMakeObject(NewError('TypeError',
+        'Cannot convert a Symbol value to a string')));
+    msg := JSToString(AArgs[0]);
+  end;
 
-  Result := JSMakeObject(NewError('Error', msg));
+  Result := NewError(AName, msg);
+  if hasMsg and (msg = '') then
+    Result.DefineDataProperty('message', JSMakeString(''), True, False, True);
+
+  if (Length(AArgs) > 1) and AArgs[1].IsObject() and
+     (AArgs[1].ObjVal <> nil) and AArgs[1].AsObject().HasProperty('cause') then
+  begin
+    cause := AArgs[1].AsObject().GetProperty('cause');
+    Result.DefineDataProperty('cause', cause, True, False, True);
+  end;
+end;
+
+function TFloriaJSHeap.ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := JSMakeObject(BuildError('Error', AArgs));
 end;
 
 function TFloriaJSHeap.TypeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
-var
-  msg: string;
 begin
-  if Length(AArgs) > 0 then
-    msg := AArgs[0].ToString()
-  else
-    msg := '';
-  Result := JSMakeObject(NewError('TypeError', msg));
+  Result := JSMakeObject(BuildError('TypeError', AArgs));
 end;
 
 function TFloriaJSHeap.RangeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
-var
-  msg: string;
 begin
-  if Length(AArgs) > 0 then
-    msg := AArgs[0].ToString()
-  else
-    msg := '';
-  Result := JSMakeObject(NewError('RangeError', msg));
+  Result := JSMakeObject(BuildError('RangeError', AArgs));
 end;
 
 function TFloriaJSHeap.ReferenceErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
-var
-  msg: string;
 begin
-  if Length(AArgs) > 0 then
-    msg := AArgs[0].ToString()
-  else
-    msg := '';
-  Result := JSMakeObject(NewError('ReferenceError', msg));
+  Result := JSMakeObject(BuildError('ReferenceError', AArgs));
 end;
 
 function TFloriaJSHeap.SyntaxErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
-var
-  msg: string;
 begin
-  if Length(AArgs) > 0 then
-    msg := AArgs[0].ToString()
-  else
-    msg := '';
-  Result := JSMakeObject(NewError('SyntaxError', msg));
+  Result := JSMakeObject(BuildError('SyntaxError', AArgs));
 end;
 
 function TFloriaJSHeap.ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -5564,6 +5734,8 @@ begin
     FArrayPrototype := nil;
     FStringPrototype := nil;
     FNumberPrototype := nil;
+    FBooleanPrototype := nil;
+  FURIErrorPrototype := nil;
     FPromisePrototype := nil;
     FAsyncGeneratorPrototype := nil;
     GNumberPrototype := nil;
@@ -5689,6 +5861,30 @@ begin
     obj.Heap.NewError('TypeError', 'Cannot convert object to primitive value')));
 end;
 
+function IsJSWhitespaceChar(C: WideChar): Boolean;
+begin
+  Result := (C = #$0009) or (C = #$000B) or (C = #$000C) or (C = #$0020) or
+    (C = #$00A0) or (C = #$FEFF) or (C = #$000A) or (C = #$000D) or
+    (C = #$2028) or (C = #$2029) or (C = #$1680) or
+    ((C >= #$2000) and (C <= #$200A)) or (C = #$202F) or (C = #$205F) or
+    (C = #$3000);
+end;
+
+function JSTrimWhitespace(const AText: string): string;
+var
+  u: UnicodeString;
+  lo, hi: Integer;
+begin
+  u := UTF8Decode(AText);
+  lo := 1;
+  hi := Length(u);
+  while (lo <= hi) and IsJSWhitespaceChar(u[lo]) do
+    Inc(lo);
+  while (hi >= lo) and IsJSWhitespaceChar(u[hi]) do
+    Dec(hi);
+  Result := UTF8Encode(Copy(u, lo, hi - lo + 1));
+end;
+
 function JSToString(const AValue: TFloriaJSValue): string;
 var
   primitive: TFloriaJSValue;
@@ -5740,6 +5936,16 @@ begin
   Result := JSMakeNumber(ALeft.ToNumber() * ARight.ToNumber());
 end;
 
+{ True when D is negative zero, read from the sign bit so no division by zero
+  is performed. }
+function IsNegativeZeroDouble(D: Double): Boolean;
+var
+  bits: QWord;
+begin
+  Move(D, bits, SizeOf(bits));
+  Result := bits = QWord($8000000000000000);
+end;
+
 function JSDivide(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 var
   l, r: Double;
@@ -5755,9 +5961,13 @@ begin
   r := ARight.ToNumber();
   if r = 0.0 then
   begin
-    if l > 0.0 then Result := JSMakeNumber(Infinity)
-    else if l < 0.0 then Result := JSMakeNumber(-Infinity)
-    else Result := JSMakeNumber(NaN);
+    { IEEE 754: the sign of a zero divisor decides the infinity's sign. }
+    if (l = 0.0) or IsNaN(l) then
+      Result := JSMakeNumber(NaN)
+    else if (l < 0.0) <> IsNegativeZeroDouble(r) then
+      Result := JSMakeNumber(-Infinity)
+    else
+      Result := JSMakeNumber(Infinity);
   end
   else
     Result := JSMakeNumber(l / r);
@@ -5993,12 +6203,29 @@ begin
   Result := JSMakeNumber(LongInt(Trunc(ALeft.ToNumber())) shl shift);
 end;
 
+{ Arithmetic shift right of a 32-bit value: the sign bit is replicated. }
+function Sar32(AValue: LongInt; AShift: Integer): LongInt;
+var
+  u: Cardinal;
+begin
+  if AShift = 0 then
+    Exit(AValue);
+  u := Cardinal(AValue);
+  if AValue < 0 then
+    Result := LongInt((u shr AShift) or (Cardinal($FFFFFFFF) shl (32 - AShift)))
+  else
+    Result := LongInt(u shr AShift);
+end;
+
 function JSShiftRight(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;
 var
   shift: LongInt;
 begin
   shift := LongInt(Trunc(ARight.ToNumber())) and 31;
-  Result := JSMakeNumber(LongInt(Trunc(ALeft.ToNumber())) shr shift);
+  { `>>` propagates the sign bit. FPC's `shr` on a signed type is logical and
+    would turn -8 >> 1 into a large positive number, so fill the vacated high
+    bits explicitly. }
+  Result := JSMakeNumber(Sar32(LongInt(Trunc(ALeft.ToNumber())), shift));
 end;
 
 function JSShiftRightUnsigned(const ALeft, ARight: TFloriaJSValue): TFloriaJSValue;

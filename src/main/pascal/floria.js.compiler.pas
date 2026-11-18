@@ -1805,6 +1805,12 @@ begin
           tkDivideAssign:   FBytecode.Emit(opDiv);
           tkModuloAssign:   FBytecode.Emit(opMod);
           tkPowerAssign:    FBytecode.Emit(opPower);
+          tkBitAndAssign:   FBytecode.Emit(opBitAnd);
+          tkBitOrAssign:    FBytecode.Emit(opBitOr);
+          tkBitXorAssign:   FBytecode.Emit(opBitXor);
+          tkShiftLeftAssign: FBytecode.Emit(opShl);
+          tkShiftRightAssign: FBytecode.Emit(opShr);
+          tkShiftRightUnsignedAssign: FBytecode.Emit(opSar);
         end;
 
         if locIdx >= 0 then
@@ -1844,6 +1850,12 @@ begin
           tkDivideAssign:   FBytecode.Emit(opDiv);
           tkModuloAssign:   FBytecode.Emit(opMod);
           tkPowerAssign:    FBytecode.Emit(opPower);
+          tkBitAndAssign:   FBytecode.Emit(opBitAnd);
+          tkBitOrAssign:    FBytecode.Emit(opBitOr);
+          tkBitXorAssign:   FBytecode.Emit(opBitXor);
+          tkShiftLeftAssign: FBytecode.Emit(opShl);
+          tkShiftRightAssign: FBytecode.Emit(opShr);
+          tkShiftRightUnsignedAssign: FBytecode.Emit(opSar);
         end;
         FBytecode.Emit(opStoreEnv, nameIdx, AAssign.Line);
       end
@@ -1890,6 +1902,12 @@ begin
           tkDivideAssign:   FBytecode.Emit(opDiv);
           tkModuloAssign:   FBytecode.Emit(opMod);
           tkPowerAssign:    FBytecode.Emit(opPower);
+          tkBitAndAssign:   FBytecode.Emit(opBitAnd);
+          tkBitOrAssign:    FBytecode.Emit(opBitOr);
+          tkBitXorAssign:   FBytecode.Emit(opBitXor);
+          tkShiftLeftAssign: FBytecode.Emit(opShl);
+          tkShiftRightAssign: FBytecode.Emit(opShr);
+          tkShiftRightUnsignedAssign: FBytecode.Emit(opSar);
         end;
         FBytecode.Emit(opSetProp, 0, AAssign.Line);
       end
@@ -1928,6 +1946,12 @@ begin
           tkDivideAssign:   FBytecode.Emit(opDiv);
           tkModuloAssign:   FBytecode.Emit(opMod);
           tkPowerAssign:    FBytecode.Emit(opPower);
+          tkBitAndAssign:   FBytecode.Emit(opBitAnd);
+          tkBitOrAssign:    FBytecode.Emit(opBitOr);
+          tkBitXorAssign:   FBytecode.Emit(opBitXor);
+          tkShiftLeftAssign: FBytecode.Emit(opShl);
+          tkShiftRightAssign: FBytecode.Emit(opShr);
+          tkShiftRightUnsignedAssign: FBytecode.Emit(opSar);
         end;
         FBytecode.Emit(opSetPropNamed, nameIdx, AAssign.Line);
       end

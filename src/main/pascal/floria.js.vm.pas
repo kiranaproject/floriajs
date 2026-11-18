@@ -2353,6 +2353,12 @@ begin
                 { `new String(value)` boxes the primitive instead of returning
                   the generic object created above. }
                 Push(JSMakeObject(FHeap.NewStringObject(protoObj, resVal.StrVal)))
+              else if (fn.IntrinsicName = 'Number') and resVal.IsNumber() then
+                { `new Number(value)` boxes the primitive so valueOf and
+                  toString can recover it. }
+                Push(JSMakeObject(FHeap.NewNumberObject(protoObj, resVal.NumVal)))
+              else if (fn.IntrinsicName = 'Boolean') and resVal.IsBoolean() then
+                Push(JSMakeObject(FHeap.NewBooleanObject(protoObj, resVal.ToBoolean())))
               else
                 Push(objVal);
             end

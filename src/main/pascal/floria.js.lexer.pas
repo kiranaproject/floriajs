@@ -139,6 +139,12 @@ type
     tkShiftLeft,      { << }
     tkShiftRight,     { >> }
     tkShiftRightUnsigned, { >>> }
+    tkBitAndAssign,   { &= }
+    tkBitOrAssign,    { |= }
+    tkBitXorAssign,   { ^= }
+    tkShiftLeftAssign, { <<= }
+    tkShiftRightAssign, { >>= }
+    tkShiftRightUnsignedAssign, { >>>= }
 
     { Arrow }
     tkArrow           { => }
@@ -1128,7 +1134,11 @@ begin
       '<':
       begin
         if MatchChar('<') then
-          Exit(MakeToken(tkShiftLeft, '<<', startLine, startCol, startPos))
+        begin
+          if MatchChar('=') then
+            Exit(MakeToken(tkShiftLeftAssign, '<<=', startLine, startCol, startPos));
+          Exit(MakeToken(tkShiftLeft, '<<', startLine, startCol, startPos));
+        end
         else if MatchChar('=') then
           Exit(MakeToken(tkLessEqual, '<=', startLine, startCol, startPos))
         else
@@ -1140,7 +1150,13 @@ begin
         if MatchChar('>') then
         begin
           if MatchChar('>') then
-            Exit(MakeToken(tkShiftRightUnsigned, '>>>', startLine, startCol, startPos))
+          begin
+            if MatchChar('=') then
+              Exit(MakeToken(tkShiftRightUnsignedAssign, '>>>=', startLine, startCol, startPos));
+            Exit(MakeToken(tkShiftRightUnsigned, '>>>', startLine, startCol, startPos));
+          end
+          else if MatchChar('=') then
+            Exit(MakeToken(tkShiftRightAssign, '>>=', startLine, startCol, startPos))
           else
             Exit(MakeToken(tkShiftRight, '>>', startLine, startCol, startPos));
         end
@@ -1158,6 +1174,8 @@ begin
             Exit(MakeToken(tkAndAssign, '&&=', startLine, startCol, startPos));
           Exit(MakeToken(tkAnd, '&&', startLine, startCol, startPos));
         end
+        else if MatchChar('=') then
+          Exit(MakeToken(tkBitAndAssign, '&=', startLine, startCol, startPos))
         else
           Exit(MakeToken(tkBitAnd, '&', startLine, startCol, startPos));
       end;
@@ -1170,12 +1188,19 @@ begin
             Exit(MakeToken(tkOrAssign, '||=', startLine, startCol, startPos));
           Exit(MakeToken(tkOr, '||', startLine, startCol, startPos));
         end
+        else if MatchChar('=') then
+          Exit(MakeToken(tkBitOrAssign, '|=', startLine, startCol, startPos))
         else
           Exit(MakeToken(tkBitOr, '|', startLine, startCol, startPos));
       end;
 
       '^':
-        Exit(MakeToken(tkBitXor, '^', startLine, startCol, startPos));
+      begin
+        if MatchChar('=') then
+          Exit(MakeToken(tkBitXorAssign, '^=', startLine, startCol, startPos))
+        else
+          Exit(MakeToken(tkBitXor, '^', startLine, startCol, startPos));
+      end;
 
     else
       Exit(MakeError('Unexpected character: ''' + c + '''', startLine, startCol, startPos));
@@ -1298,6 +1323,12 @@ begin
     tkShiftLeft:      Result := '<<';
     tkShiftRight:     Result := '>>';
     tkShiftRightUnsigned: Result := '>>>';
+    tkBitAndAssign:   Result := '&=';
+    tkBitOrAssign:    Result := '|=';
+    tkBitXorAssign:   Result := '^=';
+    tkShiftLeftAssign: Result := '<<=';
+    tkShiftRightAssign: Result := '>>=';
+    tkShiftRightUnsignedAssign: Result := '>>>=';
     tkArrow:          Result := '=>';
   else
     Result := 'Unknown';

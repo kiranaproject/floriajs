@@ -85,7 +85,7 @@ new Error("boom");   // SyntaxError: Illegal newline after throw
 
 | Group | Operators |
 | :--- | :--- |
-| Assignment | `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `??=` |
+| Assignment | `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `??=`, `&=`, `\|=`, `^=`, `<<=`, `>>=`, `>>>=` |
 | Logical assignment | `&&=`, `\|\|=`, including short-circuiting: the right-hand side is not evaluated when the assignment is skipped |
 | Conditional | `? :` (right-associative chains work) |
 | Nullish | `??` |
@@ -150,7 +150,7 @@ matching and byte-level lexer storage still use UTF-8 internally.
 | Name | Notes |
 | :--- | :--- |
 | `undefined`, `NaN`, `Infinity` | Standard values. |
-| `parseInt`, `parseFloat`, `isNaN`, `isFinite` | `parseInt` honours the radix and `0x` prefixes; `parseFloat` accepts a numeric prefix. |
+| `parseInt`, `parseFloat`, `isNaN`, `isFinite` | Arguments go through the full ToString path (including `valueOf`/`toString`), so a boxed Number or a custom `toString` is honoured. `parseInt` honours the radix and `0x` prefixes and keeps accumulating past 2^63 as a Number; `parseFloat` scans the longest valid `StrDecimalLiteral` prefix. Both trim the ECMAScript whitespace set. |
 | `Number`, `String`, `Boolean` | Conversion functions (called with or without `new`). Number conversion and formatting are ECMAScript-exact: `String(x)` produces the shortest decimal that round-trips, and `Number(s)` produces the nearest double. |
 | `Number.isNaN`, `isFinite`, `isInteger`, `parseInt`, `parseFloat` | Plus `NaN`, `POSITIVE_INFINITY`, `NEGATIVE_INFINITY`, `MAX_VALUE`, `MIN_VALUE`, `MAX_SAFE_INTEGER`, `MIN_SAFE_INTEGER`, `EPSILON`. |
 | `Array` | Constructor plus `isArray`, `from`, `of`. |
@@ -158,7 +158,7 @@ matching and byte-level lexer storage still use UTF-8 internally.
 | `JSON` | `stringify` and `parse` (see below). |
 | `Math` | See below. |
 | `Promise` | Constructor: `new Promise(executor)` runs the executor synchronously with `resolve`/`reject` callbacks (first settlement wins; a throw rejects). Plus `resolve`, `reject`, `all`, `race`. |
-| `Error`, `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError` | Constructors returning error objects with standard prototype chains, `name`, `message`, and `toString()`. |
+| `Error`, `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError`, `URIError` | Constructors returning error objects with standard prototype chains, `name`, `message`, and `toString()`. `message` is an own non-enumerable property only when supplied; a Symbol message throws `TypeError`; `new Error(msg, { cause })` installs a non-enumerable `cause`. |
 | `console` | `log`, `warn`, `error`. Output is captured per context. |
 | `globalThis` | The live global object. Global `var`/function bindings are its properties, and property writes through it update the globals. Global lexical `let`/`const` bindings are not properties. |
 | `arguments` | Available inside user functions; an `Array`. |
@@ -166,7 +166,7 @@ matching and byte-level lexer storage still use UTF-8 internally.
 | `Date` | Date/time object (see below). |
 | `Symbol` | Primitive symbols, registry, and well-known symbols. |
 | `RegExp` | Regular-expression constructor and regex literals. |
-| `URIError`, `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI` | URI helpers. |
+| `URIError`, `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI` | URI helpers. Arguments go through ToString; encoding emits UTF-8 percent escapes for astral code points; decoding validates the byte sequence (overlong forms, surrogate halves, and out-of-range code points raise `URIError`). `decodeURI` keeps reserved characters escaped and preserves the source spelling. |
 | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | Host timers. They require the owner context to pump timers (`Ctx.PumpTimers()` or the compatibility helper `FloriaJSProcessTimers(Ctx.Heap)`). |
 | `BigInt` | Conversion function. `new BigInt()` throws; it is not a constructor. |
 | `Intl` and `alert` | Not defined. Reading them throws `ReferenceError`; only `typeof` yields `undefined`. |
@@ -199,7 +199,8 @@ properties. `hasOwnProperty`, `in`, `Object.keys`/`values`/`entries`, and
 Hole-skipping methods (`map`, `forEach`, `filter`, `some`, `every`, `reduce`,
 `reduceRight`, `indexOf`, `lastIndexOf`) skip holes while `map` preserves them
 in its result; `sort` moves holes to the end; `join`/`toString` render them as
-empty text; `JSON.stringify` emits `null`; spread materialises holes as
+empty text unless the prototype chain supplies a value for that index;
+`JSON.stringify` emits `null`; spread materialises holes as
 explicit `undefined`. `length = n` extends with holes or truncates the array,
 and invalid lengths raise `RangeError`.
 
@@ -347,7 +348,14 @@ A bound function is a function object of its own, as in ECMAScript:
 
 `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, and `decodeURI` are
 available, along with `URIError`. Invalid percent-encoding raises a catchable
-`URIError`.
+`URIError`, and so do overlong forms, encoded surrogate halves, truncated
+sequences, and code points above U+10FFFF. Encoding a lone surrogate raises
+`URIError`, as the spec requires.
+
+Strings are stored as UTF-8, so an unpaired surrogate cannot be represented:
+`String.fromCharCode(0xD800)` produces the empty string and the noncharacters
+U+FFFE/U+FFFF decode as `?`. Tests that require those code points are excluded
+from the focused corpus.
 
 ### Timers
 
@@ -475,7 +483,10 @@ assignment operator, including plain `=`.
 - `new Error(msg)`, `new TypeError(msg)`, `new RangeError(msg)`,
   `new ReferenceError(msg)`, `new SyntaxError(msg)`, and `URIError(...)`
   create error objects with `name`, `message`, and `ToString()` =
-  `Name: message`.
+  `Name: message`. The message argument goes through ToString, so an object
+  with a custom `toString` contributes its own text. `message` is an own
+  non-enumerable property only when supplied, and `new Error(msg, { cause })`
+  installs a non-enumerable `cause`.
 - Error objects have proper prototype chains: `err instanceof TypeError`,
   `err.hasOwnProperty(...)`, and inherited `toString()` work.
 - The VM throws catchable `TypeError`/`RangeError` objects for property access
@@ -547,7 +558,7 @@ work.
 | `this` | Top-level `this` is the global object. A plain call of a non-strict function receives the global object; a strict function keeps `this === undefined`. Methods, `new`, and lexical `this` in arrows behave normally. |
 | Detached `prototype.constructor` | `Foo.prototype.constructor === Foo` works, but the back-reference is a weak registration. After `var p = Foo.prototype; Foo.prototype = {}`, `p.constructor` is `Object` rather than `Foo`. |
 | Modules | Static relative `import`/`export` declarations are lowered into a diagnostic bundle with module-scoped function bodies. Exports are live getters, named imports are rewritten to live property reads, star-export cycles are supported, and exported `let`/`const` keep their TDZ. Specifiers must be relative; `import.meta`, dynamic import for relative specifiers, and JSON import attributes are supported. Text modules are supported; full module records are not implemented. |
-| Proxy | `new Proxy` and `Proxy.revocable` support `get`, `set`, `has`, `deleteProperty`, `ownKeys`, `getOwnPropertyDescriptor`, `apply`, and `construct` traps with the main property invariants. The `with`-statement invariant test remains unsupported. |
+| Proxy | `new Proxy` and `Proxy.revocable` support `get`, `set`, `has`, `deleteProperty`, `ownKeys`, `getOwnPropertyDescriptor`, `apply`, and `construct` traps with the main property invariants, including the `has`-with-`with` rule for non-extensible targets. |
 | Realms | `$262.createRealm()` in the diagnostic host creates a genuinely separate context with its own heap, global object, intrinsics, timers, and output. Cross-realm intrinsic selection works for the supported constructors and array species. |
 
 TDZ hoisting is implemented for program bodies, ordinary blocks, function

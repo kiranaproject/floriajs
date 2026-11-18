@@ -294,7 +294,9 @@ begin
     tkComma:
       Result := PREC_COMMA;
     tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
-    tkPowerAssign, tkNullishAssign, tkAndAssign, tkOrAssign, tkArrow:
+    tkPowerAssign, tkNullishAssign, tkAndAssign, tkOrAssign,
+    tkBitAndAssign, tkBitOrAssign, tkBitXorAssign,
+    tkShiftLeftAssign, tkShiftRightAssign, tkShiftRightUnsignedAssign, tkArrow:
       Result := PREC_ASSIGNMENT;
     tkQuestion:
       Result := PREC_CONDITIONAL;
@@ -1393,7 +1395,9 @@ begin
 
       { Assignment Operators: =, +=, -=, *=, /=, %=, **=, ??=, &&=, ||= }
       tkAssign, tkPlusAssign, tkMinusAssign, tkMultiplyAssign, tkDivideAssign, tkModuloAssign,
-      tkPowerAssign, tkNullishAssign, tkAndAssign, tkOrAssign:
+      tkPowerAssign, tkNullishAssign, tkAndAssign, tkOrAssign,
+      tkBitAndAssign, tkBitOrAssign, tkBitXorAssign,
+      tkShiftLeftAssign, tkShiftRightAssign, tkShiftRightUnsignedAssign:
       begin
         if IsOptionalChainTarget(left) then
           ErrorAtCurrent('Invalid left-hand side in assignment');

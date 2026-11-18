@@ -41,6 +41,18 @@ implementation
 var
   GLogOutput: TStrings = nil;
 
+{ Registers a global built-in function: not a constructor, no `prototype`
+  property, a fixed `length`, and a non-enumerable global property. }
+function RegisterGlobalFunction(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap;
+  const AName: string; AProc: TFloriaJSNativeProc; ALength: Integer): TFloriaJSFunction;
+begin
+  Result := AHeap.NewNativeFunction(AName, AProc);
+  Result.NotConstructable := True;
+  Result.SuppressPrototype := True;
+  Result.LengthOverride := ALength;
+  AEnv.DefineBuiltin(AName, JSMakeFunction(Result));
+end;
+
 function JoinArgs(const AArgs: array of TFloriaJSValue): string;
 var
   sb: TStringBuilder;
@@ -544,15 +556,18 @@ end;
 function JSStringFromCharCode(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   i, code: Integer;
-  sb: string;
+  units: UnicodeString;
 begin
-  sb := '';
+  { Build the whole UTF-16 sequence before encoding, so an adjacent
+    high/low surrogate pair becomes one astral code point. Encoding each
+    unit separately would drop both halves. }
+  SetLength(units, Length(AArgs));
   for i := 0 to Length(AArgs) - 1 do
   begin
     code := Trunc(AArgs[i].ToNumber()) and $FFFF;
-    sb := sb + JSUTF16FromCharCode(LongWord(code));
+    units[i + 1] := WideChar(code);
   end;
-  Result := JSMakeString(sb);
+  Result := JSMakeString(UTF8Encode(units));
 end;
 
 { `String.fromCodePoint(...points)` — builds a string from Unicode code points,
@@ -581,13 +596,13 @@ var
   radix: Integer;
   i: Integer;
   sign: Integer;
-  n: Int64;
+  n: Double;
   c: Char;
   digit: Integer;
   hasDigits: Boolean;
 begin
   if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
-  s := Trim(AArgs[0].ToString());
+  s := JSTrimWhitespace(JSToString(AArgs[0]));
   if s = '' then Exit(JSMakeNumber(NaN));
 
   sign := 1;
@@ -622,7 +637,9 @@ begin
   if (radix < 2) or (radix > 36) then
     Exit(JSMakeNumber(NaN));
 
-  n := 0;
+  { Accumulate as a Double: an Int64 overflows past 2^63, and the result is a
+    Number anyway. Integers up to 2^53 stay exact. }
+  n := 0.0;
   hasDigits := False;
   while i <= Length(s) do
   begin
@@ -645,79 +662,73 @@ begin
   if not hasDigits then
     Exit(JSMakeNumber(NaN));
 
-  Result := JSMakeNumber(Double(sign) * Double(n));
+  Result := JSMakeNumber(sign * n);
 end;
 
 function JSParseFloat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   s, part: string;
   d: Double;
-  code: Integer;
-  i: Integer;
-  c: Char;
+  i, j: Integer;
+  hasInt, hasFrac: Boolean;
 begin
   if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
-  s := Trim(AArgs[0].ToString());
+  s := JSTrimWhitespace(JSToString(AArgs[0]));
   if s = '' then Exit(JSMakeNumber(NaN));
-  if (s = 'Infinity') or (s = '+Infinity') then Exit(JSMakeNumber(Infinity));
-  if s = '-Infinity' then Exit(JSMakeNumber(-Infinity));
-  if (s = 'NaN') or (s = '+NaN') or (s = '-NaN') then Exit(JSMakeNumber(NaN));
 
-  part := '';
   i := 1;
-  if s[1] = '+' then
-    Inc(i)
-  else if s[1] = '-' then
+  if (i <= Length(s)) and ((s[i] = '+') or (s[i] = '-')) then
+    Inc(i);
+
+  { Infinity is a complete StrDecimalLiteral. }
+  if Copy(s, i, 8) = 'Infinity' then
   begin
-    part := '-';
+    if s[1] = '-' then
+      Exit(JSMakeNumber(-Infinity));
+    Exit(JSMakeNumber(Infinity));
+  end;
+
+  { Scan the longest prefix that is a StrDecimalLiteral: digits, an optional
+    fraction, and an optional exponent whose digits are present. }
+  hasInt := False;
+  while (i <= Length(s)) and (s[i] >= '0') and (s[i] <= '9') do
+  begin
+    hasInt := True;
     Inc(i);
   end;
 
-  while i <= Length(s) do
+  hasFrac := False;
+  if (i <= Length(s)) and (s[i] = '.') then
   begin
-    c := s[i];
-    if (c >= '0') and (c <= '9') then
+    Inc(i);
+    while (i <= Length(s)) and (s[i] >= '0') and (s[i] <= '9') do
     begin
-      part := part + c;
+      hasFrac := True;
       Inc(i);
-      Continue;
     end;
-    if (c = '.') then
-    begin
-      part := part + c;
-      Inc(i);
-      Continue;
-    end;
-    if ((c = 'e') or (c = 'E')) then
-    begin
-      part := part + c;
-      Inc(i);
-      if (i <= Length(s)) and ((s[i] = '+') or (s[i] = '-')) then
-      begin
-        part := part + s[i];
-        Inc(i);
-      end;
-      Continue;
-    end;
-    Break;
   end;
 
-  if (part = '') or (part = '-') or (part = '.') or (part = '-.') then
+  if not (hasInt or hasFrac) then
     Exit(JSMakeNumber(NaN));
-  if (part[Length(part)] = '.') then
+
+  if (i <= Length(s)) and ((s[i] = 'e') or (s[i] = 'E')) then
   begin
-    { keep as is? or strip? try to parse }
+    j := i + 1;
+    if (j <= Length(s)) and ((s[j] = '+') or (s[j] = '-')) then
+      Inc(j);
+    if (j <= Length(s)) and (s[j] >= '0') and (s[j] <= '9') then
+    begin
+      while (j <= Length(s)) and (s[j] >= '0') and (s[j] <= '9') do
+        Inc(j);
+      i := j;
+    end;
   end;
 
-  try
-    Val(part, d, code);
-    if code = 0 then
-      Result := JSMakeNumber(d)
-    else
-      Result := JSMakeNumber(NaN);
-  except
+  part := Copy(s, 1, i - 1);
+  if JSTryStrToNumber(part, d) then
+    Result := JSMakeNumber(d)
+  else
     Result := JSMakeNumber(NaN);
-  end;
 end;
 
 function JSIsNaN(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -757,7 +768,7 @@ end;
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
-  promiseCtor, bigIntFn, methodFn: TFloriaJSFunction;
+  promiseCtor, bigIntFn, methodFn, booleanObj: TFloriaJSFunction;
   numberObj, stringObj, funcObj, evalObj: TFloriaJSFunction;
   errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
   i: Integer;
@@ -858,38 +869,44 @@ begin
 
   // 4. Error
   errCtor := AHeap.NewNativeMethod('Error', @AHeap.ErrorCtor);
+  errCtor.LengthOverride := 1;
   errCtor.IntrinsicName := 'Error';
-  errCtor.SetProperty('prototype', JSMakeObject(AHeap.GetErrorPrototype()));
+  errCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetErrorPrototype()), False, False, False);
   AHeap.GetErrorPrototype().SetProperty('constructor', JSMakeFunction(errCtor));
-  AEnv.Define('Error', JSMakeFunction(errCtor));
+  AEnv.DefineBuiltin('Error', JSMakeFunction(errCtor));
 
   typeErrCtor := AHeap.NewNativeMethod('TypeError', @AHeap.TypeErrorCtor);
+  typeErrCtor.LengthOverride := 1;
   typeErrCtor.IntrinsicName := 'TypeError';
-  typeErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetTypeErrorPrototype()));
+  typeErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetTypeErrorPrototype()), False, False, False);
   AHeap.GetTypeErrorPrototype().SetProperty('constructor', JSMakeFunction(typeErrCtor));
-  AEnv.Define('TypeError', JSMakeFunction(typeErrCtor));
+  AEnv.DefineBuiltin('TypeError', JSMakeFunction(typeErrCtor));
 
   rangeErrCtor := AHeap.NewNativeMethod('RangeError', @AHeap.RangeErrorCtor);
+  rangeErrCtor.LengthOverride := 1;
   rangeErrCtor.IntrinsicName := 'RangeError';
-  rangeErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetRangeErrorPrototype()));
+  rangeErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetRangeErrorPrototype()), False, False, False);
   AHeap.GetRangeErrorPrototype().SetProperty('constructor', JSMakeFunction(rangeErrCtor));
-  AEnv.Define('RangeError', JSMakeFunction(rangeErrCtor));
+  AEnv.DefineBuiltin('RangeError', JSMakeFunction(rangeErrCtor));
 
   refErrCtor := AHeap.NewNativeMethod('ReferenceError', @AHeap.ReferenceErrorCtor);
+  refErrCtor.LengthOverride := 1;
   refErrCtor.IntrinsicName := 'ReferenceError';
-  refErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetReferenceErrorPrototype()));
+  refErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetReferenceErrorPrototype()), False, False, False);
   AHeap.GetReferenceErrorPrototype().SetProperty('constructor', JSMakeFunction(refErrCtor));
-  AEnv.Define('ReferenceError', JSMakeFunction(refErrCtor));
+  AEnv.DefineBuiltin('ReferenceError', JSMakeFunction(refErrCtor));
 
   syntaxErrCtor := AHeap.NewNativeMethod('SyntaxError', @AHeap.SyntaxErrorCtor);
+  syntaxErrCtor.LengthOverride := 1;
   syntaxErrCtor.IntrinsicName := 'SyntaxError';
-  syntaxErrCtor.SetProperty('prototype', JSMakeObject(AHeap.GetSyntaxErrorPrototype()));
+  syntaxErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetSyntaxErrorPrototype()), False, False, False);
   AHeap.GetSyntaxErrorPrototype().SetProperty('constructor', JSMakeFunction(syntaxErrCtor));
-  AEnv.Define('SyntaxError', JSMakeFunction(syntaxErrCtor));
+  AEnv.DefineBuiltin('SyntaxError', JSMakeFunction(syntaxErrCtor));
 
   // 4b. Function
   funcObj := AHeap.NewNativeFunction('Function', @JSFunctionCtor);
   funcObj.IntrinsicName := 'Function';
+  funcObj.LengthOverride := 1;
   funcObj.SetProperty('prototype', JSMakeObject(AHeap.GetFunctionPrototype()));
   AHeap.GetFunctionPrototype().SetProperty('constructor', JSMakeFunction(funcObj));
   AEnv.Define('Function', JSMakeFunction(funcObj));
@@ -899,8 +916,8 @@ begin
   AEnv.Define('eval', JSMakeFunction(evalObj));
 
   // 5. Global Functions
-  AEnv.Define('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));
-  AEnv.Define('parseFloat', JSMakeFunction(AHeap.NewNativeFunction('parseFloat', @JSParseFloat)));
+  RegisterGlobalFunction(AEnv, AHeap, 'parseInt', @JSParseInt, 2);
+  RegisterGlobalFunction(AEnv, AHeap, 'parseFloat', @JSParseFloat, 1);
   AEnv.Define('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSIsNaN)));
   AEnv.Define('isFinite', JSMakeFunction(AHeap.NewNativeFunction('isFinite', @JSIsFinite)));
   AEnv.Define('NaN', JSMakeNumber(NaN));
@@ -941,7 +958,12 @@ begin
   stringObj.SetProperty('fromCharCode', JSMakeFunction(AHeap.NewNativeFunction('fromCharCode', @JSStringFromCharCode)));
   stringObj.SetProperty('fromCodePoint', JSMakeFunction(AHeap.NewNativeFunction('fromCodePoint', @JSStringFromCodePoint)));
   AEnv.Define('String', JSMakeFunction(stringObj));
-  AEnv.Define('Boolean', JSMakeFunction(AHeap.NewNativeFunction('Boolean', @JSBooleanConst)));
+  booleanObj := AHeap.NewNativeFunction('Boolean', @JSBooleanConst);
+  booleanObj.IntrinsicName := 'Boolean';
+  booleanObj.LengthOverride := 1;
+  booleanObj.SetProperty('prototype', JSMakeObject(AHeap.GetBooleanPrototype()));
+  AHeap.GetBooleanPrototype().SetProperty('constructor', JSMakeFunction(booleanObj));
+  AEnv.DefineBuiltin('Boolean', JSMakeFunction(booleanObj));
 
   // 7. Advanced Globals & Collections (Priority 3)
   FloriaJSRegisterSymbol(AEnv, AHeap);

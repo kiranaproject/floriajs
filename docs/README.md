@@ -68,6 +68,9 @@ Implemented and covered by the test suite:
   `freeze`/`seal`/`fromEntries`, `Array.flat`/`flatMap`/`fill`/`copyWithin`/
   `at`/`keys`/`entries`, `String.fromCharCode`/`fromCodePoint`/`normalize`/
   `localeCompare`, Date component setters, and symbol-keyed properties.
+- Coercion: `join`, `parseInt`/`parseFloat`, the URI helpers, and `Error`
+  messages all convert through ToString; bitwise and shift compound
+  assignments (`&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`) are supported.
 - Functions: declarations, function expressions, arrow functions (including
   lexical `this`), closures, recursion, `async`/`await`, `new` and `this`,
   default/rest parameters, and destructured parameters.

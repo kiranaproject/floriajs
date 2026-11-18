@@ -356,6 +356,7 @@ type
     procedure TestCompactValueRepresentation();
     procedure TestInlinePropertyCaches();
     procedure TestLibraryAndIterationGaps();
+    procedure TestCoercionCompleteness();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7585,6 +7586,58 @@ begin
     res := engine.Execute('try { "x".normalize("bad"); ""; } catch (e) { e.name; }');
     AssertTrue('normalize form validation script succeeds', res.Success);
     AssertEquals('invalid normalization form is a RangeError', 'RangeError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestCoercionCompleteness();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var o = { toString: function() { return "custom"; } };' +
+      'var joined = [o].join(",");' +
+      'var parsed = parseInt({ toString: function() { return "42"; } });' +
+      'var encoded = encodeURIComponent(o);' +
+      'var errMsg = new Error(o).message;' +
+      'var generic = (function() { var x = {}; x.join = Array.prototype.join;' +
+      '  x.length = 2; x[0] = "a"; return x.join("-"); })();' +
+      'var boxed = parseFloat(new Number(-1.5));' +
+      'var boolRadix = parseInt("11", new Boolean(true));' +
+      'var uri = decodeURIComponent("%C3%A9") === "\u00E9";' +
+      'var uriKeep = decodeURI("%3b") === "%3b";' +
+      'var cause = (function() { var e = new Error("m", { cause: 7 });' +
+      '  return e.cause; })();' +
+      'var errStr = new Error().toString();' +
+      '[joined, parsed, encoded, errMsg, generic, boxed, String(boolRadix),' +
+      ' uri, uriKeep, cause, errStr].join("|");'
+    );
+    AssertTrue('coercion completeness script succeeds', res.Success);
+    AssertEquals('join, parseInt, encodeURIComponent, Error message, generic join, boxed Number, Boolean radix, URI decode, Error cause, Error toString',
+      'custom|42|custom|custom|a-|-1.5|NaN|true|true|7|Error',
+      res.StringValue);
+
+    res := engine.Execute(
+      'var a = 8; a >>>= 1;' +
+      'var b = 8; b >>= 1;' +
+      'var c = 1; c <<= 3;' +
+      'var d = 6; d &= 3;' +
+      'var e = 6; e |= 1;' +
+      'var f = 6; f ^= 3;' +
+      'var g = -8; g >>= 1;' +
+      'var h = -8; h >>>= 1;' +
+      '[a, b, c, d, e, f, g, h].join(",");'
+    );
+    AssertTrue('bitwise compound assignment script succeeds', res.Success);
+    AssertEquals('bitwise and shift compound assignments', '4,4,8,2,7,5,-4,2147483644', res.StringValue);
+
+    res := engine.Execute('try { new Error(Symbol("x")); ""; } catch (e) { e.name; }');
+    AssertTrue('symbol Error message script succeeds', res.Success);
+    AssertEquals('a Symbol Error message throws TypeError', 'TypeError', res.StringValue);
   finally
     engine.Free();
   end;

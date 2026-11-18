@@ -97,8 +97,8 @@ type
     opBitOr,             // a | b
     opBitXor,            // a ^ b
     opShl,               // a << b
-    opShr,               // a >> b (logical)
-    opSar,               // a >>> b (arithmetic)
+    opShr,               // a >> b (arithmetic, sign-propagating)
+    opSar,               // a >>> b (logical, zero-filling)
 
     // Comparisons
     opEq,                // a == b
