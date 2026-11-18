@@ -2491,6 +2491,12 @@ begin
               for i := 0 to objVal.AsObject().GetPropertyCount() - 1 do
                 arrObj.Push(JSMakeString(objVal.AsObject().GetPropertyKey(i)));
             end
+            else if objVal.IsString() then
+            begin
+              { A string is array-like for for…in: its indices are enumerable. }
+              for i := 0 to JSUTF16Length(objVal.StrVal) - 1 do
+                arrObj.Push(JSMakeString(IntToStr(i)));
+            end
             else if objVal.IsObject() and (objVal.ObjVal <> nil) then
             begin
               keysList := TStringList.Create();

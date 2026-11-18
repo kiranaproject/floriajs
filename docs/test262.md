@@ -2,7 +2,7 @@
 
 FloriaJS implements a practical JavaScript subset for embedded scripts and FTML handlers; it is **not currently a conforming ECMAScript implementation**. The work in `test262/` is intended to measure compatibility, not to claim full Test262 support.
 
-## Current status: Phase 13 and P3 complete
+## Current status: Phase 13, P3, and library-gap work complete
 
 Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the recorded curated gaps for boxed String objects, Promise.all microtask ordering, Proxy `has` fallback, and large array indices. Phase 13 adds direct and indirect `eval`, Unicode whitespace handling, and CR line-terminator tracking; the curated corpus now passes completely. This is still a diagnostic adapter, not a conformance certification. In particular:
 
@@ -471,7 +471,28 @@ Validation at the end of P3: **281 FPCUnit tests**, **90 documentation claims**,
 curated corpus **354 records — 354 pass**, extended diagnostic **742 records —
 742 pass**.
 
+## Library and iteration gap closure
+
+The following previously documented gaps are closed:
+
+- `Array.prototype.keys` and `entries` return iterator objects over the
+  receiver's indices and `[index, value]` pairs.
+- `Object.fromEntries` accepts any iterable of entry objects, including `Map`.
+- `for…in` accepts a destructuring target and enumerates string indices.
+- Object spread from an array copies its present element indices.
+- `String.prototype.normalize` supports NFC, NFD, NFKC, and NFKD using generated
+  Unicode tables.
+- `String.prototype.localeCompare` compares canonically equivalent strings as
+  equal, using deterministic code-point order rather than locale collation.
+
+Along the way, iterator teardown, `\xNN` and legacy-octal escapes above 0x7F,
+and native-method constructability and `length` metadata were corrected.
+
+Focused corpus: `config/library-gaps-tests.txt` — **90 records, all pass**.
+Validation: **282 FPCUnit tests**, **90 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **832 records — 832 pass**.
+
 ## Next phase
 
 Phase 10, Phase 11, Phase 12, and Phase 13 are complete, as is the P3 performance
-work. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+work and the library/iteration gap closure. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

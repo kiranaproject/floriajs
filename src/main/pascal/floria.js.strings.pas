@@ -18,7 +18,8 @@ unit floria.js.strings;
 interface
 
 uses
-  Classes, SysUtils, Math, StrUtils, floria.js.types, floria.js.value, floria.js.regexp, floria.js.utf16;
+  Classes, SysUtils, Math, StrUtils, floria.js.types, floria.js.value,
+  floria.js.regexp, floria.js.utf16, floria.js.unicode;
 
 procedure FloriaJSRegisterString(AHeap: TFloriaJSHeap);
 
@@ -62,6 +63,8 @@ type
     function PadStart(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function PadEnd(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function ToStringValue(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function Normalize(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function LocaleCompare(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
   end;
 
 function ThisString(const AThis: TFloriaJSValue): string;
@@ -642,16 +645,89 @@ begin
     'String.prototype.toString requires that this be a String')));
 end;
 
+function TFloriaJSStringHelper.Normalize(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  form: string;
+  unicodeForm: TFloriaJSUnicodeForm;
+  errorHeap: TFloriaJSHeap;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() or AThis.IsSymbol() then
+  begin
+    errorHeap := JSActiveRealmHeap();
+    if errorHeap = nil then errorHeap := FHeap;
+    raise EFloriaJSThrow.Create(JSMakeObject(errorHeap.NewError('TypeError',
+      'String.prototype.normalize requires that this be coercible to a string')));
+  end;
+  if (Length(AArgs) = 0) or AArgs[0].IsUndefined() then
+    form := 'NFC'
+  else
+  begin
+    if AArgs[0].IsSymbol() then
+    begin
+      errorHeap := JSActiveRealmHeap();
+      if errorHeap = nil then errorHeap := FHeap;
+      raise EFloriaJSThrow.Create(JSMakeObject(errorHeap.NewError('TypeError',
+        'Cannot convert a Symbol value to a string')));
+    end;
+    form := JSToString(AArgs[0]);
+  end;
+
+  if form = 'NFC' then
+    unicodeForm := ufNFC
+  else if form = 'NFD' then
+    unicodeForm := ufNFD
+  else if form = 'NFKC' then
+    unicodeForm := ufNFKC
+  else if form = 'NFKD' then
+    unicodeForm := ufNFKD
+  else
+  begin
+    errorHeap := JSActiveRealmHeap();
+    if errorHeap = nil then
+      errorHeap := FHeap;
+    raise EFloriaJSThrow.Create(JSMakeObject(errorHeap.NewError('RangeError',
+      'The normalization form should be one of NFC, NFD, NFKC, NFKD')));
+  end;
+
+  Result := JSMakeString(FloriaJSUnicodeNormalize(JSToString(AThis), unicodeForm));
+end;
+
+function TFloriaJSStringHelper.LocaleCompare(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  other: string;
+  errorHeap: TFloriaJSHeap;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() or AThis.IsSymbol() then
+  begin
+    errorHeap := JSActiveRealmHeap();
+    if errorHeap = nil then errorHeap := FHeap;
+    raise EFloriaJSThrow.Create(JSMakeObject(errorHeap.NewError('TypeError',
+      'String.prototype.localeCompare requires that this be coercible to a string')));
+  end;
+  if (Length(AArgs) = 0) or AArgs[0].IsUndefined() then
+    other := 'undefined'
+  else
+    other := JSToString(AArgs[0]);
+  Result := JSMakeNumber(FloriaJSUnicodeCompare(JSToString(AThis), other));
+end;
+
 procedure RegisterMethod(AHeap: TFloriaJSHeap; AProto: TFloriaJSObject;
   const AName: string; AMethod: TFloriaJSNativeMethod);
+var
+  fn: TFloriaJSFunction;
 begin
-  AProto.SetProperty(AName, JSMakeFunction(AHeap.NewNativeMethod(AName, AMethod)));
+  fn := AHeap.NewNativeMethod(AName, AMethod);
+  { A prototype method is not a constructor and has no `prototype` property. }
+  fn.NotConstructable := True;
+  fn.SuppressPrototype := True;
+  AProto.SetProperty(AName, JSMakeFunction(fn));
 end;
 
 procedure FloriaJSRegisterString(AHeap: TFloriaJSHeap);
 var
   helper: TFloriaJSStringHelper;
   proto: TFloriaJSObject;
+  methodFn: TFloriaJSFunction;
 begin
   if AHeap = nil then Exit;
 
@@ -683,6 +759,15 @@ begin
   RegisterMethod(AHeap, proto, 'repeat', @helper.RepeatString);
   RegisterMethod(AHeap, proto, 'padStart', @helper.PadStart);
   RegisterMethod(AHeap, proto, 'padEnd', @helper.PadEnd);
+  methodFn := AHeap.NewNativeMethod('normalize', @helper.Normalize);
+  methodFn.NotConstructable := True;
+  methodFn.SuppressPrototype := True;
+  proto.DefineDataProperty('normalize', JSMakeFunction(methodFn), True, False, True);
+  methodFn := AHeap.NewNativeMethod('localeCompare', @helper.LocaleCompare);
+  methodFn.NotConstructable := True;
+  methodFn.SuppressPrototype := True;
+  methodFn.LengthOverride := 1;
+  proto.DefineDataProperty('localeCompare', JSMakeFunction(methodFn), True, False, True);
   RegisterMethod(AHeap, proto, 'toString', @helper.ToStringValue);
   RegisterMethod(AHeap, proto, 'valueOf', @helper.ToStringValue);
 end;

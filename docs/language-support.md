@@ -21,7 +21,7 @@ them.
 | `while`, `do…while` | Yes | `break` / `continue`, including labels. |
 | Classic `for` | Yes | `var`/`let`/`const` initializers, multiple declarators, optional clauses. |
 | `for…of` | Yes | Follows the iteration protocol: arrays, strings, `Map`, `Set`, and any iterator object. Non-iterables throw `TypeError`. The target may be a plain identifier or a destructuring pattern (`for (const [k, v] of map)`). |
-| `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates the present element indices; holes are skipped. Target must be a plain identifier. |
+| `for…in` | Yes | Own and inherited keys of objects, skipping `Object.prototype`. On an array it enumerates the present element indices; holes are skipped. Strings enumerate their indices. The target may be a plain identifier or a destructuring pattern. |
 | `switch` / `case` / `default` | Yes | Strict equality, fall-through, `break`. |
 | `try` / `catch` / `finally` | Yes | Catch binding is optional; `finally` always runs. |
 | `throw` | Yes | Throws any value; caught as `EFloriaJSThrow` by the runtime. |
@@ -208,8 +208,8 @@ Array indices in `[0, 2^32 - 2]` extend `length`; very large sparse indices are
 stored in an overflow list instead of forcing a dense allocation. `length`
 accepts the full `2^32 - 1` boundary.
 
-Not implemented: `keys` and `entries`. `arr.toString()` returns comma-joined
-elements like `arr.join()`.
+`keys`, `entries`, and `values` return iterator objects. `arr.toString()`
+returns comma-joined elements like `arr.join()`.
 
 ### String
 
@@ -224,7 +224,9 @@ replacement templates are not supported. `match`/`search`/`split` work with
 regex patterns. `String.fromCharCode` and `String.fromCodePoint` build strings
 from code units and code points. `fromCharCode` treats each argument as a single code unit; `fromCodePoint` encodes an astral point as a surrogate pair.
 
-Not implemented: `localeCompare`, `normalize`.
+`normalize` supports NFC, NFD, NFKC, and NFKD. `localeCompare` uses
+deterministic code-point order after canonical decomposition; it is not
+locale-sensitive collation.
 
 `String.prototype` is the shared prototype used by primitive strings, so
 `String.prototype.charAt === "".charAt` is true. `new String(value)` creates a
@@ -269,7 +271,7 @@ A bound function is a function object of its own, as in ECMAScript:
 `isFrozen`, and `isSealed` are implemented; see
 [Built-in coverage](#built-in-coverage) for their exact semantics.
 
-Not implemented: `fromEntries`.
+`Object.fromEntries` accepts any iterable of `[key, value]` entries.
 
 ### JSON
 
@@ -382,9 +384,11 @@ Available beyond the earlier sections:
   `Object.defineProperty`, `Object.preventExtensions`/`isExtensible`,
   `Object.freeze`/`seal`/`isFrozen`/`isSealed`.
 - `Object.prototype.propertyIsEnumerable`.
-- `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, and `at`.
+- `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`, `entries`, and `values`.
 - `String.fromCharCode` and `String.fromCodePoint`. The latter encodes an
   astral code point as a surrogate pair, matching UTF-16 `length` and indexing.
+- `String.prototype.normalize` (NFC/NFD/NFKC/NFKD) and `localeCompare`
+  (deterministic code-point order, not locale collation).
 - `Number.prototype.toFixed`, `toPrecision`, and `toExponential`, all rounding
   the true binary value, so `(1.005).toFixed(2)` is `"1.00"` and
   `(0.1 + 0.2).toFixed(2)` is `"0.30"`.
@@ -523,9 +527,6 @@ work.
 
 | Area | Current behaviour |
 | :--- | :--- |
-| `Array.prototype.keys` / `entries` | Not implemented. `values()` and `Symbol.iterator` are. |
-| `Object.fromEntries` | Not implemented. `Object.entries` is. |
-| `String.prototype.localeCompare` / `normalize` | Not implemented. |
 | Function `toString` | Returns `function <name>() { [native code] }` for user functions too; the original source is not retained. |
 | `Intl` and `alert` | Not defined. Reading them throws `ReferenceError`. |
 
@@ -538,10 +539,9 @@ work.
 | `var` | Hoisted to function or script root. `let`/`const` are block-scoped. Cross-scope collisions raise `SyntaxError`. |
 | Classic `for` with `let`/`const` | Loop bindings are block-scoped and invisible after the loop. Each iteration gets a fresh binding, so closures capture per-iteration values; `var` loop bindings remain function/script scoped. |
 | `with` | Supported in sloppy mode; rejected as a `SyntaxError` in strict mode. Primitive objects are boxed. |
+| `localeCompare` | Uses deterministic Unicode code-point order after canonical decomposition; it is not locale-sensitive collation. |
+| `normalize` | Supports NFC, NFD, NFKC, and NFKD using generated Unicode tables. |
 | Loose equality | Objects are converted through `Symbol.toPrimitive` when present, otherwise `valueOf`/`toString`, for `+`, `==`, and relational operators. |
-| Object spread from an array | Copies no elements, because indices are not own object properties. Use array spread (`[...arr]`) for arrays. |
-| `for…in` targets | A destructuring target is parsed but its names are **not bound**, so using them raises `ReferenceError`. Use a simple identifier. `for…of` accepts both. |
-| `for…in` on strings | Produces no keys (strings are not objects). |
 | `for…of` on non-iterables | Throws `TypeError`. |
 | Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |
 | `this` | Top-level `this` is the global object. A plain call of a non-strict function receives the global object; a strict function keeps `this === undefined`. Methods, `new`, and lexical `this` in arrows behave normally. |

@@ -3493,21 +3493,26 @@ begin
     FBytecode.Emit(opPushEnv);
   end;
 
-  nameIdx := FBytecode.AddStringConstant(AForInOf.VarName);
-  if AForInOf.VarKind in [tkLet, tkConst] then
-  begin
-    case AForInOf.VarKind of
-      tkConst: FBytecode.Emit(opDefineConst, nameIdx, AForInOf.Line);
-      tkLet:   FBytecode.Emit(opDefineLet, nameIdx, AForInOf.Line);
-    end;
-  end
+  if AForInOf.Pattern <> nil then
+    CompileDestructuring(AForInOf.Pattern, AForInOf.VarKind)
   else
   begin
-    if IsSlotName(AForInOf.VarName) then
-      FBytecode.Emit(opStoreLoc, SlotIndex(AForInOf.VarName), AForInOf.Line)
+    nameIdx := FBytecode.AddStringConstant(AForInOf.VarName);
+    if AForInOf.VarKind in [tkLet, tkConst] then
+    begin
+      case AForInOf.VarKind of
+        tkConst: FBytecode.Emit(opDefineConst, nameIdx, AForInOf.Line);
+        tkLet:   FBytecode.Emit(opDefineLet, nameIdx, AForInOf.Line);
+      end;
+    end
     else
-      FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
-    FBytecode.Emit(opPop);
+    begin
+      if IsSlotName(AForInOf.VarName) then
+        FBytecode.Emit(opStoreLoc, SlotIndex(AForInOf.VarName), AForInOf.Line)
+      else
+        FBytecode.Emit(opStoreEnv, nameIdx, AForInOf.Line);
+      FBytecode.Emit(opPop);
+    end;
   end;
 
   // Compile body

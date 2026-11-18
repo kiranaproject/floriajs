@@ -242,6 +242,19 @@ python3 "$TEST262/tools/run_test262.py" \
   --baseline "$TEST262/baselines/phase10-realms.json" \
   --fail-on-regression >/dev/null
 
+echo "== Reviewed upstream library-gaps corpus =="
+python3 "$TEST262/tools/run_test262.py" \
+  --root "$ROOT" \
+  --host "$HOST" \
+  --timeout 5 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
+  --list "$TEST262/config/library-gaps-tests.txt" \
+  --report "$RESULTS/library-gaps-report.json" \
+  --output "$RESULTS/library-gaps.jsonl" \
+  --baseline "$TEST262/baselines/phase10-library-gaps.json" \
+  --fail-on-regression >/dev/null
+
 echo "== Reviewed upstream curated corpus =="
 python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \

@@ -65,9 +65,9 @@ Implemented and covered by the test suite:
 - Function metadata: `fn.length`, `fn.name` (including inference for anonymous
   functions assigned to properties), and the `Function(...)` constructor.
 - Library coverage: `Object.is`/`getOwnPropertyNames`/`defineProperty`/
-  `freeze`/`seal`, `Array.flat`/`flatMap`/`fill`/`copyWithin`/`at`,
-  `String.fromCharCode`/`fromCodePoint`, Date component setters, and
-  symbol-keyed properties.
+  `freeze`/`seal`/`fromEntries`, `Array.flat`/`flatMap`/`fill`/`copyWithin`/
+  `at`/`keys`/`entries`, `String.fromCharCode`/`fromCodePoint`/`normalize`/
+  `localeCompare`, Date component setters, and symbol-keyed properties.
 - Functions: declarations, function expressions, arrow functions (including
   lexical `this`), closures, recursion, `async`/`await`, `new` and `this`,
   default/rest parameters, and destructured parameters.
@@ -91,8 +91,6 @@ Implemented and covered by the test suite:
 
 Not implemented yet (see [language support](language-support.md) for details):
 
-- `Array.prototype.keys`/`entries`, `Object.fromEntries`, and
-  `String.prototype.localeCompare`/`normalize`.
 - `Intl` and `alert`.
 - A machine-code JIT, full hidden-class transitions, and persistent bytecode
   caching. AOT binding snippets and per-site property caches already exist.

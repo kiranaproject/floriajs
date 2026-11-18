@@ -61,6 +61,7 @@ CORPORA=(
   "to-primitive|to-primitive-tests|phase10-to-primitive"
   "async-generator|async-generator-tests|phase10-async-generators"
   "realm|realm-tests|phase10-realms"
+  "library-gaps|library-gaps-tests|phase10-library-gaps"
   "curated|curated-tests|phase10-curated"
 )
 

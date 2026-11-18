@@ -705,7 +705,7 @@ begin
               valInt := valInt * 8 + (Ord(AdvanceChar()) - Ord('0'));
               Inc(i);
             end;
-            sb := sb + Chr(valInt);
+            AppendUTF8CodePoint(sb, LongWord(valInt));
           end
           else
             sb := sb + #0;
@@ -724,7 +724,7 @@ begin
             valInt := valInt * 8 + (Ord(AdvanceChar()) - Ord('0'));
             Inc(i);
           end;
-          sb := sb + Chr(valInt);
+          AppendUTF8CodePoint(sb, LongWord(valInt));
         end;
         '8', '9':
         begin
@@ -739,7 +739,8 @@ begin
           hexCode := AdvanceChar();
           hexCode := hexCode + AdvanceChar();
           if TryStrToInt('$' + hexCode, valInt) then
-            sb := sb + Chr(valInt)
+            { A \xNN escape denotes a code point, not a raw byte. }
+            AppendUTF8CodePoint(sb, LongWord(valInt))
           else
             sb := sb + '\x' + hexCode;
         end;

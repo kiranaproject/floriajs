@@ -14,7 +14,7 @@ Last refreshed 2026-11-17:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **281 tests pass** with `pasbuild test`.
+- Test suite: **282 tests pass** with `pasbuild test`.
 - Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **13 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
@@ -1560,6 +1560,21 @@ platform-gated x86-64 snippet for the same numeric subset, with the interpreter
 as an unconditional fallback. It is not enabled because stage 1 already removes
 the AST/VM overhead and a JIT would add writable/executable-memory requirements
 and platform-specific codegen risk.
+
+### [x] Library and iteration gaps (post-P3)
+
+- `Array.prototype.keys` and `entries` iterators, including mutation and
+  done-latching semantics.
+- `Object.fromEntries` over arbitrary iterables.
+- `for…in` destructuring targets and string index enumeration.
+- Object spread from arrays.
+- `String.prototype.normalize` (NFC/NFD/NFKC/NFKD) with generated Unicode
+  tables, and `localeCompare` with canonical-equivalence comparison.
+- Corrected iterator teardown during heap clear, `\xNN`/legacy-octal escapes
+  above 0x7F, and native-method constructability and `length` metadata.
+
+Focused corpus: `test262/config/library-gaps-tests.txt` — **90 records, all
+pass**.
 
 ---
 

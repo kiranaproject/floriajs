@@ -1100,8 +1100,14 @@ end;
 
 procedure RegisterMethod(AHeap: TFloriaJSHeap; AProto: TFloriaJSObject;
   const AName: string; AProc: TFloriaJSNativeProc);
+var
+  fn: TFloriaJSFunction;
 begin
-  AProto.SetProperty(AName, JSMakeFunction(AHeap.NewNativeFunction(AName, AProc)));
+  fn := AHeap.NewNativeFunction(AName, AProc);
+  { A prototype method is not a constructor and has no `prototype` property. }
+  fn.NotConstructable := True;
+  fn.SuppressPrototype := True;
+  AProto.SetProperty(AName, JSMakeFunction(fn));
 end;
 
 procedure FloriaJSRegisterArray(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);

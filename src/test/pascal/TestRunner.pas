@@ -355,6 +355,7 @@ type
     procedure TestArrayNumericKeyFastPath();
     procedure TestCompactValueRepresentation();
     procedure TestInlinePropertyCaches();
+    procedure TestLibraryAndIterationGaps();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7549,6 +7550,41 @@ begin
     AssertTrue('inline property cache script succeeds', res.Success);
     AssertEquals('caches preserve shape changes, prototypes, accessors, and key order',
       '202,7,5,b:c,_x:x', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestLibraryAndIterationGaps();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var a = [10, , 30];' +
+      'var keys = [...a.keys()].join(",");' +
+      'var entries = [...a.entries()].map(function(e) { return e[0] + ":" + e[1]; }).join(",");' +
+      'var from = JSON.stringify(Object.fromEntries([["a", 1], ["b", 2]]));' +
+      'var fromMap = JSON.stringify(Object.fromEntries(new Map([["x", 3]])));' +
+      'var spread = JSON.stringify({...["p", "q"]});' +
+      'var fi = []; for (var k in "ab") fi.push(k);' +
+      'var fd = []; for (var {x} in {a: 1}) fd.push(String(x));' +
+      'var it = a.values();' +
+      'var norm = "e\u0301".normalize("NFC") === "\u00E9";' +
+      'var cmp = "o\u0308".localeCompare("\u00F6") === 0;' +
+      '[keys, entries, from, fromMap, spread, fi.join(","), fd.join(","),' +
+      ' typeof it, norm, cmp].join("|");'
+    );
+    AssertTrue('library and iteration gaps script succeeds', res.Success);
+    AssertEquals('keys, entries, fromEntries, spread, for-in, normalize, localeCompare',
+      '0,1,2|0:10,1:undefined,2:30|{"a":1,"b":2}|{"x":3}|{"0":"p","1":"q"}|0,1|undefined|object|true|true',
+      res.StringValue);
+
+    res := engine.Execute('try { "x".normalize("bad"); ""; } catch (e) { e.name; }');
+    AssertTrue('normalize form validation script succeeds', res.Success);
+    AssertEquals('invalid normalization form is a RangeError', 'RangeError', res.StringValue);
   finally
     engine.Free();
   end;

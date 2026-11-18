@@ -757,7 +757,7 @@ end;
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
-  promiseCtor, bigIntFn: TFloriaJSFunction;
+  promiseCtor, bigIntFn, methodFn: TFloriaJSFunction;
   numberObj, stringObj, funcObj, evalObj: TFloriaJSFunction;
   errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
   i: Integer;
@@ -826,6 +826,16 @@ begin
   begin
     AHeap.GetArrayPrototype().SetProperty('values',
       JSMakeFunction(AHeap.NewNativeFunction('values', @JSArrayValues)));
+    methodFn := AHeap.NewNativeFunction('keys', @JSArrayKeys);
+    methodFn.NotConstructable := True;
+    methodFn.SuppressPrototype := True;
+    AHeap.GetArrayPrototype().DefineDataProperty('keys',
+      JSMakeFunction(methodFn), True, False, True);
+    methodFn := AHeap.NewNativeFunction('entries', @JSArrayEntries);
+    methodFn.NotConstructable := True;
+    methodFn.SuppressPrototype := True;
+    AHeap.GetArrayPrototype().DefineDataProperty('entries',
+      JSMakeFunction(methodFn), True, False, True);
     { Symbol.iterator is also reachable by its description, so a computed
       symbol key finds it however the id was allocated. }
     AHeap.GetArrayPrototype().SetProperty('Symbol(Symbol.iterator)',

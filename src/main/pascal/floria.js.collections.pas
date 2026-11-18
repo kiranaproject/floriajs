@@ -28,8 +28,8 @@ type
   TFloriaJSMapEntryArray = array of TFloriaJSMapEntry;
 
   { What an iterator walks. }
-  TFloriaJSIterKind = (fikArray, fikString, fikMapKeys, fikMapValues,
-    fikMapEntries, fikSetValues, fikSetEntries);
+  TFloriaJSIterKind = (fikArray, fikArrayKeys, fikArrayEntries, fikString,
+    fikMapKeys, fikMapValues, fikMapEntries, fikSetValues, fikSetEntries);
 
   { A native iterator object implementing the ECMAScript iteration protocol.
 
@@ -42,6 +42,7 @@ type
     FKind: TFloriaJSIterKind;
     FSource: TFloriaJSValue;
     FCursor: Integer;
+    FDone: Boolean;
     FNextFn: TFloriaJSFunction;
     FSelfIteratorFn: TFloriaJSFunction;
     function Produce(out AValue: TFloriaJSValue): Boolean;
@@ -54,6 +55,7 @@ type
       AReceiver: TFloriaJSObject): TFloriaJSValue; override;
     function  HasProperty(const AName: string): Boolean; override;
 
+    function  Step(out AValue: TFloriaJSValue): Boolean;
     function  Next(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  SelfIterator(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
@@ -114,6 +116,8 @@ procedure FloriaJSRegisterCollections(AEnv: TFloriaJSEnvironment; AHeap: TFloria
 { Array.prototype.values / [Symbol.iterator]: returns an iterator over the
   receiver. Registered here because this unit owns the iterator type. }
 function JSArrayValues(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+function JSArrayKeys(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+function JSArrayEntries(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
 function JSGetIterator(AHeap: TFloriaJSHeap; const AValue: TFloriaJSValue;
   out AIterator: TFloriaJSIterator): Boolean;
@@ -697,6 +701,7 @@ begin
   FKind := AKind;
   FSource := ASource;
   FCursor := 0;
+  FDone := False;
   FNextFn := nil;
   FSelfIteratorFn := nil;
   { The iterator holds its source for as long as it is reachable. }
@@ -705,11 +710,28 @@ end;
 
 destructor TFloriaJSIterator.Destroy();
 begin
-  JSReleaseValue(FSource);
+  { During a full heap clear the source may already have been freed; the
+    clearing flag tells every object to skip reference releases. }
+  if (Heap = nil) or (not Heap.IsClearing) then
+    JSReleaseValue(FSource);
   inherited Destroy();
 end;
 
 { Produces the next value, advancing the cursor. Returns False when exhausted. }
+function TFloriaJSIterator.Step(out AValue: TFloriaJSValue): Boolean;
+begin
+  { An iterator that has reported `done` stays done, even if the source grows
+    afterwards. }
+  if FDone then
+  begin
+    AValue := JSMakeUndefined();
+    Exit(False);
+  end;
+  Result := Produce(AValue);
+  if not Result then
+    FDone := True;
+end;
+
 function TFloriaJSIterator.Produce(out AValue: TFloriaJSValue): Boolean;
 var
   arr: TFloriaJSArray;
@@ -721,7 +743,7 @@ begin
   AValue := JSMakeUndefined();
 
   case FKind of
-    fikArray, fikString:
+    fikArray, fikArrayKeys, fikArrayEntries, fikString:
       begin
         if FKind = fikString then
         begin
@@ -739,7 +761,17 @@ begin
         arr := FSource.AsArray();
         if FCursor >= arr.Length() then
           Exit(False);
-        AValue := arr.GetElement(FCursor);
+        if FKind = fikArrayKeys then
+          AValue := JSMakeNumber(FCursor)
+        else if FKind = fikArrayEntries then
+        begin
+          pair := Heap.NewArray();
+          pair.Push(JSMakeNumber(FCursor));
+          pair.Push(arr.GetElement(FCursor));
+          AValue := JSMakeObject(pair);
+        end
+        else
+          AValue := arr.GetElement(FCursor);
         Inc(FCursor);
         Exit(True);
       end;
@@ -799,7 +831,7 @@ var
   value: TFloriaJSValue;
 begin
   resultObj := Heap.NewObject(Heap.GetObjectPrototype());
-  if Produce(value) then
+  if Step(value) then
   begin
     resultObj.SetProperty('value', value);
     resultObj.SetProperty('done', JSMakeBoolean(False));
@@ -850,11 +882,60 @@ function JSArrayValues(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSVal
 var
   h: TFloriaJSHeap;
 begin
+  if AThis.IsNull() or AThis.IsUndefined() then
+  begin
+    h := JSActiveRealmHeap();
+    if h = nil then h := GSharedCollectionsHeap;
+    if h <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(h.NewError('TypeError',
+        'Array.prototype.values called on null or undefined')));
+    Exit(JSMakeUndefined());
+  end;
   h := GetHeap(AThis);
   if h = nil then
     Exit(JSMakeUndefined());
   Result := JSMakeObject(h.Track(
     TFloriaJSIterator.Create(h, fikArray, AThis)));
+end;
+
+function JSArrayKeys(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  h: TFloriaJSHeap;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() then
+  begin
+    h := JSActiveRealmHeap();
+    if h = nil then h := GSharedCollectionsHeap;
+    if h <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(h.NewError('TypeError',
+        'Array.prototype.keys called on null or undefined')));
+    Exit(JSMakeUndefined());
+  end;
+  h := GetHeap(AThis);
+  if h = nil then
+    Exit(JSMakeUndefined());
+  Result := JSMakeObject(h.Track(
+    TFloriaJSIterator.Create(h, fikArrayKeys, AThis)));
+end;
+
+function JSArrayEntries(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  h: TFloriaJSHeap;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() then
+  begin
+    h := JSActiveRealmHeap();
+    if h = nil then h := GSharedCollectionsHeap;
+    if h <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(h.NewError('TypeError',
+        'Array.prototype.entries called on null or undefined')));
+    Exit(JSMakeUndefined());
+  end;
+  h := GetHeap(AThis);
+  if h = nil then
+    Exit(JSMakeUndefined());
+  Result := JSMakeObject(h.Track(
+    TFloriaJSIterator.Create(h, fikArrayEntries, AThis)));
 end;
 
 function JSGetIterator(AHeap: TFloriaJSHeap; const AValue: TFloriaJSValue;
@@ -907,7 +988,7 @@ begin
   AValue := JSMakeUndefined();
   if AIterator = nil then
     Exit(False);
-  Result := AIterator.Produce(AValue);
+  Result := AIterator.Step(AValue);
 end;
 
 function JSIteratorToArray(const AIterator: TFloriaJSIterator): TFloriaJSArray;

@@ -17,7 +17,8 @@ unit floria.js.objects;
 interface
 
 uses
-  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env;
+  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
+  floria.js.collections;
 
 procedure FloriaJSRegisterObjects(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; AObjectCtor: TFloriaJSNativeMethod);
 
@@ -206,6 +207,47 @@ begin
   Result := JSMakeArray(GetEntriesArray(heap, obj));
 end;
 
+function JSObjectFromEntries(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  iter: TFloriaJSIterator;
+  obj: TFloriaJSObject;
+  entry, key, value: TFloriaJSValue;
+begin
+  heap := nil;
+  if AThis.IsFunction() then
+    heap := AThis.AsFunction().Heap
+  else if AThis.IsObject() then
+    heap := AThis.AsObject().Heap;
+  if heap = nil then
+  begin
+    if (Length(AArgs) > 0) and AArgs[0].IsObject() then
+      heap := AArgs[0].AsObject().Heap;
+  end;
+  if heap = nil then
+    Exit(JSMakeUndefined());
+
+  if (Length(AArgs) = 0) or (not AArgs[0].IsObject()) then
+    raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+      'Object.fromEntries requires an iterable')));
+
+  obj := heap.NewObject(heap.GetObjectPrototype());
+  if not JSGetIterator(heap, AArgs[0], iter) then
+    raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+      'Object.fromEntries requires an iterable')));
+
+  while JSIteratorNext(iter, entry) do
+  begin
+    if not entry.IsObject() then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Object.fromEntries entry is not an object')));
+    key := entry.AsObject().GetProperty('0');
+    value := entry.AsObject().GetProperty('1');
+    obj.SetProperty(JSPropertyKeyName(key), value);
+  end;
+  Result := JSMakeObject(obj);
+end;
+
 function JSObjectAssign(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   target, src: TFloriaJSObject;
@@ -220,6 +262,12 @@ begin
     if not AArgs[i].IsObject() then
       Continue;
     src := AArgs[i].AsObject();
+    { Array elements are own properties too, even though they are stored in the
+      dense element array rather than the property table. }
+    if src is TFloriaJSArray then
+      for j := 0 to TFloriaJSArray(src).Length() - 1 do
+        if TFloriaJSArray(src).HasElement(j) then
+          target.SetProperty(IntToStr(j), TFloriaJSArray(src).GetElement(j));
     for j := 0 to src.GetPropertyCount() - 1 do
       target.SetProperty(src.GetPropertyKey(j), src.GetPropertyValue(j));
   end;
@@ -743,7 +791,7 @@ begin
   newTarget := AArgs[0];
   if Length(AArgs) > 2 then
     newTarget := AArgs[2];
-  if not newTarget.IsFunction() then
+  if (not newTarget.IsFunction()) or (not heap.IsConstructable(newTarget)) then
     raise EFloriaJSThrow.Create(JSMakeObject(
       heap.NewError('TypeError', 'Reflect.construct newTarget is not a constructor')));
 
@@ -855,6 +903,7 @@ begin
   objectObj.SetProperty('keys', JSMakeFunction(AHeap.NewNativeFunction('keys', @JSObjectKeys)));
   objectObj.SetProperty('values', JSMakeFunction(AHeap.NewNativeFunction('values', @JSObjectValues)));
   objectObj.SetProperty('entries', JSMakeFunction(AHeap.NewNativeFunction('entries', @JSObjectEntries)));
+  objectObj.SetProperty('fromEntries', JSMakeFunction(AHeap.NewNativeFunction('fromEntries', @JSObjectFromEntries)));
   objectObj.SetProperty('assign', JSMakeFunction(AHeap.NewNativeFunction('assign', @JSObjectAssign)));
   objectObj.SetProperty('create', JSMakeFunction(AHeap.NewNativeFunction('create', @JSObjectCreate)));
   objectObj.SetProperty('getPrototypeOf', JSMakeFunction(AHeap.NewNativeFunction('getPrototypeOf', @JSObjectGetPrototypeOf)));

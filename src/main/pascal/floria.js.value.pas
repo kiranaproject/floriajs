@@ -341,6 +341,7 @@ type
     FIsArrow: Boolean;
     FSuppressPrototype: Boolean;
     FNotConstructable: Boolean;
+    FLengthOverride: Integer;
     FIntrinsicName: string;
     FNameDeleted: Boolean;
     FLengthDeleted: Boolean;
@@ -375,6 +376,8 @@ type
     { Conversion functions such as `BigInt` and `Symbol` throw when used with
       `new`, which ECMAScript specifies explicitly. }
     property NotConstructable: Boolean read FNotConstructable write FNotConstructable;
+    { Explicit `length` for native functions; -1 uses the default. }
+    property LengthOverride: Integer read FLengthOverride write FLengthOverride;
     { The intrinsic constructor this native function represents, such as
       `Array` or `String`. Construction uses it to select the newTarget
       realm's default prototype. }
@@ -3046,6 +3049,8 @@ begin
   FIsAsync := False;
   FIsArrow := False;
   FSuppressPrototype := False;
+  FNotConstructable := False;
+  FLengthOverride := -1;
   FPrototypes := nil;
 end;
 
@@ -3060,6 +3065,8 @@ begin
   FIsAsync := False;
   FIsArrow := False;
   FSuppressPrototype := False;
+  FNotConstructable := False;
+  FLengthOverride := -1;
   FPrototypes := nil;
 end;
 
@@ -3081,6 +3088,8 @@ begin
   FNameDeleted := False;
   FLengthDeleted := False;
   FSuppressPrototype := False;
+  FNotConstructable := False;
+  FLengthOverride := -1;
   FPrototypes := nil;
 end;
 
@@ -3249,14 +3258,19 @@ begin
 
   if (AName = 'length') and (not FLengthDeleted) and (FindPropertyIndex('length') < 0) then
   begin
-    if FBytecode <> nil then
-      subCode := TFloriaJSBytecode(FBytecode)
+    if FLengthOverride >= 0 then
+      DefineDataProperty('length', JSMakeNumber(FLengthOverride), False, False, True)
     else
-      subCode := nil;
-    if subCode <> nil then
-      DefineDataProperty('length', JSMakeNumber(subCode.GetArgumentCount()), False, False, True)
-    else
-      DefineDataProperty('length', JSMakeNumber(0), False, False, True);
+    begin
+      if FBytecode <> nil then
+        subCode := TFloriaJSBytecode(FBytecode)
+      else
+        subCode := nil;
+      if subCode <> nil then
+        DefineDataProperty('length', JSMakeNumber(subCode.GetArgumentCount()), False, False, True)
+      else
+        DefineDataProperty('length', JSMakeNumber(0), False, False, True);
+    end;
     Exit(inherited GetPropertyWithReceiver(AName, AReceiver));
   end;
 
