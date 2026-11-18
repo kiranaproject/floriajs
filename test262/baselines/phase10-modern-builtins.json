@@ -1,8 +1,8 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "0e5eb34c4f36d837c79cba018a9d9ec3636c6027",
-    "workingTreeDirty": true
+    "revision": "67f25782752fe4c58fce9ffb429077dc67631ee2",
+    "workingTreeDirty": false
   },
   "host": {
     "bytes": 2268064,
@@ -12,7 +12,7 @@
   "options": {
     "allowUnpinned": false,
     "jobs": 4,
-    "listFile": "config/modern-builtins-tests.txt",
+    "listFile": "modern-builtins-tests.txt",
     "maxDurationSeconds": 0.0,
     "selection": [
       "built-ins/AggregateError/cause-property.js",
