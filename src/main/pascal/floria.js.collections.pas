@@ -17,7 +17,8 @@ unit floria.js.collections;
 interface
 
 uses
-  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env, floria.js.utf16;
+  Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
+  floria.js.utf16, floria.js.regexp;
 
 type
   { Map Key-Value Entry }
@@ -29,7 +30,8 @@ type
 
   { What an iterator walks. }
   TFloriaJSIterKind = (fikArray, fikArrayKeys, fikArrayEntries, fikString,
-    fikMapKeys, fikMapValues, fikMapEntries, fikSetValues, fikSetEntries);
+    fikMapKeys, fikMapValues, fikMapEntries, fikSetValues, fikSetEntries,
+    fikRegExpMatches);
 
   { A native iterator object implementing the ECMAScript iteration protocol.
 
@@ -460,6 +462,47 @@ begin
   Result := JSMakeUndefined();
 end;
 
+function JSMapGroupBy(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  items, callback, item, keyVal, group: TFloriaJSValue;
+  map: TFloriaJSMap;
+  arr: TFloriaJSArray;
+  i, len: Integer;
+  cbArgs: array[0..1] of TFloriaJSValue;
+begin
+  heap := JSActiveRealmHeap();
+  if heap = nil then
+    Exit(JSMakeUndefined());
+  if (Length(AArgs) < 2) or not AArgs[1].IsFunction() then
+    raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+      'Map.groupBy requires a callable callback')));
+  items := AArgs[0];
+  callback := AArgs[1];
+
+  map := TFloriaJSMap(heap.Track(TFloriaJSMap.Create(GSharedMapProto)));
+  if items.IsArray() then
+  begin
+    arr := items.AsArray();
+    len := arr.Length();
+    for i := 0 to len - 1 do
+    begin
+      item := arr.GetElement(i);
+      cbArgs[0] := item;
+      cbArgs[1] := JSMakeNumber(i);
+      keyVal := heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+      group := map.GetItem(keyVal);
+      if not group.IsArray() then
+      begin
+        group := JSMakeArray(heap.NewArray());
+        map.SetItem(keyVal, group);
+      end;
+      group.AsArray().Push(item);
+    end;
+  end;
+  Result := JSMakeObject(map);
+end;
+
 function JSMapGetSize(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
@@ -739,10 +782,25 @@ var
   setObj: TFloriaJSSet;
   str: string;
   pair: TFloriaJSArray;
+  re: TFloriaJSRegExp;
 begin
   AValue := JSMakeUndefined();
 
   case FKind of
+    fikRegExpMatches:
+      begin
+        { The source is [regexp, string]; each step runs the regexp once. }
+        if not FSource.IsArray() then
+          Exit(False);
+        arr := FSource.AsArray();
+        if (arr.Length() < 2) or not arr.GetElement(0).IsObject() or
+           not (arr.GetElement(0).ObjVal is TFloriaJSRegExp) then
+          Exit(False);
+        re := TFloriaJSRegExp(arr.GetElement(0).ObjVal);
+        AValue := re.Exec(arr.GetElement(1).StrVal, Heap);
+        Exit(not AValue.IsNull());
+      end;
+
     fikArray, fikArrayKeys, fikArrayEntries, fikString:
       begin
         if FKind = fikString then
@@ -1010,7 +1068,7 @@ end;
 
 procedure FloriaJSRegisterCollections(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
 var
-  mapCtor, setCtor: TFloriaJSFunction;
+  mapCtor, setCtor, groupByFn: TFloriaJSFunction;
   sizeGetter: TFloriaJSFunction;
 begin
   if (AEnv = nil) or (AHeap = nil) then Exit;
@@ -1033,6 +1091,11 @@ begin
 
   mapCtor := AHeap.NewNativeFunction('Map', @FactoryNewMap);
   mapCtor.SetProperty('prototype', JSMakeObject(GSharedMapProto));
+  groupByFn := AHeap.NewNativeFunction('groupBy', @JSMapGroupBy);
+  groupByFn.NotConstructable := True;
+  groupByFn.SuppressPrototype := True;
+  groupByFn.LengthOverride := 2;
+  mapCtor.DefineDataProperty('groupBy', JSMakeFunction(groupByFn), True, False, True);
   AEnv.Define('Map', JSMakeFunction(mapCtor));
 
   // 2. Set Prototype

@@ -71,6 +71,12 @@ Implemented and covered by the test suite:
 - Coercion: `join`, `parseInt`/`parseFloat`, the URI helpers, and `Error`
   messages all convert through ToString; bitwise and shift compound
   assignments (`&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`) are supported.
+- Modern built-ins: `Object.hasOwn`/`groupBy`/`getOwnPropertyDescriptors`/
+  `defineProperties`/`getOwnPropertySymbols`, `Array.findLast`/`toSorted`/
+  `toReversed`/`toSpliced`/`with`, `String.at`/`matchAll`,
+  `Promise.allSettled`/`any`, `Number.isSafeInteger`, the full `Math`
+  hyperbolic set, `AggregateError`, `Map.groupBy`, `queueMicrotask`, and
+  `structuredClone`.
 - Functions: declarations, function expressions, arrow functions (including
   lexical `this`), closures, recursion, `async`/`await`, `new` and `this`,
   default/rest parameters, and destructured parameters.

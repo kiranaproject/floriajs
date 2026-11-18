@@ -152,32 +152,35 @@ matching and byte-level lexer storage still use UTF-8 internally.
 | `undefined`, `NaN`, `Infinity` | Standard values. |
 | `parseInt`, `parseFloat`, `isNaN`, `isFinite` | Arguments go through the full ToString path (including `valueOf`/`toString`), so a boxed Number or a custom `toString` is honoured. `parseInt` honours the radix and `0x` prefixes and keeps accumulating past 2^63 as a Number; `parseFloat` scans the longest valid `StrDecimalLiteral` prefix. Both trim the ECMAScript whitespace set. |
 | `Number`, `String`, `Boolean` | Conversion functions (called with or without `new`). Number conversion and formatting are ECMAScript-exact: `String(x)` produces the shortest decimal that round-trips, and `Number(s)` produces the nearest double. |
-| `Number.isNaN`, `isFinite`, `isInteger`, `parseInt`, `parseFloat` | Plus `NaN`, `POSITIVE_INFINITY`, `NEGATIVE_INFINITY`, `MAX_VALUE`, `MIN_VALUE`, `MAX_SAFE_INTEGER`, `MIN_SAFE_INTEGER`, `EPSILON`. |
+| `Number.isNaN`, `isFinite`, `isInteger`, `isSafeInteger`, `parseInt`, `parseFloat` | Plus `NaN`, `POSITIVE_INFINITY`, `NEGATIVE_INFINITY`, `MAX_VALUE`, `MIN_VALUE`, `MAX_SAFE_INTEGER`, `MIN_SAFE_INTEGER`, `EPSILON`. |
 | `Array` | Constructor plus `isArray`, `from`, `of`. |
-| `Object` | Constructor plus `keys`, `values`, `entries`, `assign`, `create`, `getPrototypeOf`. `Object.prototype` has `hasOwnProperty` and `toString`. |
+| `Object` | Constructor plus `keys`, `values`, `entries`, `fromEntries`, `assign`, `create`, `getPrototypeOf`, `setPrototypeOf`, `is`, `hasOwn`, `groupBy`, `getOwnPropertyNames`, `getOwnPropertySymbols`, `getOwnPropertyDescriptor`, `getOwnPropertyDescriptors`, `defineProperty`, `defineProperties`, `freeze`, `seal`, `preventExtensions`, `isExtensible`, `isFrozen`, `isSealed`. `Object.prototype` has `hasOwnProperty`, `isPrototypeOf`, `propertyIsEnumerable`, and `toString`. |
 | `JSON` | `stringify` and `parse` (see below). |
 | `Math` | See below. |
-| `Promise` | Constructor: `new Promise(executor)` runs the executor synchronously with `resolve`/`reject` callbacks (first settlement wins; a throw rejects). Plus `resolve`, `reject`, `all`, `race`. |
+| `Promise` | Constructor: `new Promise(executor)` runs the executor synchronously with `resolve`/`reject` callbacks (first settlement wins; a throw rejects). Plus `resolve`, `reject`, `all`, `allSettled`, `any`, `race`. |
 | `Error`, `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError`, `URIError` | Constructors returning error objects with standard prototype chains, `name`, `message`, and `toString()`. `message` is an own non-enumerable property only when supplied; a Symbol message throws `TypeError`; `new Error(msg, { cause })` installs a non-enumerable `cause`. |
 | `console` | `log`, `warn`, `error`. Output is captured per context. |
 | `globalThis` | The live global object. Global `var`/function bindings are its properties, and property writes through it update the globals. Global lexical `let`/`const` bindings are not properties. |
 | `arguments` | Available inside user functions; an `Array`. |
 | `Map`, `Set` | Collections (see below). |
 | `Date` | Date/time object (see below). |
-| `Symbol` | Primitive symbols, registry, and well-known symbols. |
+| `Symbol` | Primitive symbols, registry, and well-known symbols (`iterator`, `asyncIterator`, `toStringTag`, `hasInstance`, `isConcatSpreadable`, `species`, `toPrimitive`, `match`, `matchAll`, `replace`, `search`, `split`). |
 | `RegExp` | Regular-expression constructor and regex literals. |
 | `URIError`, `encodeURIComponent`, `decodeURIComponent`, `encodeURI`, `decodeURI` | URI helpers. Arguments go through ToString; encoding emits UTF-8 percent escapes for astral code points; decoding validates the byte sequence (overlong forms, surrogate halves, and out-of-range code points raise `URIError`). `decodeURI` keeps reserved characters escaped and preserves the source spelling. |
 | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | Host timers. They require the owner context to pump timers (`Ctx.PumpTimers()` or the compatibility helper `FloriaJSProcessTimers(Ctx.Heap)`). |
 | `BigInt` | Conversion function. `new BigInt()` throws; it is not a constructor. |
+| `queueMicrotask`, `structuredClone` | Host-style globals. `queueMicrotask` runs its callback with no arguments on the microtask queue; `structuredClone` deep-clones primitives, arrays, plain objects, `Map`, `Set`, `Date`, and `RegExp`, including cycles. |
+| `AggregateError` | Error subclass with an `errors` own property, `message`, `cause`, and the standard prototype chain. |
 | `Intl` and `alert` | Not defined. Reading them throws `ReferenceError`; only `typeof` yields `undefined`. |
 
 ### Math
 
 Constants: `E`, `LN10`, `LN2`, `LOG2E`, `LOG10E`, `PI`, `SQRT1_2`, `SQRT2`.
 
-Functions: `abs`, `acos`, `asin`, `atan`, `atan2`, `ceil`, `cos`, `exp`,
-`floor`, `log`, `max`, `min`, `pow`, `random`, `round`, `sin`, `sqrt`, `tan`,
-`trunc`, `log2`, `log10`, `sign`, `cbrt`, `hypot`, `imul`, `clz32`.
+Functions: `abs`, `acos`, `acosh`, `asin`, `asinh`, `atan`, `atan2`, `atanh`,
+`cbrt`, `ceil`, `clz32`, `cos`, `cosh`, `exp`, `expm1`, `floor`, `fround`,
+`hypot`, `imul`, `log`, `log1p`, `log2`, `log10`, `max`, `min`, `pow`,
+`random`, `round`, `sign`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`, `trunc`.
 
 ### Array
 
@@ -185,8 +188,9 @@ Prototype methods:
 
 `push`, `pop`, `shift`, `unshift`, `join`, `concat`, `reverse`, `sort`
 (optional comparator), `slice`, `splice`, `indexOf`, `lastIndexOf`, `includes`,
-`map`, `filter`, `forEach`, `some`, `every`, `find`, `findIndex`, `reduce`,
-`reduceRight`.
+`map`, `filter`, `forEach`, `some`, `every`, `find`, `findIndex`, `findLast`,
+`findLastIndex`, `reduce`, `reduceRight`, `toSorted`, `toReversed`, `toSpliced`,
+`with`.
 
 Statics: `Array.isArray`, `Array.from` (arrays, strings, array-like objects,
 optional map function), `Array.of`. `Array.prototype` is the shared prototype
@@ -205,6 +209,9 @@ explicit `undefined`. `length = n` extends with holes or truncates the array,
 and invalid lengths raise `RangeError`.
 
 `flat`, `flatMap`, `fill`, `copyWithin`, `at`, and `values` are implemented.
+`toSorted`, `toReversed`, `toSpliced`, and `with` return a new array and leave
+the receiver unchanged; they read through `Get`, so a hole becomes `undefined`
+in the result.
 Array indices in `[0, 2^32 - 2]` extend `length`; very large sparse indices are
 stored in an overflow list instead of forcing a dense allocation. `length`
 accepts the full `2^32 - 1` boundary.
@@ -217,7 +224,8 @@ returns comma-joined elements like `arr.join()`.
 `charAt`, `charCodeAt`, `indexOf`, `lastIndexOf`, `includes`, `startsWith`,
 `endsWith`, `slice`, `substring`, `substr`, `toUpperCase`, `toLowerCase`,
 `trim`, `trimStart`, `trimEnd`, `split`, `replace`, `replaceAll`, `concat`,
-`repeat`, `padStart`, `padEnd`, `match`, `search`, `toString`, `valueOf`.
+`repeat`, `padStart`, `padEnd`, `match`, `matchAll`, `search`, `at`, `toString`,
+`valueOf`.
 
 `replace`/`replaceAll` accept string or regex patterns and optional function
 replacers (called with `match`, `index`, and the whole string). `$&`-style
@@ -298,7 +306,7 @@ A bound function is a function object of its own, as in ECMAScript:
 - `new Map()` / `new Map([[key, value], …])`, `new Set()` /
   `new Set([value, …])`.
 - `Map`: `set`, `get`, `has`, `delete`, `clear`, `keys`, `values`, `entries`,
-  `forEach`, and the `size` getter.
+  `forEach`, the `size` getter, and the static `Map.groupBy`.
 - `Set`: `add`, `has`, `delete`, `clear`, `keys`, `values`, `entries`,
   `forEach`, and the `size` getter.
 - Keys use SameValueZero: `NaN` equals `NaN`, and `+0`/`-0` are the same key.
@@ -389,10 +397,15 @@ cancel work that is due but has not started.
 Available beyond the earlier sections:
 
 - `Object.is`, `Object.getOwnPropertyNames`, `Object.getOwnPropertyDescriptor`,
-  `Object.defineProperty`, `Object.preventExtensions`/`isExtensible`,
+  `Object.getOwnPropertyDescriptors`, `Object.getOwnPropertySymbols`,
+  `Object.defineProperty`, `Object.defineProperties`, `Object.hasOwn`,
+  `Object.groupBy`, `Object.preventExtensions`/`isExtensible`,
   `Object.freeze`/`seal`/`isFrozen`/`isSealed`.
-- `Object.prototype.propertyIsEnumerable`.
-- `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`, `entries`, and `values`.
+- `Object.prototype.propertyIsEnumerable` and `isPrototypeOf`.
+- `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`,
+  `entries`, `values`, `findLast`, `findLastIndex`, `toSorted`, `toReversed`,
+  `toSpliced`, and `with`.
+- `Map.groupBy`, `AggregateError`, `queueMicrotask`, and `structuredClone`.
 - `String.fromCharCode` and `String.fromCodePoint`. The latter encodes an
   astral code point as a surrogate pair, matching UTF-16 `length` and indexing.
 - `String.prototype.normalize` (NFC/NFD/NFKC/NFKD) and `localeCompare`

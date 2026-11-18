@@ -268,6 +268,19 @@ python3 "$TEST262/tools/run_test262.py" \
   --baseline "$TEST262/baselines/phase10-coercion.json" \
   --fail-on-regression >/dev/null
 
+echo "== Reviewed upstream modern-builtins corpus =="
+python3 "$TEST262/tools/run_test262.py" \
+  --root "$ROOT" \
+  --host "$HOST" \
+  --timeout 10 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
+  --list "$TEST262/config/modern-builtins-tests.txt" \
+  --report "$RESULTS/modern-builtins-report.json" \
+  --output "$RESULTS/modern-builtins.jsonl" \
+  --baseline "$TEST262/baselines/phase10-modern-builtins.json" \
+  --fail-on-regression >/dev/null
+
 echo "== Reviewed upstream curated corpus =="
 python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \

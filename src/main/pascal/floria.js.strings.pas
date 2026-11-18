@@ -19,9 +19,12 @@ interface
 
 uses
   Classes, SysUtils, Math, StrUtils, floria.js.types, floria.js.value,
-  floria.js.regexp, floria.js.utf16, floria.js.unicode;
+  floria.js.regexp, floria.js.utf16, floria.js.unicode, floria.js.collections,
+  floria.js.symbol;
 
 procedure FloriaJSRegisterString(AHeap: TFloriaJSHeap);
+{ Adds RegExp.prototype[Symbol.matchAll], which needs the iterator type. }
+procedure FloriaJSRegisterRegExpMatchAll(AHeap: TFloriaJSHeap; AProto: TFloriaJSObject);
 
 implementation
 
@@ -38,6 +41,7 @@ type
   public
     constructor Create(AHeap: TFloriaJSHeap);
 
+    function At(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function CharAt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function CharCodeAt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function IndexOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -57,6 +61,8 @@ type
     function Replace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function ReplaceAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function Match(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function MatchAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function RegExpMatchAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function Search(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function Concat(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function RepeatString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -124,6 +130,38 @@ constructor TFloriaJSStringHelper.Create(AHeap: TFloriaJSHeap);
 begin
   inherited Create();
   FHeap := AHeap;
+end;
+
+function TFloriaJSStringHelper.At(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  s: string;
+  len, idx: Integer;
+  d: Double;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() or AThis.IsSymbol() then
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+      'String.prototype.at requires that this be coercible to a string')));
+  if (Length(AArgs) > 0) and AArgs[0].IsSymbol() then
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+      'Cannot convert a Symbol value to a number')));
+  s := ThisString(AThis);
+  len := JSUTF16Length(s);
+  d := 0;
+  if Length(AArgs) > 0 then
+    d := AArgs[0].ToNumber();
+  if IsNaN(d) then
+    d := 0;
+  if IsInfinite(d) then
+  begin
+    if d > 0 then Exit(JSMakeUndefined());
+    d := 0;
+  end;
+  idx := Trunc(d);
+  if idx < 0 then
+    idx := len + idx;
+  if (idx < 0) or (idx >= len) then
+    Exit(JSMakeUndefined());
+  Result := JSMakeString(JSUTF16CharAt(s, idx));
 end;
 
 function TFloriaJSStringHelper.CharAt(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -532,6 +570,74 @@ begin
     Result := JSMakeArray(resArr);
 end;
 
+function TFloriaJSStringHelper.MatchAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  s: string;
+  re: TFloriaJSRegExp;
+  matcher: TFloriaJSValue;
+  source: TFloriaJSArray;
+  heap: TFloriaJSHeap;
+begin
+  s := ThisString(AThis);
+  heap := FHeap;
+
+  { The @@matchAll protocol takes precedence when the argument defines it. }
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() then
+  begin
+    matcher := AArgs[0].AsObject().GetWellKnownProperty('Symbol.matchAll');
+    if matcher.IsFunction() then
+      Exit(heap.InvokeFunction(matcher, [JSMakeString(s)], AArgs[0]));
+  end;
+
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() and
+     (AArgs[0].ObjVal is TFloriaJSRegExp) then
+  begin
+    re := TFloriaJSRegExp(AArgs[0].ObjVal);
+    if not re.Global then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'String.prototype.matchAll called with a non-global RegExp argument')));
+    { Iterate a copy so the original regexp's lastIndex is not mutated. }
+    re := FloriaJSNewRegExp(re.Pattern, re.Flags, heap);
+    re.LastIndex := TFloriaJSRegExp(AArgs[0].ObjVal).LastIndex;
+  end
+  else if (Length(AArgs) > 0) and (not AArgs[0].IsUndefined()) and
+          (not AArgs[0].IsNull()) then
+    re := FloriaJSNewRegExp(JSToString(AArgs[0]), 'g', heap)
+  else
+    re := FloriaJSNewRegExp('', 'g', heap);
+
+  source := heap.NewArray();
+  source.Push(JSMakeObject(re));
+  source.Push(JSMakeString(s));
+  Result := JSMakeObject(heap.Track(
+    TFloriaJSIterator.Create(heap, fikRegExpMatches, JSMakeArray(source))));
+end;
+
+function TFloriaJSStringHelper.RegExpMatchAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  s: string;
+  re, clone: TFloriaJSRegExp;
+  source: TFloriaJSArray;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSRegExp) then
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+      'RegExp.prototype[Symbol.matchAll] called on an incompatible receiver')));
+  re := TFloriaJSRegExp(AThis.ObjVal);
+  s := '';
+  if Length(AArgs) > 0 then
+    s := JSToString(AArgs[0]);
+  if not re.Global then
+    raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+      'RegExp.prototype[Symbol.matchAll] requires a global RegExp')));
+  clone := FloriaJSNewRegExp(re.Pattern, re.Flags, FHeap);
+  clone.LastIndex := re.LastIndex;
+  source := FHeap.NewArray();
+  source.Push(JSMakeObject(clone));
+  source.Push(JSMakeString(s));
+  Result := JSMakeObject(FHeap.Track(
+    TFloriaJSIterator.Create(FHeap, fikRegExpMatches, JSMakeArray(source))));
+end;
+
 function TFloriaJSStringHelper.Search(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   s, pat: string;
@@ -712,15 +818,34 @@ begin
 end;
 
 procedure RegisterMethod(AHeap: TFloriaJSHeap; AProto: TFloriaJSObject;
-  const AName: string; AMethod: TFloriaJSNativeMethod);
+  const AName: string; AMethod: TFloriaJSNativeMethod; ALength: Integer = -1);
 var
   fn: TFloriaJSFunction;
 begin
   fn := AHeap.NewNativeMethod(AName, AMethod);
-  { A prototype method is not a constructor and has no `prototype` property. }
+  { A prototype method is not a constructor, has no `prototype` property, is a
+    non-enumerable own property, and has a fixed `length`. }
   fn.NotConstructable := True;
   fn.SuppressPrototype := True;
-  AProto.SetProperty(AName, JSMakeFunction(fn));
+  fn.LengthOverride := ALength;
+  AProto.DefineDataProperty(AName, JSMakeFunction(fn), True, False, True);
+end;
+
+procedure FloriaJSRegisterRegExpMatchAll(AHeap: TFloriaJSHeap; AProto: TFloriaJSObject);
+var
+  helper: TFloriaJSStringHelper;
+  sym: TFloriaJSValue;
+  fn: TFloriaJSFunction;
+begin
+  if (AHeap = nil) or (AProto = nil) then Exit;
+  sym := JSWellKnownSymbol('Symbol.matchAll');
+  if sym.IsUndefined() then Exit;
+  helper := TFloriaJSStringHelper.Create(AHeap);
+  AHeap.OwnHelper(helper);
+  fn := AHeap.NewNativeMethod('[Symbol.matchAll]', @helper.RegExpMatchAll);
+  fn.NotConstructable := True;
+  fn.SuppressPrototype := True;
+  AProto.DefineDataProperty(JSPropertyKeyName(sym), JSMakeFunction(fn), True, False, True);
 end;
 
 procedure FloriaJSRegisterString(AHeap: TFloriaJSHeap);
@@ -735,6 +860,7 @@ begin
   AHeap.OwnHelper(helper);
 
   proto := AHeap.GetStringPrototype();
+  RegisterMethod(AHeap, proto, 'at', @helper.At, 1);
   RegisterMethod(AHeap, proto, 'charAt', @helper.CharAt);
   RegisterMethod(AHeap, proto, 'charCodeAt', @helper.CharCodeAt);
   RegisterMethod(AHeap, proto, 'indexOf', @helper.IndexOf);
@@ -754,6 +880,7 @@ begin
   RegisterMethod(AHeap, proto, 'replace', @helper.Replace);
   RegisterMethod(AHeap, proto, 'replaceAll', @helper.ReplaceAll);
   RegisterMethod(AHeap, proto, 'match', @helper.Match);
+  RegisterMethod(AHeap, proto, 'matchAll', @helper.MatchAll, 1);
   RegisterMethod(AHeap, proto, 'search', @helper.Search);
   RegisterMethod(AHeap, proto, 'concat', @helper.Concat);
   RegisterMethod(AHeap, proto, 'repeat', @helper.RepeatString);

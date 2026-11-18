@@ -357,6 +357,7 @@ type
     procedure TestInlinePropertyCaches();
     procedure TestLibraryAndIterationGaps();
     procedure TestCoercionCompleteness();
+    procedure TestModernBuiltins();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7638,6 +7639,59 @@ begin
     res := engine.Execute('try { new Error(Symbol("x")); ""; } catch (e) { e.name; }');
     AssertTrue('symbol Error message script succeeds', res.Success);
     AssertEquals('a Symbol Error message throws TypeError', 'TypeError', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestModernBuiltins();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'var hasOwn = Object.hasOwn({a: 1}, "a") && !Object.hasOwn({a: 1}, "b");' +
+      'var grouped = JSON.stringify(Object.groupBy([1,2,3,4], function(x) { return x % 2 ? "odd" : "even"; }));' +
+      'var descs = Object.getOwnPropertyDescriptors({a: 1});' +
+      'var defined = (function() { var o = {}; Object.defineProperties(o, {x: {value: 5, enumerable: true}}); return o.x; })();' +
+      'var syms = Object.getOwnPropertySymbols({[Symbol("s")]: 1}).length;' +
+      'var findLast = [1,2,3,4].findLast(function(x) { return x % 2 === 0; });' +
+      'var findLastIndex = [1,2,3,4].findLastIndex(function(x) { return x % 2 === 0; });' +
+      'var toSorted = JSON.stringify([3,1,2].toSorted());' +
+      'var toReversed = JSON.stringify([1,2,3].toReversed());' +
+      'var toSpliced = JSON.stringify([1,2,3,4].toSpliced(1,2,"x"));' +
+      'var withVal = JSON.stringify([1,2,3].with(1,9));' +
+      'var at = "abc".at(-1);' +
+      'var matchAll = [..."a1b2".matchAll(/([a-z])(\d)/g)].map(function(m) { return m[0]; }).join(",");' +
+      'var safe = Number.isSafeInteger(9007199254740991) && !Number.isSafeInteger(9007199254740992);' +
+      'var math = [Math.fround(1.5), Math.expm1(0), Math.log1p(0), Math.sinh(0),' +
+      '  Math.cosh(0), Math.tanh(0), Math.asinh(0), Math.acosh(1), Math.atanh(0)].join(",");' +
+      'var agg = (function() { var e = new AggregateError([1,2], "m");' +
+      '  return e.name + ":" + e.message + ":" + e.errors.length; })();' +
+      'var mapGroup = (function() { var m = Map.groupBy([1,2,3,4], function(x) { return x % 2; });' +
+      '  return m.get(1).join(",") + "|" + m.get(0).join(","); })();' +
+      'var clone = (function() { var o = {a: 1, b: [2,3]}; var c = structuredClone(o);' +
+      '  c.b[0] = 9; return o.b[0] + "," + c.b[0]; })();' +
+      '[hasOwn, grouped, descs.a.value, defined, syms, findLast, findLastIndex,' +
+      ' toSorted, toReversed, toSpliced, withVal, at, matchAll, safe, math, agg,' +
+      ' mapGroup, clone].join("|");'
+    );
+    AssertTrue('modern built-ins script succeeds', res.Success);
+    AssertEquals('Object/Array/String/Number/Math/AggregateError/Map/structuredClone',
+      'true|{"odd":[1,3],"even":[2,4]}|1|5|1|4|3|[1,2,3]|[3,2,1]|[1,"x",4]|[1,9,3]|c|a1,b2|true|' +
+      '1.5,0,0,0,1,0,0,0,0|AggregateError:m:2|1,3|2,4|2,9',
+      res.StringValue);
+
+    res := engine.Execute(
+      '[typeof Promise.allSettled, typeof Promise.any,' +
+      ' new AggregateError([1,2], "m").errors.length,' +
+      ' typeof queueMicrotask].join("|");'
+    );
+    AssertTrue('promise combinator surface script succeeds', res.Success);
+    AssertEquals('allSettled, any, AggregateError, queueMicrotask surface',
+      'function|function|2|function', res.StringValue);
   finally
     engine.Free();
   end;

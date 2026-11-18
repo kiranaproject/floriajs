@@ -394,6 +394,19 @@ procedure TFloriaJSVM.HeapJobRunner(const AJob: TFloriaJSPromiseJob);
 var
   handler, arg, resultValue: TFloriaJSValue;
 begin
+  { queueMicrotask runs its callback with no arguments and ignores the result. }
+  if AJob.Kind = pjkMicrotask then
+  begin
+    if AJob.OnFulfilled.IsFunction() then
+      try
+        CallFunction(AJob.OnFulfilled, [], JSMakeUndefined());
+      except
+        on E: EFloriaJSThrow do
+          ; { An uncaught microtask error is reported by the host, not here. }
+      end;
+    Exit;
+  end;
+
   if AJob.Kind <> pjkReaction then
   begin
     if AJob.Target <> nil then

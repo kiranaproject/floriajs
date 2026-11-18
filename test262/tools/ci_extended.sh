@@ -63,6 +63,7 @@ CORPORA=(
   "realm|realm-tests|phase10-realms"
   "library-gaps|library-gaps-tests|phase10-library-gaps"
   "coercion|coercion-tests|phase10-coercion|60"
+  "modern-builtins|modern-builtins-tests|phase10-modern-builtins|10"
   "curated|curated-tests|phase10-curated"
 )
 

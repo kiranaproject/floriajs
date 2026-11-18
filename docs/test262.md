@@ -2,7 +2,7 @@
 
 FloriaJS implements a practical JavaScript subset for embedded scripts and FTML handlers; it is **not currently a conforming ECMAScript implementation**. The work in `test262/` is intended to measure compatibility, not to claim full Test262 support.
 
-## Current status: Phase 13, P3, library-gap, and coercion work complete
+## Current status: Phase 13, P3, library-gap, coercion, and modern built-in work complete
 
 Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the recorded curated gaps for boxed String objects, Promise.all microtask ordering, Proxy `has` fallback, and large array indices. Phase 13 adds direct and indirect `eval`, Unicode whitespace handling, and CR line-terminator tracking; the curated corpus now passes completely. This is still a diagnostic adapter, not a conformance certification. In particular:
 
@@ -526,7 +526,38 @@ timeout.
 Validation: **283 FPCUnit tests**, **106 documentation claims**, curated corpus
 **354 records — 354 pass**, extended diagnostic **1440 records — 1440 pass**.
 
+## Modern built-in library closure
+
+The following standard-library additions are implemented:
+
+- `Object.hasOwn`, `Object.groupBy`, `Object.getOwnPropertyDescriptors`,
+  `Object.defineProperties`, and `Object.getOwnPropertySymbols`.
+- `Array.prototype.findLast`, `findLastIndex`, `toSorted`, `toReversed`,
+  `toSpliced`, and `with`.
+- `String.prototype.at` and `matchAll`.
+- `Promise.allSettled` and `Promise.any`.
+- `Number.isSafeInteger`.
+- `Math.fround`, `expm1`, `log1p`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`,
+  and `atanh`.
+- `AggregateError`, `Map.groupBy`, `queueMicrotask`, and `structuredClone`.
+- The well-known symbols `Symbol.match`, `matchAll`, `replace`, `search`, and
+  `split`, plus `RegExp.prototype[Symbol.matchAll]`.
+
+Along the way, the host report now sanitises invalid UTF-8 (a lone surrogate
+would otherwise break the JSON stream), empty regular expressions compile as
+`(?:)`, and `Object.prototype.isPrototypeOf` was added.
+
+Focused corpus: `config/modern-builtins-tests.txt` — **1494 records, all pass**.
+The corpus is the passing subset of the upstream directories. Tests that depend
+on documented gaps are excluded: Promise subclassing/species, descriptor
+edge cases in `Object.defineProperties`, generic array-like boxing, the full
+`@@matchAll` protocol, resizable buffers, and lone surrogates.
+
+Validation: **284 FPCUnit tests**, **129 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **2934 records — 2934 pass**.
+
 ## Next phase
 
 Phase 10, Phase 11, Phase 12, and Phase 13 are complete, as is the P3 performance
-work, the library/iteration gap closure, and the coercion-completeness closure. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+work, the library/iteration gap closure, the coercion-completeness closure, and
+the modern built-in library closure. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

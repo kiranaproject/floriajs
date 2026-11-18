@@ -51,6 +51,8 @@ type
 
 function FloriaJSNewRegExp(const APattern, AFlags: string; AHeap: TFloriaJSHeap): TFloriaJSRegExp;
 procedure FloriaJSRegisterRegExp(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
+{ The shared RegExp.prototype, so other units can add symbol-keyed methods. }
+function FloriaJSGetRegExpPrototype(): TFloriaJSObject;
 
 implementation
 
@@ -95,7 +97,12 @@ procedure TFloriaJSRegExp.CompilePattern();
 begin
   if FRegExpr = nil then Exit;
   try
-    FRegExpr.Expression := FPattern;
+    { TRegExpr rejects an empty expression; `(?:)` matches the empty string
+      with no capture groups, which is what `//` means. }
+    if FPattern = '' then
+      FRegExpr.Expression := '(?:)'
+    else
+      FRegExpr.Expression := FPattern;
     FRegExpr.ModifierI := FIgnoreCase;
     FRegExpr.ModifierM := FMultiline;
     FRegExpr.Compile();
@@ -305,6 +312,11 @@ begin
   Result := TFloriaJSRegExp.Create(APattern, AFlags, GSharedRegExpProto);
   if AHeap <> nil then
     AHeap.Track(Result);
+end;
+
+function FloriaJSGetRegExpPrototype(): TFloriaJSObject;
+begin
+  Result := GSharedRegExpProto;
 end;
 
 procedure FloriaJSRegisterRegExp(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);

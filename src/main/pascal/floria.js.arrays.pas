@@ -31,6 +31,129 @@ begin
   Result := AThis.AsArray();
 end;
 
+{ Copies the receiver, preserving holes, into a fresh array. }
+function CopyArray(AArr: TFloriaJSArray): TFloriaJSArray;
+var
+  i: Integer;
+begin
+  Result := AArr.Heap.NewArray();
+  for i := 0 to AArr.Length() - 1 do
+  begin
+    if AArr.HasElement(i) then
+      Result.Push(AArr.GetElement(i))
+    else
+      Result.PushHole();
+  end;
+end;
+
+{ ToLength for a generic array-like receiver. }
+function ArrayLikeLength(const AThis: TFloriaJSValue): Integer;
+var
+  d: Double;
+  heap: TFloriaJSHeap;
+begin
+  if AThis.IsArray() then
+    Exit(AThis.AsArray().Length());
+  if AThis.IsString() then
+    Exit(JSUTF16Length(AThis.StrVal));
+  if not AThis.IsObject() then
+    Exit(0);
+  if AThis.AsObject().GetProperty('length').IsSymbol() then
+  begin
+    heap := AThis.AsObject().Heap;
+    if heap = nil then heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Cannot convert a Symbol value to a number')));
+    Exit(0);
+  end;
+  d := AThis.AsObject().GetProperty('length').ToNumber();
+  if IsNaN(d) or (d <= 0) then
+    Exit(0);
+  { An array length above 2^32 - 1 is a RangeError. }
+  if d > 4294967295.0 then
+  begin
+    heap := AThis.AsObject().Heap;
+    if heap = nil then heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('RangeError',
+        'Invalid array length')));
+    Exit(0);
+  end;
+  if d >= 2147483647.0 then
+    Exit(2147483647);
+  Result := Trunc(d);
+end;
+
+function ArrayLikeGet(const AThis: TFloriaJSValue; AIndex: Integer): TFloriaJSValue;
+begin
+  if AThis.IsArray() then
+    Exit(AThis.AsArray().GetElement(AIndex));
+  if AThis.IsString() then
+    Exit(JSMakeString(JSUTF16CharAt(AThis.StrVal, AIndex)));
+  if AThis.IsObject() then
+    Exit(AThis.AsObject().GetProperty(IntToStr(AIndex)));
+  Result := JSMakeUndefined();
+end;
+
+{ ToLength for findLast/findLastIndex: clamped to 2^53 - 1, not 2^32 - 1. }
+function ArrayLikeLength64(const AThis: TFloriaJSValue): Int64;
+var
+  d: Double;
+begin
+  if AThis.IsArray() then
+    Exit(AThis.AsArray().Length());
+  if AThis.IsString() then
+    Exit(JSUTF16Length(AThis.StrVal));
+  if not AThis.IsObject() then
+    Exit(0);
+  if AThis.AsObject().GetProperty('length').IsSymbol() then
+    raise EFloriaJSThrow.Create(JSMakeObject(AThis.AsObject().Heap.NewError('TypeError',
+      'Cannot convert a Symbol value to a number')));
+  d := AThis.AsObject().GetProperty('length').ToNumber();
+  if IsNaN(d) or (d <= 0) then
+    Exit(0);
+  if d >= 9007199254740991.0 then
+    Exit(9007199254740991);
+  Result := Trunc(d);
+end;
+
+{ Materialises a generic array-like into a fresh array. A real array keeps its
+  holes; any other receiver has no holes. }
+function MaterializeArrayLike(const AThis: TFloriaJSValue): TFloriaJSArray;
+var
+  len, i: Integer;
+  heap: TFloriaJSHeap;
+  arr: TFloriaJSArray;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() then
+  begin
+    heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Array method called on null or undefined')));
+    Exit(nil);
+  end;
+  if AThis.IsObject() then
+    heap := AThis.AsObject().Heap
+  else
+    heap := JSActiveRealmHeap();
+  if heap = nil then
+    Exit(nil);
+  Result := heap.NewArray();
+  if AThis.IsArray() then
+  begin
+    { These methods read through Get, so a hole becomes undefined. }
+    arr := AThis.AsArray();
+    for i := 0 to arr.Length() - 1 do
+      Result.Push(arr.GetElement(i));
+    Exit;
+  end;
+  len := ArrayLikeLength(AThis);
+  for i := 0 to len - 1 do
+    Result.Push(ArrayLikeGet(AThis, i));
+end;
+
 function NumberToInt(const AValue: TFloriaJSValue): Integer;
 var
   d: Double;
@@ -975,6 +1098,167 @@ begin
   Result := JSMakeNumber(-1);
 end;
 
+function JSArrayFindLast(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  callback, thisArg, element: TFloriaJSValue;
+  i, len: Int64;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() then
+  begin
+    heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Array.prototype.findLast called on null or undefined')));
+    Exit(JSMakeUndefined());
+  end;
+  if AThis.IsObject() then heap := AThis.AsObject().Heap else heap := JSActiveRealmHeap();
+  if heap = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(heap, callback, 'findLast');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  len := ArrayLikeLength64(AThis);
+  for i := len - 1 downto 0 do
+  begin
+    element := ArrayLikeGet(AThis, i);
+    cbArgs[0] := element;
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    if heap.InvokeFunction(callback, cbArgs, thisArg).ToBoolean() then
+      Exit(element);
+  end;
+
+  Result := JSMakeUndefined();
+end;
+
+function JSArrayFindLastIndex(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  callback, thisArg: TFloriaJSValue;
+  i, len: Int64;
+  cbArgs: array[0..2] of TFloriaJSValue;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() then
+  begin
+    heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Array.prototype.findLastIndex called on null or undefined')));
+    Exit(JSMakeUndefined());
+  end;
+  if AThis.IsObject() then heap := AThis.AsObject().Heap else heap := JSActiveRealmHeap();
+  if heap = nil then Exit(JSMakeUndefined());
+
+  callback := JSMakeUndefined();
+  if Length(AArgs) > 0 then callback := AArgs[0];
+  RequireCallback(heap, callback, 'findLastIndex');
+
+  thisArg := JSMakeUndefined();
+  if Length(AArgs) > 1 then thisArg := AArgs[1];
+
+  len := ArrayLikeLength64(AThis);
+  for i := len - 1 downto 0 do
+  begin
+    cbArgs[0] := ArrayLikeGet(AThis, i);
+    cbArgs[1] := JSMakeNumber(i);
+    cbArgs[2] := AThis;
+    if heap.InvokeFunction(callback, cbArgs, thisArg).ToBoolean() then
+      Exit(JSMakeNumber(i));
+  end;
+
+  Result := JSMakeNumber(-1);
+end;
+
+function JSArrayToReversed(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  src, res: TFloriaJSArray;
+  i: Integer;
+begin
+  src := MaterializeArrayLike(AThis);
+  if src = nil then Exit(JSMakeUndefined());
+  res := src.Heap.NewArray();
+  for i := 0 to src.Length() - 1 do
+    if src.HasElement(src.Length() - 1 - i) then
+      res.Push(src.GetElement(src.Length() - 1 - i))
+    else
+      res.PushHole();
+  Result := JSMakeArray(res);
+end;
+
+function JSArrayToSorted(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  res: TFloriaJSArray;
+  comparator: TFloriaJSValue;
+begin
+  res := MaterializeArrayLike(AThis);
+  if res = nil then Exit(JSMakeUndefined());
+  comparator := JSMakeUndefined();
+  if Length(AArgs) > 0 then comparator := AArgs[0];
+  JSArraySort([comparator], JSMakeArray(res));
+  Result := JSMakeArray(res);
+end;
+
+function JSArrayToSpliced(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  res: TFloriaJSArray;
+  start, deleteCount, i: Integer;
+  spliceArgs: array of TFloriaJSValue;
+begin
+  res := MaterializeArrayLike(AThis);
+  if res = nil then Exit(JSMakeUndefined());
+
+  start := NormalizeIndex(IntArg(AArgs, 0, 0), res.Length());
+  if Length(AArgs) <= 1 then
+    deleteCount := res.Length() - start
+  else
+    deleteCount := NumberToInt(AArgs[1]);
+  if deleteCount < 0 then deleteCount := 0;
+  if deleteCount > res.Length() - start then
+    deleteCount := res.Length() - start;
+
+  if Length(AArgs) > 2 then
+    SetLength(spliceArgs, Length(AArgs))
+  else
+    SetLength(spliceArgs, 2);
+  spliceArgs[0] := JSMakeNumber(start);
+  spliceArgs[1] := JSMakeNumber(deleteCount);
+  for i := 2 to High(AArgs) do
+    spliceArgs[i] := AArgs[i];
+  JSArraySplice(spliceArgs, JSMakeArray(res));
+  Result := JSMakeArray(res);
+end;
+
+function JSArrayWith(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  res: TFloriaJSArray;
+  idx, len: Integer;
+  heap: TFloriaJSHeap;
+begin
+  res := MaterializeArrayLike(AThis);
+  if res = nil then Exit(JSMakeUndefined());
+  if Length(AArgs) < 2 then
+    Exit(JSMakeUndefined());
+  len := res.Length();
+  idx := Trunc(AArgs[0].ToNumber());
+  if idx < 0 then idx := len + idx;
+  if (idx < 0) or (idx >= len) then
+  begin
+    heap := res.Heap;
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('RangeError',
+        'Invalid index')));
+    Exit(JSMakeUndefined());
+  end;
+  res.SetElement(idx, AArgs[1]);
+  Result := JSMakeArray(res);
+end;
+
 function JSArrayReduce(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   arr: TFloriaJSArray;
@@ -1211,6 +1495,12 @@ begin
   RegisterMethod(AHeap, proto, 'every', @JSArrayEvery);
   RegisterMethod(AHeap, proto, 'find', @JSArrayFind);
   RegisterMethod(AHeap, proto, 'findIndex', @JSArrayFindIndex);
+  RegisterMethod(AHeap, proto, 'findLast', @JSArrayFindLast, 1);
+  RegisterMethod(AHeap, proto, 'findLastIndex', @JSArrayFindLastIndex, 1);
+  RegisterMethod(AHeap, proto, 'toReversed', @JSArrayToReversed, 0);
+  RegisterMethod(AHeap, proto, 'toSorted', @JSArrayToSorted, 1);
+  RegisterMethod(AHeap, proto, 'toSpliced', @JSArrayToSpliced, 2);
+  RegisterMethod(AHeap, proto, 'with', @JSArrayWith, 2);
   RegisterMethod(AHeap, proto, 'reduce', @JSArrayReduce);
   RegisterMethod(AHeap, proto, 'reduceRight', @JSArrayReduceRight);
 

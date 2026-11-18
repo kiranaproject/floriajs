@@ -18,11 +18,42 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
-  floria.js.collections;
+  floria.js.collections, floria.js.utf16;
 
 procedure FloriaJSRegisterObjects(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; AObjectCtor: TFloriaJSNativeMethod);
 
 implementation
+
+{ A symbol property key is stored as '#1sym:<id>:<description>'. }
+function IsSymbolKey(const AKey: string): Boolean;
+begin
+  Result := (Length(AKey) >= 5) and (Copy(AKey, 1, 5) = #1'sym:');
+end;
+
+function SymbolFromKey(const AKey: string): TFloriaJSValue;
+var
+  rest: string;
+  p: Integer;
+begin
+  rest := Copy(AKey, 6, MaxInt);
+  p := Pos(':', rest);
+  if p <= 0 then
+    Exit(JSMakeSymbol('', 0));
+  Result := JSMakeSymbol(Copy(rest, p + 1, MaxInt), StrToIntDef(Copy(rest, 1, p - 1), 0));
+end;
+
+{ Registers a static Object method with the standard built-in metadata. }
+procedure RegisterObjectMethod(AHeap: TFloriaJSHeap; AObj: TFloriaJSObject;
+  const AName: string; AProc: TFloriaJSNativeProc; ALength: Integer);
+var
+  fn: TFloriaJSFunction;
+begin
+  fn := AHeap.NewNativeFunction(AName, AProc);
+  fn.NotConstructable := True;
+  fn.SuppressPrototype := True;
+  fn.LengthOverride := ALength;
+  AObj.DefineDataProperty(AName, JSMakeFunction(fn), True, False, True);
+end;
 
 function GetKeysArray(AHeap: TFloriaJSHeap; AObj: TFloriaJSObject): TFloriaJSArray;
 var
@@ -79,7 +110,8 @@ begin
   end;
 
   for i := 0 to AObj.GetPropertyCount() - 1 do
-    arr.Push(AObj.GetPropertyValue(i));
+    if not IsSymbolKey(AObj.GetPropertyKey(i)) then
+      arr.Push(AObj.GetPropertyValue(i));
 
   Result := arr;
 end;
@@ -109,6 +141,8 @@ begin
 
   for i := 0 to AObj.GetPropertyCount() - 1 do
   begin
+    if IsSymbolKey(AObj.GetPropertyKey(i)) then
+      Continue;
     pair := AHeap.NewArray();
     pair.Push(JSMakeString(AObj.GetPropertyKey(i)));
     pair.Push(AObj.GetPropertyValue(i));
@@ -121,6 +155,289 @@ end;
 function ThisObject(const AThis: TFloriaJSValue): TFloriaJSObject;
 begin
   Result := AThis.AsObject();
+end;
+
+{ Builds the descriptor object for one own property, or nil when absent. }
+function BuildOwnDescriptor(AHeap: TFloriaJSHeap; AObj: TFloriaJSObject;
+  const AKey: string): TFloriaJSObject;
+var
+  desc: TFloriaJSObject;
+begin
+  Result := nil;
+  if not AObj.HasOwnProperty(AKey) then
+    Exit;
+  desc := AHeap.NewObject(AHeap.GetObjectPrototype());
+  if AObj.PropertyIsAccessor(AKey) then
+  begin
+    desc.SetProperty('get', AObj.PropertyGetter(AKey));
+    desc.SetProperty('set', AObj.PropertySetter(AKey));
+  end
+  else
+  begin
+    desc.SetProperty('value', AObj.GetOwnProperty(AKey));
+    desc.SetProperty('writable', JSMakeBoolean(AObj.PropertyIsWritable(AKey)));
+  end;
+  desc.SetProperty('enumerable', JSMakeBoolean(AObj.PropertyIsEnumerable(AKey)));
+  desc.SetProperty('configurable', JSMakeBoolean(AObj.PropertyIsConfigurable(AKey)));
+  Result := desc;
+end;
+
+function JSObjectHasOwn(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+begin
+  if Length(AArgs) < 2 then
+    Exit(JSMakeBoolean(False));
+  if AArgs[0].IsNull() or AArgs[0].IsUndefined() then
+  begin
+    heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Cannot convert undefined or null to object')));
+    Exit(JSMakeBoolean(False));
+  end;
+  if not AArgs[0].IsObject() then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean(AArgs[0].AsObject().HasOwnProperty(JSToPropertyKey(AArgs[1])));
+end;
+
+function JSObjectGetOwnPropertySymbols(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+  heap: TFloriaJSHeap;
+  arr: TFloriaJSArray;
+  i: Integer;
+  key: string;
+begin
+  heap := nil;
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() then
+    heap := AArgs[0].AsObject().Heap;
+  if heap = nil then
+    heap := JSActiveRealmHeap();
+  if heap = nil then
+    Exit(JSMakeUndefined());
+
+  arr := heap.NewArray();
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() then
+  begin
+    obj := AArgs[0].AsObject();
+    for i := 0 to obj.GetPropertyCount() - 1 do
+    begin
+      key := obj.GetPropertyKey(i);
+      if IsSymbolKey(key) then
+        arr.Push(SymbolFromKey(key));
+    end;
+  end;
+  Result := JSMakeArray(arr);
+end;
+
+function JSObjectGetOwnPropertyDescriptors(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+  heap: TFloriaJSHeap;
+  resultObj: TFloriaJSObject;
+  desc: TFloriaJSObject;
+  i: Integer;
+  key: string;
+begin
+  heap := nil;
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() then
+    heap := AArgs[0].AsObject().Heap;
+  if heap = nil then
+    heap := JSActiveRealmHeap();
+  if heap = nil then
+    Exit(JSMakeUndefined());
+
+  resultObj := heap.NewObject(heap.GetObjectPrototype());
+  if (Length(AArgs) > 0) and AArgs[0].IsString() then
+  begin
+    { A string is array-like: each UTF-16 index has a descriptor. }
+    for i := 0 to JSUTF16Length(AArgs[0].StrVal) - 1 do
+    begin
+      desc := heap.NewObject(heap.GetObjectPrototype());
+      desc.SetProperty('value', JSMakeString(JSUTF16CharAt(AArgs[0].StrVal, i)));
+      desc.SetProperty('writable', JSMakeBoolean(False));
+      desc.SetProperty('enumerable', JSMakeBoolean(True));
+      desc.SetProperty('configurable', JSMakeBoolean(False));
+      resultObj.SetProperty(IntToStr(i), JSMakeObject(desc));
+    end;
+    desc := heap.NewObject(heap.GetObjectPrototype());
+    desc.SetProperty('value', JSMakeNumber(JSUTF16Length(AArgs[0].StrVal)));
+    desc.SetProperty('writable', JSMakeBoolean(False));
+    desc.SetProperty('enumerable', JSMakeBoolean(False));
+    desc.SetProperty('configurable', JSMakeBoolean(False));
+    resultObj.SetProperty('length', JSMakeObject(desc));
+    Exit(JSMakeObject(resultObj));
+  end;
+  if (Length(AArgs) > 0) and AArgs[0].IsObject() then
+  begin
+    obj := AArgs[0].AsObject();
+    if obj is TFloriaJSArray then
+    begin
+      for i := 0 to TFloriaJSArray(obj).Length() - 1 do
+        if TFloriaJSArray(obj).HasElement(i) then
+        begin
+          desc := BuildOwnDescriptor(heap, obj, IntToStr(i));
+          if desc <> nil then
+            resultObj.SetProperty(IntToStr(i), JSMakeObject(desc));
+        end;
+      desc := BuildOwnDescriptor(heap, obj, 'length');
+      if desc <> nil then
+        resultObj.SetProperty('length', JSMakeObject(desc));
+    end;
+    for i := 0 to obj.GetPropertyCount() - 1 do
+    begin
+      key := obj.GetPropertyKey(i);
+      desc := BuildOwnDescriptor(heap, obj, key);
+      if desc <> nil then
+        resultObj.SetProperty(key, JSMakeObject(desc));
+    end;
+  end;
+  Result := JSMakeObject(resultObj);
+end;
+
+function JSObjectDefineProperties(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  obj, descriptors, desc: TFloriaJSObject;
+  i: Integer;
+  key: string;
+  writable, enumerable, configurable: Boolean;
+  value, getter, setter: TFloriaJSValue;
+begin
+  if Length(AArgs) < 2 then
+    Exit(JSMakeUndefined());
+  if AArgs[0].IsNull() or AArgs[0].IsUndefined() or
+     AArgs[1].IsNull() or AArgs[1].IsUndefined() then
+  begin
+    heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Cannot convert undefined or null to object')));
+    Exit(JSMakeUndefined());
+  end;
+  { A primitive target cannot hold new properties; a primitive descriptor
+    source has no own enumerable properties. }
+  if not AArgs[0].IsObject() or not AArgs[1].IsObject() then
+    Exit(AArgs[0]);
+  obj := AArgs[0].AsObject();
+  descriptors := AArgs[1].AsObject();
+
+  for i := 0 to descriptors.GetEnumerablePropertyCount() - 1 do
+  begin
+    key := descriptors.GetEnumerablePropertyKey(i);
+    if not descriptors.GetProperty(key).IsObject() then
+      Continue;
+    desc := descriptors.GetProperty(key).AsObject();
+    if obj.HasOwnProperty(key) then
+    begin
+      writable := obj.PropertyIsWritable(key);
+      enumerable := obj.PropertyIsEnumerable(key);
+      configurable := obj.PropertyIsConfigurable(key);
+    end
+    else
+    begin
+      writable := False;
+      enumerable := False;
+      configurable := False;
+    end;
+    if desc.HasProperty('writable') then
+      writable := desc.GetProperty('writable').ToBoolean();
+    if desc.HasProperty('enumerable') then
+      enumerable := desc.GetProperty('enumerable').ToBoolean();
+    if desc.HasProperty('configurable') then
+      configurable := desc.GetProperty('configurable').ToBoolean();
+    if desc.HasProperty('get') or desc.HasProperty('set') then
+    begin
+      if (desc.HasProperty('value') or desc.HasProperty('writable')) then
+        raise EFloriaJSThrow.Create(JSMakeObject(obj.Heap.NewError('TypeError',
+          'Invalid property descriptor: cannot both specify accessors and a value')));
+      getter := desc.GetProperty('get');
+      setter := desc.GetProperty('set');
+      if (not getter.IsUndefined()) and (not getter.IsFunction()) then
+        raise EFloriaJSThrow.Create(JSMakeObject(obj.Heap.NewError('TypeError',
+          'Invalid property descriptor: getter must be callable')));
+      if (not setter.IsUndefined()) and (not setter.IsFunction()) then
+        raise EFloriaJSThrow.Create(JSMakeObject(obj.Heap.NewError('TypeError',
+          'Invalid property descriptor: setter must be callable')));
+      if not getter.IsFunction() then getter := JSMakeUndefined();
+      if not setter.IsFunction() then setter := JSMakeUndefined();
+      obj.DefineAccessorProperty(key, getter, setter, enumerable, configurable);
+    end
+    else
+    begin
+      value := desc.GetProperty('value');
+      obj.DefineDataProperty(key, value, writable, enumerable, configurable);
+    end;
+  end;
+  Result := AArgs[0];
+end;
+
+function JSObjectGroupBy(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  items, callback, item, keyVal: TFloriaJSValue;
+  resultObj: TFloriaJSObject;
+  arr: TFloriaJSArray;
+  iter: TFloriaJSIterator;
+  i, len: Integer;
+  key: string;
+  group: TFloriaJSValue;
+  cbArgs: array[0..1] of TFloriaJSValue;
+begin
+  heap := JSActiveRealmHeap();
+  if heap = nil then
+    Exit(JSMakeUndefined());
+  if (Length(AArgs) < 2) or not AArgs[1].IsFunction() then
+    raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+      'Object.groupBy requires a callable callback')));
+  items := AArgs[0];
+  callback := AArgs[1];
+
+  resultObj := heap.NewObject(nil, True);
+  if items.IsArray() then
+  begin
+    arr := items.AsArray();
+    len := arr.Length();
+    for i := 0 to len - 1 do
+    begin
+      item := arr.GetElement(i);
+      cbArgs[0] := item;
+      cbArgs[1] := JSMakeNumber(i);
+      keyVal := heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+      key := JSPropertyKeyName(keyVal);
+      group := resultObj.GetProperty(key);
+      if not group.IsArray() then
+      begin
+        group := JSMakeArray(heap.NewArray());
+        resultObj.SetProperty(key, group);
+      end;
+      group.AsArray().Push(item);
+    end;
+  end
+  else if JSGetIterator(heap, items, iter) then
+  begin
+    i := 0;
+    while JSIteratorNext(iter, item) do
+    begin
+      cbArgs[0] := item;
+      cbArgs[1] := JSMakeNumber(i);
+      keyVal := heap.InvokeFunction(callback, cbArgs, JSMakeUndefined());
+      key := JSPropertyKeyName(keyVal);
+      group := resultObj.GetProperty(key);
+      if not group.IsArray() then
+      begin
+        group := JSMakeArray(heap.NewArray());
+        resultObj.SetProperty(key, group);
+      end;
+      group.AsArray().Push(item);
+      Inc(i);
+    end;
+  end
+  else
+    raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+      'Object.groupBy requires an iterable')));
+  Result := JSMakeObject(resultObj);
 end;
 
 function JSObjectKeys(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -371,9 +688,11 @@ begin
           arr.Push(JSMakeString(IntToStr(i)));
       arr.Push(JSMakeString('length'));
     end;
-    { Every own key, enumerable or not, in insertion order. }
+    { Every own string key, enumerable or not, in insertion order. Symbol
+      keys belong to getOwnPropertySymbols. }
     for i := 0 to obj.GetPropertyCount() - 1 do
-      arr.Push(JSMakeString(obj.GetPropertyKey(i)));
+      if not IsSymbolKey(obj.GetPropertyKey(i)) then
+        arr.Push(JSMakeString(obj.GetPropertyKey(i)));
   end
   else if (Length(AArgs) > 0) and AArgs[0].IsArray() then
   begin
@@ -942,6 +1261,11 @@ begin
   objectObj.SetProperty('isExtensible', JSMakeFunction(AHeap.NewNativeFunction('isExtensible', @JSObjectIsExtensible)));
   objectObj.SetProperty('isFrozen', JSMakeFunction(AHeap.NewNativeFunction('isFrozen', @JSObjectIsFrozen)));
   objectObj.SetProperty('isSealed', JSMakeFunction(AHeap.NewNativeFunction('isSealed', @JSObjectIsSealed)));
+  RegisterObjectMethod(AHeap, objectObj, 'hasOwn', @JSObjectHasOwn, 2);
+  RegisterObjectMethod(AHeap, objectObj, 'getOwnPropertySymbols', @JSObjectGetOwnPropertySymbols, 1);
+  RegisterObjectMethod(AHeap, objectObj, 'getOwnPropertyDescriptors', @JSObjectGetOwnPropertyDescriptors, 1);
+  RegisterObjectMethod(AHeap, objectObj, 'defineProperties', @JSObjectDefineProperties, 2);
+  RegisterObjectMethod(AHeap, objectObj, 'groupBy', @JSObjectGroupBy, 2);
 
   reflectObj := AHeap.NewObject(AHeap.GetObjectPrototype());
   reflectObj.SetProperty('get', JSMakeFunction(AHeap.NewNativeFunction('get', @JSReflectGet)));

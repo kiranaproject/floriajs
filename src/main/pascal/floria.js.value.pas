@@ -471,7 +471,7 @@ type
 
   { Deferred Microtask that Runs One Promise Reaction or settles a promise
     that was completed synchronously by a combinator such as Promise.all. }
-  TFloriaJSPromiseJobKind = (pjkReaction, pjkFulfill, pjkReject);
+  TFloriaJSPromiseJobKind = (pjkReaction, pjkFulfill, pjkReject, pjkMicrotask);
 
   TFloriaJSPromiseJob = record
     Kind: TFloriaJSPromiseJobKind;
@@ -709,6 +709,7 @@ type
     FNumberPrototype: TFloriaJSObject;
     FBooleanPrototype: TFloriaJSObject;
     FURIErrorPrototype: TFloriaJSObject;
+    FAggregateErrorPrototype: TFloriaJSObject;
     FPromisePrototype: TFloriaJSObject;
     FAsyncGeneratorPrototype: TFloriaJSObject;
     FFunctionPrototype: TFloriaJSObject;
@@ -759,6 +760,7 @@ type
     function  GetRangeErrorPrototype(): TFloriaJSObject;
     function  GetReferenceErrorPrototype(): TFloriaJSObject;
     function  GetSyntaxErrorPrototype(): TFloriaJSObject;
+    function  GetAggregateErrorPrototype(): TFloriaJSObject;
     function  GetURIErrorPrototype(): TFloriaJSObject;
     function  ArrayCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
@@ -815,6 +817,8 @@ type
     function  PromiseReject(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseAll(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  PromiseRace(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  PromiseAllSettled(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  PromiseAny(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  BuildError(const AName: string;
       const AArgs: array of TFloriaJSValue): TFloriaJSError;
     function  ErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -822,6 +826,7 @@ type
     function  RangeErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  ReferenceErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  SyntaxErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+    function  AggregateErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
     function  ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 
     { Reclaims the objects that no container refers to any more. It is only
@@ -903,6 +908,8 @@ function JSUnaryBitNot(const AVal: TFloriaJSValue): TFloriaJSValue;
 { The name a property is stored under. A symbol key gets a prefix that no real
   string key can contain, so it never collides and never enumerates. }
 function JSPropertyKeyName(const AVal: TFloriaJSValue): string;
+{ ToPropertyKey: a Symbol stays a Symbol; anything else becomes a string. }
+function JSToPropertyKey(const AVal: TFloriaJSValue): string;
 { True when AVal is a Number that names an ECMAScript array index. }
 function JSArrayIndexFromNumber(const AVal: TFloriaJSValue; out AIndex: Int64): Boolean;
 
@@ -4001,6 +4008,7 @@ begin
   FNumberPrototype := nil;
   FBooleanPrototype := nil;
   FURIErrorPrototype := nil;
+  FAggregateErrorPrototype := nil;
   FPromisePrototype := nil;
   FAsyncGeneratorPrototype := nil;
   FFunctionPrototype := nil;
@@ -4065,6 +4073,7 @@ begin
   FNumberPrototype := nil;
   FBooleanPrototype := nil;
   FURIErrorPrototype := nil;
+  FAggregateErrorPrototype := nil;
   FPromisePrototype := nil;
   FAsyncGeneratorPrototype := nil;
   FFunctionPrototype := nil;
@@ -4254,6 +4263,18 @@ begin
   Result := FURIErrorPrototype;
 end;
 
+function TFloriaJSHeap.GetAggregateErrorPrototype(): TFloriaJSObject;
+begin
+  if FAggregateErrorPrototype = nil then
+  begin
+    FAggregateErrorPrototype := NewObject(GetErrorPrototype());
+    FAggregateErrorPrototype.Pin();
+    FAggregateErrorPrototype.SetPropertyNonEnumerable('name', JSMakeString('AggregateError'));
+    FAggregateErrorPrototype.SetPropertyNonEnumerable('message', JSMakeString(''));
+  end;
+  Result := FAggregateErrorPrototype;
+end;
+
 function TFloriaJSHeap.GetFunctionPrototype(): TFloriaJSObject;
 begin
   if FFunctionPrototype = nil then
@@ -4441,6 +4462,8 @@ begin
     Result := GetSyntaxErrorPrototype()
   else if AIntrinsic = 'URIError' then
     Result := GetURIErrorPrototype()
+  else if AIntrinsic = 'AggregateError' then
+    Result := GetAggregateErrorPrototype()
   else
     Result := GetObjectPrototype();
 end;
@@ -4556,6 +4579,7 @@ begin
     'ReferenceError': Result.Prototype := GetReferenceErrorPrototype();
     'SyntaxError':    Result.Prototype := GetSyntaxErrorPrototype();
     'URIError':       Result.Prototype := GetURIErrorPrototype();
+    'AggregateError': Result.Prototype := GetAggregateErrorPrototype();
   else
     Result.Prototype := GetErrorPrototype();
   end;
@@ -4617,6 +4641,36 @@ end;
 function TFloriaJSHeap.SyntaxErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 begin
   Result := JSMakeObject(BuildError('SyntaxError', AArgs));
+end;
+
+function TFloriaJSHeap.AggregateErrorCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  err: TFloriaJSError;
+  errors: TFloriaJSValue;
+  msg: string;
+  hasMsg: Boolean;
+begin
+  errors := JSMakeUndefined();
+  if Length(AArgs) > 0 then
+    errors := AArgs[0];
+  msg := '';
+  hasMsg := (Length(AArgs) > 1) and (not AArgs[1].IsUndefined());
+  if hasMsg then
+  begin
+    if AArgs[1].IsSymbol() then
+      raise EFloriaJSThrow.Create(JSMakeObject(NewError('TypeError',
+        'Cannot convert a Symbol value to a string')));
+    msg := JSToString(AArgs[1]);
+  end;
+  err := NewError('AggregateError', msg);
+  if hasMsg and (msg = '') then
+    err.DefineDataProperty('message', JSMakeString(''), True, False, True);
+  err.DefineDataProperty('errors', errors, True, False, True);
+  if (Length(AArgs) > 2) and AArgs[2].IsObject() and
+     (AArgs[2].ObjVal <> nil) and AArgs[2].AsObject().HasProperty('cause') then
+    err.DefineDataProperty('cause', AArgs[2].AsObject().GetProperty('cause'),
+      True, False, True);
+  Result := JSMakeObject(err);
 end;
 
 function TFloriaJSHeap.ObjectCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -5531,6 +5585,113 @@ begin
   Result := JSMakePromise(p);
 end;
 
+function TFloriaJSHeap.PromiseAllSettled(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p, elem: TFloriaJSPromise;
+  arr: TFloriaJSArray;
+  outArr: TFloriaJSArray;
+  results: array of TFloriaJSValue;
+  i, count: Integer;
+  settled: TFloriaJSValue;
+  obj: TFloriaJSObject;
+begin
+  p := NewPromise();
+  if (Length(AArgs) = 0) or not AArgs[0].IsArray() then
+  begin
+    p.Fulfill(JSMakeArray(NewArray()));
+    Exit(JSMakePromise(p));
+  end;
+
+  arr := AArgs[0].AsArray();
+  count := arr.Length();
+  SetLength(results, count);
+  for i := 0 to count - 1 do
+  begin
+    settled := arr.GetElement(i);
+    obj := NewObject(GetObjectPrototype());
+    if settled.IsPromise() then
+    begin
+      elem := settled.AsPromise();
+      while (elem.State = fjspPending) and HasPromiseJobs() do
+        RunPendingJobs();
+      if elem.State = fjspRejected then
+      begin
+        obj.SetProperty('status', JSMakeString('rejected'));
+        obj.SetProperty('reason', elem.ResultValue);
+      end
+      else
+      begin
+        obj.SetProperty('status', JSMakeString('fulfilled'));
+        obj.SetProperty('value', elem.ResultValue);
+      end;
+    end
+    else
+    begin
+      obj.SetProperty('status', JSMakeString('fulfilled'));
+      obj.SetProperty('value', settled);
+    end;
+    results[i] := JSMakeObject(obj);
+  end;
+
+  outArr := NewArray();
+  for i := 0 to count - 1 do
+    outArr.SetElement(i, results[i]);
+  EnqueuePromiseSettlement(p, JSMakeArray(outArr), False);
+  Result := JSMakePromise(p);
+end;
+
+function TFloriaJSHeap.PromiseAny(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  p, elem: TFloriaJSPromise;
+  arr: TFloriaJSArray;
+  reasons: TFloriaJSArray;
+  i, count: Integer;
+  v: TFloriaJSValue;
+  agg: TFloriaJSError;
+begin
+  p := NewPromise();
+  reasons := NewArray();
+  if (Length(AArgs) = 0) or not AArgs[0].IsArray() then
+  begin
+    agg := NewError('AggregateError', 'All promises were rejected');
+    agg.DefineDataProperty('errors', JSMakeArray(reasons), True, False, True);
+    EnqueuePromiseSettlement(p, JSMakeObject(agg), True);
+    Exit(JSMakePromise(p));
+  end;
+
+  arr := AArgs[0].AsArray();
+  count := arr.Length();
+  for i := 0 to count - 1 do
+  begin
+    v := arr.GetElement(i);
+    if v.IsPromise() then
+    begin
+      elem := v.AsPromise();
+      while (elem.State = fjspPending) and HasPromiseJobs() do
+        RunPendingJobs();
+      if elem.State = fjspFulfilled then
+      begin
+        EnqueuePromiseSettlement(p, elem.ResultValue, False);
+        Exit(JSMakePromise(p));
+      end;
+      if elem.State = fjspRejected then
+        reasons.Push(elem.ResultValue)
+      else
+        reasons.Push(JSMakeUndefined());
+    end
+    else
+    begin
+      EnqueuePromiseSettlement(p, v, False);
+      Exit(JSMakePromise(p));
+    end;
+  end;
+
+  agg := NewError('AggregateError', 'All promises were rejected');
+  agg.DefineDataProperty('errors', JSMakeArray(reasons), True, False, True);
+  EnqueuePromiseSettlement(p, JSMakeObject(agg), True);
+  Result := JSMakePromise(p);
+end;
+
 function TFloriaJSHeap.NewNativeFunction(const AName: string; AProc: TFloriaJSNativeProc): TFloriaJSFunction;
 begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateNative(AName, AProc)));
@@ -5736,6 +5897,7 @@ begin
     FNumberPrototype := nil;
     FBooleanPrototype := nil;
   FURIErrorPrototype := nil;
+  FAggregateErrorPrototype := nil;
     FPromisePrototype := nil;
     FAsyncGeneratorPrototype := nil;
     GNumberPrototype := nil;
@@ -6295,6 +6457,22 @@ begin
     Result := #1'sym:' + IntToStr(Trunc(AVal.NumVal)) + ':' + AVal.StrVal
   else
     Result := JSToString(AVal);
+end;
+
+function JSToPropertyKey(const AVal: TFloriaJSValue): string;
+var
+  prim: TFloriaJSValue;
+begin
+  if AVal.IsSymbol() then
+    Exit(JSPropertyKeyName(AVal));
+  if AVal.IsObject() then
+  begin
+    prim := JSToPrimitive(AVal, 'string');
+    if prim.IsSymbol() then
+      Exit(JSPropertyKeyName(prim));
+    Exit(prim.ToString());
+  end;
+  Result := AVal.ToString();
 end;
 
 { True when AVal is a Number that names an ECMAScript array index. }

@@ -21,16 +21,34 @@ uses
 
 procedure FloriaJSRegisterSymbol(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
 
+{ Returns the well-known symbol with the given description (for example
+  'Symbol.matchAll'), or undefined when it has not been registered yet. }
+function JSWellKnownSymbol(const ADescription: string): TFloriaJSValue;
+
 implementation
 
 var
   GSymbolRegistry: TStringList = nil;
+  GWellKnownSymbols: TStringList = nil;
   GNextSymbolId: Integer = 1000;
 
 function NextSymbolId(): Integer;
 begin
   Inc(GNextSymbolId);
   Result := GNextSymbolId;
+end;
+
+function JSWellKnownSymbol(const ADescription: string): TFloriaJSValue;
+var
+  idx: Integer;
+begin
+  if GWellKnownSymbols = nil then
+    Exit(JSMakeUndefined());
+  idx := GWellKnownSymbols.IndexOfName(ADescription);
+  if idx < 0 then
+    Exit(JSMakeUndefined());
+  Result := JSMakeSymbol(ADescription,
+    StrToIntDef(GWellKnownSymbols.ValueFromIndex[idx], 0));
 end;
 
 { Symbol([description]) }
@@ -128,6 +146,15 @@ begin
     Exit(JSMakeString(AThis.StrVal));
 end;
 
+procedure AddWellKnownSymbol(ACtor: TFloriaJSFunction; const AName, ADescription: string);
+var
+  id: Integer;
+begin
+  id := NextSymbolId();
+  ACtor.SetProperty(AName, JSMakeSymbol(ADescription, id));
+  GWellKnownSymbols.Add(ADescription + '=' + IntToStr(id));
+end;
+
 procedure FloriaJSRegisterSymbol(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
 var
   symCtor: TFloriaJSFunction;
@@ -149,13 +176,20 @@ begin
   symCtor.SetProperty('keyFor', JSMakeFunction(AHeap.NewNativeFunction('keyFor', @JSSymbolKeyFor)));
 
   // Well-known symbols
-  symCtor.SetProperty('iterator', JSMakeSymbol('Symbol.iterator', NextSymbolId()));
-  symCtor.SetProperty('toStringTag', JSMakeSymbol('Symbol.toStringTag', NextSymbolId()));
-  symCtor.SetProperty('hasInstance', JSMakeSymbol('Symbol.hasInstance', NextSymbolId()));
-  symCtor.SetProperty('isConcatSpreadable', JSMakeSymbol('Symbol.isConcatSpreadable', NextSymbolId()));
-  symCtor.SetProperty('species', JSMakeSymbol('Symbol.species', NextSymbolId()));
-  symCtor.SetProperty('toPrimitive', JSMakeSymbol('Symbol.toPrimitive', NextSymbolId()));
-  symCtor.SetProperty('asyncIterator', JSMakeSymbol('Symbol.asyncIterator', NextSymbolId()));
+  if GWellKnownSymbols = nil then
+    GWellKnownSymbols := TStringList.Create();
+  AddWellKnownSymbol(symCtor, 'iterator', 'Symbol.iterator');
+  AddWellKnownSymbol(symCtor, 'toStringTag', 'Symbol.toStringTag');
+  AddWellKnownSymbol(symCtor, 'hasInstance', 'Symbol.hasInstance');
+  AddWellKnownSymbol(symCtor, 'isConcatSpreadable', 'Symbol.isConcatSpreadable');
+  AddWellKnownSymbol(symCtor, 'species', 'Symbol.species');
+  AddWellKnownSymbol(symCtor, 'toPrimitive', 'Symbol.toPrimitive');
+  AddWellKnownSymbol(symCtor, 'asyncIterator', 'Symbol.asyncIterator');
+  AddWellKnownSymbol(symCtor, 'match', 'Symbol.match');
+  AddWellKnownSymbol(symCtor, 'matchAll', 'Symbol.matchAll');
+  AddWellKnownSymbol(symCtor, 'replace', 'Symbol.replace');
+  AddWellKnownSymbol(symCtor, 'search', 'Symbol.search');
+  AddWellKnownSymbol(symCtor, 'split', 'Symbol.split');
 
   AEnv.Define('Symbol', JSMakeFunction(symCtor));
 end;

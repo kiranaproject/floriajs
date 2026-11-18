@@ -200,6 +200,57 @@ begin
     Result.Add(AItems[i]);
 end;
 
+{ Replaces invalid UTF-8 sequences with U+FFFD. A JavaScript string can hold a
+  lone surrogate, which the engine stores as WTF-8; the report must still be
+  valid UTF-8 for the Python runner to decode. }
+function SanitizeUTF8(const S: string): string;
+var
+  i, n, k: Integer;
+  b: Byte;
+  ok: Boolean;
+  cp: LongWord;
+begin
+  Result := '';
+  i := 1;
+  while i <= Length(S) do
+  begin
+    b := Ord(S[i]);
+    if b < $80 then
+    begin
+      Result := Result + S[i];
+      Inc(i);
+      Continue;
+    end;
+    if (b and $E0) = $C0 then n := 2
+    else if (b and $F0) = $E0 then n := 3
+    else if (b and $F8) = $F0 then n := 4
+    else n := 0;
+
+    ok := (n > 0) and (i + n - 1 <= Length(S));
+    if ok then
+      for k := 1 to n - 1 do
+        if (Ord(S[i + k]) and $C0) <> $80 then
+          ok := False;
+    if ok and (n = 3) then
+    begin
+      cp := ((b and $0F) shl 12) or
+        ((Ord(S[i + 1]) and $3F) shl 6) or (Ord(S[i + 2]) and $3F);
+      if (cp >= $D800) and (cp <= $DFFF) then
+        ok := False;
+    end;
+    if ok then
+    begin
+      Result := Result + Copy(S, i, n);
+      Inc(i, n);
+    end
+    else
+    begin
+      Result := Result + #$EF#$BF#$BD;
+      Inc(i);
+    end;
+  end;
+end;
+
 function HostReportJSON(const AReport: THostReport; ADurationMs: QWord): string;
 var
   root, error, legacy: TJSONObject;
@@ -234,7 +285,7 @@ begin
 
     root.Add('consoleOutput', StringArray(AReport.ConsoleOutput));
     root.Add('printOutput', StringArray(AReport.PrintOutput));
-    Result := root.FormatJSON(AsCompressedJSON);
+    Result := SanitizeUTF8(root.FormatJSON(AsCompressedJSON));
   finally
     root.Free();
   end;

@@ -122,6 +122,19 @@ begin
   Result := JSMakeNumber(Infinity);
 end;
 
+{ Registers a Math function: not a constructor, no `prototype`, length 1. }
+procedure RegisterMathMethod(AHeap: TFloriaJSHeap; AObj: TFloriaJSObject;
+  const AName: string; AProc: TFloriaJSNativeProc);
+var
+  fn: TFloriaJSFunction;
+begin
+  fn := AHeap.NewNativeFunction(AName, AProc);
+  fn.NotConstructable := True;
+  fn.SuppressPrototype := True;
+  fn.LengthOverride := 1;
+  AObj.DefineDataProperty(AName, JSMakeFunction(fn), True, False, True);
+end;
+
 function JSNumberConst(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 begin
   if Length(AArgs) = 0 then
@@ -167,6 +180,16 @@ begin
   if IsNaN(AArgs[0].NumVal) or IsInfinite(AArgs[0].NumVal) then
     Exit(JSMakeBoolean(False));
   Result := JSMakeBoolean(Frac(AArgs[0].NumVal) = 0.0);
+end;
+
+function JSNumberIsSafeInteger(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if (Length(AArgs) = 0) or (not AArgs[0].IsNumber()) then
+    Exit(JSMakeBoolean(False));
+  if IsNaN(AArgs[0].NumVal) or IsInfinite(AArgs[0].NumVal) then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean((Frac(AArgs[0].NumVal) = 0.0) and
+    (Abs(AArgs[0].NumVal) <= 9007199254740991.0));
 end;
 
 { Math Methods }
@@ -395,6 +418,125 @@ begin
   if (u and $C0000000) = 0 then begin Inc(n, 2); u := u shl 2; end;
   if (u and $80000000) = 0 then begin Inc(n, 1); end;
   Result := JSMakeNumber(n);
+end;
+
+{ Rounds to the nearest IEEE-754 single-precision value. }
+function JSMathFround(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) or IsInfinite(d) then
+    Exit(JSMakeNumber(d));
+  Result := JSMakeNumber(Single(d));
+end;
+
+function JSMathExpm1(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) then Exit(JSMakeNumber(NaN));
+  { expm1 preserves the sign of zero and the infinities. }
+  if d = 0.0 then Exit(JSMakeNumber(d));
+  if IsInfinite(d) then
+  begin
+    if d > 0 then Exit(JSMakeNumber(Infinity));
+    Exit(JSMakeNumber(-1));
+  end;
+  Result := JSMakeNumber(Exp(d) - 1.0);
+end;
+
+function JSMathLog1p(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) or (d < -1.0) then Exit(JSMakeNumber(NaN));
+  if d = -1.0 then Exit(JSMakeNumber(-Infinity));
+  if d = 0.0 then Exit(JSMakeNumber(d));
+  if IsInfinite(d) then Exit(JSMakeNumber(Infinity));
+  Result := JSMakeNumber(Ln(1.0 + d));
+end;
+
+function JSMathSinh(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) or IsInfinite(d) then Exit(JSMakeNumber(d));
+  if d = 0.0 then Exit(JSMakeNumber(d));
+  Result := JSMakeNumber(Sinh(d));
+end;
+
+function JSMathCosh(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) then Exit(JSMakeNumber(NaN));
+  if IsInfinite(d) then Exit(JSMakeNumber(Infinity));
+  Result := JSMakeNumber(Cosh(d));
+end;
+
+function JSMathTanh(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) then Exit(JSMakeNumber(NaN));
+  if IsInfinite(d) then
+  begin
+    if d > 0 then Exit(JSMakeNumber(1));
+    Exit(JSMakeNumber(-1));
+  end;
+  if d = 0.0 then Exit(JSMakeNumber(d));
+  Result := JSMakeNumber(Tanh(d));
+end;
+
+function JSMathAsinh(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) or IsInfinite(d) then Exit(JSMakeNumber(d));
+  if d = 0.0 then Exit(JSMakeNumber(d));
+  { Sign-symmetric form avoids cancellation for large negative values. }
+  if d > 0 then
+    Result := JSMakeNumber(Ln(d + Sqrt(d * d + 1.0)))
+  else
+    Result := JSMakeNumber(-Ln(-d + Sqrt(d * d + 1.0)));
+end;
+
+function JSMathAcosh(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) or (d < 1.0) then Exit(JSMakeNumber(NaN));
+  if IsInfinite(d) then Exit(JSMakeNumber(Infinity));
+  Result := JSMakeNumber(Ln(d + Sqrt(d * d - 1.0)));
+end;
+
+function JSMathAtanh(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  d: Double;
+begin
+  if Length(AArgs) = 0 then Exit(JSMakeNumber(NaN));
+  d := AArgs[0].ToNumber();
+  if IsNaN(d) or (d < -1.0) or (d > 1.0) then Exit(JSMakeNumber(NaN));
+  if d = 1.0 then Exit(JSMakeNumber(Infinity));
+  if d = -1.0 then Exit(JSMakeNumber(-Infinity));
+  if d = 0.0 then Exit(JSMakeNumber(d));
+  Result := JSMakeNumber(0.5 * Ln((1.0 + d) / (1.0 - d)));
 end;
 
 
@@ -731,6 +873,153 @@ begin
     Result := JSMakeNumber(NaN);
 end;
 
+function JSQueueMicrotask(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  job: TFloriaJSPromiseJob;
+begin
+  heap := JSActiveRealmHeap();
+  if heap = nil then
+    Exit(JSMakeUndefined());
+  if (Length(AArgs) = 0) or not AArgs[0].IsFunction() then
+    raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+      'queueMicrotask requires a callable argument')));
+  job.Kind := pjkMicrotask;
+  job.OnFulfilled := AArgs[0];
+  job.OnRejected := JSMakeUndefined();
+  job.OnFinally := JSMakeUndefined();
+  job.IsFinally := False;
+  job.IsRejection := False;
+  job.Value := JSMakeUndefined();
+  job.Child := nil;
+  job.Target := nil;
+  heap.EnqueuePromiseJob(job);
+  Result := JSMakeUndefined();
+end;
+
+type
+  TCloneEntry = record
+    Orig: TFloriaJSObject;
+    Clone: TFloriaJSValue;
+  end;
+
+function CloneValue(AHeap: TFloriaJSHeap; const AValue: TFloriaJSValue;
+  var ASeen: array of TCloneEntry; var ACount: Integer): TFloriaJSValue;
+var
+  obj, cloneObj: TFloriaJSObject;
+  arr, cloneArr: TFloriaJSArray;
+  map, cloneMap: TFloriaJSMap;
+  setObj, cloneSet: TFloriaJSSet;
+  re, cloneRe: TFloriaJSRegExp;
+  i: Integer;
+  dateMs: TFloriaJSValue;
+begin
+  if not AValue.IsObject() then
+    Exit(AValue);
+  obj := AValue.AsObject();
+  if obj = nil then
+    Exit(AValue);
+
+  { A cycle resolves to the clone that is already under construction. }
+  for i := 0 to ACount - 1 do
+    if ASeen[i].Orig = obj then
+      Exit(ASeen[i].Clone);
+
+  if obj is TFloriaJSArray then
+  begin
+    arr := TFloriaJSArray(obj);
+    cloneArr := AHeap.NewArray();
+    Result := JSMakeArray(cloneArr);
+    ASeen[ACount].Orig := obj;
+    ASeen[ACount].Clone := Result;
+    Inc(ACount);
+    for i := 0 to arr.Length() - 1 do
+      if arr.HasElement(i) then
+        cloneArr.Push(CloneValue(AHeap, arr.GetElement(i), ASeen, ACount))
+      else
+        cloneArr.PushHole();
+    Exit;
+  end;
+
+  if obj is TFloriaJSMap then
+  begin
+    map := TFloriaJSMap(obj);
+    cloneMap := TFloriaJSMap(AHeap.Track(TFloriaJSMap.Create(map.Prototype)));
+    Result := JSMakeObject(cloneMap);
+    ASeen[ACount].Orig := obj;
+    ASeen[ACount].Clone := Result;
+    Inc(ACount);
+    for i := 0 to map.Size - 1 do
+      cloneMap.SetItem(
+        CloneValue(AHeap, map.Entries[i].Key, ASeen, ACount),
+        CloneValue(AHeap, map.Entries[i].Value, ASeen, ACount));
+    Exit;
+  end;
+
+  if obj is TFloriaJSSet then
+  begin
+    setObj := TFloriaJSSet(obj);
+    cloneSet := TFloriaJSSet(AHeap.Track(TFloriaJSSet.Create(setObj.Prototype)));
+    Result := JSMakeObject(cloneSet);
+    ASeen[ACount].Orig := obj;
+    ASeen[ACount].Clone := Result;
+    Inc(ACount);
+    for i := 0 to setObj.Size - 1 do
+      cloneSet.AddItem(CloneValue(AHeap, setObj.GetItem(i), ASeen, ACount));
+    Exit;
+  end;
+
+  if obj is TFloriaJSRegExp then
+  begin
+    re := TFloriaJSRegExp(obj);
+    cloneRe := FloriaJSNewRegExp(re.Pattern, re.Flags, AHeap);
+    cloneRe.LastIndex := re.LastIndex;
+    Result := JSMakeObject(cloneRe);
+    ASeen[ACount].Orig := obj;
+    ASeen[ACount].Clone := Result;
+    Inc(ACount);
+    Exit;
+  end;
+
+  { Date objects carry their time in a hidden property. }
+  if obj.HasProperty('__date_ms__') then
+  begin
+    dateMs := obj.GetProperty('__date_ms__');
+    cloneObj := AHeap.NewObject(obj.Prototype);
+    cloneObj.SetProperty('__date_ms__', dateMs);
+    Result := JSMakeObject(cloneObj);
+    ASeen[ACount].Orig := obj;
+    ASeen[ACount].Clone := Result;
+    Inc(ACount);
+    Exit;
+  end;
+
+  cloneObj := AHeap.NewObject(AHeap.GetObjectPrototype());
+  Result := JSMakeObject(cloneObj);
+  ASeen[ACount].Orig := obj;
+  ASeen[ACount].Clone := Result;
+  Inc(ACount);
+  for i := 0 to obj.GetEnumerablePropertyCount() - 1 do
+    cloneObj.SetProperty(obj.GetEnumerablePropertyKey(i),
+      CloneValue(AHeap, obj.GetProperty(obj.GetEnumerablePropertyKey(i)), ASeen, ACount));
+end;
+
+function JSStructuredClone(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+  seen: array of TCloneEntry;
+  count: Integer;
+begin
+  heap := JSActiveRealmHeap();
+  if heap = nil then
+    Exit(JSMakeUndefined());
+  if Length(AArgs) = 0 then
+    Exit(JSMakeUndefined());
+  SetLength(seen, 64);
+  count := 0;
+  Result := CloneValue(heap, AArgs[0], seen, count);
+end;
+
 function JSIsNaN(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 begin
   if Length(AArgs) = 0 then Exit(JSMakeBoolean(True));
@@ -768,7 +1057,7 @@ end;
 procedure FloriaJSRegisterStdLib(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap; ALogOutput: TStrings);
 var
   consoleObj, mathObj, promiseObj, globalObj: TFloriaJSObject;
-  promiseCtor, bigIntFn, methodFn, booleanObj: TFloriaJSFunction;
+  promiseCtor, bigIntFn, methodFn, booleanObj, aggErrCtor: TFloriaJSFunction;
   numberObj, stringObj, funcObj, evalObj: TFloriaJSFunction;
   errCtor, typeErrCtor, rangeErrCtor, refErrCtor, syntaxErrCtor: TFloriaJSFunction;
   i: Integer;
@@ -828,6 +1117,15 @@ begin
   mathObj.SetProperty('hypot', JSMakeFunction(AHeap.NewNativeFunction('hypot', @JSMathHypot)));
   mathObj.SetProperty('imul', JSMakeFunction(AHeap.NewNativeFunction('imul', @JSMathImul)));
   mathObj.SetProperty('clz32', JSMakeFunction(AHeap.NewNativeFunction('clz32', @JSMathClz32)));
+  RegisterMathMethod(AHeap, mathObj, 'fround', @JSMathFround);
+  RegisterMathMethod(AHeap, mathObj, 'expm1', @JSMathExpm1);
+  RegisterMathMethod(AHeap, mathObj, 'log1p', @JSMathLog1p);
+  RegisterMathMethod(AHeap, mathObj, 'sinh', @JSMathSinh);
+  RegisterMathMethod(AHeap, mathObj, 'cosh', @JSMathCosh);
+  RegisterMathMethod(AHeap, mathObj, 'tanh', @JSMathTanh);
+  RegisterMathMethod(AHeap, mathObj, 'asinh', @JSMathAsinh);
+  RegisterMathMethod(AHeap, mathObj, 'acosh', @JSMathAcosh);
+  RegisterMathMethod(AHeap, mathObj, 'atanh', @JSMathAtanh);
   AEnv.Define('Math', JSMakeObject(mathObj));
 
   { Array iteration: `values` and `[Symbol.iterator]` both return an iterator
@@ -865,6 +1163,16 @@ begin
   promiseObj.SetProperty('reject', JSMakeFunction(AHeap.NewNativeMethod('reject', @AHeap.PromiseReject)));
   promiseObj.SetProperty('all', JSMakeFunction(AHeap.NewNativeMethod('all', @AHeap.PromiseAll)));
   promiseObj.SetProperty('race', JSMakeFunction(AHeap.NewNativeMethod('race', @AHeap.PromiseRace)));
+  methodFn := AHeap.NewNativeMethod('allSettled', @AHeap.PromiseAllSettled);
+  methodFn.NotConstructable := True;
+  methodFn.SuppressPrototype := True;
+  methodFn.LengthOverride := 1;
+  promiseObj.DefineDataProperty('allSettled', JSMakeFunction(methodFn), True, False, True);
+  methodFn := AHeap.NewNativeMethod('any', @AHeap.PromiseAny);
+  methodFn.NotConstructable := True;
+  methodFn.SuppressPrototype := True;
+  methodFn.LengthOverride := 1;
+  promiseObj.DefineDataProperty('any', JSMakeFunction(methodFn), True, False, True);
   AEnv.Define('Promise', JSMakeFunction(promiseCtor));
 
   // 4. Error
@@ -896,6 +1204,13 @@ begin
   AHeap.GetReferenceErrorPrototype().SetProperty('constructor', JSMakeFunction(refErrCtor));
   AEnv.DefineBuiltin('ReferenceError', JSMakeFunction(refErrCtor));
 
+  aggErrCtor := AHeap.NewNativeMethod('AggregateError', @AHeap.AggregateErrorCtor);
+  aggErrCtor.IntrinsicName := 'AggregateError';
+  aggErrCtor.LengthOverride := 2;
+  aggErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetAggregateErrorPrototype()), False, False, False);
+  AHeap.GetAggregateErrorPrototype().SetProperty('constructor', JSMakeFunction(aggErrCtor));
+  AEnv.DefineBuiltin('AggregateError', JSMakeFunction(aggErrCtor));
+
   syntaxErrCtor := AHeap.NewNativeMethod('SyntaxError', @AHeap.SyntaxErrorCtor);
   syntaxErrCtor.LengthOverride := 1;
   syntaxErrCtor.IntrinsicName := 'SyntaxError';
@@ -920,6 +1235,8 @@ begin
   RegisterGlobalFunction(AEnv, AHeap, 'parseFloat', @JSParseFloat, 1);
   AEnv.Define('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSIsNaN)));
   AEnv.Define('isFinite', JSMakeFunction(AHeap.NewNativeFunction('isFinite', @JSIsFinite)));
+  RegisterGlobalFunction(AEnv, AHeap, 'queueMicrotask', @JSQueueMicrotask, 1);
+  RegisterGlobalFunction(AEnv, AHeap, 'structuredClone', @JSStructuredClone, 1);
   AEnv.Define('NaN', JSMakeNumber(NaN));
   AEnv.Define('Infinity', JSMakeNumber(Infinity));
   AEnv.Define('undefined', JSMakeUndefined());
@@ -930,6 +1247,11 @@ begin
   numberObj.SetProperty('isNaN', JSMakeFunction(AHeap.NewNativeFunction('isNaN', @JSNumberIsNaN)));
   numberObj.SetProperty('isFinite', JSMakeFunction(AHeap.NewNativeFunction('isFinite', @JSNumberIsFinite)));
   numberObj.SetProperty('isInteger', JSMakeFunction(AHeap.NewNativeFunction('isInteger', @JSNumberIsInteger)));
+  methodFn := AHeap.NewNativeFunction('isSafeInteger', @JSNumberIsSafeInteger);
+  methodFn.NotConstructable := True;
+  methodFn.SuppressPrototype := True;
+  methodFn.LengthOverride := 1;
+  numberObj.DefineDataProperty('isSafeInteger', JSMakeFunction(methodFn), True, False, True);
   numberObj.SetProperty('parseInt', JSMakeFunction(AHeap.NewNativeFunction('parseInt', @JSParseInt)));
   numberObj.SetProperty('parseFloat', JSMakeFunction(AHeap.NewNativeFunction('parseFloat', @JSParseFloat)));
   numberObj.SetProperty('NaN', JSMakeNumber(NaN));
@@ -978,6 +1300,7 @@ begin
   AEnv.Define('WeakSet', AEnv.GetDefault('Set', JSMakeUndefined()));
   FloriaJSRegisterTimers(AEnv, AHeap);
   FloriaJSRegisterRegExp(AEnv, AHeap);
+  FloriaJSRegisterRegExpMatchAll(AHeap, FloriaJSGetRegExpPrototype());
 
   // 8. globalThis
   if AEnv.DelegateObject <> nil then

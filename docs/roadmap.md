@@ -14,7 +14,7 @@ Last refreshed 2026-11-17:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **283 tests pass** with `pasbuild test`.
+- Test suite: **284 tests pass** with `pasbuild test`.
 - Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **13 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
@@ -22,7 +22,7 @@ Last refreshed 2026-11-17:
   `alert`, calling a non-function, and an invalid assignment target); the probe
   harness is not an ECMAScript conformance suite.
 - Unit count: 28 units.
-- Documentation claims: **106 checked, 0 failing** with
+- Documentation claims: **129 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -1591,6 +1591,24 @@ pass**.
   assignments (`&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`).
 
 Focused corpus: `test262/config/coercion-tests.txt` — **608 records, all pass**.
+
+### [x] Modern built-in library (post-P3)
+
+- `Object.hasOwn`, `groupBy`, `getOwnPropertyDescriptors`, `defineProperties`,
+  and `getOwnPropertySymbols`.
+- `Array.prototype.findLast`, `findLastIndex`, `toSorted`, `toReversed`,
+  `toSpliced`, and `with`.
+- `String.prototype.at` and `matchAll`.
+- `Promise.allSettled` and `Promise.any`.
+- `Number.isSafeInteger`.
+- `Math.fround`, `expm1`, `log1p`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`,
+  and `atanh`.
+- `AggregateError`, `Map.groupBy`, `queueMicrotask`, and `structuredClone`.
+- The well-known symbols `match`, `matchAll`, `replace`, `search`, and `split`,
+  plus `RegExp.prototype[Symbol.matchAll]`.
+
+Focused corpus: `test262/config/modern-builtins-tests.txt` — **1494 records,
+all pass**.
 
 ---
 
