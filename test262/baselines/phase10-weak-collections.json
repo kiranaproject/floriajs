@@ -1,8 +1,8 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "aee472efa2d74e9e1bb670062ec7c640023cc569",
-    "workingTreeDirty": true
+    "revision": "f9a2149eb098d99d97c7f800579a4bcc48197399",
+    "workingTreeDirty": false
   },
   "host": {
     "bytes": 2283328,
@@ -12,7 +12,7 @@
   "options": {
     "allowUnpinned": false,
     "jobs": 4,
-    "listFile": "config/weak-collections-tests.txt",
+    "listFile": "weak-collections-tests.txt",
     "maxDurationSeconds": 0.0,
     "selection": [
       "built-ins/WeakMap/constructor.js",
