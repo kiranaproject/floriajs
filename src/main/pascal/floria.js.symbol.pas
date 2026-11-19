@@ -24,6 +24,8 @@ procedure FloriaJSRegisterSymbol(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHea
 { Returns the well-known symbol with the given description (for example
   'Symbol.matchAll'), or undefined when it has not been registered yet. }
 function JSWellKnownSymbol(const ADescription: string): TFloriaJSValue;
+{ True when the symbol came from `Symbol.for`, so it lives forever. }
+function JSSymbolIsRegistered(const AValue: TFloriaJSValue): Boolean;
 
 implementation
 
@@ -36,6 +38,18 @@ function NextSymbolId(): Integer;
 begin
   Inc(GNextSymbolId);
   Result := GNextSymbolId;
+end;
+
+function JSSymbolIsRegistered(const AValue: TFloriaJSValue): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  if (not AValue.IsSymbol()) or (GSymbolRegistry = nil) then
+    Exit;
+  for i := 0 to GSymbolRegistry.Count - 1 do
+    if PtrInt(GSymbolRegistry.Objects[i]) = Trunc(AValue.NumVal) then
+      Exit(True);
 end;
 
 function JSWellKnownSymbol(const ADescription: string): TFloriaJSValue;

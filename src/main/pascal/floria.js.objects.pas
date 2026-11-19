@@ -720,7 +720,7 @@ begin
   heap := obj.Heap;
   if heap = nil then
     Exit(JSMakeUndefined());
-  key := AArgs[1].ToString();
+  key := JSPropertyKeyName(AArgs[1]);
 
   if obj is TFloriaJSArray then
   begin
@@ -781,7 +781,7 @@ begin
     Exit(JSMakeUndefined());
 
   obj := AArgs[0].AsObject();
-  key := AArgs[1].ToString();
+  key := JSPropertyKeyName(AArgs[1]);
   desc := AArgs[2].AsObject();
   existed := obj.HasOwnProperty(key);
 
@@ -896,7 +896,7 @@ begin
   if Length(AArgs) = 0 then
     Exit(JSMakeBoolean(False));
 
-  name := AArgs[0].ToString();
+  name := JSPropertyKeyName(AArgs[0]);
 
   if AThis.IsObject() then
   begin
@@ -909,7 +909,18 @@ begin
 end;
 
 function JSObjectPrototypeToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  tag: TFloriaJSValue;
 begin
+  { An explicit Symbol.toStringTag wins over the builtin tag. It may be
+    inherited from the prototype, so this is a full property lookup. }
+  if AThis.IsObject() and (AThis.ObjVal <> nil) then
+  begin
+    tag := AThis.AsObject().GetWellKnownInheritedProperty('Symbol.toStringTag');
+    if tag.IsString() then
+      Exit(JSMakeString('[object ' + tag.StrVal + ']'));
+  end;
+
   if AThis.IsArray() then
     Result := JSMakeString('[object Array]')
   else if AThis.IsFunction() then
@@ -967,7 +978,7 @@ begin
   if (Length(AArgs) = 0) or (not AThis.IsObject()) then
     Exit(JSMakeBoolean(False));
   obj := AThis.AsObject();
-  key := AArgs[0].ToString();
+  key := JSPropertyKeyName(AArgs[0]);
   Result := JSMakeBoolean(obj.PropertyIsEnumerable(key));
 end;
 
@@ -989,7 +1000,7 @@ begin
   receiver := target;
   if (Length(AArgs) > 2) and AArgs[2].IsObject() then
     receiver := AArgs[2].AsObject();
-  Result := target.GetPropertyWithReceiver(AArgs[1].ToString(), receiver);
+  Result := target.GetPropertyWithReceiver(JSPropertyKeyName(AArgs[1]), receiver);
 end;
 
 function JSReflectSet(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -999,7 +1010,7 @@ begin
   target := ReflectTarget(AArgs);
   if (target = nil) or (Length(AArgs) < 3) then
     Exit(JSMakeBoolean(False));
-  target.SetProperty(AArgs[1].ToString(), AArgs[2]);
+  target.SetProperty(JSPropertyKeyName(AArgs[1]), AArgs[2]);
   Result := JSMakeBoolean(True);
 end;
 
@@ -1010,7 +1021,7 @@ begin
   target := ReflectTarget(AArgs);
   if (target = nil) or (Length(AArgs) < 2) then
     Exit(JSMakeBoolean(False));
-  Result := JSMakeBoolean(target.HasProperty(AArgs[1].ToString()));
+  Result := JSMakeBoolean(target.HasProperty(JSPropertyKeyName(AArgs[1])));
 end;
 
 function JSReflectDeleteProperty(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -1020,7 +1031,7 @@ begin
   target := ReflectTarget(AArgs);
   if (target = nil) or (Length(AArgs) < 2) then
     Exit(JSMakeBoolean(False));
-  Result := JSMakeBoolean(target.DeleteProperty(AArgs[1].ToString()));
+  Result := JSMakeBoolean(target.DeleteProperty(JSPropertyKeyName(AArgs[1])));
 end;
 
 function JSReflectOwnKeys(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;

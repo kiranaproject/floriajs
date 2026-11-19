@@ -66,6 +66,7 @@ CORPORA=(
   "modern-builtins|modern-builtins-tests|phase10-modern-builtins|10"
   "function-tostring|function-tostring-tests|phase10-function-tostring|10"
   "prototype-constructor|prototype-constructor-tests|phase10-prototype-constructor|10"
+  "weak-collections|weak-collections-tests|phase10-weak-collections|10"
   "curated|curated-tests|phase10-curated"
 )
 

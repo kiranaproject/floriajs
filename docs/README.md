@@ -58,8 +58,9 @@ Implemented and covered by the test suite:
 - Binary and concurrency data: `ArrayBuffer`, `SharedArrayBuffer`, `DataView`,
   BigInt typed arrays, and core `Atomics`; the diagnostic host also provides
   cooperative `$262.agent` agents.
-- Reflection: `Proxy` and `Reflect` traps, `WeakMap`/`WeakSet` with
-  Map/Set-backed storage, and real `Symbol`-keyed properties.
+- Reflection: `Proxy` and `Reflect` traps, genuinely weak `WeakMap`/`WeakSet`
+  whose dead entries are pruned by the collector, and real `Symbol`-keyed
+  properties.
 - BigInt: `123n` literals in decimal and every radix, arbitrary-precision
   arithmetic and comparison, and `BigInt()` conversion.
 - Function metadata: `fn.length`, `fn.name` (including inference for anonymous

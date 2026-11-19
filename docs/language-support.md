@@ -163,6 +163,7 @@ matching and byte-level lexer storage still use UTF-8 internally.
 | `globalThis` | The live global object. Global `var`/function bindings are its properties, and property writes through it update the globals. Global lexical `let`/`const` bindings are not properties. |
 | `arguments` | Available inside user functions; an `Array`. |
 | `Map`, `Set` | Collections (see below). |
+| `WeakMap`, `WeakSet` | True weak collections: a key/value is not retained, so an entry disappears once only the collection refers to it. Only objects and non-registered symbols may be held weakly, and the constructors are not callable without `new`. `WeakMap` also has the `getOrInsert`/`getOrInsertComputed` upsert methods. |
 | `Date` | Date/time object (see below). |
 | `Symbol` | Primitive symbols, registry, and well-known symbols (`iterator`, `asyncIterator`, `toStringTag`, `hasInstance`, `isConcatSpreadable`, `species`, `toPrimitive`, `match`, `matchAll`, `replace`, `search`, `split`). |
 | `RegExp` | Regular-expression constructor and regex literals. |
@@ -313,6 +314,10 @@ A bound function is a function object of its own, as in ECMAScript:
   `new Set([value, …])`.
 - `Map`: `set`, `get`, `has`, `delete`, `clear`, `keys`, `values`, `entries`,
   `forEach`, the `size` getter, and the static `Map.groupBy`.
+- `WeakMap`: `set`, `get`, `has`, `delete`, `getOrInsert`,
+  `getOrInsertComputed`. `WeakSet`: `add`, `has`, `delete`. Neither is
+  iterable and neither has a `size`, because the contents depend on what the
+  collector has reclaimed.
 - `Set`: `add`, `has`, `delete`, `clear`, `keys`, `values`, `entries`,
   `forEach`, and the `size` getter.
 - Keys use SameValueZero: `NaN` equals `NaN`, and `+0`/`-0` are the same key.

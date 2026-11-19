@@ -18,7 +18,7 @@ interface
 
 uses
   Classes, SysUtils, Math, floria.js.types, floria.js.value, floria.js.env,
-  floria.js.utf16, floria.js.regexp;
+  floria.js.utf16, floria.js.regexp, floria.js.symbol;
 
 type
   { Map Key-Value Entry }
@@ -71,10 +71,14 @@ type
     FEntries: TFloriaJSMapEntryArray;
     FCount: Integer;
     FCapacity: Integer;
+    { A weak map holds its keys without retaining them. The collector prunes
+      entries whose key is dead, so a key can be reclaimed while the map is
+      still alive. }
+    FWeakKeys: Boolean;
     function FindIndex(const AKey: TFloriaJSValue): Integer;
     procedure EnsureCapacity(AMinCapacity: Integer);
   public
-    constructor Create(AProto: TFloriaJSObject = nil);
+    constructor Create(AProto: TFloriaJSObject = nil; AWeakKeys: Boolean = False);
     destructor Destroy(); override;
 
     function  GetSize(): Integer;
@@ -83,9 +87,23 @@ type
     function  HasItem(const AKey: TFloriaJSValue): Boolean;
     function  DeleteItem(const AKey: TFloriaJSValue): Boolean;
     procedure Clear();
+    { Drops entries whose key object has been reclaimed. Returns True when an
+      entry was removed. }
+    function  PruneDeadKeys(): Boolean;
+    function  PruneWeakEntries(): Boolean; override;
 
     property Size: Integer read FCount;
+    property WeakKeys: Boolean read FWeakKeys;
     property Entries: TFloriaJSMapEntryArray read FEntries;
+  end;
+
+  { WeakMap: a Map that does not retain its keys. The distinct class makes the
+    internal-slot brand check observable: `WeakMap.prototype.set.call(new Map(), …)`
+    must throw. }
+  TFloriaJSWeakMap = class(TFloriaJSMap)
+  public
+    constructor Create(AProto: TFloriaJSObject = nil);
+    destructor Destroy(); override;
   end;
 
   { Set Collection Object }
@@ -94,10 +112,11 @@ type
     FValues: array of TFloriaJSValue;
     FCount: Integer;
     FCapacity: Integer;
+    FWeakValues: Boolean;
     function FindIndex(const AValue: TFloriaJSValue): Integer;
     procedure EnsureCapacity(AMinCapacity: Integer);
   public
-    constructor Create(AProto: TFloriaJSObject = nil);
+    constructor Create(AProto: TFloriaJSObject = nil; AWeakValues: Boolean = False);
     destructor Destroy(); override;
 
     function  GetSize(): Integer;
@@ -107,11 +126,25 @@ type
     procedure Clear();
     { The stored value at an index, in insertion order. Used by the iterator. }
     function  GetItem(AIndex: Integer): TFloriaJSValue;
+    function  PruneDeadValues(): Boolean;
+    function  PruneWeakEntries(): Boolean; override;
 
     property Size: Integer read FCount;
+    property WeakValues: Boolean read FWeakValues;
   end;
 
+  { WeakSet: a Set that does not retain its values. }
+  TFloriaJSWeakSet = class(TFloriaJSSet)
+  public
+    constructor Create(AProto: TFloriaJSObject = nil);
+    destructor Destroy(); override;
+  end;
+
+
 procedure FloriaJSRegisterCollections(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
+
+{ WeakMap/WeakSet hold object keys without retaining them. }
+procedure FloriaJSRegisterWeakCollections(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
 
 { Builds an iterator over AValue. Returns False when the value is not iterable,
   so the caller can raise the ECMAScript TypeError with its own wording. }
@@ -146,11 +179,27 @@ end;
 
 { TFloriaJSMap }
 
-constructor TFloriaJSMap.Create(AProto: TFloriaJSObject = nil);
+constructor TFloriaJSWeakMap.Create(AProto: TFloriaJSObject = nil);
+begin
+  inherited Create(AProto, True);
+end;
+
+destructor TFloriaJSWeakMap.Destroy();
+begin
+  { The heap keeps a list of weak collections to prune. A reclaimed collection
+    must leave that list, or the next collection would dereference it. }
+  if Heap <> nil then
+    Heap.UnregisterWeakCollection(Self);
+  inherited Destroy();
+end;
+
+constructor TFloriaJSMap.Create(AProto: TFloriaJSObject = nil;
+  AWeakKeys: Boolean = False);
 begin
   inherited Create(AProto);
   FCount := 0;
   FCapacity := 8;
+  FWeakKeys := AWeakKeys;
   SetLength(FEntries, FCapacity);
 end;
 
@@ -203,7 +252,8 @@ begin
     EnsureCapacity(FCount + 1);
     FEntries[FCount].Key := AKey;
     FEntries[FCount].Value := AValue;
-    JSRetainValue(AKey);
+    if not FWeakKeys then
+      JSRetainValue(AKey);
     JSRetainValue(AValue);
     Inc(FCount);
   end;
@@ -232,7 +282,8 @@ begin
   idx := FindIndex(AKey);
   if idx < 0 then Exit(False);
 
-  JSReleaseValue(FEntries[idx].Key);
+  if not FWeakKeys then
+    JSReleaseValue(FEntries[idx].Key);
   JSReleaseValue(FEntries[idx].Value);
 
   for i := idx to FCount - 2 do
@@ -250,7 +301,8 @@ var
 begin
   for i := 0 to FCount - 1 do
   begin
-    JSReleaseValue(FEntries[i].Key);
+    if not FWeakKeys then
+      JSReleaseValue(FEntries[i].Key);
     JSReleaseValue(FEntries[i].Value);
     FEntries[i].Key := JSMakeUndefined();
     FEntries[i].Value := JSMakeUndefined();
@@ -258,13 +310,71 @@ begin
   FCount := 0;
 end;
 
+{ A weak map drops the entries whose key object the collector has reclaimed. }
+function TFloriaJSMap.PruneDeadKeys(): Boolean;
+var
+  i, kept: Integer;
+begin
+  Result := False;
+  if not FWeakKeys then
+    Exit;
+  kept := 0;
+  for i := 0 to FCount - 1 do
+  begin
+    { A key with no references is about to be reclaimed. Pruning runs before
+      the sweep, so the object is still addressable here. }
+    if FEntries[i].Key.IsObject() and
+       (FEntries[i].Key.ObjVal.RefCount > 0) then
+    begin
+      if kept <> i then
+        FEntries[kept] := FEntries[i];
+      Inc(kept);
+    end
+    else if (not FEntries[i].Key.IsObject()) then
+    begin
+      if kept <> i then
+        FEntries[kept] := FEntries[i];
+      Inc(kept);
+    end
+    else
+    begin
+      { The key is gone; the entry's value reference goes with it. }
+      if (Heap = nil) or (not Heap.IsClearing) then
+        JSReleaseValue(FEntries[i].Value);
+      FEntries[i].Key := JSMakeUndefined();
+      FEntries[i].Value := JSMakeUndefined();
+      Result := True;
+    end;
+  end;
+  FCount := kept;
+end;
+
+function TFloriaJSMap.PruneWeakEntries(): Boolean;
+begin
+  Result := PruneDeadKeys();
+end;
+
 { TFloriaJSSet }
 
-constructor TFloriaJSSet.Create(AProto: TFloriaJSObject = nil);
+constructor TFloriaJSWeakSet.Create(AProto: TFloriaJSObject = nil);
+begin
+  inherited Create(AProto, True);
+end;
+
+destructor TFloriaJSWeakSet.Destroy();
+begin
+  if Heap <> nil then
+    Heap.UnregisterWeakCollection(Self);
+  inherited Destroy();
+end;
+
+constructor TFloriaJSSet.Create(AProto: TFloriaJSObject = nil;
+  AWeakValues: Boolean = False);
 begin
   inherited Create(AProto);
   FCount := 0;
   FCapacity := 8;
+  FWeakValues := AWeakValues;
   SetLength(FValues, FCapacity);
 end;
 
@@ -309,13 +419,39 @@ begin
   Result := FCount;
 end;
 
+function TFloriaJSSet.PruneDeadValues(): Boolean;
+var
+  i, kept: Integer;
+begin
+  Result := False;
+  if not FWeakValues then
+    Exit;
+  kept := 0;
+  for i := 0 to FCount - 1 do
+  begin
+    if (not FValues[i].IsObject()) or (FValues[i].ObjVal.RefCount > 0) then
+    begin
+      if kept <> i then
+        FValues[kept] := FValues[i];
+      Inc(kept);
+    end
+    else
+    begin
+      FValues[i] := JSMakeUndefined();
+      Result := True;
+    end;
+  end;
+  FCount := kept;
+end;
+
 procedure TFloriaJSSet.AddItem(const AValue: TFloriaJSValue);
 begin
   if FindIndex(AValue) >= 0 then Exit;
 
   EnsureCapacity(FCount + 1);
   FValues[FCount] := AValue;
-  JSRetainValue(AValue);
+  if not FWeakValues then
+    JSRetainValue(AValue);
   Inc(FCount);
 end;
 
@@ -346,7 +482,8 @@ var
 begin
   for i := 0 to FCount - 1 do
   begin
-    JSReleaseValue(FValues[i]);
+    if not FWeakValues then
+      JSReleaseValue(FValues[i]);
     FValues[i] := JSMakeUndefined();
   end;
   FCount := 0;
@@ -390,6 +527,310 @@ var
   GSharedSetProto: TFloriaJSObject = nil;
   GSharedCollectionsHeap: TFloriaJSHeap = nil;
 
+var
+  GSharedWeakMapProto: TFloriaJSObject = nil;
+  GSharedWeakSetProto: TFloriaJSObject = nil;
+
+{ CanBeHeldWeakly: only a non-registered symbol or an object qualifies. }
+function CanBeHeldWeakly(const AValue: TFloriaJSValue): Boolean;
+begin
+  { An object, or a symbol that is not in the global registry, may be held
+    weakly. A `Symbol.for` registration lives for the lifetime of the realm. }
+  Result := AValue.IsObject() or
+    (AValue.IsSymbol() and (not JSSymbolIsRegistered(AValue)));
+end;
+
+{ Installs Symbol.toStringTag under the actual well-known symbol key, so a
+  descriptor lookup with `Symbol.toStringTag` finds it. }
+procedure DefineToStringTag(AObj: TFloriaJSObject; const AValue: string);
+var
+  sym: TFloriaJSValue;
+begin
+  sym := JSWellKnownSymbol('Symbol.toStringTag');
+  if sym.IsUndefined() then
+  begin
+    AObj.DefineDataProperty(JSPropertyKeyName(JSMakeSymbol('Symbol.toStringTag', 0)),
+      JSMakeString(AValue), False, False, True);
+    Exit;
+  end;
+  AObj.DefineDataProperty(JSPropertyKeyName(sym), JSMakeString(AValue), False, False, True);
+end;
+
+function WeakCollectionError(const AMessage: string): TFloriaJSValue;
+begin
+  if GSharedCollectionsHeap <> nil then
+    Exit(JSMakeObject(GSharedCollectionsHeap.NewError('TypeError', AMessage)));
+  Result := JSMakeObject(TFloriaJSError.Create('TypeError', AMessage));
+end;
+
+function RequireWeakKey(const AValue: TFloriaJSValue;
+  const AMethod: string): TFloriaJSValue;
+begin
+  if CanBeHeldWeakly(AValue) then
+    Exit(AValue);
+  if AValue.IsObject() and (AValue.ObjVal.Heap <> nil) then
+    raise EFloriaJSThrow.Create(JSMakeObject(
+      AValue.ObjVal.Heap.NewError('TypeError', 'Invalid value used as weak ' + AMethod)));
+  if GSharedCollectionsHeap <> nil then
+    raise EFloriaJSThrow.Create(JSMakeObject(
+      GSharedCollectionsHeap.NewError('TypeError', 'Invalid value used as weak ' + AMethod)));
+  raise EFloriaJSThrow.Create(JSMakeString('TypeError: invalid weak key'));
+end;
+
+function JSWeakMapCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  map: TFloriaJSMap;
+  heap: TFloriaJSHeap;
+  iter: TFloriaJSIterator;
+  entry, k, v, adder: TFloriaJSValue;
+begin
+  heap := GSharedCollectionsHeap;
+  if heap = nil then
+    Exit(JSMakeUndefined());
+  { WeakMap is a constructor: a plain call is a TypeError. A construction
+    arrives with the freshly created instance bound to `this`. }
+  if (not heap.CurrentNewTarget.IsFunction()) and
+     (AThis.IsObject() and (AThis.ObjVal is TFloriaJSWeakMap)) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Constructor WeakMap requires new'));
+  map := TFloriaJSWeakMap(heap.Track(TFloriaJSWeakMap.Create(GSharedWeakMapProto)));
+  heap.RegisterWeakCollection(map);
+
+  if (Length(AArgs) > 0) and (not AArgs[0].IsUndefined()) and
+     (not AArgs[0].IsNull()) then
+  begin
+    if not JSGetIterator(heap, AArgs[0], iter) then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'WeakMap iterable is not iterable')));
+    while JSIteratorNext(iter, entry) do
+    begin
+      if not entry.IsObject() then
+        raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+          'Iterator value is not an entry object')));
+      k := entry.AsObject().GetProperty('0');
+      v := entry.AsObject().GetProperty('1');
+      RequireWeakKey(k, 'key');
+      adder := JSMakeUndefined();
+      if GSharedWeakMapProto <> nil then
+        adder := GSharedWeakMapProto.GetProperty('set');
+      if adder.IsFunction() then
+        heap.InvokeFunction(adder, [k, v], JSMakeObject(map))
+      else
+        map.SetItem(k, v);
+    end;
+  end;
+  Result := JSMakeObject(map);
+end;
+
+function JSWeakMapSet(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSWeakMap) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method WeakMap.prototype.set called on incompatible receiver'));
+  if Length(AArgs) < 1 then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Invalid value used as weak map key'));
+  RequireWeakKey(AArgs[0], 'map key');
+  if Length(AArgs) > 1 then
+    TFloriaJSMap(AThis.ObjVal).SetItem(AArgs[0], AArgs[1])
+  else
+    TFloriaJSMap(AThis.ObjVal).SetItem(AArgs[0], JSMakeUndefined());
+  Result := AThis;
+end;
+
+function JSWeakMapGet(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSWeakMap) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method WeakMap.prototype.get called on incompatible receiver'));
+  if Length(AArgs) < 1 then
+    Exit(JSMakeUndefined());
+  Result := TFloriaJSMap(AThis.ObjVal).GetItem(AArgs[0]);
+end;
+
+function JSWeakMapHas(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSWeakMap) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method WeakMap.prototype.has called on incompatible receiver'));
+  if Length(AArgs) < 1 then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean(TFloriaJSMap(AThis.ObjVal).HasItem(AArgs[0]));
+end;
+
+function JSWeakMapDelete(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSWeakMap) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method WeakMap.prototype.delete called on incompatible receiver'));
+  if Length(AArgs) < 1 then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean(TFloriaJSMap(AThis.ObjVal).DeleteItem(AArgs[0]));
+end;
+
+{ WeakMap.prototype.getOrInsert(key, value) — returns the existing value, or
+  inserts `value` and returns it. }
+function JSWeakMapGetOrInsert(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  map: TFloriaJSMap;
+  v: TFloriaJSValue;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSWeakMap) then
+    raise EFloriaJSThrow.Create(WeakCollectionError(
+      'Method WeakMap.prototype.getOrInsert called on incompatible receiver'));
+  if Length(AArgs) < 1 then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Invalid value used as weak map key'));
+  RequireWeakKey(AArgs[0], 'map key');
+  map := TFloriaJSMap(AThis.ObjVal);
+  if map.HasItem(AArgs[0]) then
+    Exit(map.GetItem(AArgs[0]));
+  if Length(AArgs) > 1 then v := AArgs[1] else v := JSMakeUndefined();
+  map.SetItem(AArgs[0], v);
+  Result := v;
+end;
+
+function JSWeakMapGetOrInsertComputed(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  map: TFloriaJSMap;
+  heap: TFloriaJSHeap;
+  v: TFloriaJSValue;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSWeakMap) then
+    raise EFloriaJSThrow.Create(WeakCollectionError(
+      'Method WeakMap.prototype.getOrInsertComputed called on incompatible receiver'));
+  if (Length(AArgs) < 2) or (not AArgs[1].IsFunction()) then
+    raise EFloriaJSThrow.Create(WeakCollectionError(
+      'WeakMap.prototype.getOrInsertComputed requires a callable callback'));
+  RequireWeakKey(AArgs[0], 'map key');
+  map := TFloriaJSMap(AThis.ObjVal);
+  if map.HasItem(AArgs[0]) then
+    Exit(map.GetItem(AArgs[0]));
+  heap := map.Heap;
+  if heap = nil then
+    heap := GSharedCollectionsHeap;
+  v := heap.InvokeFunction(AArgs[1], [AArgs[0]], JSMakeUndefined());
+  { The callback may have inserted the key itself. }
+  if map.HasItem(AArgs[0]) then
+    Exit(map.GetItem(AArgs[0]));
+  map.SetItem(AArgs[0], v);
+  Result := v;
+end;
+
+function JSWeakSetCtor(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  setObj: TFloriaJSSet;
+  heap: TFloriaJSHeap;
+  iter: TFloriaJSIterator;
+  item, adder: TFloriaJSValue;
+begin
+  heap := GSharedCollectionsHeap;
+  if heap = nil then
+    Exit(JSMakeUndefined());
+  if (not heap.CurrentNewTarget.IsFunction()) and
+     (AThis.IsObject() and (AThis.ObjVal is TFloriaJSWeakSet)) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Constructor WeakSet requires new'));
+  setObj := TFloriaJSWeakSet(heap.Track(TFloriaJSWeakSet.Create(GSharedWeakSetProto)));
+  heap.RegisterWeakCollection(setObj);
+
+  if (Length(AArgs) > 0) and (not AArgs[0].IsUndefined()) and
+     (not AArgs[0].IsNull()) then
+  begin
+    if not JSGetIterator(heap, AArgs[0], iter) then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'WeakSet iterable is not iterable')));
+    while JSIteratorNext(iter, item) do
+    begin
+      RequireWeakKey(item, 'set value');
+      adder := JSMakeUndefined();
+      if GSharedWeakSetProto <> nil then
+        adder := GSharedWeakSetProto.GetProperty('add');
+      if adder.IsFunction() then
+        heap.InvokeFunction(adder, [item], JSMakeObject(setObj))
+      else
+        setObj.AddItem(item);
+    end;
+  end;
+  Result := JSMakeObject(setObj);
+end;
+
+function JSWeakSetAdd(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSWeakSet) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method WeakSet.prototype.add called on incompatible receiver'));
+  if Length(AArgs) < 1 then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Invalid value used as weak set value'));
+  RequireWeakKey(AArgs[0], 'set value');
+  TFloriaJSSet(AThis.ObjVal).AddItem(AArgs[0]);
+  Result := AThis;
+end;
+
+function JSWeakSetHas(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSWeakSet) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method WeakSet.prototype.has called on incompatible receiver'));
+  if Length(AArgs) < 1 then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean(TFloriaJSSet(AThis.ObjVal).HasItem(AArgs[0]));
+end;
+
+function JSWeakSetDelete(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  if not AThis.IsObject() or (not (AThis.ObjVal is TFloriaJSWeakSet)) then
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method WeakSet.prototype.delete called on incompatible receiver'));
+  if Length(AArgs) < 1 then
+    Exit(JSMakeBoolean(False));
+  Result := JSMakeBoolean(TFloriaJSSet(AThis.ObjVal).DeleteItem(AArgs[0]));
+end;
+
+procedure FloriaJSRegisterWeakCollections(AEnv: TFloriaJSEnvironment; AHeap: TFloriaJSHeap);
+var
+  weakMapCtor, weakSetCtor: TFloriaJSFunction;
+  fn: TFloriaJSFunction;
+begin
+  if (AEnv = nil) or (AHeap = nil) then Exit;
+
+  GSharedWeakMapProto := AHeap.NewObject(AHeap.GetObjectPrototype());
+  GSharedWeakSetProto := AHeap.NewObject(AHeap.GetObjectPrototype());
+
+  { WeakMap/WeakSet are not constructable-without-new and have length 0, and
+    their prototypes expose Symbol.toStringTag. }
+  weakMapCtor := AHeap.NewNativeFunction('WeakMap', @JSWeakMapCtor);
+  weakMapCtor.LengthOverride := 0;
+  DefineToStringTag(GSharedWeakMapProto, 'WeakMap');
+  weakMapCtor.DefineDataProperty('prototype', JSMakeObject(GSharedWeakMapProto), False, False, False);
+  GSharedWeakMapProto.DefineDataProperty('constructor', JSMakeFunction(weakMapCtor), True, False, True);
+  fn := AHeap.NewNativeFunction('set', @JSWeakMapSet);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 2;
+  GSharedWeakMapProto.DefineDataProperty('set', JSMakeFunction(fn), True, False, True);
+  fn := AHeap.NewNativeFunction('get', @JSWeakMapGet);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 1;
+  GSharedWeakMapProto.DefineDataProperty('get', JSMakeFunction(fn), True, False, True);
+  fn := AHeap.NewNativeFunction('has', @JSWeakMapHas);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 1;
+  GSharedWeakMapProto.DefineDataProperty('has', JSMakeFunction(fn), True, False, True);
+  fn := AHeap.NewNativeFunction('delete', @JSWeakMapDelete);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 1;
+  GSharedWeakMapProto.DefineDataProperty('delete', JSMakeFunction(fn), True, False, True);
+  fn := AHeap.NewNativeFunction('getOrInsert', @JSWeakMapGetOrInsert);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 2;
+  GSharedWeakMapProto.DefineDataProperty('getOrInsert', JSMakeFunction(fn), True, False, True);
+  fn := AHeap.NewNativeFunction('getOrInsertComputed', @JSWeakMapGetOrInsertComputed);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 2;
+  GSharedWeakMapProto.DefineDataProperty('getOrInsertComputed', JSMakeFunction(fn), True, False, True);
+  AEnv.DefineBuiltin('WeakMap', JSMakeFunction(weakMapCtor));
+
+  weakSetCtor := AHeap.NewNativeFunction('WeakSet', @JSWeakSetCtor);
+  weakSetCtor.LengthOverride := 0;
+  DefineToStringTag(GSharedWeakSetProto, 'WeakSet');
+  weakSetCtor.DefineDataProperty('prototype', JSMakeObject(GSharedWeakSetProto), False, False, False);
+  GSharedWeakSetProto.DefineDataProperty('constructor', JSMakeFunction(weakSetCtor), True, False, True);
+  fn := AHeap.NewNativeFunction('add', @JSWeakSetAdd);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 1;
+  GSharedWeakSetProto.DefineDataProperty('add', JSMakeFunction(fn), True, False, True);
+  fn := AHeap.NewNativeFunction('has', @JSWeakSetHas);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 1;
+  GSharedWeakSetProto.DefineDataProperty('has', JSMakeFunction(fn), True, False, True);
+  fn := AHeap.NewNativeFunction('delete', @JSWeakSetDelete);
+  fn.NotConstructable := True; fn.SuppressPrototype := True; fn.LengthOverride := 1;
+  GSharedWeakSetProto.DefineDataProperty('delete', JSMakeFunction(fn), True, False, True);
+  AEnv.DefineBuiltin('WeakSet', JSMakeFunction(weakSetCtor));
+end;
+
+
 function GetHeap(const AVal: TFloriaJSValue): TFloriaJSHeap;
 begin
   if AVal.IsObject() and (AVal.ObjVal <> nil) and (AVal.ObjVal.Heap <> nil) then
@@ -411,7 +852,7 @@ var
   k, v: TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.set called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.set called on incompatible receiver'));
 
   if Length(AArgs) > 0 then k := AArgs[0] else k := JSMakeUndefined();
   if Length(AArgs) > 1 then v := AArgs[1] else v := JSMakeUndefined();
@@ -425,7 +866,7 @@ var
   k: TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.get called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.get called on incompatible receiver'));
 
   if Length(AArgs) > 0 then k := AArgs[0] else k := JSMakeUndefined();
   Result := TFloriaJSMap(AThis.ObjVal).GetItem(k);
@@ -436,7 +877,7 @@ var
   k: TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.has called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.has called on incompatible receiver'));
 
   if Length(AArgs) > 0 then k := AArgs[0] else k := JSMakeUndefined();
   Result := JSMakeBoolean(TFloriaJSMap(AThis.ObjVal).HasItem(k));
@@ -447,7 +888,7 @@ var
   k: TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.delete called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.delete called on incompatible receiver'));
 
   if Length(AArgs) > 0 then k := AArgs[0] else k := JSMakeUndefined();
   Result := JSMakeBoolean(TFloriaJSMap(AThis.ObjVal).DeleteItem(k));
@@ -456,7 +897,7 @@ end;
 function JSMapClear(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.clear called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.clear called on incompatible receiver'));
 
   TFloriaJSMap(AThis.ObjVal).Clear();
   Result := JSMakeUndefined();
@@ -515,7 +956,7 @@ var
   h: TFloriaJSHeap;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.keys called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.keys called on incompatible receiver'));
 
   h := GetHeap(AThis);
   Result := JSMakeObject(h.Track(TFloriaJSIterator.Create(h, fikMapKeys, AThis)));
@@ -526,7 +967,7 @@ var
   h: TFloriaJSHeap;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.values called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.values called on incompatible receiver'));
 
   h := GetHeap(AThis);
   Result := JSMakeObject(h.Track(TFloriaJSIterator.Create(h, fikMapValues, AThis)));
@@ -537,7 +978,7 @@ var
   h: TFloriaJSHeap;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.entries called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.entries called on incompatible receiver'));
 
   h := GetHeap(AThis);
   Result := JSMakeObject(h.Track(TFloriaJSIterator.Create(h, fikMapEntries, AThis)));
@@ -552,10 +993,10 @@ var
   h: TFloriaJSHeap;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSMap) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Map.prototype.forEach called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Map.prototype.forEach called on incompatible receiver'));
 
   if (Length(AArgs) = 0) or not AArgs[0].IsFunction() then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Callback must be a function')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Callback must be a function'));
 
   cb := AArgs[0];
   if Length(AArgs) > 1 then thisArg := AArgs[1] else thisArg := JSMakeUndefined();
@@ -605,7 +1046,7 @@ var
   v: TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSSet) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Set.prototype.add called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Set.prototype.add called on incompatible receiver'));
 
   if Length(AArgs) > 0 then v := AArgs[0] else v := JSMakeUndefined();
   TFloriaJSSet(AThis.ObjVal).AddItem(v);
@@ -617,7 +1058,7 @@ var
   v: TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSSet) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Set.prototype.has called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Set.prototype.has called on incompatible receiver'));
 
   if Length(AArgs) > 0 then v := AArgs[0] else v := JSMakeUndefined();
   Result := JSMakeBoolean(TFloriaJSSet(AThis.ObjVal).HasItem(v));
@@ -628,7 +1069,7 @@ var
   v: TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSSet) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Set.prototype.delete called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Set.prototype.delete called on incompatible receiver'));
 
   if Length(AArgs) > 0 then v := AArgs[0] else v := JSMakeUndefined();
   Result := JSMakeBoolean(TFloriaJSSet(AThis.ObjVal).DeleteItem(v));
@@ -637,7 +1078,7 @@ end;
 function JSSetClear(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSSet) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Set.prototype.clear called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Set.prototype.clear called on incompatible receiver'));
 
   TFloriaJSSet(AThis.ObjVal).Clear();
   Result := JSMakeUndefined();
@@ -650,12 +1091,17 @@ begin
   Result := JSMakeNumber(TFloriaJSSet(AThis.ObjVal).GetSize());
 end;
 
+function TFloriaJSSet.PruneWeakEntries(): Boolean;
+begin
+  Result := PruneDeadValues();
+end;
+
 function JSSetValues(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   h: TFloriaJSHeap;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSSet) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Set.prototype.values called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Set.prototype.values called on incompatible receiver'));
 
   h := GetHeap(AThis);
   Result := JSMakeObject(h.Track(TFloriaJSIterator.Create(h, fikSetValues, AThis)));
@@ -666,7 +1112,7 @@ var
   h: TFloriaJSHeap;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSSet) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Set.prototype.entries called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Set.prototype.entries called on incompatible receiver'));
 
   h := GetHeap(AThis);
   Result := JSMakeObject(h.Track(TFloriaJSIterator.Create(h, fikSetEntries, AThis)));
@@ -681,10 +1127,10 @@ var
   h: TFloriaJSHeap;
 begin
   if not AThis.IsObject() or not (AThis.ObjVal is TFloriaJSSet) then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Method Set.prototype.forEach called on incompatible receiver')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Method Set.prototype.forEach called on incompatible receiver'));
 
   if (Length(AArgs) = 0) or not AArgs[0].IsFunction() then
-    raise EFloriaJSThrow.Create(JSMakeObject(TFloriaJSError.Create('TypeError', 'Callback must be a function')));
+    raise EFloriaJSThrow.Create(WeakCollectionError('Callback must be a function'));
 
   cb := AArgs[0];
   if Length(AArgs) > 1 then thisArg := AArgs[1] else thisArg := JSMakeUndefined();

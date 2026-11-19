@@ -307,6 +307,19 @@ python3 "$TEST262/tools/run_test262.py" \
   --baseline "$TEST262/baselines/phase10-prototype-constructor.json" \
   --fail-on-regression >/dev/null
 
+echo "== Reviewed upstream weak-collections corpus =="
+python3 "$TEST262/tools/run_test262.py" \
+  --root "$ROOT" \
+  --host "$HOST" \
+  --timeout 10 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
+  --list "$TEST262/config/weak-collections-tests.txt" \
+  --report "$RESULTS/weak-collections-report.json" \
+  --output "$RESULTS/weak-collections.jsonl" \
+  --baseline "$TEST262/baselines/phase10-weak-collections.json" \
+  --fail-on-regression >/dev/null
+
 echo "== Reviewed upstream curated corpus =="
 python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \

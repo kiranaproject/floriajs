@@ -553,8 +553,8 @@ on documented gaps are excluded: Promise subclassing/species, descriptor
 edge cases in `Object.defineProperties`, generic array-like boxing, the full
 `@@matchAll` protocol, resizable buffers, and lone surrogates.
 
-Validation: **284 FPCUnit tests**, **143 documentation claims**, curated corpus
-**354 records — 354 pass**, extended diagnostic **3028 records — 3028 pass**.
+Validation: **284 FPCUnit tests**, **150 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3446 records — 3446 pass**.
 
 ## Function.prototype.toString source retention
 
@@ -581,8 +581,8 @@ class fields, private methods, async/generator methods, the `AsyncFunction` and
 `@@match` protocol on `RegExp`, or the Unicode regexes in
 `nativeFunctionMatcher.js`.
 
-Validation: **285 FPCUnit tests**, **143 documentation claims**, curated corpus
-**354 records — 354 pass**, extended diagnostic **3028 records — 3028 pass**.
+Validation: **285 FPCUnit tests**, **150 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3446 records — 3446 pass**.
 
 ## Prototype constructor back-references
 
@@ -607,12 +607,39 @@ Supporting fix: `Object.prototype.valueOf` was missing and is now present.
 Focused corpus: `config/prototype-constructor-tests.txt` — **22 records, all
 pass**.
 
-Validation: **286 FPCUnit tests**, **143 documentation claims**, curated corpus
-**354 records — 354 pass**, extended diagnostic **3028 records — 3028 pass**.
+Validation: **286 FPCUnit tests**, **150 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3446 records — 3446 pass**.
+
+## WeakMap and WeakSet weakness
+
+`WeakMap` and `WeakSet` are now genuinely weak:
+
+- They are separate classes from `Map`/`Set`, so the internal-slot brand check
+  works (`WeakMap.prototype.set.call(new Map(), …)` throws `TypeError`).
+- A key or value is stored without taking a reference. The heap keeps a list of
+  weak collections and prunes an entry whose key has become unreachable, before
+  and after each sweep.
+- The constructors reject primitive keys and are not callable without `new`.
+- `WeakMap` gains `getOrInsert` and `getOrInsertComputed`.
+- Neither collection is iterable and neither has a `size`.
+
+Supporting fixes: `Object.prototype.toString` now honours `Symbol.toStringTag`
+(including inherited tags), symbol-keyed descriptor lookups resolve a
+well-known symbol spelled by description, and `Map`/`Set`'s error paths build
+real `TypeError` objects.
+
+Focused corpus: `config/weak-collections-tests.txt` — **418 records, all pass**.
+The corpus is the passing subset of the upstream `WeakMap`/`WeakSet`
+directories; excluded tests depend on iterator-protocol abrupt-completion
+ordering (a general limitation) and the `WeakMap`/`WeakSet` `undefined`
+new-target case.
+
+Validation: **287 FPCUnit tests**, **150 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3446 records — 3446 pass**.
 
 ## Next phase
 
 Phase 10, Phase 11, Phase 12, and Phase 13 are complete, as is the P3 performance
 work, the library/iteration gap closure, the coercion-completeness closure, the
 modern built-in library closure, `Function.prototype.toString` source retention,
-and the prototype constructor back-reference work. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+the prototype constructor back-reference work, and true weak collections. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

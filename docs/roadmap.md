@@ -14,7 +14,7 @@ Last refreshed 2026-11-17:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **286 tests pass** with `pasbuild test`.
+- Test suite: **287 tests pass** with `pasbuild test`.
 - Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **13 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
@@ -22,7 +22,7 @@ Last refreshed 2026-11-17:
   `alert`, calling a non-function, and an invalid assignment target); the probe
   harness is not an ECMAScript conformance suite.
 - Unit count: 28 units.
-- Documentation claims: **143 checked, 0 failing** with
+- Documentation claims: **150 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -1638,6 +1638,22 @@ all pass**.
 Focused corpus: `test262/config/prototype-constructor-tests.txt` — **22
 records, all pass**.
 
+### [x] True WeakMap/WeakSet weakness (post-P3)
+
+- Distinct `TFloriaJSWeakMap`/`TFloriaJSWeakSet` classes, so the brand check is
+  observable.
+- Keys and values stored without a reference; the heap prunes entries whose key
+  has been reclaimed, before and after each sweep.
+- Primitive keys rejected; the constructors are not callable without `new`.
+- `WeakMap.getOrInsert` and `getOrInsertComputed`.
+- No iteration and no `size`, matching the specification.
+- Supporting fixes: `Symbol.toStringTag` in `Object.prototype.toString`,
+  symbol-keyed descriptor lookups, and real `TypeError` objects on the
+  `Map`/`Set` error paths.
+
+Focused corpus: `test262/config/weak-collections-tests.txt` — **418 records,
+all pass**.
+
 ---
 
 ## Intentionally deferred
@@ -1654,8 +1670,6 @@ than “fixing” them accidentally:
 3. **Cooperative agents.** `$262.agent` is single-threaded and switches only at
    explicit agent/Atomics calls; real preemptive thread concurrency is not
    implemented.
-4. **WeakMap/WeakSet storage.** They expose the Map/Set API but use strong
-   storage, so they do not provide true weak-reference semantics.
 5. **RegExp engine.** Backed by Pascal `RegExpr`; lookbehind, named groups, and
    Unicode property escapes are not guaranteed.
 6. **Full ECMAScript conformance** is not a goal; the target is a practical

@@ -1297,11 +1297,7 @@ begin
   FloriaJSRegisterURI(AEnv, AHeap);
   FloriaJSRegisterCollections(AEnv, AHeap);
   FloriaJSRegisterBinary(AEnv, AHeap);
-  { WeakMap/WeakSet currently use the Map/Set storage model: keys are strong
-    and primitives are accepted. The API surface is available; true weakness is
-    future work. }
-  AEnv.Define('WeakMap', AEnv.GetDefault('Map', JSMakeUndefined()));
-  AEnv.Define('WeakSet', AEnv.GetDefault('Set', JSMakeUndefined()));
+  FloriaJSRegisterWeakCollections(AEnv, AHeap);
   FloriaJSRegisterTimers(AEnv, AHeap);
   FloriaJSRegisterRegExp(AEnv, AHeap);
   FloriaJSRegisterRegExpMatchAll(AHeap, FloriaJSGetRegExpPrototype());

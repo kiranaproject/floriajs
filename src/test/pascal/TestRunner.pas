@@ -360,6 +360,7 @@ type
     procedure TestModernBuiltins();
     procedure TestFunctionSourceRetention();
     procedure TestPrototypeConstructorBackReference();
+    procedure TestWeakCollectionSemantics();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7792,6 +7793,62 @@ begin
     AssertTrue('prototypes are still reclaimed with their function (' +
       IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount()) + ')',
       ctx.Heap.GetObjectCount <= objects + 5);
+  finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestWeakCollectionSemantics();
+var
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+  base, after, i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    res := ctx.Evaluate(
+      'var wm = new WeakMap(); var k = {}; wm.set(k, 7);' +
+      'var ws = new WeakSet(); var v = {}; ws.add(v);' +
+      '[wm.get(k), wm.has(k), ws.has(v), wm.delete(k), ws.delete(v)].join(",");'
+    );
+    AssertTrue('weak collection API script succeeds', res.Success);
+    AssertEquals('get, has, add, delete', '7,true,true,true,true', res.StringValue);
+
+    res := ctx.Evaluate('typeof WeakMap.prototype[Symbol.iterator] + "," + ("size" in new WeakMap());');
+    AssertTrue('weak collections are not iterable', res.Success);
+    AssertEquals('no iterator and no size', 'undefined,false', res.StringValue);
+
+    { A primitive key is rejected. }
+    res := ctx.Evaluate('try { new WeakMap([[1, 2]]); "no"; } catch (e) { e.name; }');
+    AssertTrue('primitive weak key script succeeds', res.Success);
+    AssertEquals('primitive key throws TypeError', 'TypeError', res.StringValue);
+
+    { The brand check distinguishes the collection kinds. }
+    res := ctx.Evaluate(
+      'try { WeakMap.prototype.delete.call(new Map(), {}); "no"; } catch (e) { e.name; }');
+    AssertTrue('weak brand check script succeeds', res.Success);
+    AssertEquals('a Map is not a WeakMap', 'TypeError', res.StringValue);
+
+    { The real point: dead keys do not keep entries alive. A strong Map grows,
+      a WeakMap stays flat. }
+    ctx.Evaluate('var weak = new WeakMap(); 0;');
+    ctx.Heap.Collect();
+    base := ctx.Heap.GetObjectCount();
+    for i := 1 to 150 do
+      ctx.Evaluate('var wk = {}; weak.set(wk, 1); wk = null; 0;');
+    ctx.Heap.Collect();
+    after := ctx.Heap.GetObjectCount();
+    AssertTrue('weak keys are reclaimed (' + IntToStr(base) + ' -> ' +
+      IntToStr(after) + ')', after <= base + 10);
+
+    { A live key keeps its entry. }
+    res := ctx.Evaluate(
+      'var holder = {}; weak.set(holder, "alive"); 0;');
+    AssertTrue('live weak key setup succeeds', res.Success);
+    ctx.Heap.Collect();
+    res := ctx.Evaluate('weak.get(holder);');
+    AssertTrue('live weak entry script succeeds', res.Success);
+    AssertEquals('a live key keeps its entry', 'alive', res.StringValue);
   finally
     ctx.Free();
   end;

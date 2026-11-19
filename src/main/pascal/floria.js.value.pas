@@ -159,6 +159,8 @@ type
     { Looks up a well-known-symbol property by its description, accepting the
       canonical symbol key and the legacy description spelling. }
     function  GetWellKnownProperty(const ADescription: string): TFloriaJSValue;
+    { Same, but walking the prototype chain. }
+    function  GetWellKnownInheritedProperty(const ADescription: string): TFloriaJSValue;
     function  HasOwnProperty(const AName: string): Boolean; virtual;
 
     { Property-descriptor support. DefineDataProperty and
@@ -184,6 +186,9 @@ type
     procedure FreezeProperties();
     procedure SealProperties();
     function  GetPropertyCount(): Integer; virtual;
+    { A weak collection drops the entries whose key/value the collector has
+      reclaimed. Returns True when something was removed. }
+    function  PruneWeakEntries(): Boolean; virtual;
     { Shape and own-property helpers used by the VM's inline caches. }
     function  ShapeId(): Int64; inline;
     function  IndexOfOwnProperty(const AName: string): Integer; inline;
@@ -717,6 +722,7 @@ type
     FCurrentNewTarget: TFloriaJSValue;
     FCurrentConstructor: TFloriaJSFunction;
     FOwnedHelpers: TFPList;
+    FWeakCollections: TFPList;
     FClearing: Boolean;
     FId: Integer;
   public
@@ -829,6 +835,11 @@ type
     procedure ReclaimOrphanedEnvironments();
     procedure Collect();
     procedure SweepObjects();
+    { Weak collections to prune after a sweep. }
+    procedure RegisterWeakCollection(AObj: TFloriaJSObject);
+    procedure UnregisterWeakCollection(AObj: TFloriaJSObject);
+    function  IsTrackedObject(AObj: TFloriaJSObject): Boolean;
+    procedure PruneWeakCollections();
 
     procedure Clear();
     function  GetObjectCount(): Integer;
@@ -1465,6 +1476,19 @@ begin
     FPrototype.Retain;
 end;
 
+{ The description part of a canonical `#1sym:<id>:<description>` key. }
+function SymbolDescriptionOf(const AKey: string): string;
+var
+  rest: string;
+  p: Integer;
+begin
+  rest := Copy(AKey, 6, MaxInt);
+  p := Pos(':', rest);
+  if p <= 0 then
+    Exit('');
+  Result := Copy(rest, p + 1, MaxInt);
+end;
+
 function TFloriaJSObject.FindPropertyIndex(const AName: string): Integer;
 var
   i: Integer;
@@ -1474,6 +1498,14 @@ begin
     if FProperties[i].Key = AName then
       Exit(i);
   end;
+  { A well-known symbol can be spelled as its description
+    (`Symbol(Symbol.toStringTag)`) while the stored key is canonical. Match by
+    description so a descriptor lookup still finds it. }
+  for i := 0 to FPropCount - 1 do
+    if (Copy(FProperties[i].Key, 1, 5) = #1'sym:') and
+       (Copy(AName, 1, 12) = 'Symbol(Symbo') and
+       JSIsWellKnownSymbolKey(AName, SymbolDescriptionOf(FProperties[i].Key)) then
+      Exit(i);
   Result := -1;
 end;
 
@@ -1984,6 +2016,22 @@ begin
   Result := JSMakeUndefined();
 end;
 
+function TFloriaJSObject.GetWellKnownInheritedProperty(
+  const ADescription: string): TFloriaJSValue;
+var
+  obj: TFloriaJSObject;
+begin
+  obj := Self;
+  while obj <> nil do
+  begin
+    Result := obj.GetWellKnownProperty(ADescription);
+    if not Result.IsUndefined() then
+      Exit;
+    obj := obj.Prototype;
+  end;
+  Result := JSMakeUndefined();
+end;
+
 function TFloriaJSObject.GetOwnProperty(const AName: string): TFloriaJSValue;
 var
   idx: Integer;
@@ -1998,6 +2046,11 @@ end;
 function TFloriaJSObject.HasOwnProperty(const AName: string): Boolean;
 begin
   Result := FindPropertyIndex(AName) >= 0;
+end;
+
+function TFloriaJSObject.PruneWeakEntries(): Boolean;
+begin
+  Result := False;
 end;
 
 function TFloriaJSObject.GetPropertyCount(): Integer;
@@ -5772,6 +5825,43 @@ begin
   until not freed;
 end;
 
+procedure TFloriaJSHeap.RegisterWeakCollection(AObj: TFloriaJSObject);
+begin
+  if AObj = nil then Exit;
+  if FWeakCollections = nil then
+    FWeakCollections := TFPList.Create();
+  if FWeakCollections.IndexOf(AObj) < 0 then
+    FWeakCollections.Add(AObj);
+end;
+
+procedure TFloriaJSHeap.UnregisterWeakCollection(AObj: TFloriaJSObject);
+begin
+  if (FWeakCollections <> nil) and (AObj <> nil) then
+    FWeakCollections.Remove(AObj);
+end;
+
+function TFloriaJSHeap.IsTrackedObject(AObj: TFloriaJSObject): Boolean;
+begin
+  Result := (FObjects <> nil) and (AObj <> nil) and (FObjects.IndexOf(AObj) >= 0);
+end;
+
+procedure TFloriaJSHeap.PruneWeakCollections();
+var
+  i: Integer;
+  changed: Boolean;
+begin
+  if FWeakCollections = nil then
+    Exit;
+  { Pruning releases the values of the dropped entries, which can make more
+    objects unreachable, so repeat until nothing changes. }
+  repeat
+    changed := False;
+    for i := 0 to FWeakCollections.Count - 1 do
+      if TFloriaJSObject(FWeakCollections[i]).PruneWeakEntries() then
+        changed := True;
+  until not changed;
+end;
+
 procedure TFloriaJSHeap.Collect();
 begin
   { The order matters. Sweeping first releases the objects that can be
@@ -5780,7 +5870,13 @@ begin
     the same pass; doing it the other way round left every generator's
     environment to be reclaimed only at the *next* collection. The final sweep
     then drops the objects those environments were holding. }
+  { A weak collection keeps its keys/values without retaining them. Pruning
+    runs *before* the sweep, while a dead key (reference count zero) is still
+    addressable, and again afterwards in case a released value made more
+    objects unreachable. }
+  PruneWeakCollections();
   SweepObjects();
+  PruneWeakCollections();
   ReclaimOrphanedEnvironments();
   SweepObjects();
 end;
