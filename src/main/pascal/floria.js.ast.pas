@@ -32,6 +32,8 @@ type
     FLine: Integer;
     FColumn: Integer;
     FRefCount: Integer;
+    FSourceStart: Integer;
+    FSourceEnd: Integer;
   public
     constructor Create(ALine, AColumn: Integer);
     destructor Destroy(); override;
@@ -48,6 +50,10 @@ type
 
     property Line: Integer read FLine write FLine;
     property Column: Integer read FColumn write FColumn;
+    { The byte span of the node in the original source, when the parser recorded
+      it. Used by `Function.prototype.toString`. }
+    property SourceStart: Integer read FSourceStart write FSourceStart;
+    property SourceEnd: Integer read FSourceEnd write FSourceEnd;
     property RefCount: Integer read FRefCount;
   end;
 
@@ -309,6 +315,7 @@ type
     FIsArrow: Boolean;
     FIsAsync: Boolean;
     FIsGenerator: Boolean;
+    FSourceText: string;
   public
     constructor Create(const AName: string; AIsArrow: Boolean; ALine, ACol: Integer; AIsAsync: Boolean = False);
     destructor Destroy(); override;
@@ -325,6 +332,8 @@ type
     property IsArrow: Boolean read FIsArrow;
     property IsAsync: Boolean read FIsAsync;
     property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
+    { The exact source spelling, retained for `Function.prototype.toString`. }
+    property SourceText: string read FSourceText write FSourceText;
   end;
 
   { ────────────────────────────────────────────────────────────────────────── }
@@ -626,6 +635,7 @@ type
     FSuperClass: TFloriaJSExprNode;
     FMembers: TList;
     FIsDeclaration: Boolean;
+    FSourceText: string;
   public
     constructor Create(const AName: string; ASuperClass: TFloriaJSExprNode;
       ALine, ACol: Integer);
@@ -640,6 +650,9 @@ type
     property Name: string read FName;
     property SuperClass: TFloriaJSExprNode read FSuperClass;
     property IsDeclaration: Boolean read FIsDeclaration write FIsDeclaration;
+    { The exact class spelling, retained so the constructor's `toString` reports
+      the whole class definition. }
+    property SourceText: string read FSourceText write FSourceText;
   end;
 
   { Debugger Statement: debugger;
@@ -708,6 +721,7 @@ type
     FBody: TFloriaJSBlockStmt;
     FIsAsync: Boolean;
     FIsGenerator: Boolean;
+    FSourceText: string;
   public
     constructor Create(const AName: string; ALine, ACol: Integer; AIsAsync: Boolean = False);
     destructor Destroy(); override;
@@ -723,6 +737,7 @@ type
     property Body: TFloriaJSBlockStmt read FBody;
     property IsAsync: Boolean read FIsAsync;
     property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
+    property SourceText: string read FSourceText write FSourceText;
   end;
 
   { Program / Script Root: Collection of top-level statements }

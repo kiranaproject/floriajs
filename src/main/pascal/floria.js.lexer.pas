@@ -203,6 +203,9 @@ type
     function PeekToken(): TFloriaJSToken;
     function IsAtEnd(): Boolean;
     procedure Reset();
+    { The original source text, used to slice a function's spelling for
+      `Function.prototype.toString`. }
+    property Source: string read FSource;
 
     class function TokenKindToString(AKind: TFloriaJSTokenKind): string;
   end;

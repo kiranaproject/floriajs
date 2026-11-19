@@ -2706,13 +2706,18 @@ begin
     ctorFn := TFloriaJSFunctionExpr.Create(ACls.Name, False, ACls.Line, ACls.Column);
     try
       ctorFn.SetBody(TFloriaJSBlockStmt.Create(ACls.Line, ACls.Column));
+      ctorFn.SourceText := ACls.SourceText;
       CompileFunctionExpr(ctorFn);
     finally
       ctorFn.Free();
     end;
   end
   else
+  begin
+    { A class constructor reports the whole class definition. }
+    ctorFn.SourceText := ACls.SourceText;
     CompileFunctionExpr(ctorFn);
+  end;
   FBytecode.Emit(opSetLoc, clsLoc);
   FBytecode.Emit(opPopEnv);
 
@@ -2789,6 +2794,7 @@ var
 begin
   CheckStrictRestrictedName(AFunc.Name, FIsStrictMode);
   subCode := CompileFunctionBody(AFunc.Name, AFunc.Parameters, AFunc.Body, AFunc.IsAsync, AFunc.IsArrow, FIsStrictMode, AFunc.IsAsync and AFunc.IsGenerator);
+  subCode.SourceText := AFunc.SourceText;
   subCode.IsNamedExpression := (AFunc.Name <> '') and (not AFunc.IsArrow);
   if AFunc.IsGenerator or AFunc.IsAsync then
     subCode.IsGenerator := True;
@@ -3879,6 +3885,7 @@ var
 begin
   CheckStrictRestrictedName(AFuncDecl.Name, FIsStrictMode);
   subCode := CompileFunctionBody(AFuncDecl.Name, AFuncDecl.Parameters, AFuncDecl.Body, AFuncDecl.IsAsync, False, FIsStrictMode, AFuncDecl.IsAsync and AFuncDecl.IsGenerator);
+  subCode.SourceText := AFuncDecl.SourceText;
   if AFuncDecl.IsGenerator or AFuncDecl.IsAsync then
     subCode.IsGenerator := True;
   fnIdx := FBytecode.AddSubFunction(subCode);

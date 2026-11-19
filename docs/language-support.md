@@ -255,8 +255,10 @@ primitive, loose equality compares the primitive value, and
   `Object.create(null)` creates a null-prototype object.
 - `Object.getPrototypeOf` returns the prototype or `null`.
 - `hasOwnProperty` is available through `Object.prototype` on normal objects.
-- `Function.prototype.toString` returns a stable placeholder:
-  `function name() { [native code] }`.
+- `Function.prototype.toString` returns the function's original source text,
+  including comments and whitespace. A built-in or bound function reports
+  `function name() { [native code] }` (bound functions have no name). A class
+  constructor reports the whole `class ... { ... }` definition.
 
 Function objects expose `prototype`, `toString`, `call`, `apply`, and `bind`.
 Constructors have lifetime-safe `prototype.constructor` back-references.
@@ -439,9 +441,8 @@ assignment operator, including plain `=`.
   and also works with `new`. All but the last argument are parameter names. A
   malformed body throws a `SyntaxError`. The body is compiled in global scope,
   so it does not close over the caller's locals.
-- `fn.toString()` is a placeholder: it always reports
-  `function <name>() { [native code] }`, including for user functions, because
-  the original source text is not retained.
+- `fn.toString()` returns the original source text, including comments and
+  whitespace. Built-in and bound functions report the native placeholder.
 
 ### BigInt
 
@@ -551,7 +552,6 @@ work.
 
 | Area | Current behaviour |
 | :--- | :--- |
-| Function `toString` | Returns `function <name>() { [native code] }` for user functions too; the original source is not retained. |
 | `Intl` and `alert` | Not defined. Reading them throws `ReferenceError`. |
 
 ### Known gaps

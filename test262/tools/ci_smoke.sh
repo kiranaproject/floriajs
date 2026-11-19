@@ -281,6 +281,19 @@ python3 "$TEST262/tools/run_test262.py" \
   --baseline "$TEST262/baselines/phase10-modern-builtins.json" \
   --fail-on-regression >/dev/null
 
+echo "== Reviewed upstream function-tostring corpus =="
+python3 "$TEST262/tools/run_test262.py" \
+  --root "$ROOT" \
+  --host "$HOST" \
+  --timeout 10 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
+  --list "$TEST262/config/function-tostring-tests.txt" \
+  --report "$RESULTS/function-tostring-report.json" \
+  --output "$RESULTS/function-tostring.jsonl" \
+  --baseline "$TEST262/baselines/phase10-function-tostring.json" \
+  --fail-on-regression >/dev/null
+
 echo "== Reviewed upstream curated corpus =="
 python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \

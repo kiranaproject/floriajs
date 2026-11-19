@@ -358,6 +358,7 @@ type
     procedure TestLibraryAndIterationGaps();
     procedure TestCoercionCompleteness();
     procedure TestModernBuiltins();
+    procedure TestFunctionSourceRetention();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -2380,10 +2381,14 @@ begin
     AssertTrue('[1, 2].toString() success', res.Success);
     AssertEquals('[1, 2].toString()', '1,2', res.StringValue);
 
-    { Function.prototype.toString }
+    { Function.prototype.toString retains user source and uses the native
+      placeholder for built-ins. }
     res := engine.Execute('function f() {} f.toString();');
     AssertTrue('f.toString() success', res.Success);
-    AssertEquals('f.toString()', 'function f() { [native code] }', res.StringValue);
+    AssertEquals('f.toString()', 'function f() {}', res.StringValue);
+    res := engine.Execute('Array.prototype.push.toString();');
+    AssertTrue('native toString success', res.Success);
+    AssertEquals('native toString', 'function push() { [native code] }', res.StringValue);
   finally
     engine.Free();
   end;
@@ -7692,6 +7697,49 @@ begin
     AssertTrue('promise combinator surface script succeeds', res.Success);
     AssertEquals('allSettled, any, AggregateError, queueMicrotask surface',
       'function|function|2|function', res.StringValue);
+  finally
+    engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestFunctionSourceRetention();
+var
+  engine: TFloriaJSEngine;
+  res: TFloriaJSResult;
+begin
+  engine := TFloriaJSEngine.Create();
+  try
+    res := engine.Execute(
+      'function decl(a, b) { return a + b; }' +
+      'var expr = function named(x) { return x; };' +
+      'var arrow = (a, b) => a + b;' +
+      'var gen = function* () { yield 1; };' +
+      'var obj = { m(a) { return a; }, get g() { return 1; } };' +
+      'class C { constructor(x) { this.x = x; } m() {} }' +
+      'var dyn = Function("a", "b", "return a + b;");' +
+      '[decl.toString(), expr.toString(), arrow.toString(), gen.toString(),' +
+      ' obj.m.toString(), Object.getOwnPropertyDescriptor(obj, "g").get.toString(),' +
+      ' C.toString(), dyn.toString()].join("\n");'
+    );
+    AssertTrue('function source retention script succeeds', res.Success);
+    AssertEquals('declaration, expression, arrow, generator, method, getter, class, dynamic',
+      'function decl(a, b) { return a + b; }' + #10 +
+      'function named(x) { return x; }' + #10 +
+      '(a, b) => a + b' + #10 +
+      'function* () { yield 1; }' + #10 +
+      'm(a) { return a; }' + #10 +
+      'get g() { return 1; }' + #10 +
+      'class C { constructor(x) { this.x = x; } m() {} }' + #10 +
+      'function anonymous(a,b' + #10 + ') {' + #10 + 'return a + b;' + #10 + '}',
+      res.StringValue);
+
+    res := engine.Execute('Array.prototype.push.toString();');
+    AssertTrue('native function toString script succeeds', res.Success);
+    AssertEquals('native function placeholder', 'function push() { [native code] }', res.StringValue);
+
+    res := engine.Execute('try { Function.prototype.toString.call({}); ""; } catch (e) { e.name; }');
+    AssertTrue('non-callable toString script succeeds', res.Success);
+    AssertEquals('non-callable this throws TypeError', 'TypeError', res.StringValue);
   finally
     engine.Free();
   end;

@@ -64,6 +64,7 @@ CORPORA=(
   "library-gaps|library-gaps-tests|phase10-library-gaps"
   "coercion|coercion-tests|phase10-coercion|60"
   "modern-builtins|modern-builtins-tests|phase10-modern-builtins|10"
+  "function-tostring|function-tostring-tests|phase10-function-tostring|10"
   "curated|curated-tests|phase10-curated"
 )
 

@@ -93,6 +93,57 @@ begin
   inherited Destroy();
 end;
 
+{ TRegExpr spells a Unicode code point `\x{...}` while ECMAScript spells it
+  `\uXXXX` or `\u{...}`. Translate the escapes without touching `\\`. }
+function TranslateUnicodeEscapes(const APattern: string): string;
+var
+  i, j: Integer;
+  hex: string;
+begin
+  Result := '';
+  i := 1;
+  while i <= Length(APattern) do
+  begin
+    if (APattern[i] = '\') and (i + 1 <= Length(APattern)) then
+    begin
+      if APattern[i + 1] = '\' then
+      begin
+        Result := Result + '\\';
+        Inc(i, 2);
+        Continue;
+      end;
+      if APattern[i + 1] = 'u' then
+      begin
+        if (i + 2 <= Length(APattern)) and (APattern[i + 2] = '{') then
+        begin
+          j := i + 3;
+          hex := '';
+          while (j <= Length(APattern)) and (APattern[j] <> '}') do
+          begin
+            hex := hex + APattern[j];
+            Inc(j);
+          end;
+          if (j <= Length(APattern)) and (hex <> '') then
+          begin
+            Result := Result + '\x{' + hex + '}';
+            i := j + 1;
+            Continue;
+          end;
+        end
+        else if i + 5 <= Length(APattern) then
+        begin
+          hex := Copy(APattern, i + 2, 4);
+          Result := Result + '\x{' + hex + '}';
+          Inc(i, 6);
+          Continue;
+        end;
+      end;
+    end;
+    Result := Result + APattern[i];
+    Inc(i);
+  end;
+end;
+
 procedure TFloriaJSRegExp.CompilePattern();
 begin
   if FRegExpr = nil then Exit;
@@ -102,7 +153,7 @@ begin
     if FPattern = '' then
       FRegExpr.Expression := '(?:)'
     else
-      FRegExpr.Expression := FPattern;
+      FRegExpr.Expression := TranslateUnicodeEscapes(FPattern);
     FRegExpr.ModifierI := FIgnoreCase;
     FRegExpr.ModifierM := FMultiline;
     FRegExpr.Compile();

@@ -82,11 +82,13 @@ type
     function  ParseMemberTail(ALeft: TFloriaJSExprNode): TFloriaJSExprNode;
     function  ParseArrayLiteral(): TFloriaJSExprNode;
     function  ParseObjectLiteral(): TFloriaJSExprNode;
-    function  ParseMethodBody(const AName: string): TFloriaJSFunctionExpr;
+    function  ParseMethodBody(const AName: string; AStartPos: Integer): TFloriaJSFunctionExpr;
+    { The original source text from AStartPos through the last consumed token. }
+    function  SourceSlice(AStartPos, AEndPos: Integer): string;
     function  ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
     function  ParseClassDeclaration(): TFloriaJSStmtNode;
     function  ParseTaggedTemplate(ATag: TFloriaJSExprNode): TFloriaJSExprNode;
-    function  ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
+    function  ParseFunctionExpr(AIsAsync: Boolean = False; AStartPos: Integer = -1): TFloriaJSExprNode;
     procedure ParseFormalParameters(AParams: TStringList);
     function  ExtractParameters(var AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
 
@@ -94,7 +96,7 @@ type
     function  ParseStatement(): TFloriaJSStmtNode;
     function  ParseDeclaration(): TFloriaJSStmtNode;
     function  ParseVarDeclaration(AKind: TFloriaJSTokenKind): TFloriaJSVarStmt;
-    function  ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False): TFloriaJSFunctionDecl;
+    function  ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False; AStartPos: Integer = -1): TFloriaJSFunctionDecl;
     function  ParseIfStatement(): TFloriaJSIfStmt;
     function  ParseWhileStatement(): TFloriaJSWhileStmt;
     function  ParseDoWhileStatement(): TFloriaJSWhileStmt;
@@ -343,6 +345,7 @@ var
   fnExpr: TFloriaJSFunctionExpr;
   callExpr: TFloriaJSCallExpr;
   paramName, pat, flags: string;
+  fnStartPos: Integer;
   nullPos: Integer;
 begin
   tok := FCurrent;
@@ -425,7 +428,12 @@ begin
 
   { Identifier }
   if Match(tkIdentifier) then
-    Exit(TFloriaJSIdentifierExpr.Create(tok.Text, tok.Line, tok.Column));
+  begin
+    expr := TFloriaJSIdentifierExpr.Create(tok.Text, tok.Line, tok.Column);
+    expr.SourceStart := tok.StartPos;
+    expr.SourceEnd := FPrevious.EndPos;
+    Exit(expr);
+  end;
 
   { this — the receiver of a method or constructor call. It is bound like an
     ordinary name in the activation scope of the call. }
@@ -475,14 +483,16 @@ begin
   begin
     if Match(tkFunction) then
     begin
+      { The source spelling starts at `async`, not at `function` or `*`. }
+      fnStartPos := tok.StartPos;
       if Match(tkMultiply) then
       begin
-        expr := ParseFunctionExpr(True);
+        expr := ParseFunctionExpr(True, fnStartPos);
         if expr is TFloriaJSFunctionExpr then
           TFloriaJSFunctionExpr(expr).IsGenerator := True;
         Exit(expr);
       end;
-      Exit(ParseFunctionExpr(True));
+      Exit(ParseFunctionExpr(True, fnStartPos));
     end;
 
     if Match(tkLParen) then
@@ -496,6 +506,7 @@ begin
             fnExpr.SetBody(ParseBlockStatement())
           else
             fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+          fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
           Exit(fnExpr);
         end
         else
@@ -519,6 +530,7 @@ begin
             fnExpr.SetBody(ParseBlockStatement())
           else
             fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+          fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
           Exit(fnExpr);
         end
         else
@@ -540,6 +552,7 @@ begin
         fnExpr.SetBody(ParseBlockStatement())
       else
         fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+      fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
       Exit(fnExpr);
     end
     else
@@ -549,14 +562,15 @@ begin
   { Function Expression }
   if Match(tkFunction) then
   begin
+    fnStartPos := FPrevious.StartPos;
     if Match(tkMultiply) then
     begin
-      expr := ParseFunctionExpr();
+      expr := ParseFunctionExpr(False, fnStartPos);
       if expr is TFloriaJSFunctionExpr then
         TFloriaJSFunctionExpr(expr).IsGenerator := True;
       Exit(expr);
     end;
-    Exit(ParseFunctionExpr());
+    Exit(ParseFunctionExpr(False, fnStartPos));
   end;
 
   { Parenthesized Grouping or Arrow function }
@@ -571,6 +585,7 @@ begin
           fnExpr.SetBody(ParseBlockStatement())
         else
           fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+        fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
         Exit(fnExpr);
       end;
       ErrorAtCurrent('Expected expression');
@@ -590,6 +605,7 @@ begin
         fnExpr.SetBody(ParseBlockStatement())
       else
         fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+      fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
       Exit(fnExpr);
     end;
     Exit(TFloriaJSGroupExpr.Create(expr, tok.Line, tok.Column));
@@ -824,15 +840,17 @@ end;
 function TFloriaJSParser.ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
 var
   cls: TFloriaJSClassNode;
-  startLine, startCol: Integer;
+  startLine, startCol, classStartPos: Integer;
   clsName, memberName: string;
   superClass: TFloriaJSExprNode;
   isStatic: Boolean;
   kind: TFloriaJSClassMemberKind;
+  memberStartPos: Integer;
   fnExpr: TFloriaJSFunctionExpr;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
+  classStartPos := FPrevious.StartPos;
 
   clsName := '';
   if Match(tkIdentifier) then
@@ -860,6 +878,7 @@ begin
     end;
 
     kind := fjcmMethod;
+    memberStartPos := FCurrent.StartPos;
 
     { get/set accessors, when not used as a plain method name. }
     if (FCurrent.Kind = tkIdentifier) and
@@ -896,16 +915,25 @@ begin
       Break;
     end;
 
-    fnExpr := ParseMethodBody(memberName);
+    fnExpr := ParseMethodBody(memberName, memberStartPos);
     cls.AddMember(TFloriaJSClassMember.Create(memberName, kind, isStatic,
       fnExpr, startLine, startCol));
   end;
 
   Consume(tkRBrace, 'Expected ''}'' at end of class body');
+  cls.SourceText := SourceSlice(classStartPos, FPrevious.EndPos);
   Result := cls;
 end;
 
-function TFloriaJSParser.ParseMethodBody(const AName: string): TFloriaJSFunctionExpr;
+function TFloriaJSParser.SourceSlice(AStartPos, AEndPos: Integer): string;
+begin
+  if (AStartPos >= 1) and (AEndPos >= AStartPos) then
+    Result := Copy(FLexer.Source, AStartPos, AEndPos - AStartPos + 1)
+  else
+    Result := '';
+end;
+
+function TFloriaJSParser.ParseMethodBody(const AName: string; AStartPos: Integer): TFloriaJSFunctionExpr;
 var
   fnExpr: TFloriaJSFunctionExpr;
   startLine, startCol: Integer;
@@ -918,6 +946,7 @@ begin
   ParseFormalParameters(fnExpr.Parameters);
   bodyStmt := ParseBlockStatement();
   fnExpr.SetBody(bodyStmt);
+  fnExpr.SourceText := SourceSlice(AStartPos, FPrevious.EndPos);
   Result := fnExpr;
 end;
 
@@ -928,6 +957,7 @@ var
   propKey, realKey: string;
   propVal, keyExpr: TFloriaJSExprNode;
   methodFn: TFloriaJSFunctionExpr;
+  memberStartPos: Integer;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -947,6 +977,7 @@ begin
     // 2. Computed property: [expr]: val, or [expr]() { ... }
     if Match(tkLBracket) then
     begin
+      memberStartPos := FPrevious.StartPos;
       keyExpr := ParseAssignmentExpression();
       Consume(tkRBracket, 'Expected '']'' after computed property name');
 
@@ -957,7 +988,7 @@ begin
       end
       else if Check(tkLParen) then
       begin
-        methodFn := ParseMethodBody('');
+        methodFn := ParseMethodBody('', memberStartPos);
         obj.AddComputedProperty(keyExpr, methodFn);
       end
       else
@@ -985,11 +1016,12 @@ begin
     // Check for getter: get x() { ... } or get [k]() { ... }
     if (propKey = 'get') and (not Check(tkColon)) and (not Check(tkComma)) and (not Check(tkRBrace)) and (not Check(tkLParen)) then
     begin
+      memberStartPos := FPrevious.StartPos;
       if Match(tkLBracket) then
       begin
         keyExpr := ParseAssignmentExpression();
         Consume(tkRBracket, 'Expected '']'' after computed getter name');
-        methodFn := ParseMethodBody('');
+        methodFn := ParseMethodBody('', memberStartPos);
         obj.AddGetter('', methodFn, keyExpr);
       end
       else
@@ -1006,18 +1038,19 @@ begin
           ErrorAtCurrent('Expected getter name');
           realKey := '';
         end;
-        methodFn := ParseMethodBody(realKey);
+        methodFn := ParseMethodBody(realKey, memberStartPos);
         obj.AddGetter(realKey, methodFn);
       end;
     end
     // Check for setter: set x(v) { ... } or set [k](v) { ... }
     else if (propKey = 'set') and (not Check(tkColon)) and (not Check(tkComma)) and (not Check(tkRBrace)) and (not Check(tkLParen)) then
     begin
+      memberStartPos := FPrevious.StartPos;
       if Match(tkLBracket) then
       begin
         keyExpr := ParseAssignmentExpression();
         Consume(tkRBracket, 'Expected '']'' after computed setter name');
-        methodFn := ParseMethodBody('');
+        methodFn := ParseMethodBody('', memberStartPos);
         obj.AddSetter('', methodFn, keyExpr);
       end
       else
@@ -1034,14 +1067,14 @@ begin
           ErrorAtCurrent('Expected setter name');
           realKey := '';
         end;
-        methodFn := ParseMethodBody(realKey);
+        methodFn := ParseMethodBody(realKey, memberStartPos);
         obj.AddSetter(realKey, methodFn);
       end;
     end
     // Method syntax: f() { ... }
     else if Check(tkLParen) then
     begin
-      methodFn := ParseMethodBody(propKey);
+      methodFn := ParseMethodBody(propKey, FPrevious.StartPos);
       obj.AddProperty(propKey, methodFn);
     end
     // Shorthand syntax: { x }
@@ -1076,15 +1109,19 @@ begin
   Result := obj;
 end;
 
-function TFloriaJSParser.ParseFunctionExpr(AIsAsync: Boolean = False): TFloriaJSExprNode;
+function TFloriaJSParser.ParseFunctionExpr(AIsAsync: Boolean = False; AStartPos: Integer = -1): TFloriaJSExprNode;
 var
   fnName: string;
   fnExpr: TFloriaJSFunctionExpr;
-  startLine, startCol: Integer;
+  startLine, startCol, startPos: Integer;
   bodyStmt: TFloriaJSStmtNode;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
+  if AStartPos >= 0 then
+    startPos := AStartPos
+  else
+    startPos := FPrevious.StartPos;
 
   if Match(tkIdentifier) then
     fnName := FPrevious.Text
@@ -1095,6 +1132,7 @@ begin
   ParseFormalParameters(fnExpr.Parameters);
   bodyStmt := ParseBlockStatement();
   fnExpr.SetBody(bodyStmt);
+  fnExpr.SourceText := SourceSlice(startPos, FPrevious.EndPos);
   Result := fnExpr;
 end;
 
@@ -1272,6 +1310,7 @@ var
   fnExpr: TFloriaJSFunctionExpr;
   memberPropName: string;
   computedProp: TFloriaJSExprNode;
+  startPos: Integer;
 begin
   { Prefix parsing }
   if FCurrent.Kind = tkNew then
@@ -1410,6 +1449,7 @@ begin
       begin
         if left is TFloriaJSIdentifierExpr then
         begin
+          startPos := left.SourceStart;
           fnExpr := TFloriaJSFunctionExpr.Create('', True, left.Line, left.Column);
           fnExpr.AddParameter(TFloriaJSIdentifierExpr(left).Name);
           left.Free();
@@ -1417,6 +1457,7 @@ begin
             fnExpr.SetBody(ParseBlockStatement())
           else
             fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), op.Line, op.Column));
+          fnExpr.SourceText := SourceSlice(startPos, FPrevious.EndPos);
           left := fnExpr;
         end
         else
@@ -1461,6 +1502,8 @@ end;
 { Statement Parsing }
 
 function TFloriaJSParser.ParseDeclaration(): TFloriaJSStmtNode;
+var
+  fnStartPos: Integer;
 begin
   if Match(tkLet) then
     Result := ParseVarDeclaration(tkLet)
@@ -1470,19 +1513,21 @@ begin
     Result := ParseVarDeclaration(tkVar)
   else if (FCurrent.Kind = tkAsync) and (FLexer.PeekToken().Kind = tkFunction) then
   begin
+    fnStartPos := FCurrent.StartPos;
     Advance(); { Consume tkAsync }
     Advance(); { Consume tkFunction }
     if Match(tkMultiply) then
-      Result := ParseFunctionDeclaration(True, True)
+      Result := ParseFunctionDeclaration(True, True, fnStartPos)
     else
-      Result := ParseFunctionDeclaration(True);
+      Result := ParseFunctionDeclaration(True, False, fnStartPos);
   end
   else if Match(tkFunction) then
   begin
+    fnStartPos := FPrevious.StartPos;
     if Match(tkMultiply) then
-      Result := ParseFunctionDeclaration(False, True)
+      Result := ParseFunctionDeclaration(False, True, fnStartPos)
     else
-      Result := ParseFunctionDeclaration();
+      Result := ParseFunctionDeclaration(False, False, fnStartPos);
   end
   else if Check(tkClass) then
     Result := ParseClassDeclaration()
@@ -1535,15 +1580,19 @@ begin
   Result := varStmt;
 end;
 
-function TFloriaJSParser.ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False): TFloriaJSFunctionDecl;
+function TFloriaJSParser.ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False; AStartPos: Integer = -1): TFloriaJSFunctionDecl;
 var
   fnName: string;
   fnDecl: TFloriaJSFunctionDecl;
-  startLine, startCol: Integer;
+  startLine, startCol, startPos: Integer;
   bodyBlock: TFloriaJSBlockStmt;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
+  if AStartPos >= 0 then
+    startPos := AStartPos
+  else
+    startPos := FPrevious.StartPos;
 
   if Match(tkIdentifier) then
     fnName := FPrevious.Text
@@ -1558,6 +1607,7 @@ begin
   ParseFormalParameters(fnDecl.Parameters);
   bodyBlock := ParseBlockStatement();
   fnDecl.SetBody(bodyBlock);
+  fnDecl.SourceText := SourceSlice(startPos, FPrevious.EndPos);
   Result := fnDecl;
 end;
 

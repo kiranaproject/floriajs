@@ -2481,6 +2481,7 @@ begin
             subCode := curFrame^.Bytecode.GetSubFunction(inst.Imm);
             fnObj := FHeap.NewBytecodeFunction(subCode.Name, subCode, curFrame^.Env, subCode.IsArrow, subCode.IsAsync);
             TFloriaJSFunction(fnObj).IsAsyncGenerator := subCode.IsAsyncGenerator;
+            TFloriaJSFunction(fnObj).SourceText := subCode.SourceText;
             if curFrame^.Env <> nil then
               curFrame^.Env.MarkCaptured();
             Push(JSMakeObject(fnObj));

@@ -189,6 +189,7 @@ type
     FIsGenerator: Boolean;
     FIsAsyncGenerator: Boolean;
     FIsNamedExpression: Boolean;
+    FSourceText: string;
     { False when the compiler resolved parameters and var declarations to
       frame slots, so the VM does not need to mirror them into the environment. }
     FLocalsInEnv: Boolean;
@@ -255,6 +256,7 @@ type
     property IsAsync: Boolean read FIsAsync write FIsAsync;
     property IsAsyncGenerator: Boolean read FIsAsyncGenerator write FIsAsyncGenerator;
     property IsNamedExpression: Boolean read FIsNamedExpression write FIsNamedExpression;
+    property SourceText: string read FSourceText write FSourceText;
     property LocalsInEnv: Boolean read FLocalsInEnv write FLocalsInEnv;
     property NeedsArguments: Boolean read FNeedsArguments write FNeedsArguments;
     { A generator body runs on demand and suspends at `yield`. }

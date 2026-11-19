@@ -63,7 +63,8 @@ Implemented and covered by the test suite:
 - BigInt: `123n` literals in decimal and every radix, arbitrary-precision
   arithmetic and comparison, and `BigInt()` conversion.
 - Function metadata: `fn.length`, `fn.name` (including inference for anonymous
-  functions assigned to properties), and the `Function(...)` constructor.
+  functions assigned to properties), `fn.toString()` with the original source
+  text, and the `Function(...)` constructor.
 - Library coverage: `Object.is`/`getOwnPropertyNames`/`defineProperty`/
   `freeze`/`seal`/`fromEntries`, `Array.flat`/`flatMap`/`fill`/`copyWithin`/
   `at`/`keys`/`entries`, `String.fromCharCode`/`fromCodePoint`/`normalize`/

@@ -14,7 +14,7 @@ Last refreshed 2026-11-17:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **284 tests pass** with `pasbuild test`.
+- Test suite: **285 tests pass** with `pasbuild test`.
 - Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **13 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
@@ -22,7 +22,7 @@ Last refreshed 2026-11-17:
   `alert`, calling a non-function, and an invalid assignment target); the probe
   harness is not an ECMAScript conformance suite.
 - Unit count: 28 units.
-- Documentation claims: **129 checked, 0 failing** with
+- Documentation claims: **137 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -1608,6 +1608,20 @@ Focused corpus: `test262/config/coercion-tests.txt` — **608 records, all pass*
   plus `RegExp.prototype[Symbol.matchAll]`.
 
 Focused corpus: `test262/config/modern-builtins-tests.txt` — **1494 records,
+all pass**.
+
+### [x] Function.prototype.toString source retention (post-P3)
+
+- Functions, arrows, generators, async functions, methods, and accessors report
+  their exact source spelling, including comments and whitespace.
+- A class constructor reports the whole class definition.
+- Built-in, bound, and proxy functions report the native placeholder.
+- Non-callable receivers throw `TypeError`; the method has the standard
+  metadata and no `prototype` property.
+- Supporting fixes: `Function(...)` source formatting, host report UTF-8
+  sanitisation, and `\uXXXX` regex translation.
+
+Focused corpus: `test262/config/function-tostring-tests.txt` — **72 records,
 all pass**.
 
 ---

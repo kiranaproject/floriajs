@@ -657,7 +657,10 @@ begin
     body := AArgs[High(AArgs)].ToString();
   end;
 
-  source := 'function anonymous(' + params + ') {' + #10 + body + #10 + '}';
+  { The synthesized spelling has a newline before the closing parenthesis and
+    brace, so a trailing line comment in the parameter list or body cannot
+    swallow them. }
+  source := 'function anonymous(' + params + #10 + ') {' + #10 + body + #10 + '}';
 
   lexer := TFloriaJSLexer.Create(source);
   parser := TFloriaJSParser.Create(lexer);

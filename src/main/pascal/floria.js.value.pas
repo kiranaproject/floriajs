@@ -362,6 +362,7 @@ type
     FNotConstructable: Boolean;
     FLengthOverride: Integer;
     FIntrinsicName: string;
+    FSourceText: string;
     FNameDeleted: Boolean;
     FLengthDeleted: Boolean;
     FPrototypes: TFPList;
@@ -404,6 +405,9 @@ type
     property NativeProc: TFloriaJSNativeProc read FNativeProc;
     property NativeMethod: TFloriaJSNativeMethod read FNativeMethod;
     property Bytecode: TObject read FBytecode write FBytecode;
+    { The exact source spelling for `Function.prototype.toString`; empty for a
+      native function. }
+    property SourceText: string read FSourceText write FSourceText;
     property ClosureEnv: Pointer read FClosureEnv;
   end;
 
@@ -3301,15 +3305,35 @@ end;
 
 function JSFunctionToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
-  fnName: string;
+  fn: TFloriaJSFunction;
+  heap: TFloriaJSHeap;
 begin
   if AThis.IsFunction() then
   begin
-    fnName := AThis.AsFunction().Name;
-    Result := JSMakeString('function ' + fnName + '() { [native code] }');
+    { A callable proxy has the function value kind but is not a
+      TFloriaJSFunction, so it must not be cast to one. It reports the native
+      placeholder. }
+    if AThis.ObjVal is TFloriaJSProxy then
+      Exit(JSMakeString('function () { [native code] }'));
+    fn := AThis.AsFunction();
+    { A user function reports its original source. A native function, or a
+      function created by the host, reports the standard placeholder. }
+    if fn.SourceText <> '' then
+      Result := JSMakeString(fn.SourceText)
+    else if fn is TFloriaJSBoundFunction then
+      { A bound function has no source spelling and reports no name. }
+      Result := JSMakeString('function () { [native code] }')
+    else
+      Result := JSMakeString('function ' + fn.Name + '() { [native code] }');
   end
   else
+  begin
+    heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Function.prototype.toString requires that this be a function')));
     Result := JSMakeString('[object Object]');
+  end;
 end;
 
 function JSErrorToString(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
@@ -4276,6 +4300,8 @@ begin
 end;
 
 function TFloriaJSHeap.GetFunctionPrototype(): TFloriaJSObject;
+var
+  methodFn: TFloriaJSFunction;
 begin
   if FFunctionPrototype = nil then
   begin
@@ -4289,7 +4315,11 @@ begin
     FFunctionPrototype.SetProperty('call', JSMakeFunction(NewNativeFunction('call', @JSFunctionCall)));
     FFunctionPrototype.SetProperty('apply', JSMakeFunction(NewNativeFunction('apply', @JSFunctionApply)));
     FFunctionPrototype.SetProperty('bind', JSMakeFunction(NewNativeFunction('bind', @JSFunctionBind)));
-    FFunctionPrototype.SetProperty('toString', JSMakeFunction(NewNativeFunction('toString', @JSFunctionToString)));
+    methodFn := NewNativeFunction('toString', @JSFunctionToString);
+    methodFn.NotConstructable := True;
+    methodFn.SuppressPrototype := True;
+    methodFn.LengthOverride := 0;
+    FFunctionPrototype.DefineDataProperty('toString', JSMakeFunction(methodFn), True, False, True);
   end;
   Result := FFunctionPrototype;
 end;
@@ -5708,7 +5738,10 @@ function TFloriaJSHeap.NewBytecodeFunction(const AName: string; ABytecode: TObje
 begin
   Result := TFloriaJSFunction(Track(TFloriaJSFunction.CreateBytecode(AName, ABytecode, AClosure, AIsArrow, AIsAsync)));
   if (ABytecode <> nil) and (ABytecode is TFloriaJSBytecode) then
+  begin
     Result.IsNamedExpression := TFloriaJSBytecode(ABytecode).IsNamedExpression;
+    Result.SourceText := TFloriaJSBytecode(ABytecode).SourceText;
+  end;
   Result.Prototype := GetFunctionPrototype();
 end;
 

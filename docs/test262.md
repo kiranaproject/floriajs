@@ -2,7 +2,7 @@
 
 FloriaJS implements a practical JavaScript subset for embedded scripts and FTML handlers; it is **not currently a conforming ECMAScript implementation**. The work in `test262/` is intended to measure compatibility, not to claim full Test262 support.
 
-## Current status: Phase 13, P3, library-gap, coercion, and modern built-in work complete
+## Current status: Phase 13, P3, and the post-P3 conformance closures complete
 
 Phases 0–10.10 establish the baseline, pinned upstream material, support policy, reviewed smoke and curated corpora, additive diagnostics, single-scenario host, metadata planner, synchronous and asynchronous runner, negative-test verdicts, durable reports, reviewed baseline diffs, context-owned timers, a capability-honest `$262` host API, the language-coverage milestones (temporal dead zone, restricted-production ASI, strict-mode execution, live global object/`this`), general object-to-primitive coercion, full property descriptors, UTF-16 code-unit string semantics at the JavaScript boundary, resumable async execution with `for await` iteration, binary/reflection data APIs, static module linking/evaluation, isolated realms, and async generators. Phase 11 adds bounded process-level parallelism, a global run deadline, Markdown coverage reports, a separate extended diagnostic job, and a reviewed upstream-update workflow. Phase 12 closes the recorded curated gaps for boxed String objects, Promise.all microtask ordering, Proxy `has` fallback, and large array indices. Phase 13 adds direct and indirect `eval`, Unicode whitespace handling, and CR line-terminator tracking; the curated corpus now passes completely. This is still a diagnostic adapter, not a conformance certification. In particular:
 
@@ -553,11 +553,40 @@ on documented gaps are excluded: Promise subclassing/species, descriptor
 edge cases in `Object.defineProperties`, generic array-like boxing, the full
 `@@matchAll` protocol, resizable buffers, and lone surrogates.
 
-Validation: **284 FPCUnit tests**, **129 documentation claims**, curated corpus
-**354 records — 354 pass**, extended diagnostic **2934 records — 2934 pass**.
+Validation: **284 FPCUnit tests**, **137 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3006 records — 3006 pass**.
+
+## Function.prototype.toString source retention
+
+`Function.prototype.toString` now returns the function's original source text,
+including comments and whitespace:
+
+- Declarations, expressions, arrows, generators, async functions, methods, and
+  accessors report their exact spelling from the source.
+- A class constructor reports the whole `class ... { ... }` definition.
+- A built-in, a bound function, or a callable proxy reports the native
+  placeholder `function name() { [native code] }`.
+- A non-callable receiver throws `TypeError`, and the method has the standard
+  `length`/`name`/descriptor metadata and no `prototype` property.
+
+Supporting fixes: the `Function(...)` constructor now formats its synthesized
+source with newlines before the closing punctuation, the host report sanitises
+invalid UTF-8, and the regex engine translates `\uXXXX` escapes to TRegExpr's
+`\x{...}` form where it can.
+
+Focused corpus: `config/function-tostring-tests.txt` — **72 records, all pass**.
+The corpus is the passing subset. Excluded tests need computed class members,
+class fields, private methods, async/generator methods, the `AsyncFunction` and
+`GeneratorFunction` constructors, Unicode escapes in identifiers, the
+`@@match` protocol on `RegExp`, or the Unicode regexes in
+`nativeFunctionMatcher.js`.
+
+Validation: **285 FPCUnit tests**, **137 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3006 records — 3006 pass**.
 
 ## Next phase
 
 Phase 10, Phase 11, Phase 12, and Phase 13 are complete, as is the P3 performance
-work, the library/iteration gap closure, the coercion-completeness closure, and
-the modern built-in library closure. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+work, the library/iteration gap closure, the coercion-completeness closure, the
+modern built-in library closure, and `Function.prototype.toString` source
+retention. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
