@@ -172,6 +172,7 @@ begin
 
   symCtor := AHeap.NewNativeFunction('Symbol', @JSSymbolCtor);
   symCtor.SetProperty('prototype', JSMakeObject(symProto));
+  symProto.DefineDataProperty('constructor', JSMakeFunction(symCtor), True, False, True);
   symCtor.SetProperty('for', JSMakeFunction(AHeap.NewNativeFunction('for', @JSSymbolFor)));
   symCtor.SetProperty('keyFor', JSMakeFunction(AHeap.NewNativeFunction('keyFor', @JSSymbolKeyFor)));
 

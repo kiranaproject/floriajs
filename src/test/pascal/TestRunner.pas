@@ -359,6 +359,7 @@ type
     procedure TestCoercionCompleteness();
     procedure TestModernBuiltins();
     procedure TestFunctionSourceRetention();
+    procedure TestPrototypeConstructorBackReference();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -7742,6 +7743,57 @@ begin
     AssertEquals('non-callable this throws TypeError', 'TypeError', res.StringValue);
   finally
     engine.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestPrototypeConstructorBackReference();
+var
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+  objects, i: Integer;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  try
+    res := ctx.Evaluate(
+      'function Foo() {}' +
+      '[Foo.prototype.constructor === Foo,' +
+      ' Object.getOwnPropertyDescriptor(Foo.prototype, "constructor").writable,' +
+      ' Object.getOwnPropertyDescriptor(Foo.prototype, "constructor").enumerable,' +
+      ' Object.getOwnPropertyDescriptor(Foo.prototype, "constructor").configurable,' +
+      ' Foo.prototype.hasOwnProperty("constructor"),' +
+      ' Object.getOwnPropertyNames(Foo.prototype).indexOf("constructor") >= 0].join(",");'
+    );
+    AssertTrue('prototype constructor descriptor script succeeds', res.Success);
+    AssertEquals('own, writable, non-enumerable, configurable',
+      'true,true,false,true,true,true', res.StringValue);
+
+    { A detached prototype keeps its constructor; a replaced one gets Object. }
+    res := ctx.Evaluate(
+      'function Bar() {}' +
+      'var old = Bar.prototype;' +
+      'Bar.prototype = {};' +
+      '[old.constructor === Bar, Bar.prototype.constructor === Object].join(",");'
+    );
+    AssertTrue('detached prototype script succeeds', res.Success);
+    AssertEquals('detached keeps its constructor', 'true,true', res.StringValue);
+
+    { The class constructor reports the same back-reference. }
+    res := ctx.Evaluate('class Qux { m() {} } Qux.prototype.constructor === Qux;');
+    AssertTrue('class prototype constructor script succeeds', res.Success);
+    AssertTrue('class prototype constructor', res.BooleanValue);
+
+    { A function and its prototype must still be reclaimed together. }
+    ctx.Evaluate('function Temp() {} Temp = null;');
+    ctx.Evaluate('0;');
+    objects := ctx.Heap.GetObjectCount;
+    for i := 1 to 200 do
+      ctx.Evaluate('function Temp() {} Temp = null;');
+    ctx.Evaluate('0;');
+    AssertTrue('prototypes are still reclaimed with their function (' +
+      IntToStr(objects) + ' -> ' + IntToStr(ctx.Heap.GetObjectCount()) + ')',
+      ctx.Heap.GetObjectCount <= objects + 5);
+  finally
+    ctx.Free();
   end;
 end;
 

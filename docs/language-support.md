@@ -154,7 +154,7 @@ matching and byte-level lexer storage still use UTF-8 internally.
 | `Number`, `String`, `Boolean` | Conversion functions (called with or without `new`). Number conversion and formatting are ECMAScript-exact: `String(x)` produces the shortest decimal that round-trips, and `Number(s)` produces the nearest double. |
 | `Number.isNaN`, `isFinite`, `isInteger`, `isSafeInteger`, `parseInt`, `parseFloat` | Plus `NaN`, `POSITIVE_INFINITY`, `NEGATIVE_INFINITY`, `MAX_VALUE`, `MIN_VALUE`, `MAX_SAFE_INTEGER`, `MIN_SAFE_INTEGER`, `EPSILON`. |
 | `Array` | Constructor plus `isArray`, `from`, `of`. |
-| `Object` | Constructor plus `keys`, `values`, `entries`, `fromEntries`, `assign`, `create`, `getPrototypeOf`, `setPrototypeOf`, `is`, `hasOwn`, `groupBy`, `getOwnPropertyNames`, `getOwnPropertySymbols`, `getOwnPropertyDescriptor`, `getOwnPropertyDescriptors`, `defineProperty`, `defineProperties`, `freeze`, `seal`, `preventExtensions`, `isExtensible`, `isFrozen`, `isSealed`. `Object.prototype` has `hasOwnProperty`, `isPrototypeOf`, `propertyIsEnumerable`, and `toString`. |
+| `Object` | Constructor plus `keys`, `values`, `entries`, `fromEntries`, `assign`, `create`, `getPrototypeOf`, `setPrototypeOf`, `is`, `hasOwn`, `groupBy`, `getOwnPropertyNames`, `getOwnPropertySymbols`, `getOwnPropertyDescriptor`, `getOwnPropertyDescriptors`, `defineProperty`, `defineProperties`, `freeze`, `seal`, `preventExtensions`, `isExtensible`, `isFrozen`, `isSealed`. `Object.prototype` has `hasOwnProperty`, `isPrototypeOf`, `propertyIsEnumerable`, `valueOf`, and `toString`. |
 | `JSON` | `stringify` and `parse` (see below). |
 | `Math` | See below. |
 | `Promise` | Constructor: `new Promise(executor)` runs the executor synchronously with `resolve`/`reject` callbacks (first settlement wins; a throw rejects). Plus `resolve`, `reject`, `all`, `allSettled`, `any`, `race`. |
@@ -261,7 +261,11 @@ primitive, loose equality compares the primitive value, and
   constructor reports the whole `class ... { ... }` definition.
 
 Function objects expose `prototype`, `toString`, `call`, `apply`, and `bind`.
-Constructors have lifetime-safe `prototype.constructor` back-references.
+Every prototype has an own `constructor` data property pointing back at its
+function — writable, non-enumerable, and configurable, as the specification
+requires. Replacing `Foo.prototype` leaves the old prototype's `constructor`
+pointing at `Foo`, and a new plain prototype inherits `Object.prototype.constructor`
+until it is assigned its own.
 
 A bound function is a function object of its own, as in ECMAScript:
 
@@ -403,7 +407,7 @@ Available beyond the earlier sections:
   `Object.defineProperty`, `Object.defineProperties`, `Object.hasOwn`,
   `Object.groupBy`, `Object.preventExtensions`/`isExtensible`,
   `Object.freeze`/`seal`/`isFrozen`/`isSealed`.
-- `Object.prototype.propertyIsEnumerable` and `isPrototypeOf`.
+- `Object.prototype.propertyIsEnumerable`, `isPrototypeOf`, and `valueOf`.
 - `Array.prototype.flat`, `flatMap`, `fill`, `copyWithin`, `at`, `keys`,
   `entries`, `values`, `findLast`, `findLastIndex`, `toSorted`, `toReversed`,
   `toSpliced`, and `with`.
@@ -569,7 +573,6 @@ work.
 | `for…of` on non-iterables | Throws `TypeError`. |
 | Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |
 | `this` | Top-level `this` is the global object. A plain call of a non-strict function receives the global object; a strict function keeps `this === undefined`. Methods, `new`, and lexical `this` in arrows behave normally. |
-| Detached `prototype.constructor` | `Foo.prototype.constructor === Foo` works, but the back-reference is a weak registration. After `var p = Foo.prototype; Foo.prototype = {}`, `p.constructor` is `Object` rather than `Foo`. |
 | Modules | Static relative `import`/`export` declarations are lowered into a diagnostic bundle with module-scoped function bodies. Exports are live getters, named imports are rewritten to live property reads, star-export cycles are supported, and exported `let`/`const` keep their TDZ. Specifiers must be relative; `import.meta`, dynamic import for relative specifiers, and JSON import attributes are supported. Text modules are supported; full module records are not implemented. |
 | Proxy | `new Proxy` and `Proxy.revocable` support `get`, `set`, `has`, `deleteProperty`, `ownKeys`, `getOwnPropertyDescriptor`, `apply`, and `construct` traps with the main property invariants, including the `has`-with-`with` rule for non-extensible targets. |
 | Realms | `$262.createRealm()` in the diagnostic host creates a genuinely separate context with its own heap, global object, intrinsics, timers, and output. Cross-realm intrinsic selection works for the supported constructors and array species. |

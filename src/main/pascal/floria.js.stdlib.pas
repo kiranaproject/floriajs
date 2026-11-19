@@ -1160,7 +1160,7 @@ begin
   promiseCtor := AHeap.NewNativeMethod('Promise', @AHeap.PromiseConstructor);
   promiseCtor.IntrinsicName := 'Promise';
   promiseCtor.SetProperty('prototype', JSMakeObject(AHeap.GetPromisePrototype()));
-  AHeap.GetPromisePrototype().SetProperty('constructor', JSMakeFunction(promiseCtor));
+  AHeap.GetPromisePrototype().DefineDataProperty('constructor', JSMakeFunction(promiseCtor), True, False, True);
   promiseObj := promiseCtor;
   promiseObj.SetProperty('resolve', JSMakeFunction(AHeap.NewNativeMethod('resolve', @AHeap.PromiseResolve)));
   promiseObj.SetProperty('reject', JSMakeFunction(AHeap.NewNativeMethod('reject', @AHeap.PromiseReject)));
@@ -1183,42 +1183,42 @@ begin
   errCtor.LengthOverride := 1;
   errCtor.IntrinsicName := 'Error';
   errCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetErrorPrototype()), False, False, False);
-  AHeap.GetErrorPrototype().SetProperty('constructor', JSMakeFunction(errCtor));
+  AHeap.GetErrorPrototype().DefineDataProperty('constructor', JSMakeFunction(errCtor), True, False, True);
   AEnv.DefineBuiltin('Error', JSMakeFunction(errCtor));
 
   typeErrCtor := AHeap.NewNativeMethod('TypeError', @AHeap.TypeErrorCtor);
   typeErrCtor.LengthOverride := 1;
   typeErrCtor.IntrinsicName := 'TypeError';
   typeErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetTypeErrorPrototype()), False, False, False);
-  AHeap.GetTypeErrorPrototype().SetProperty('constructor', JSMakeFunction(typeErrCtor));
+  AHeap.GetTypeErrorPrototype().DefineDataProperty('constructor', JSMakeFunction(typeErrCtor), True, False, True);
   AEnv.DefineBuiltin('TypeError', JSMakeFunction(typeErrCtor));
 
   rangeErrCtor := AHeap.NewNativeMethod('RangeError', @AHeap.RangeErrorCtor);
   rangeErrCtor.LengthOverride := 1;
   rangeErrCtor.IntrinsicName := 'RangeError';
   rangeErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetRangeErrorPrototype()), False, False, False);
-  AHeap.GetRangeErrorPrototype().SetProperty('constructor', JSMakeFunction(rangeErrCtor));
+  AHeap.GetRangeErrorPrototype().DefineDataProperty('constructor', JSMakeFunction(rangeErrCtor), True, False, True);
   AEnv.DefineBuiltin('RangeError', JSMakeFunction(rangeErrCtor));
 
   refErrCtor := AHeap.NewNativeMethod('ReferenceError', @AHeap.ReferenceErrorCtor);
   refErrCtor.LengthOverride := 1;
   refErrCtor.IntrinsicName := 'ReferenceError';
   refErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetReferenceErrorPrototype()), False, False, False);
-  AHeap.GetReferenceErrorPrototype().SetProperty('constructor', JSMakeFunction(refErrCtor));
+  AHeap.GetReferenceErrorPrototype().DefineDataProperty('constructor', JSMakeFunction(refErrCtor), True, False, True);
   AEnv.DefineBuiltin('ReferenceError', JSMakeFunction(refErrCtor));
 
   aggErrCtor := AHeap.NewNativeMethod('AggregateError', @AHeap.AggregateErrorCtor);
   aggErrCtor.IntrinsicName := 'AggregateError';
   aggErrCtor.LengthOverride := 2;
   aggErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetAggregateErrorPrototype()), False, False, False);
-  AHeap.GetAggregateErrorPrototype().SetProperty('constructor', JSMakeFunction(aggErrCtor));
+  AHeap.GetAggregateErrorPrototype().DefineDataProperty('constructor', JSMakeFunction(aggErrCtor), True, False, True);
   AEnv.DefineBuiltin('AggregateError', JSMakeFunction(aggErrCtor));
 
   syntaxErrCtor := AHeap.NewNativeMethod('SyntaxError', @AHeap.SyntaxErrorCtor);
   syntaxErrCtor.LengthOverride := 1;
   syntaxErrCtor.IntrinsicName := 'SyntaxError';
   syntaxErrCtor.DefineDataProperty('prototype', JSMakeObject(AHeap.GetSyntaxErrorPrototype()), False, False, False);
-  AHeap.GetSyntaxErrorPrototype().SetProperty('constructor', JSMakeFunction(syntaxErrCtor));
+  AHeap.GetSyntaxErrorPrototype().DefineDataProperty('constructor', JSMakeFunction(syntaxErrCtor), True, False, True);
   AEnv.DefineBuiltin('SyntaxError', JSMakeFunction(syntaxErrCtor));
 
   // 4b. Function
@@ -1226,7 +1226,7 @@ begin
   funcObj.IntrinsicName := 'Function';
   funcObj.LengthOverride := 1;
   funcObj.SetProperty('prototype', JSMakeObject(AHeap.GetFunctionPrototype()));
-  AHeap.GetFunctionPrototype().SetProperty('constructor', JSMakeFunction(funcObj));
+  AHeap.GetFunctionPrototype().DefineDataProperty('constructor', JSMakeFunction(funcObj), True, False, True);
   AEnv.Define('Function', JSMakeFunction(funcObj));
 
   evalObj := AHeap.NewNativeFunction('eval', @JSEvalGlobal);
@@ -1266,6 +1266,7 @@ begin
   numberObj.SetProperty('MIN_SAFE_INTEGER', JSMakeNumber(-9007199254740991.0));
   numberObj.SetProperty('EPSILON', JSMakeNumber(2.220446049250313e-16));
   numberObj.SetProperty('prototype', JSMakeObject(AHeap.GetNumberPrototype()));
+  AHeap.GetNumberPrototype().DefineDataProperty('constructor', JSMakeFunction(numberObj), True, False, True);
   AEnv.Define('Number', JSMakeFunction(numberObj));
 
   { BigInt is a conversion function, not a constructor: `new BigInt()` throws. }
@@ -1287,7 +1288,7 @@ begin
   booleanObj.IntrinsicName := 'Boolean';
   booleanObj.LengthOverride := 1;
   booleanObj.SetProperty('prototype', JSMakeObject(AHeap.GetBooleanPrototype()));
-  AHeap.GetBooleanPrototype().SetProperty('constructor', JSMakeFunction(booleanObj));
+  AHeap.GetBooleanPrototype().DefineDataProperty('constructor', JSMakeFunction(booleanObj), True, False, True);
   AEnv.DefineBuiltin('Boolean', JSMakeFunction(booleanObj));
 
   // 7. Advanced Globals & Collections (Priority 3)

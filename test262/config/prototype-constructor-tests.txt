@@ -1,0 +1,13 @@
+# Prototype.constructor back-references: own, writable, non-enumerable,
+# configurable, and correct for every built-in prototype.
+built-ins/Boolean/prototype/constructor/S15.6.4.1_A1.js
+built-ins/Date/prototype/constructor/prop-desc.js
+built-ins/Error/prototype/constructor/prop-desc.js
+built-ins/Error/prototype/constructor/S15.11.4.1_A1_T2.js
+built-ins/Function/prototype/constructor/S15.3.4.1_A1_T1.js
+built-ins/Object/prototype/constructor/S15.2.4.1_A1_T1.js
+built-ins/Object/prototype/constructor/S15.2.4.1_A1_T2.js
+built-ins/Set/prototype/constructor/set-prototype-constructor-intrinsic.js
+built-ins/Set/prototype/constructor/set-prototype-constructor.js
+built-ins/String/prototype/constructor/S15.5.4.1_A1_T1.js
+built-ins/String/prototype/constructor/S15.5.4.1_A1_T2.js

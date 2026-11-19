@@ -553,8 +553,8 @@ on documented gaps are excluded: Promise subclassing/species, descriptor
 edge cases in `Object.defineProperties`, generic array-like boxing, the full
 `@@matchAll` protocol, resizable buffers, and lone surrogates.
 
-Validation: **284 FPCUnit tests**, **137 documentation claims**, curated corpus
-**354 records — 354 pass**, extended diagnostic **3006 records — 3006 pass**.
+Validation: **284 FPCUnit tests**, **143 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3028 records — 3028 pass**.
 
 ## Function.prototype.toString source retention
 
@@ -581,12 +581,38 @@ class fields, private methods, async/generator methods, the `AsyncFunction` and
 `@@match` protocol on `RegExp`, or the Unicode regexes in
 `nativeFunctionMatcher.js`.
 
-Validation: **285 FPCUnit tests**, **137 documentation claims**, curated corpus
-**354 records — 354 pass**, extended diagnostic **3006 records — 3006 pass**.
+Validation: **285 FPCUnit tests**, **143 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3028 records — 3028 pass**.
+
+## Prototype constructor back-references
+
+Every prototype now has a real own `constructor` data property:
+
+- It is writable, non-enumerable, and configurable, and
+  `Object.getOwnPropertyNames` reports it.
+- Replacing `Foo.prototype` leaves the old prototype's `constructor` pointing at
+  `Foo`; a fresh plain prototype inherits `Object.prototype.constructor`.
+- Classes get the same back-reference from the generated prototype.
+- The property stores the function without retaining it, and the function
+  clears it on destruction, so a function and its prototype are still
+  reclaimed together.
+
+Every built-in prototype received its `constructor` as well (`Array`, `Object`,
+`Function`, `Map`, `Set`, `RegExp`, `Date`, `Number`, `String`, `Boolean`,
+`Symbol`, `Promise`, the error types, `ArrayBuffer`, `SharedArrayBuffer`,
+`DataView`, the typed arrays, and `URIError`).
+
+Supporting fix: `Object.prototype.valueOf` was missing and is now present.
+
+Focused corpus: `config/prototype-constructor-tests.txt` — **22 records, all
+pass**.
+
+Validation: **286 FPCUnit tests**, **143 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3028 records — 3028 pass**.
 
 ## Next phase
 
 Phase 10, Phase 11, Phase 12, and Phase 13 are complete, as is the P3 performance
 work, the library/iteration gap closure, the coercion-completeness closure, the
-modern built-in library closure, and `Function.prototype.toString` source
-retention. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.
+modern built-in library closure, `Function.prototype.toString` source retention,
+and the prototype constructor back-reference work. Further conformance work should start from the recorded gaps rather than adding superficial host stubs.

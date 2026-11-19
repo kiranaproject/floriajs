@@ -926,6 +926,23 @@ begin
     Result := JSMakeString('[object Object]');
 end;
 
+{ Object.prototype.valueOf returns the receiver as an object; a primitive is
+  boxed by the caller, so returning it unchanged is the specified behaviour. }
+function JSObjectPrototypeValueOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  heap: TFloriaJSHeap;
+begin
+  if AThis.IsNull() or AThis.IsUndefined() then
+  begin
+    heap := JSActiveRealmHeap();
+    if heap <> nil then
+      raise EFloriaJSThrow.Create(JSMakeObject(heap.NewError('TypeError',
+        'Cannot convert undefined or null to object')));
+    Exit(JSMakeUndefined());
+  end;
+  Result := AThis;
+end;
+
 function JSObjectPrototypeIsPrototypeOf(const AArgs: array of TFloriaJSValue; AThis: TFloriaJSValue): TFloriaJSValue;
 var
   obj: TFloriaJSObject;
@@ -1238,11 +1255,13 @@ begin
     JSMakeFunction(AHeap.NewNativeFunction('propertyIsEnumerable', @JSObjectPrototypePropertyIsEnumerable)));
   proto.SetProperty('isPrototypeOf',
     JSMakeFunction(AHeap.NewNativeFunction('isPrototypeOf', @JSObjectPrototypeIsPrototypeOf)));
+  proto.SetProperty('valueOf',
+    JSMakeFunction(AHeap.NewNativeFunction('valueOf', @JSObjectPrototypeValueOf)));
 
   objectObj := AHeap.NewNativeMethod('Object', AObjectCtor);
   objectObj.IntrinsicName := 'Object';
   objectObj.SetProperty('prototype', JSMakeObject(proto));
-  proto.SetProperty('constructor', JSMakeFunction(objectObj));
+  proto.DefineDataProperty('constructor', JSMakeFunction(objectObj), True, False, True);
   objectObj.SetProperty('keys', JSMakeFunction(AHeap.NewNativeFunction('keys', @JSObjectKeys)));
   objectObj.SetProperty('values', JSMakeFunction(AHeap.NewNativeFunction('values', @JSObjectValues)));
   objectObj.SetProperty('entries', JSMakeFunction(AHeap.NewNativeFunction('entries', @JSObjectEntries)));

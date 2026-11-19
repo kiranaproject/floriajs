@@ -560,6 +560,7 @@ begin
 
   dateCtor := AHeap.NewNativeFunction('Date', @JSDateCtor);
   dateCtor.SetProperty('prototype', JSMakeObject(dateProto));
+  dateProto.DefineDataProperty('constructor', JSMakeFunction(dateCtor), True, False, True);
   dateCtor.SetProperty('now', JSMakeFunction(AHeap.NewNativeFunction('now', @JSDateNow)));
   dateCtor.SetProperty('parse', JSMakeFunction(AHeap.NewNativeFunction('parse', @JSDateParse)));
   dateCtor.SetProperty('UTC', JSMakeFunction(AHeap.NewNativeFunction('UTC', @JSDateUTC)));

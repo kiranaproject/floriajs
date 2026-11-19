@@ -25,7 +25,6 @@ type
   TFloriaJSObject = class;
   TFloriaJSArray = class;
   TFloriaJSFunction = class;
-  TFloriaJSPrototypeObject = class;
   TFloriaJSBoundFunction = class;
   TFloriaJSHeap = class;
   TFloriaJSPromise = class;
@@ -167,6 +166,10 @@ type
       expose them for Object.getOwnPropertyDescriptor. }
     function  DefineDataProperty(const AName: string; const AValue: TFloriaJSValue;
       AWritable, AEnumerable, AConfigurable: Boolean): Boolean; virtual;
+    { Stores a value in an existing own data property without taking a reference
+      to it. The caller promises to clear the property before the value dies. }
+    procedure DefineNonRetainingProperty(const AName: string;
+      const AValue: TFloriaJSValue);
     function  DefineAccessorProperty(const AName: string;
       const AGetter, ASetter: TFloriaJSValue; AEnumerable, AConfigurable: Boolean): Boolean; virtual;
     function  PropertyIsWritable(const AName: string): Boolean; virtual;
@@ -365,9 +368,12 @@ type
     FSourceText: string;
     FNameDeleted: Boolean;
     FLengthDeleted: Boolean;
+    { Prototypes this function owns a `constructor` back-reference from. The
+      property stores the function without retaining it, so the function's
+      destruction must clear it. }
     FPrototypes: TFPList;
-    procedure RegisterPrototype(AProto: TFloriaJSPrototypeObject);
-    procedure UnregisterPrototype(AProto: TFloriaJSPrototypeObject);
+    procedure RegisterPrototype(AProto: TFloriaJSObject);
+    procedure UnregisterPrototype(AProto: TFloriaJSObject);
   public
     constructor CreateNative(const AName: string; AProc: TFloriaJSNativeProc);
     constructor CreateNativeMethod(const AName: string; AMethod: TFloriaJSNativeMethod);
@@ -376,13 +382,10 @@ type
 
     function GetProperty(const AName: string): TFloriaJSValue; override;
     function GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
-    procedure SetProperty(const AName: string; const AValue: TFloriaJSValue); override;
     function DeleteProperty(const AName: string): Boolean; override;
     { `name` and `length` are created lazily, so the raw property store does not
       know about them until they are read. }
     function HasOwnProperty(const AName: string): Boolean; override;
-    procedure DefineGetter(const AName: string; const AGetter: TFloriaJSValue); override;
-    procedure DefineSetter(const AName: string; const ASetter: TFloriaJSValue); override;
 
     property Name: string read FName write FName;
     property IsNative: Boolean read FIsNative;
@@ -411,19 +414,6 @@ type
     property ClosureEnv: Pointer read FClosureEnv;
   end;
 
-  { Function Prototype Object with Dynamic Constructor Back-Reference }
-  TFloriaJSPrototypeObject = class(TFloriaJSObject)
-  private
-    FOwnerFunction: TFloriaJSFunction;
-    procedure SetOwnerFunction(AOwner: TFloriaJSFunction);
-  public
-    constructor Create(AProto: TFloriaJSObject; AOwner: TFloriaJSFunction);
-    destructor Destroy(); override;
-    function GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue; override;
-    function HasOwnProperty(const AName: string): Boolean; override;
-
-    property OwnerFunction: TFloriaJSFunction read FOwnerFunction write SetOwnerFunction;
-  end;
 
   { Exotic Function Created by Function.prototype.bind.
     ECMAScript models a bound function as a callable object of its own, not as a
@@ -1825,6 +1815,18 @@ begin
   Result := True;
 end;
 
+procedure TFloriaJSObject.DefineNonRetainingProperty(const AName: string;
+  const AValue: TFloriaJSValue);
+var
+  idx: Integer;
+begin
+  idx := FindPropertyIndex(AName);
+  if idx < 0 then
+    Exit;
+  JSReleaseValue(FProperties[idx].Value);
+  FProperties[idx].Value := AValue;
+end;
+
 function TFloriaJSObject.DefineAccessorProperty(const AName: string;
   const AGetter, ASetter: TFloriaJSValue; AEnumerable, AConfigurable: Boolean): Boolean;
 var
@@ -3096,21 +3098,6 @@ end;
 
 { TFloriaJSFunction }
 
-procedure TFloriaJSFunction.RegisterPrototype(AProto: TFloriaJSPrototypeObject);
-begin
-  if AProto = nil then Exit;
-  if FPrototypes = nil then
-    FPrototypes := TFPList.Create();
-  if FPrototypes.IndexOf(AProto) < 0 then
-    FPrototypes.Add(AProto);
-end;
-
-procedure TFloriaJSFunction.UnregisterPrototype(AProto: TFloriaJSPrototypeObject);
-begin
-  if (FPrototypes <> nil) and (AProto <> nil) then
-    FPrototypes.Remove(AProto);
-end;
-
 constructor TFloriaJSFunction.CreateNative(const AName: string; AProc: TFloriaJSNativeProc);
 begin
   inherited Create(nil);
@@ -3169,15 +3156,20 @@ end;
 destructor TFloriaJSFunction.Destroy();
 var
   i: Integer;
-  proto: TFloriaJSPrototypeObject;
+  proto: TFloriaJSObject;
 begin
+  { The prototypes hold a non-retaining `constructor` reference to this
+    function. Once the function is gone the property would dangle, so it is
+    removed here; the prototype then falls back to the inherited constructor. }
   if FPrototypes <> nil then
   begin
-    for i := FPrototypes.Count - 1 downto 0 do
+    for i := 0 to FPrototypes.Count - 1 do
     begin
-      proto := TFloriaJSPrototypeObject(FPrototypes[i]);
-      if proto <> nil then
-        proto.FOwnerFunction := nil;
+      proto := TFloriaJSObject(FPrototypes[i]);
+      if (proto <> nil) and (proto.FindPropertyIndex('constructor') >= 0) and
+         proto.FProperties[proto.FindPropertyIndex('constructor')].Value.IsObject() and
+         (proto.FProperties[proto.FindPropertyIndex('constructor')].Value.ObjVal = Self) then
+        proto.DeleteProperty('constructor');
     end;
     FreeAndNil(FPrototypes);
   end;
@@ -3378,11 +3370,20 @@ begin
      (FindPropertyIndex(AName) < 0) and (FHeap <> nil) then
   begin
     if FIsAsyncGenerator then
-      protoObj := FHeap.Track(TFloriaJSPrototypeObject.Create(
-        FHeap.GetAsyncGeneratorPrototype(), Self))
+      protoObj := FHeap.NewObject(FHeap.GetAsyncGeneratorPrototype())
     else
-      protoObj := FHeap.Track(TFloriaJSPrototypeObject.Create(
-        FHeap.GetObjectPrototype(), Self));
+      protoObj := FHeap.NewObject(FHeap.GetObjectPrototype());
+    { `constructor` is a real own data property of the prototype: writable,
+      non-enumerable, and configurable, which is what the specification
+      requires and what `getOwnPropertyNames` must report. It deliberately does
+      not retain the function, so a function and its prototype do not keep each
+      other alive; the function clears the property when it is destroyed. }
+    protoObj.DefineDataProperty('constructor', JSMakeFunction(Self), True, False, True);
+    { Drop the reference the property just took. `DefineDataProperty` retains
+      the value, which would make the function and its prototype hold each
+      other and never be reclaimed. }
+    protoObj.DefineNonRetainingProperty('constructor', JSMakeFunction(Self));
+    RegisterPrototype(protoObj);
     SetProperty('prototype', JSMakeObject(protoObj));
   end;
 
@@ -3430,24 +3431,22 @@ begin
   Result := GetPropertyWithReceiver(AName, Self);
 end;
 
-procedure TFloriaJSFunction.SetProperty(const AName: string; const AValue: TFloriaJSValue);
-var
-  idx: Integer;
+procedure TFloriaJSFunction.RegisterPrototype(AProto: TFloriaJSObject);
 begin
-  if AName = 'prototype' then
-  begin
-    idx := FindPropertyIndex('prototype');
-    if (idx >= 0) and FProperties[idx].Value.IsObject() and
-       (FProperties[idx].Value.ObjVal is TFloriaJSPrototypeObject) and
-       (FProperties[idx].Value.ObjVal <> AValue.ObjVal) then
-      TFloriaJSPrototypeObject(FProperties[idx].Value.ObjVal).OwnerFunction := nil;
-  end;
-  inherited SetProperty(AName, AValue);
+  if AProto = nil then Exit;
+  if FPrototypes = nil then
+    FPrototypes := TFPList.Create();
+  if FPrototypes.IndexOf(AProto) < 0 then
+    FPrototypes.Add(AProto);
+end;
+
+procedure TFloriaJSFunction.UnregisterPrototype(AProto: TFloriaJSObject);
+begin
+  if (FPrototypes <> nil) and (AProto <> nil) then
+    FPrototypes.Remove(AProto);
 end;
 
 function TFloriaJSFunction.DeleteProperty(const AName: string): Boolean;
-var
-  idx: Integer;
 begin
   if AName = 'name' then
   begin
@@ -3467,93 +3466,7 @@ begin
       FLengthDeleted := True;
     Exit;
   end;
-  if AName = 'prototype' then
-  begin
-    idx := FindPropertyIndex('prototype');
-    if (idx >= 0) and FProperties[idx].Value.IsObject() and
-       (FProperties[idx].Value.ObjVal is TFloriaJSPrototypeObject) then
-      TFloriaJSPrototypeObject(FProperties[idx].Value.ObjVal).OwnerFunction := nil;
-  end;
   Result := inherited DeleteProperty(AName);
-end;
-
-procedure TFloriaJSFunction.DefineGetter(const AName: string; const AGetter: TFloriaJSValue);
-var
-  idx: Integer;
-begin
-  if AName = 'prototype' then
-  begin
-    idx := FindPropertyIndex('prototype');
-    if (idx >= 0) and FProperties[idx].Value.IsObject() and
-       (FProperties[idx].Value.ObjVal is TFloriaJSPrototypeObject) then
-      TFloriaJSPrototypeObject(FProperties[idx].Value.ObjVal).OwnerFunction := nil;
-  end;
-  inherited DefineGetter(AName, AGetter);
-end;
-
-procedure TFloriaJSFunction.DefineSetter(const AName: string; const ASetter: TFloriaJSValue);
-var
-  idx: Integer;
-begin
-  if AName = 'prototype' then
-  begin
-    idx := FindPropertyIndex('prototype');
-    if (idx >= 0) and FProperties[idx].Value.IsObject() and
-       (FProperties[idx].Value.ObjVal is TFloriaJSPrototypeObject) then
-      TFloriaJSPrototypeObject(FProperties[idx].Value.ObjVal).OwnerFunction := nil;
-  end;
-  inherited DefineSetter(AName, ASetter);
-end;
-
-{ TFloriaJSPrototypeObject }
-
-procedure TFloriaJSPrototypeObject.SetOwnerFunction(AOwner: TFloriaJSFunction);
-begin
-  if FOwnerFunction = AOwner then
-    Exit;
-  if FOwnerFunction <> nil then
-    FOwnerFunction.UnregisterPrototype(Self);
-  FOwnerFunction := AOwner;
-  if FOwnerFunction <> nil then
-    FOwnerFunction.RegisterPrototype(Self);
-end;
-
-constructor TFloriaJSPrototypeObject.Create(AProto: TFloriaJSObject; AOwner: TFloriaJSFunction);
-begin
-  inherited Create(AProto);
-  FOwnerFunction := nil;
-  SetOwnerFunction(AOwner);
-end;
-
-destructor TFloriaJSPrototypeObject.Destroy();
-begin
-  if FOwnerFunction <> nil then
-  begin
-    FOwnerFunction.UnregisterPrototype(Self);
-    FOwnerFunction := nil;
-  end;
-  inherited Destroy();
-end;
-
-function TFloriaJSPrototypeObject.GetPropertyWithReceiver(const AName: string; AReceiver: TFloriaJSObject): TFloriaJSValue;
-var
-  idx: Integer;
-begin
-  idx := FindPropertyIndex(AName);
-  if idx >= 0 then
-    Exit(inherited GetPropertyWithReceiver(AName, AReceiver));
-
-  if (AName = 'constructor') and (FOwnerFunction <> nil) then
-    Exit(JSMakeFunction(FOwnerFunction));
-
-  Result := inherited GetPropertyWithReceiver(AName, AReceiver);
-end;
-
-function TFloriaJSPrototypeObject.HasOwnProperty(const AName: string): Boolean;
-begin
-  if (AName = 'constructor') and (FOwnerFunction <> nil) then
-    Exit(True);
-  Result := inherited HasOwnProperty(AName);
 end;
 
 { TFloriaJSBoundFunction }

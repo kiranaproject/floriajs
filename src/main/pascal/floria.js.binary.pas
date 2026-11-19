@@ -1485,7 +1485,7 @@ begin
   arrayBufferCtor.IntrinsicName := 'ArrayBuffer';
   arrayBufferProto := AHeap.NewObject(AHeap.GetObjectPrototype());
   arrayBufferCtor.SetProperty('prototype', JSMakeObject(arrayBufferProto));
-  arrayBufferProto.SetProperty('constructor', JSMakeFunction(arrayBufferCtor));
+  arrayBufferProto.DefineDataProperty('constructor', JSMakeFunction(arrayBufferCtor), True, False, True);
   RegisterMethod(AHeap, arrayBufferProto, 'slice', @helper.ArrayBufferSlice);
   arrayBufferCtor.SetProperty('isView',
     JSMakeFunction(AHeap.NewNativeMethod('isView', @helper.ArrayBufferIsView)));
@@ -1496,7 +1496,7 @@ begin
   sharedCtor.IntrinsicName := 'SharedArrayBuffer';
   sharedProto := AHeap.NewObject(AHeap.GetObjectPrototype());
   sharedCtor.SetProperty('prototype', JSMakeObject(sharedProto));
-  sharedProto.SetProperty('constructor', JSMakeFunction(sharedCtor));
+  sharedProto.DefineDataProperty('constructor', JSMakeFunction(sharedCtor), True, False, True);
   RegisterMethod(AHeap, sharedProto, 'slice', @helper.ArrayBufferSlice);
   AEnv.Define('SharedArrayBuffer', JSMakeFunction(sharedCtor));
 
@@ -1522,7 +1522,7 @@ begin
   dataViewCtor.IntrinsicName := 'DataView';
   dataViewProto := AHeap.NewObject(AHeap.GetObjectPrototype());
   dataViewCtor.SetProperty('prototype', JSMakeObject(dataViewProto));
-  dataViewProto.SetProperty('constructor', JSMakeFunction(dataViewCtor));
+  dataViewProto.DefineDataProperty('constructor', JSMakeFunction(dataViewCtor), True, False, True);
   RegisterMethod(AHeap, dataViewProto, 'getInt8', @helper.DataViewGetInt8);
   RegisterMethod(AHeap, dataViewProto, 'getUint8', @helper.DataViewGetUint8);
   RegisterMethod(AHeap, dataViewProto, 'getInt16', @helper.DataViewGetInt16);
@@ -1566,7 +1566,7 @@ begin
     typedCtor.IntrinsicName := names[i];
     kindProto := AHeap.NewObject(typedProto);
     typedCtor.SetProperty('prototype', JSMakeObject(kindProto));
-    kindProto.SetProperty('constructor', JSMakeFunction(typedCtor));
+    kindProto.DefineDataProperty('constructor', JSMakeFunction(typedCtor), True, False, True);
     typedCtor.SetProperty('__kind', JSMakeNumber(Ord(kinds[i])));
     typedCtor.SetProperty('BYTES_PER_ELEMENT', JSMakeNumber(ElementSizeOf(kinds[i])));
     kindProto.SetProperty('__kind', JSMakeNumber(Ord(kinds[i])));

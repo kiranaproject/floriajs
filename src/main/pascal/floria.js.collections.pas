@@ -1091,6 +1091,7 @@ begin
 
   mapCtor := AHeap.NewNativeFunction('Map', @FactoryNewMap);
   mapCtor.SetProperty('prototype', JSMakeObject(GSharedMapProto));
+  GSharedMapProto.DefineDataProperty('constructor', JSMakeFunction(mapCtor), True, False, True);
   groupByFn := AHeap.NewNativeFunction('groupBy', @JSMapGroupBy);
   groupByFn.NotConstructable := True;
   groupByFn.SuppressPrototype := True;
@@ -1114,6 +1115,7 @@ begin
 
   setCtor := AHeap.NewNativeFunction('Set', @FactoryNewSet);
   setCtor.SetProperty('prototype', JSMakeObject(GSharedSetProto));
+  GSharedSetProto.DefineDataProperty('constructor', JSMakeFunction(setCtor), True, False, True);
   AEnv.Define('Set', JSMakeFunction(setCtor));
 end;
 

@@ -2728,6 +2728,11 @@ begin
   FBytecode.Emit(opLoadLoc, protoLoc);
   FBytecode.Emit(opDefineHidden, FBytecode.AddStringConstant('prototype'), ACls.Line);
 
+  { The prototype's `constructor` back-reference, as a real own property. }
+  FBytecode.Emit(opLoadLoc, protoLoc);
+  FBytecode.Emit(opLoadLoc, clsLoc);
+  FBytecode.Emit(opDefineHidden, FBytecode.AddStringConstant('constructor'), ACls.Line);
+
   if ACls.Name <> '' then
   begin
     FBytecode.Emit(opLoadLoc, clsLoc);

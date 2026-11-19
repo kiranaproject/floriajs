@@ -400,6 +400,7 @@ begin
 
   reCtor := AHeap.NewNativeFunction('RegExp', @JSRegExpCtor);
   reCtor.SetProperty('prototype', JSMakeObject(GSharedRegExpProto));
+  GSharedRegExpProto.DefineDataProperty('constructor', JSMakeFunction(reCtor), True, False, True);
   AEnv.Define('RegExp', JSMakeFunction(reCtor));
 end;
 

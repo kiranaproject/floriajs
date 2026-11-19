@@ -294,6 +294,19 @@ python3 "$TEST262/tools/run_test262.py" \
   --baseline "$TEST262/baselines/phase10-function-tostring.json" \
   --fail-on-regression >/dev/null
 
+echo "== Reviewed upstream prototype-constructor corpus =="
+python3 "$TEST262/tools/run_test262.py" \
+  --root "$ROOT" \
+  --host "$HOST" \
+  --timeout 10 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
+  --list "$TEST262/config/prototype-constructor-tests.txt" \
+  --report "$RESULTS/prototype-constructor-report.json" \
+  --output "$RESULTS/prototype-constructor.jsonl" \
+  --baseline "$TEST262/baselines/phase10-prototype-constructor.json" \
+  --fail-on-regression >/dev/null
+
 echo "== Reviewed upstream curated corpus =="
 python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \

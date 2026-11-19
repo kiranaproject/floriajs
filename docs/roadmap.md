@@ -14,7 +14,7 @@ Last refreshed 2026-11-17:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **285 tests pass** with `pasbuild test`.
+- Test suite: **286 tests pass** with `pasbuild test`.
 - Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **13 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
@@ -22,7 +22,7 @@ Last refreshed 2026-11-17:
   `alert`, calling a non-function, and an invalid assignment target); the probe
   harness is not an ECMAScript conformance suite.
 - Unit count: 28 units.
-- Documentation claims: **137 checked, 0 failing** with
+- Documentation claims: **143 checked, 0 failing** with
   `bash scratch/run_docclaims.sh`.
 
 Do not treat “tests pass” as “ECMAScript-compliant”. Several defects below are
@@ -1623,6 +1623,20 @@ all pass**.
 
 Focused corpus: `test262/config/function-tostring-tests.txt` — **72 records,
 all pass**.
+
+### [x] Prototype constructor back-references (post-P3)
+
+- Every prototype has a real own `constructor` data property: writable,
+  non-enumerable, configurable, and reported by `getOwnPropertyNames`.
+- Replacing `Foo.prototype` keeps the old prototype's constructor; a fresh
+  plain prototype inherits `Object.prototype.constructor`.
+- The property stores the function without retaining it and is cleared when the
+  function is destroyed, so the pair is still reclaimed together.
+- Every built-in prototype now has its constructor.
+- `Object.prototype.valueOf` was added.
+
+Focused corpus: `test262/config/prototype-constructor-tests.txt` — **22
+records, all pass**.
 
 ---
 
