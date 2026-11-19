@@ -1,8 +1,8 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "03d647c333a617128126aa2ce62591eb9d9a4c16",
-    "workingTreeDirty": true
+    "revision": "6f0beb74998e3f8e1b3b78ca24cf35a076b8521c",
+    "workingTreeDirty": false
   },
   "host": {
     "bytes": 2267712,
@@ -12,7 +12,7 @@
   "options": {
     "allowUnpinned": false,
     "jobs": 4,
-    "listFile": "config/prototype-constructor-tests.txt",
+    "listFile": "prototype-constructor-tests.txt",
     "maxDurationSeconds": 0.0,
     "selection": [
       "built-ins/Boolean/prototype/constructor/S15.6.4.1_A1.js",

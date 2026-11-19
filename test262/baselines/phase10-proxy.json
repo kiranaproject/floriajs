@@ -1,12 +1,12 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "c48a86040ce867105bd537de89798453c140074d",
+    "revision": "6f0beb74998e3f8e1b3b78ca24cf35a076b8521c",
     "workingTreeDirty": false
   },
   "host": {
-    "bytes": 2268240,
-    "sha256": "550ee0f941b62744866727a409a67b18bc03936ffcaef43ea9565ef39fb756d9"
+    "bytes": 2267712,
+    "sha256": "67555f154ba43ba8c8d324689b210bc9d6b9308804814f8a9ba01a0ba66b14a2"
   },
   "kind": "floriajs-test262-report",
   "options": {
