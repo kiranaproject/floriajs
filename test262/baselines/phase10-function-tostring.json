@@ -1,8 +1,8 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "910dfc05001b522e34679fbfd5a2b01b41523667",
-    "workingTreeDirty": true
+    "revision": "c48a86040ce867105bd537de89798453c140074d",
+    "workingTreeDirty": false
   },
   "host": {
     "bytes": 2268240,
@@ -12,7 +12,7 @@
   "options": {
     "allowUnpinned": false,
     "jobs": 4,
-    "listFile": "config/function-tostring-tests.txt",
+    "listFile": "function-tostring-tests.txt",
     "maxDurationSeconds": 0.0,
     "selection": [
       "built-ins/Function/prototype/toString/Function.js",
