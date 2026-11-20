@@ -1204,7 +1204,7 @@ function TFloriaJSVM.RunLoop(AInitialFP, AInitialBaseBP: Integer): TFloriaJSValu
 var
   curFrame: ^TFloriaJSCallFrame;
   inst: TFloriaJSInstruction;
-  a, b, val, retVal, propVal, objVal, calleeVal, thisVal, resVal: TFloriaJSValue;
+  a, b, val, retVal, propVal, objVal, calleeVal, thisVal, resVal, keyVal: TFloriaJSValue;
   savedNewTarget: TFloriaJSValue;
   savedConstructor: TFloriaJSFunction;
   intrinsicName: string;
@@ -1782,6 +1782,42 @@ begin
             varName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             if objVal.IsObject() and (objVal.ObjVal <> nil) then
               objVal.AsObject().SetPropertyNonEnumerable(varName, val);
+          end;
+
+        opDefineHiddenKey:
+          begin
+            val := Pop();
+            keyVal := Pop();
+            objVal := Pop();
+            if objVal.IsObject() and (objVal.ObjVal <> nil) then
+            begin
+              objVal.AsObject().SetPropertyNonEnumerable(
+                JSPropertyKeyName(keyVal), val);
+            end;
+          end;
+
+        opDefineGetterKey:
+          begin
+            val := Pop();
+            keyVal := Pop();
+            objVal := Pop();
+            if objVal.IsObject() and (objVal.ObjVal <> nil) then
+            begin
+              objVal.AsObject().DefineGetter(JSPropertyKeyName(keyVal), val);
+              objVal.AsObject().SetEnumerable(JSPropertyKeyName(keyVal), False);
+            end;
+          end;
+
+        opDefineSetterKey:
+          begin
+            val := Pop();
+            keyVal := Pop();
+            objVal := Pop();
+            if objVal.IsObject() and (objVal.ObjVal <> nil) then
+            begin
+              objVal.AsObject().DefineSetter(JSPropertyKeyName(keyVal), val);
+              objVal.AsObject().SetEnumerable(JSPropertyKeyName(keyVal), False);
+            end;
           end;
 
         opDefineGetterHidden:

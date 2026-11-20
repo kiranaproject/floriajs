@@ -10628,6 +10628,41 @@ begin
     // `delete` of a private member is an early error.
     res := engine.Execute('class A { #m() {} d(o) { delete o.#m; } }');
     AssertFalse('deleting a private member is rejected', res.Success);
+
+    // A computed member name is evaluated at class-definition time.
+    res := engine.Execute(
+      'var n = "m"; class C { [n]() { return 1; } } new C().m();');
+    AssertTrue('a computed method name', res.Success);
+    AssertEquals('the method installs under the computed key', '1', res.StringValue);
+
+    res := engine.Execute(
+      'var log = []; function k(x) { log.push(x); return x; }' +
+      'class C { [k("a")]() {} [k("b")]() {} } log.join(",");');
+    AssertTrue('computed keys evaluate in source order', res.Success);
+    AssertEquals('keys are evaluated in order', 'a,b', res.StringValue);
+
+    res := engine.Execute(
+      'var n = "f"; class C { [n] = 7; static [n + "s"] = 8; }' +
+      'new C().f + "," + C.fs;');
+    AssertTrue('computed field names', res.Success);
+    AssertEquals('computed field and static field install', '7,8', res.StringValue);
+
+    // A static block runs at class-definition time with `this` as the class.
+    res := engine.Execute('class A { static v; static { this.v = 3; } } A.v;');
+    AssertTrue('a static block runs', res.Success);
+    AssertEquals('this is the class inside a static block', '3', res.StringValue);
+
+    res := engine.Execute('class A { static { globalThis.sb = this; } } globalThis.sb === A;');
+    AssertTrue('a static block sees the class binding', res.Success);
+    AssertEquals('the class name resolves inside its static block', 'true', res.StringValue);
+
+    // A static block may not return, yield, await, or call super().
+    res := engine.Execute('class A { static { return; } }');
+    AssertFalse('return in a static block is rejected', res.Success);
+    res := engine.Execute('class A { static { yield; } }');
+    AssertFalse('yield in a static block is rejected', res.Success);
+    res := engine.Execute('class B {} class A extends B { static { super(); } }');
+    AssertFalse('super() in a static block is rejected', res.Success);
   finally
     engine.Free();
   end;

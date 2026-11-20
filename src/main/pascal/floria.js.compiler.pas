@@ -91,7 +91,7 @@ type
     procedure SpliceFieldInitializers(ACtor: TFloriaJSFunctionExpr;
       AFields: TFloriaJSBlockStmt; ADerived: Boolean);
     procedure CompileStaticField(AMember: TFloriaJSClassMember; AClsLoc: Integer);
-    procedure CompileStaticBlock(AMember: TFloriaJSClassMember);
+    procedure CompileStaticBlock(AMember: TFloriaJSClassMember; AClsLoc: Integer);
     procedure CompileClassExpr(ACls: TFloriaJSClassNode);
     procedure CompileTaggedTemplate(ATmpl: TFloriaJSTaggedTemplateExpr);
     procedure CompileYieldStar(AIterable: TFloriaJSExprNode; ALine: Integer);
@@ -2804,7 +2804,7 @@ procedure BuildFieldInitializers(ACls: TFloriaJSClassNode;
 var
   i: Integer;
   member: TFloriaJSClassMember;
-  target, init: TFloriaJSExprNode;
+  target, init, keyExpr: TFloriaJSExprNode;
   stmt: TFloriaJSStmtNode;
 begin
   if (ACls = nil) or (AInto = nil) then Exit;
@@ -2813,7 +2813,26 @@ begin
     member := ACls.GetMember(i);
     if member.Kind <> fjcmField then Continue;
     if member.IsStatic <> AIncludeStatic then Continue;
-    if member.Computed then Continue;
+    if member.Computed then
+    begin
+      { A computed field key is evaluated once per instance, in source order.
+        `this[key] = initializer` does exactly that. }
+      keyExpr := TFloriaJSMemberExpr.CreateComputed(
+        TFloriaJSIdentifierExpr.Create('this', member.Line, member.Column),
+        member.NameExpr, member.Line, member.Column);
+      if member.Initializer <> nil then
+      begin
+        member.Initializer.Retain();
+        init := member.Initializer;
+      end
+      else
+        init := TFloriaJSLiteralExpr.CreateUndefined(member.Line, member.Column);
+      stmt := TFloriaJSExprStmt.Create(
+        TFloriaJSAssignExpr.Create(keyExpr, tkAssign, init, member.Line, member.Column),
+        member.Line, member.Column);
+      AInto.AddStatement(stmt);
+      Continue;
+    end;
 
     target := TFloriaJSMemberExpr.CreateNamed(
       TFloriaJSIdentifierExpr.Create('this', member.Line, member.Column),
@@ -2885,6 +2904,19 @@ var
   init: TFloriaJSExprNode;
   keyIdx: Integer;
 begin
+  { A computed static key is evaluated once, at class definition time. }
+  if AMember.Computed then
+  begin
+    FBytecode.Emit(opLoadLoc, AClsLoc);
+    CompileExpr(AMember.NameExpr);
+    if AMember.Initializer <> nil then
+      CompileExpr(AMember.Initializer)
+    else
+      FBytecode.Emit(opUndefined);
+    FBytecode.Emit(opDefineHiddenKey, 0, AMember.Line);
+    Exit;
+  end;
+
   FBytecode.Emit(opLoadLoc, AClsLoc);
   if AMember.Initializer <> nil then
     CompileExpr(AMember.Initializer)
@@ -2904,17 +2936,20 @@ end;
 
 { A static block: an immediately-invoked function body. The block's own
   function scope is what gives its `var`/`let` declarations a private home. }
-procedure TFloriaJSCompiler.CompileStaticBlock(AMember: TFloriaJSClassMember);
+procedure TFloriaJSCompiler.CompileStaticBlock(AMember: TFloriaJSClassMember;
+  AClsLoc: Integer);
 var
   blockFn: TFloriaJSFunctionExpr;
 begin
   blockFn := TFloriaJSFunctionExpr.Create('#static-block', False,
     AMember.Line, AMember.Column);
   blockFn.SetBody(AMember.Function_.Body);
-  { `opCall` pops the receiver first, then the callee, so the stack must be
-    `[callee, undefined]` from the bottom. }
-  FBytecode.Emit(opUndefined);
+  { `opCall` pops the receiver, then the callee, so the callee must be pushed
+    first and the receiver second: the stack reads [callee, undefined] from the
+    bottom. `CompileCallExpr` gets this order from its `opSwap`. }
   CompileFunctionExpr(blockFn);
+  { A static block's `this` is the class itself. }
+  FBytecode.Emit(opLoadLoc, AClsLoc);
   FBytecode.Emit(opCall, 0, AMember.Line);
   FBytecode.Emit(opPop);
 end;
@@ -3137,6 +3172,21 @@ begin
     else
       FBytecode.Emit(opLoadLoc, protoLoc);
     CompileFunctionExpr(member.Function_);
+    if member.Computed then
+    begin
+      { A computed key is evaluated here, in source order, before the member is
+        installed. `opDefine*Key` pops the key, the value, then the object. }
+      CompileExpr(member.NameExpr);
+      FBytecode.Emit(opSwap);
+      case member.Kind of
+        fjcmGetter: FBytecode.Emit(opDefineGetterKey, 0, member.Line);
+        fjcmSetter: FBytecode.Emit(opDefineSetterKey, 0, member.Line);
+      else
+        FBytecode.Emit(opDefineHiddenKey, 0, member.Line);
+      end;
+      FBytecode.Emit(opPopEnv);
+      Continue;
+    end;
     nameIdx := FBytecode.AddStringConstant(member.Name);
     { A getter/setter installs an accessor; a method installs a data property. }
     case member.Kind of
@@ -3183,6 +3233,15 @@ begin
       hasStaticWork := True;
   end;
 
+  { A class declaration's own name is bound before its static elements run, so
+    `class C { static { use(C) } }` can read it. The binding is replaced by the
+    enclosing declaration once the whole class expression has finished. }
+  if hasStaticWork and (ACls.Name <> '') then
+  begin
+    FBytecode.Emit(opLoadLoc, clsLoc);
+    FBytecode.Emit(opDefineLet, FBytecode.AddStringConstant(ACls.Name), ACls.Line);
+  end;
+
   if hasStaticWork then
   begin
     FBytecode.Emit(opPushEnv);
@@ -3199,7 +3258,7 @@ begin
       if member.Kind = fjcmField then
         CompileStaticField(member, clsLoc)
       else if member.Kind = fjcmStaticBlock then
-        CompileStaticBlock(member);
+        CompileStaticBlock(member, clsLoc);
     end;
 
     FBytecode.Emit(opPopEnv);

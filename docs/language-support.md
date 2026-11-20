@@ -508,7 +508,12 @@ assignment operator, including plain `=`.
   and `delete` of one is an early `SyntaxError`.
 - `#x in obj` asks whether an object carries that class's private brand.
 - `static field = value` and `static { ... }` run at class definition time, in
-  source order.
+  source order. Inside a static block `this` is the class, and the class's own
+  name is already bound, so `static { probe = C }` works. `return`, `yield`,
+  `await`, declaring `arguments`, and calling `super(...)` are early errors
+  there.
+- A computed member name (`[expr]() {}`, `[expr] = value`, and the static and
+  accessor forms) is evaluated once, at class-definition time, in source order.
 
 ### Errors and promises
 

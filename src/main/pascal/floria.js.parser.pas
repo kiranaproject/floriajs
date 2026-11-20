@@ -66,6 +66,9 @@ type
     { How many async function bodies enclose the current position. `await` is
       legal there, and at the top level of a module. }
     FAsyncDepth: Integer;
+    { True while parsing a `static { ... }` block. `return`, `yield`, `await`,
+      `arguments` as a binding, and `super(...)` are early errors there. }
+    FInStaticBlock: Boolean;
     { True while parsing the direct body of the program. Import/export
       declarations are only legal there when the source is a module. }
     FAtTopLevel: Boolean;
@@ -194,6 +197,7 @@ begin
   FSuperAllowed := False;
   FFunctionDepth := 0;
   FAsyncDepth := 0;
+  FInStaticBlock := False;
   Advance();
 end;
 
@@ -209,6 +213,7 @@ begin
   FSuperAllowed := False;
   FFunctionDepth := 0;
   FAsyncDepth := 0;
+  FInStaticBlock := False;
   Advance();
 end;
 
@@ -559,7 +564,9 @@ begin
     level is not one, so `yield;` there is an early SyntaxError. }
   if Match(tkYield) then
   begin
-    if FIsModule and (FFunctionDepth = 0) then
+    { `yield` is legal only inside a generator body. A module's top level and a
+      static block are not one. }
+    if (FIsModule or FInStaticBlock) and (FFunctionDepth = 0) then
       ErrorAtCurrent('Unexpected reserved word');
     { A line terminator after `yield` ends the expression, so `yield\n1` yields
       undefined and then evaluates `1` as a separate statement. }
@@ -586,6 +593,10 @@ begin
   if Match(tkSuper) then
   begin
     if not FSuperAllowed then
+      ErrorAtCurrent('''super'' keyword unexpected here');
+    { `super(...)` constructs the base class and is legal only in a derived
+      constructor, never in a static block. }
+    if FInStaticBlock and (FCurrent.Kind = tkLParen) then
       ErrorAtCurrent('''super'' keyword unexpected here');
     Exit(TFloriaJSIdentifierExpr.Create('super', tok.Line, tok.Column));
   end;
@@ -1007,7 +1018,8 @@ var
   member: TFloriaJSClassMember;
   fieldInit: TFloriaJSExprNode;
   memberIsPrivate: Boolean;
-  wasSuperAllowed: Boolean;
+  computedNameExpr: TFloriaJSExprNode;
+  wasSuperAllowed, wasInStaticBlock: Boolean;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -1044,7 +1056,16 @@ begin
       Advance(); { consume `static` }
       fnExpr := TFloriaJSFunctionExpr.Create('#static-block', False,
         FCurrent.Line, FCurrent.Column);
-      fnExpr.SetBody(ParseFunctionBlockBody());
+      { `return` and `yield` are illegal in a static block, and `await` is only
+        legal as a binding name, so the body is parsed as a plain block whose
+        function depth stays at the enclosing level. }
+      wasInStaticBlock := FInStaticBlock;
+      FInStaticBlock := True;
+      try
+        fnExpr.SetBody(ParseBlockStatement());
+      finally
+        FInStaticBlock := wasInStaticBlock;
+      end;
       fnExpr.SourceText := SourceSlice(memberStartPos, FPrevious.EndPos);
       cls.AddMember(TFloriaJSClassMember.Create('#static-block',
         fjcmStaticBlock, True, fnExpr, startLine, startCol));
@@ -1072,7 +1093,16 @@ begin
 
     memberIsPrivate := False;
     memberName := '';
-    if Match(tkPrivateName) then
+    computedNameExpr := nil;
+    if Match(tkLBracket) then
+    begin
+      { A computed member name: `[expr]() {}` or `[expr] = value`. The key is
+        evaluated at class-definition time, in source order. }
+      computedNameExpr := ParseAssignmentExpression();
+      Consume(tkRBracket, 'Expected '']'' after a computed member name');
+      memberName := '';
+    end
+    else if Match(tkPrivateName) then
     begin
       memberName := FPrevious.Text;
       memberIsPrivate := True;
@@ -1101,6 +1131,11 @@ begin
       member := TFloriaJSClassMember.Create(memberName, kind, isStatic,
         fnExpr, startLine, startCol);
       member.IsPrivate := memberIsPrivate;
+      if computedNameExpr <> nil then
+      begin
+        member.Computed := True;
+        member.NameExpr := computedNameExpr;
+      end;
       cls.AddMember(member);
       Continue;
     end;
@@ -1112,6 +1147,11 @@ begin
     member := TFloriaJSClassMember.Create(memberName, fjcmField, isStatic,
       nil, startLine, startCol);
     member.IsPrivate := memberIsPrivate;
+    if computedNameExpr <> nil then
+    begin
+      member.Computed := True;
+      member.NameExpr := computedNameExpr;
+    end;
     member.Initializer := fieldInit;
     cls.AddMember(member);
     Match(tkSemicolon);
@@ -1827,7 +1867,12 @@ begin
     declName := '';
 
     if Match(tkIdentifier) then
-      declName := FPrevious.Text
+    begin
+      declName := FPrevious.Text;
+      { `arguments` may not be declared inside a static block. }
+      if FInStaticBlock and (declName = 'arguments') then
+        ErrorAtCurrent('Unexpected ''arguments'' in a static block');
+    end
     else if Match(tkStatic) then
       declName := FPrevious.Text
     else if Match(tkLBracket) then
@@ -2487,6 +2532,9 @@ begin
       ErrorAtCurrent('Unexpected ' + Result + ' in strict mode');
       Exit('');
     end;
+    { `arguments` may not be declared in a static block. }
+    if FInStaticBlock and (Result = 'arguments') then
+      ErrorAtCurrent('Unexpected ''arguments'' in a static block');
     Exit(Result);
   end;
   ErrorAtCurrent('Expected ' + AContext);
