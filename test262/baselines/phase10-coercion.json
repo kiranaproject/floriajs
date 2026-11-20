@@ -1,17 +1,17 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "aa5fb7252d6e6015cbbf8dcef94a32239297a97f",
+    "revision": "0f8a5526062cb72f7a4d723ffa4bb6694b8969b5",
     "workingTreeDirty": false
   },
   "host": {
-    "bytes": 2334368,
-    "sha256": "b45f0df2d8c81cab2d877e889c6cb3ce9f1c1e8d19532e86c10b74190a2b50d1"
+    "bytes": 2349440,
+    "sha256": "ffa61503b079fb58b67af361f1578359ca3b5b04914cc50359b385ef53d3efc2"
   },
   "kind": "floriajs-test262-report",
   "options": {
     "allowUnpinned": false,
-    "jobs": 2,
+    "jobs": 4,
     "listFile": "config/coercion-tests.txt",
     "maxDurationSeconds": 0.0,
     "selection": [
@@ -320,7 +320,7 @@
       "built-ins/Error/tostring-1.js",
       "built-ins/Error/tostring-2.js"
     ],
-    "timeoutSeconds": 60.0
+    "timeoutSeconds": 180.0
   },
   "platform": {
     "machine": "x86_64",
