@@ -1665,8 +1665,15 @@ all pass**.
 - Module early errors: duplicate exports and export of an undeclared name.
 - A host loader callback; the diagnostic host serves relative paths plus JSON
   and text modules.
+- Resolution-phase errors: a link failure is reported distinctly from a parse
+  error and covers missing, ambiguous, and unknown-attribute requests.
+- Module early errors: top-level `return`/`yield`/`await`/`super`, reserved
+  words, `eval`/`arguments` bindings, duplicate labels, and lexical function
+  declarations.
+- The namespace exotic object: null prototype, non-extensible, data
+  descriptors, `Symbol.toStringTag` `"Module"`, and read-only [[Set]].
 
-Focused corpus: `test262/config/module-record-tests.txt` — **459 records, all
+Focused corpus: `test262/config/module-record-tests.txt` — **548 records, all
 pass**.
 
 ---

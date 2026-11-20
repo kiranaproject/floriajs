@@ -231,11 +231,10 @@ class ScenarioPlanner:
         elif {"CanBlockIsFalse", "CanBlockIsTrue"} & set(metadata.flags):
             unsupported_reason = "agent/CanBlock execution is not supported"
             unsupported_outcome = "skipped"
-        elif metadata.negative and metadata.negative["phase"] == "resolution":
-            unsupported_reason = self.policy.get("negativeVerdicts", {}).get(
-                "resolutionReason",
-                "negative resolution expectations require module support",
-            )
+        # Resolution negatives are judged, not skipped: the engine links modules
+        # and reports an unresolved, missing, or ambiguous import distinctly.
+        # A construct that still cannot link (source-phase imports) is excluded
+        # by its feature tag instead.
 
         if not unsupported_reason:
             policy_tags = set(self.policy["skipRules"]["unsupportedFeatureTags"])

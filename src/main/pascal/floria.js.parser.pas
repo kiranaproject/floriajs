@@ -55,6 +55,17 @@ type
     { True when the source is parsed as a module, which permits import/export
       declarations and top-level await. }
     FIsModule: Boolean;
+    { True while parsing a class body, where a bare `super` is legal. }
+    FSuperAllowed: Boolean;
+    { How many function bodies enclose the current position. `return` is an
+      early error when this is zero, regardless of block nesting. }
+    FFunctionDepth: Integer;
+    { Labels currently in scope. A label may not be nested inside a statement
+      that already carries the same label, which is an early error. }
+    FLabels: TStringList;
+    { How many async function bodies enclose the current position. `await` is
+      legal there, and at the top level of a module. }
+    FAsyncDepth: Integer;
     { True while parsing the direct body of the program. Import/export
       declarations are only legal there when the source is a module. }
     FAtTopLevel: Boolean;
@@ -95,6 +106,9 @@ type
     function  ParseClassDeclaration(): TFloriaJSStmtNode;
     function  ParseTaggedTemplate(ATag: TFloriaJSExprNode): TFloriaJSExprNode;
     function  ParseFunctionExpr(AIsAsync: Boolean = False; AStartPos: Integer = -1): TFloriaJSExprNode;
+    function  ParseFunctionBlockBody(): TFloriaJSStmtNode;
+    function  ParseAsyncFunctionBlockBody(): TFloriaJSStmtNode;
+    procedure ParseArrowBody(AAsync: Boolean; AFnExpr: TFloriaJSFunctionExpr);
     procedure ParseFormalParameters(AParams: TStringList);
     function  ExtractParameters(var AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
 
@@ -131,7 +145,7 @@ type
     { Reads a binding name: only an identifier is legal there. }
     function  ParseModuleBindingName(const AContext: string): string;
     function  ParseModuleSpecifierString(const AContext: string): string;
-    procedure ParseImportAttributes();
+    procedure ParseImportAttributes(ADecl: TFloriaJSImportDecl);
     { Skips the rest of a malformed module declaration, up to its terminating
       semicolon, so one error does not cascade. }
     procedure SkipModuleDeclaration();
@@ -174,8 +188,12 @@ begin
   FLexer := TFloriaJSLexer.Create(ASource);
   FOwnsLexer := True;
   FErrors := TStringList.Create();
+  FLabels := TStringList.Create();
   FIsModule := False;
   FAtTopLevel := False;
+  FSuperAllowed := False;
+  FFunctionDepth := 0;
+  FAsyncDepth := 0;
   Advance();
 end;
 
@@ -185,13 +203,18 @@ begin
   FLexer := ALexer;
   FOwnsLexer := False;
   FErrors := TStringList.Create();
+  FLabels := TStringList.Create();
   FIsModule := False;
   FAtTopLevel := False;
+  FSuperAllowed := False;
+  FFunctionDepth := 0;
+  FAsyncDepth := 0;
   Advance();
 end;
 
 destructor TFloriaJSParser.Destroy();
 begin
+  FreeAndNil(FLabels);
   FreeAndNil(FErrors);
   if FOwnsLexer then
     FreeAndNil(FLexer);
@@ -524,9 +547,12 @@ begin
   if Match(tkThis) then
     Exit(TFloriaJSIdentifierExpr.Create('this', tok.Line, tok.Column));
 
-  { yield — only meaningful inside a generator body. }
+  { yield — only meaningful inside a generator body. Module code at the top
+    level is not one, so `yield;` there is an early SyntaxError. }
   if Match(tkYield) then
   begin
+    if FIsModule and (FFunctionDepth = 0) then
+      ErrorAtCurrent('Unexpected reserved word');
     { A line terminator after `yield` ends the expression, so `yield\n1` yields
       undefined and then evaluates `1` as a separate statement. }
     if FCurrent.Line > FPrevious.Line then
@@ -546,9 +572,15 @@ begin
   end;
 
   { super — bound like `this`, to the parent constructor inside a derived class.
-    `super(...)` and `super.m()` are handled by the compiler through it. }
+    `super(...)` and `super.m()` are handled by the compiler through it. A bare
+    `super` outside a method is an early SyntaxError, which module tests cover
+    directly. }
   if Match(tkSuper) then
+  begin
+    if not FSuperAllowed then
+      ErrorAtCurrent('''super'' keyword unexpected here');
     Exit(TFloriaJSIdentifierExpr.Create('super', tok.Line, tok.Column));
+  end;
 
   { class expression }
   if Match(tkClass) then
@@ -586,10 +618,7 @@ begin
         if Match(tkArrow) then
         begin
           fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column, True);
-          if Check(tkLBrace) then
-            fnExpr.SetBody(ParseBlockStatement())
-          else
-            fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+          ParseArrowBody(True, fnExpr);
           fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
           Exit(fnExpr);
         end
@@ -610,10 +639,7 @@ begin
             ErrorAtCurrent('Invalid arrow function parameter');
           if expr <> nil then
             expr.Free();
-          if Check(tkLBrace) then
-            fnExpr.SetBody(ParseBlockStatement())
-          else
-            fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+          ParseArrowBody(True, fnExpr);
           fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
           Exit(fnExpr);
         end
@@ -632,10 +658,7 @@ begin
       Consume(tkArrow, 'Expected ''=>'' after async parameter');
       fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column, True);
       fnExpr.AddParameter(paramName);
-      if Check(tkLBrace) then
-        fnExpr.SetBody(ParseBlockStatement())
-      else
-        fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+      ParseArrowBody(True, fnExpr);
       fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
       Exit(fnExpr);
     end
@@ -665,10 +688,7 @@ begin
       if Match(tkArrow) then
       begin
         fnExpr := TFloriaJSFunctionExpr.Create('', True, tok.Line, tok.Column);
-        if Check(tkLBrace) then
-          fnExpr.SetBody(ParseBlockStatement())
-        else
-          fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+        ParseArrowBody(False, fnExpr);
         fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
         Exit(fnExpr);
       end;
@@ -685,10 +705,7 @@ begin
         ErrorAtCurrent('Invalid arrow function parameter');
       if expr <> nil then
         expr.Free();
-      if Check(tkLBrace) then
-        fnExpr.SetBody(ParseBlockStatement())
-      else
-        fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column));
+      ParseArrowBody(False, fnExpr);
       fnExpr.SourceText := SourceSlice(tok.StartPos, FPrevious.EndPos);
       Exit(fnExpr);
     end;
@@ -698,6 +715,17 @@ begin
   ErrorAtCurrent('Expected expression');
   Advance();
   Result := TFloriaJSLiteralExpr.CreateUndefined(tok.Line, tok.Column);
+end;
+
+{ A simple assignment target is an identifier or a member access. `0 = 1` and
+  `0++` are early errors, so the parser rejects them rather than letting the
+  compiler emit a store that fails at run time. }
+function IsSimpleAssignmentTarget(ANode: TFloriaJSExprNode): Boolean;
+begin
+  while ANode is TFloriaJSGroupExpr do
+    ANode := TFloriaJSGroupExpr(ANode).Expression;
+  Result := (ANode is TFloriaJSIdentifierExpr) or
+            (ANode is TFloriaJSMemberExpr);
 end;
 
 function IsOptionalChainTarget(ANode: TFloriaJSExprNode): Boolean;
@@ -719,9 +747,22 @@ begin
     operand := ParseAssignmentExpression();
     Exit(TFloriaJSSpreadExpr.Create(operand, op.Line, op.Column));
   end;
+  { `await` is an early error outside an async function body and outside the
+    top level of a module. }
+  if op.Kind = tkAwait then
+  begin
+    if (FAsyncDepth = 0) and not (FIsModule and (FFunctionDepth = 0)) then
+      ErrorAtCurrent('Unexpected reserved word');
+  end;
+
   operand := ParsePrecedence(PREC_UNARY);
-  if (op.Kind in [tkPlusPlus, tkMinusMinus]) and IsOptionalChainTarget(operand) then
-    ErrorAtCurrent('Invalid left-hand side in prefix operation');
+  if op.Kind in [tkPlusPlus, tkMinusMinus] then
+  begin
+    if IsOptionalChainTarget(operand) then
+      ErrorAtCurrent('Invalid left-hand side in prefix operation');
+    if not IsSimpleAssignmentTarget(operand) then
+      ErrorAtCurrent('Invalid left-hand side in prefix operation');
+  end;
   Result := TFloriaJSUnaryExpr.Create(op.Kind, operand, True, op.Line, op.Column);
 end;
 
@@ -931,6 +972,7 @@ var
   kind: TFloriaJSClassMemberKind;
   memberStartPos: Integer;
   fnExpr: TFloriaJSFunctionExpr;
+  wasSuperAllowed: Boolean;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -942,12 +984,19 @@ begin
 
   superClass := nil;
   if Match(tkExtends) then
-    superClass := ParsePrimary();
+    { ClassHeritage is a LeftHandSideExpression, so the heritage may be a
+      call, a member access, or `new`. Parsing it at primary precedence stopped
+      at `fn(await foo)` and reported a missing class body. }
+    superClass := ParsePrecedence(PREC_UNARY);
 
   cls := TFloriaJSClassNode.Create(clsName, superClass, startLine, startCol);
   cls.IsDeclaration := AIsDeclaration;
 
   Consume(tkLBrace, 'Expected ''{'' at start of class body');
+
+  { A bare `super` is only meaningful in a class. }
+  wasSuperAllowed := FSuperAllowed;
+  FSuperAllowed := True;
 
   while (not Check(tkRBrace)) and (not IsAtEnd()) do
   begin
@@ -1005,6 +1054,7 @@ begin
   end;
 
   Consume(tkRBrace, 'Expected ''}'' at end of class body');
+  FSuperAllowed := wasSuperAllowed;
   cls.SourceText := SourceSlice(classStartPos, FPrevious.EndPos);
   Result := cls;
 end;
@@ -1028,7 +1078,7 @@ begin
 
   fnExpr := TFloriaJSFunctionExpr.Create(AName, False, startLine, startCol);
   ParseFormalParameters(fnExpr.Parameters);
-  bodyStmt := ParseBlockStatement();
+  bodyStmt := ParseFunctionBlockBody();
   fnExpr.SetBody(bodyStmt);
   fnExpr.SourceText := SourceSlice(AStartPos, FPrevious.EndPos);
   Result := fnExpr;
@@ -1193,6 +1243,51 @@ begin
   Result := obj;
 end;
 
+{ Parses an arrow body. A block body may contain `return`; an expression body
+  is a concise return. An async arrow makes `await` legal in either form. }
+procedure TFloriaJSParser.ParseArrowBody(AAsync: Boolean;
+  AFnExpr: TFloriaJSFunctionExpr);
+begin
+  Inc(FFunctionDepth);
+  if AAsync then Inc(FAsyncDepth);
+  try
+    if Check(tkLBrace) then
+      AFnExpr.SetBody(ParseBlockStatement())
+    else
+      AFnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(),
+        FPrevious.Line, FPrevious.Column));
+  finally
+    if AAsync then Dec(FAsyncDepth);
+    Dec(FFunctionDepth);
+  end;
+end;
+
+{ Parses a block that is a function body, counting the function so `return`
+  is legal inside it and an early error outside. An async body additionally
+  makes `await` legal. }
+function TFloriaJSParser.ParseFunctionBlockBody(): TFloriaJSStmtNode;
+begin
+  Inc(FFunctionDepth);
+  try
+    Result := ParseBlockStatement();
+  finally
+    Dec(FFunctionDepth);
+  end;
+end;
+
+{ The same, for an async function or generator whose body may await. }
+function TFloriaJSParser.ParseAsyncFunctionBlockBody(): TFloriaJSStmtNode;
+begin
+  Inc(FFunctionDepth);
+  Inc(FAsyncDepth);
+  try
+    Result := ParseBlockStatement();
+  finally
+    Dec(FAsyncDepth);
+    Dec(FFunctionDepth);
+  end;
+end;
+
 function TFloriaJSParser.ParseFunctionExpr(AIsAsync: Boolean = False; AStartPos: Integer = -1): TFloriaJSExprNode;
 var
   fnName: string;
@@ -1214,7 +1309,10 @@ begin
 
   fnExpr := TFloriaJSFunctionExpr.Create(fnName, False, startLine, startCol, AIsAsync);
   ParseFormalParameters(fnExpr.Parameters);
-  bodyStmt := ParseBlockStatement();
+  if AIsAsync then
+    bodyStmt := ParseAsyncFunctionBlockBody()
+  else
+    bodyStmt := ParseFunctionBlockBody();
   fnExpr.SetBody(bodyStmt);
   fnExpr.SourceText := SourceSlice(startPos, FPrevious.EndPos);
   Result := fnExpr;
@@ -1524,6 +1622,8 @@ begin
       begin
         if IsOptionalChainTarget(left) then
           ErrorAtCurrent('Invalid left-hand side in assignment');
+        if (op.Kind <> tkAssign) and (not IsSimpleAssignmentTarget(left)) then
+          ErrorAtCurrent('Invalid left-hand side in assignment');
         right := ParsePrecedence(PREC_ASSIGNMENT);
         left := TFloriaJSAssignExpr.Create(left, op.Kind, right, op.Line, op.Column);
       end;
@@ -1538,7 +1638,7 @@ begin
           fnExpr.AddParameter(TFloriaJSIdentifierExpr(left).Name);
           left.Free();
           if Check(tkLBrace) then
-            fnExpr.SetBody(ParseBlockStatement())
+            fnExpr.SetBody(ParseFunctionBlockBody())
           else
             fnExpr.SetBody(TFloriaJSReturnStmt.Create(ParseAssignmentExpression(), op.Line, op.Column));
           fnExpr.SourceText := SourceSlice(startPos, FPrevious.EndPos);
@@ -1554,6 +1654,8 @@ begin
       tkPlusPlus, tkMinusMinus:
       begin
         if IsOptionalChainTarget(left) then
+          ErrorAtCurrent('Invalid left-hand side in postfix operation');
+        if not IsSimpleAssignmentTarget(left) then
           ErrorAtCurrent('Invalid left-hand side in postfix operation');
         left := TFloriaJSUnaryExpr.Create(op.Kind, left, False, op.Line, op.Column);
       end;
@@ -1598,6 +1700,11 @@ begin
   if Check(tkExport) and (FLexer.PeekToken().Kind <> tkLParen) and
      (FLexer.PeekToken().Kind <> tkDot) then
     Exit(ParseExportDeclaration());
+
+  { Module code is strict, so a future reserved word can never be a binding or
+    a statement at its top level. }
+  if FIsModule and (FCurrent.Kind = tkReserved) then
+    ErrorAtCurrent('Unexpected reserved word');
 
   if Match(tkLet) then
     Result := ParseVarDeclaration(tkLet)
@@ -1704,7 +1811,10 @@ begin
   fnDecl := TFloriaJSFunctionDecl.Create(fnName, startLine, startCol, AIsAsync);
   fnDecl.IsGenerator := AIsGenerator;
   ParseFormalParameters(fnDecl.Parameters);
-  bodyBlock := ParseBlockStatement();
+  if AIsAsync then
+    bodyBlock := TFloriaJSBlockStmt(ParseAsyncFunctionBlockBody())
+  else
+    bodyBlock := TFloriaJSBlockStmt(ParseFunctionBlockBody());
   fnDecl.SetBody(bodyBlock);
   fnDecl.SourceText := SourceSlice(startPos, FPrevious.EndPos);
   Result := fnDecl;
@@ -1744,9 +1854,17 @@ begin
       startLine := FCurrent.Line;
       startCol := FCurrent.Column;
       lbl := FCurrent.Text;
+      { A label may not be nested inside a statement already carrying it. }
+      if FLabels.IndexOf(lbl) >= 0 then
+        ErrorAtCurrent('Label ''' + lbl + ''' has already been declared');
       Advance(); { Consume identifier }
       Advance(); { Consume ':' }
-      stmt := ParseStatement();
+      FLabels.Add(lbl);
+      try
+        stmt := ParseStatement();
+      finally
+        FLabels.Delete(FLabels.IndexOf(lbl));
+      end;
       if stmt is TFloriaJSForStmt then
         TFloriaJSForStmt(stmt).LabelName := lbl
       else if stmt is TFloriaJSWhileStmt then
@@ -2165,6 +2283,11 @@ begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
 
+  { `return` is only legal inside a function body. A module's top level is not
+    one, so this is an early SyntaxError rather than a no-op. }
+  if FFunctionDepth = 0 then
+    ErrorAtCurrent('Illegal return statement');
+
   if (not HasLineBreakBeforeCurrent()) and
      (not Check(tkSemicolon)) and (not Check(tkRBrace)) and (not IsAtEnd()) then
     arg := ParseExpression()
@@ -2280,9 +2403,18 @@ end;
 function TFloriaJSParser.ParseModuleBindingName(const AContext: string): string;
 begin
   { A local binding must be an identifier; only the imported/exported name may
-    be a string literal. }
+    be a string literal. Module code is strict, so `eval` and `arguments` may
+    not be bound. }
   if Match(tkIdentifier) then
-    Exit(FPrevious.Text);
+  begin
+    Result := FPrevious.Text;
+    if (Result = 'eval') or (Result = 'arguments') then
+    begin
+      ErrorAtCurrent('Unexpected ' + Result + ' in strict mode');
+      Exit('');
+    end;
+    Exit(Result);
+  end;
   ErrorAtCurrent('Expected ' + AContext);
   Result := '';
 end;
@@ -2298,11 +2430,15 @@ end;
 { An import attributes clause: `with { type: "json" }` or the legacy
   `assert { ... }`. The clause is validated only to the extent that it is
   balanced; the loader decides how to interpret it. }
-procedure TFloriaJSParser.ParseImportAttributes();
+procedure TFloriaJSParser.ParseImportAttributes(ADecl: TFloriaJSImportDecl);
 var
-  depth: Integer;
+  key: string;
+  hadEntry: Boolean;
 begin
-  { `with` is a keyword token; `assert` is an identifier. }
+  { `with` is a keyword token; `assert` is the legacy spelling and an
+    identifier. The clause is `{ key: "value", ... }` with an optional trailing
+    comma; only the keys are kept, because the loader decides whether the
+    representation it names is one it can provide. }
   if Check(tkWith) then
     Advance()
   else if CheckIdentifierText('assert') then
@@ -2311,21 +2447,49 @@ begin
     Exit;
   if not Check(tkLBrace) then
     Exit;
-  depth := 0;
-  while not IsAtEnd() do
+  Advance();
+
+  hadEntry := False;
+  while (not Check(tkRBrace)) and (not IsAtEnd()) do
   begin
-    if Check(tkLBrace) then
-      Inc(depth)
-    else if Check(tkRBrace) then
+    { AttributeKey is an IdentifierName or a StringLiteral. }
+    if Check(tkString) then
     begin
-      Dec(depth);
+      key := FPrevious.Text;
       Advance();
-      if depth = 0 then
-        Exit;
-      Continue;
+    end
+    else if (FCurrent.Kind = tkIdentifier) or (FCurrent.Kind = tkReserved) or
+            IsKeywordToken(FCurrent.Kind) then
+    begin
+      { AttributeKey is an IdentifierName, so any keyword spelling works. }
+      key := FCurrent.Text;
+      Advance();
+    end
+    else
+    begin
+      ErrorAtCurrent('Expected an import attribute key');
+      Exit;
+    end;
+    if ADecl <> nil then
+      ADecl.AddAttributeKey(key);
+    Consume(tkColon, 'Expected '':'' after an import attribute key');
+    if not Check(tkString) then
+    begin
+      ErrorAtCurrent('Expected a string import attribute value');
+      Exit;
     end;
     Advance();
+
+    hadEntry := True;
+    if Match(tkComma) then
+      Continue;
+    Break;
   end;
+
+  if Check(tkRBrace) then
+    Advance()
+  else
+    ErrorAtCurrent('Expected ''}'' after import attributes');
 end;
 
 procedure TFloriaJSParser.SkipModuleDeclaration();
@@ -2349,7 +2513,10 @@ begin
   { Optional default binding: import x ... }
   if Match(tkIdentifier) then
   begin
-    ADecl.AddEntry('default', FPrevious.Text, fjikDefault);
+    localName := FPrevious.Text;
+    if FIsModule and ((localName = 'eval') or (localName = 'arguments')) then
+      ErrorAtCurrent('Unexpected ' + localName + ' in strict mode');
+    ADecl.AddEntry('default', localName, fjikDefault);
     Result := True;
     hadDefault := True;
     if not Match(tkComma) then
@@ -2384,7 +2551,11 @@ begin
             the local name, which must be an identifier. }
           if importedIsString or (importedName = '') then
             ErrorAtCurrent('A string import name requires ''as'' with a local binding name');
+          { The imported name doubles as the local binding here, so it is held
+            to the same strict-mode restriction as an explicit binding. }
           localName := importedName;
+          if FIsModule and ((localName = 'eval') or (localName = 'arguments')) then
+            ErrorAtCurrent('Unexpected ' + localName + ' in strict mode');
         end;
         ADecl.AddEntry(importedName, localName, fjikNamed);
       until (not Match(tkComma)) or Check(tkRBrace);
@@ -2448,7 +2619,7 @@ begin
   end;
 
   decl.ModuleSpecifier := spec;
-  ParseImportAttributes();
+  ParseImportAttributes(decl);
   EndStatement('import declaration');
   decl.SourceEnd := FPrevious.EndPos;
   Result := decl;
@@ -2610,12 +2781,15 @@ begin
       spec := ParseModuleName('a namespace name');
       ConsumeIdentifierText('from', 'Expected ''from'' after export namespace name');
       decl.AddStarExport(ParseModuleSpecifierString('export declaration'), spec);
+      ParseImportAttributes(nil);
     end
     else
     begin
       ConsumeIdentifierText('from', 'Expected ''from'' in export declaration');
       decl.AddStarExport(ParseModuleSpecifierString('export declaration'));
     end;
+    { A re-export may carry an attribute clause too. }
+    ParseImportAttributes(nil);
     EndStatement('export declaration');
   end
   else if Check(tkLBrace) then
@@ -2634,6 +2808,7 @@ begin
           { In a re-export both sides name module export names, so either may
             be a string literal or a keyword spelling. }
           decl.AddIndirectExport(aliases[i], names[i], spec);
+        ParseImportAttributes(nil);
       end
       else
       begin

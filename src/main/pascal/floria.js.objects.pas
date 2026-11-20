@@ -88,7 +88,12 @@ begin
   end;
 
   for i := 0 to AObj.GetEnumerablePropertyCount() - 1 do
+  begin
+    { EnumerableOwnProperties reads [[Get]], because a getter or an exotic
+      [[GetOwnProperty]] may throw while the key is being examined. }
+    AObj.GetOwnProperty(AObj.GetEnumerablePropertyKey(i));
     arr.Push(JSMakeString(AObj.GetEnumerablePropertyKey(i)));
+  end;
 
   Result := arr;
 end;
@@ -1044,8 +1049,15 @@ begin
   if target = nil then
     Exit(JSMakeUndefined());
   arr := target.Heap.NewArray();
+  { Own keys are the string keys in insertion order, then the symbol keys, as
+    [[OwnPropertyKeys]] requires. A symbol key must come back as the symbol, not
+    as its internal spelling. }
   for i := 0 to target.GetPropertyCount() - 1 do
-    arr.Push(JSMakeString(target.GetPropertyKey(i)));
+    if not IsSymbolKey(target.GetPropertyKey(i)) then
+      arr.Push(JSMakeString(target.GetPropertyKey(i)));
+  for i := 0 to target.GetPropertyCount() - 1 do
+    if IsSymbolKey(target.GetPropertyKey(i)) then
+      arr.Push(SymbolFromKey(target.GetPropertyKey(i)));
   if target is TFloriaJSArray then
   begin
     for i := 0 to TFloriaJSArray(target).Length() - 1 do
@@ -1075,13 +1087,7 @@ begin
     Exit(JSMakeBoolean(False));
   if target is TFloriaJSProxy then
     Exit(JSMakeBoolean(TFloriaJSProxy(target).SetPrototypeOf(AArgs[1])));
-  if AArgs[1].IsNull() then
-    target.Prototype := nil
-  else if AArgs[1].IsObject() then
-    target.Prototype := AArgs[1].AsObject()
-  else
-    Exit(JSMakeBoolean(False));
-  Result := JSMakeBoolean(True);
+  Result := JSMakeBoolean(target.SetPrototypeOf(AArgs[1]));
 end;
 
 function JSObjectSetPrototypeOf(const AArgs: array of TFloriaJSValue;
@@ -1099,13 +1105,11 @@ begin
         obj.Heap.NewError('TypeError', 'Cannot set prototype')));
     Exit(AArgs[0]);
   end;
-  if AArgs[1].IsNull() then
-    obj.Prototype := nil
-  else if AArgs[1].IsObject() then
-    obj.Prototype := AArgs[1].AsObject()
-  else
+  if not (AArgs[1].IsNull() or AArgs[1].IsObject()) then
+    Exit(JSMakeUndefined());
+  if not obj.SetPrototypeOf(AArgs[1]) then
     raise EFloriaJSThrow.Create(JSMakeObject(
-      obj.Heap.NewError('TypeError', 'Object prototype may only be an Object or null')));
+      obj.Heap.NewError('TypeError', 'Cannot set prototype')));
   Result := AArgs[0];
 end;
 

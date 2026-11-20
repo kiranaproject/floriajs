@@ -64,6 +64,11 @@ type
     fjdkSuccess,
     fjdkParseError,
     fjdkCompileError,
+    { A module that could not be linked: an unresolved specifier, a missing or
+      ambiguous export, or a module early error detected during linking. This
+      is distinct from a parse error so a host can classify it as a resolution
+      failure, which is what the specification's Link phase reports. }
+    fjdkResolutionError,
     fjdkJavaScriptThrow,
     fjdkHostException
   );

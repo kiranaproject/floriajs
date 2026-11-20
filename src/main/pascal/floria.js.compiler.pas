@@ -40,6 +40,8 @@ type
   private
     FBytecode: TFloriaJSBytecode;
     FIsTopLevel: Boolean;
+    { Module code is always strict, regardless of a "use strict" prologue. }
+    FIsModuleProgram: Boolean;
     { Strictness inherited from the enclosing program/function/class body. }
     FIsStrictMode: Boolean;
     FResultLoc: Integer;
@@ -110,6 +112,8 @@ type
     destructor Destroy(); override;
 
     function CompileProgram(AProgram: TFloriaJSProgram): TFloriaJSBytecode;
+    { Compiles a module body, which is strict code by definition. }
+    property IsModuleProgram: Boolean read FIsModuleProgram write FIsModuleProgram;
     function CompileExpression(AExpr: TFloriaJSExprNode): TFloriaJSBytecode;
     function CompileFunctionBody(const AName: string; AParams: TStringList; ABody: TFloriaJSStmtNode; AIsAsync: Boolean = False; AIsArrow: Boolean = False; AInheritedStrict: Boolean = False; AIsAsyncGenerator: Boolean = False): TFloriaJSBytecode;
   end;
@@ -160,6 +164,7 @@ constructor TFloriaJSCompiler.Create();
 begin
   inherited Create();
   FBytecode := nil;
+  FIsModuleProgram := False;
   FLoopDepth := 0;
   FLoopCapacity := 16;
   SetLength(FLoopStack, FLoopCapacity);
@@ -996,7 +1001,7 @@ begin
   FTryDepth := 0;
   FEnvDepth := 0;
   FIsTopLevel := True;
-  FIsStrictMode := ProgramHasUseStrict(AProgram);
+  FIsStrictMode := FIsModuleProgram or ProgramHasUseStrict(AProgram);
   FBytecode := TFloriaJSBytecode.Create('main');
   FBytecode.IsStrict := FIsStrictMode;
   Result := FBytecode;
@@ -3918,6 +3923,17 @@ begin
       FBytecode.Emit(opPopEnv);
   end;
 
+  if targetDepth < 0 then
+  begin
+    { `break` outside a loop or switch, or with no matching label, is an early
+      SyntaxError. Emitting an unpatched jump here used to loop forever. }
+    if ABreak.LabelName = '' then
+      raise EFloriaJSCompileError.Create('SyntaxError: Illegal break statement')
+    else
+      raise EFloriaJSCompileError.Create(
+        'SyntaxError: Undefined label ''' + ABreak.LabelName + '''');
+  end;
+
   jumpIdx := FBytecode.Emit(opJump, 0, ABreak.Line);
   AddBreakJump(jumpIdx, ABreak.LabelName);
 end;
@@ -3956,6 +3972,15 @@ begin
     end;
     for k := FEnvDepth - 1 downto FLoopStack[targetDepth].EnvDepth do
       FBytecode.Emit(opPopEnv);
+  end;
+
+  if targetDepth < 0 then
+  begin
+    if AContinue.LabelName = '' then
+      raise EFloriaJSCompileError.Create('SyntaxError: Illegal continue statement')
+    else
+      raise EFloriaJSCompileError.Create(
+        'SyntaxError: Undefined label ''' + AContinue.LabelName + '''');
   end;
 
   jumpIdx := FBytecode.Emit(opJump, 0, AContinue.Line);

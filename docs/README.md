@@ -54,7 +54,9 @@ Implemented and covered by the test suite:
   `async function*` generators with `yield`, `await`, and `yield*`.
 - Modules: real ECMAScript module records with `import`/`export`, live
   bindings, `import.meta`, dynamic `import()`, star and namespace re-exports,
-  import attributes, and cycle-safe evaluation.
+  import attributes, resolution-phase errors, module early errors, and
+  cycle-safe evaluation. A namespace is a null-prototype, non-extensible
+  exotic object tagged `"Module"`.
 - Binary and concurrency data: `ArrayBuffer`, `SharedArrayBuffer`, `DataView`,
   BigInt typed arrays, and core `Atomics`; the diagnostic host also provides
   cooperative `$262.agent` agents.

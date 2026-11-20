@@ -96,7 +96,34 @@ def apply_negative_verdict(plan: dict, result: dict, config: dict) -> dict:
     exit_code = result.get("hostExitCode")
 
     if expected_phase == "resolution":
-        return execution_result(plan, "unsupported", config["resolutionReason"], host, exit_code)
+        # The specification's Link phase throws a SyntaxError for an unresolved,
+        # missing, or ambiguous import. The engine reports that distinctly from a
+        # parse error, so a resolution phase can be judged rather than skipped.
+        if actual_phase == "resolution" and actual_name == expected_type:
+            return execution_result(
+                plan,
+                "pass",
+                f"negative expectation matched: {expected_phase} {expected_type}",
+                host,
+                exit_code,
+            )
+        if host.get("outcome") != "pass" and actual_phase in {"parse", "compile"}:
+            return execution_result(
+                plan,
+                "unsupported",
+                config["resolutionReason"],
+                host,
+                exit_code,
+            )
+        return execution_result(
+            plan,
+            "fail",
+            "negative expectation mismatch: expected "
+            f"{expected_phase} {expected_type}, got "
+            f"{actual_phase} {actual_name or '<no error name>'}",
+            host,
+            exit_code,
+        )
 
     marker = config.get("dontEvaluateMarker", "")
     if marker and marker in actual_message:
@@ -136,6 +163,8 @@ def apply_negative_verdict(plan: dict, result: dict, config: dict) -> dict:
         phase_matches = actual_phase in accepted_parse_phases
     elif expected_phase == "runtime":
         phase_matches = actual_phase == config.get("runtimePhase", "runtime")
+    elif expected_phase == "resolution":
+        phase_matches = actual_phase == "resolution"
     else:
         phase_matches = False
 

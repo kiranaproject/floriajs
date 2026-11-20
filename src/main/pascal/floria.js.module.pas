@@ -28,6 +28,9 @@ type
   { One entry of [[ImportEntries]]. }
   TFloriaJSImportEntry = record
     ModuleRequest: string;
+    { The `with { ... }` attribute keys, comma separated. Empty when the import
+      had no attribute clause. }
+    Attributes: string;
     { The name in the exporting module: 'default', a name, or '*' for a
       namespace import. }
     ImportName: string;
@@ -84,6 +87,12 @@ type
     Status: TFloriaJSModuleStatus;
     { [[EvaluationError]], set when Status is fmsErrored. }
     EvaluationError: TFloriaJSValue;
+    { Set when linking failed because an import could not be resolved or was
+      ambiguous, rather than because of a module early error. }
+    ResolutionFailed: Boolean;
+    { Set once the indirect re-exports of this module have been validated, so a
+      cycle in the dependency graph terminates. }
+    IndirectExportsValidated: Boolean;
     { The parsed program body and the compiled chunk, owned by the record. }
     Body: TObject;
     Chunk: TObject;
@@ -105,6 +114,8 @@ type
     destructor Destroy(); override;
 
     procedure AddImport(const AModuleRequest, AImportName, ALocalName: string);
+    { Records the attribute keys for every import entry of one request. }
+    procedure SetImportAttributes(const AModuleRequest, AAttributes: string);
     procedure AddLocalExport(const ALocalName, AExportName: string);
     procedure AddIndirectExport(const AModuleRequest, AImportName, AExportName: string);
     procedure AddStarExport(const AModuleRequest: string);
@@ -160,6 +171,8 @@ begin
   Namespace := JSMakeUndefined();
   Status := fmsUnlinked;
   EvaluationError := JSMakeUndefined();
+  ResolutionFailed := False;
+  IndirectExportsValidated := False;
   Body := nil;
   Chunk := nil;
   SourceText := '';
@@ -193,6 +206,17 @@ begin
   ImportEntries[n].ModuleRequest := AModuleRequest;
   ImportEntries[n].ImportName := AImportName;
   ImportEntries[n].LocalName := ALocalName;
+  ImportEntries[n].Attributes := '';
+end;
+
+procedure TFloriaJSModuleRecord.SetImportAttributes(const AModuleRequest,
+  AAttributes: string);
+var
+  i: Integer;
+begin
+  for i := 0 to High(ImportEntries) do
+    if ImportEntries[i].ModuleRequest = AModuleRequest then
+      ImportEntries[i].Attributes := AAttributes;
 end;
 
 procedure TFloriaJSModuleRecord.AddLocalExport(const ALocalName,
@@ -423,6 +447,7 @@ var
   subBinding: TFloriaJSResolvedBinding;
   starResolution: TFloriaJSResolvedBinding;
   resolution: TFloriaJSResolveResult;
+  subSet, preSet: TStringList;
   ambiguous: Boolean;
 begin
   ABinding.Module := nil;
@@ -470,11 +495,18 @@ begin
   if (AExportName = 'default') or (AExportName = '__proto__') then
     Exit(rrNotFound);
 
-  if AResolveSet <> nil then
-    AResolveSet.Add(marker);
+  { The star branches are searched from the resolve set as it stood before this
+    module was added. Adding this module first would make every branch report a
+    cycle against its own parent, which is not what the specification's
+    ResolveExport does: it adds the marker *after* collecting the star results
+    and passes the same set down. Keeping a pre-visit copy per branch gives the
+    same effect while still terminating. }
+  preSet := TStringList.Create();
+  try
+    if AResolveSet <> nil then
+      preSet.Assign(AResolveSet);
+    preSet.CaseSensitive := True;
 
-  { Otherwise the star exports are searched. Two different resolutions of the
-    same name are ambiguous. }
   resolution := rrNotFound;
   ambiguous := False;
   starResolution.Module := nil;
@@ -484,7 +516,13 @@ begin
     starModule := AModule.DependencyFor(AModule.StarExportEntries[i].ModuleRequest);
     if starModule = nil then
       Continue;
-    sub := FloriaJSResolveExport(starModule, AExportName, AResolveSet, subBinding);
+    subSet := TStringList.Create();
+    try
+      subSet.Assign(preSet);
+      sub := FloriaJSResolveExport(starModule, AExportName, subSet, subBinding);
+    finally
+      subSet.Free();
+    end;
     if sub = rrAmbiguous then
       Exit(rrAmbiguous);
     if sub = rrResolved then
@@ -499,6 +537,12 @@ begin
         ambiguous := True;
     end;
   end;
+  finally
+    preSet.Free();
+  end;
+
+  if AResolveSet <> nil then
+    AResolveSet.Add(marker);
 
   if ambiguous then
     Exit(rrAmbiguous);

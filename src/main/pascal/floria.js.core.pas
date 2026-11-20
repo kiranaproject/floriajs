@@ -20,6 +20,7 @@ uses
   Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.parser,
   floria.js.value, floria.js.env, floria.js.stdlib, floria.js.timers,
   floria.js.bytecode, floria.js.vm, floria.js.compiler, floria.js.module,
+  floria.js.namespace,
   floria.js.lexer;
 
 type
@@ -61,6 +62,14 @@ type
       AEnv: TFloriaJSEnvironment);
     function  CreateModuleEnvironment(): TFloriaJSEnvironment;
     function  LinkModule(AModule: TFloriaJSModuleRecord;
+      out AErrorMessage: string): Boolean;
+    { LinkModule, separating an unresolved or ambiguous import (a resolution
+      failure) from an early error found while linking. }
+    function  LinkModuleDetailed(AModule: TFloriaJSModuleRecord;
+      out AErrorMessage: string; out AIsResolution: Boolean): Boolean;
+    { Checks that every indirect re-export names an export its target provides.
+      Runs after linking so a cycle no longer looks like a missing binding. }
+    function  ValidateIndirectExports(AModule: TFloriaJSModuleRecord;
       out AErrorMessage: string): Boolean;
     function  ResolveImportValue(ADep: TFloriaJSModuleRecord;
       const AName: string): TFloriaJSValue;
@@ -636,6 +645,18 @@ type
       AThis: TFloriaJSValue): TFloriaJSValue;
   end;
 
+  { Supplies a namespace object's exported values, resolving each name through
+    the module graph so a re-exported binding is reached. }
+  TFloriaJSNamespaceReader = class
+  private
+    FContext: TFloriaJSContext;
+    FModule: TFloriaJSModuleRecord;
+  public
+    constructor Create(AContext: TFloriaJSContext;
+      AModule: TFloriaJSModuleRecord);
+    function Read(const AExportName: string): TFloriaJSValue;
+  end;
+
   { A namespace accessor reads its exporting module's live binding on every
     access, which is what makes imports live. }
   TNamespaceGetter = class
@@ -649,6 +670,20 @@ type
     function Get(const AArgs: array of TFloriaJSValue;
       AThis: TFloriaJSValue): TFloriaJSValue;
   end;
+
+constructor TFloriaJSNamespaceReader.Create(AContext: TFloriaJSContext;
+  AModule: TFloriaJSModuleRecord);
+begin
+  inherited Create();
+  FContext := AContext;
+  FModule := AModule;
+end;
+
+function TFloriaJSNamespaceReader.Read(
+  const AExportName: string): TFloriaJSValue;
+begin
+  Result := FContext.ResolveImportValue(FModule, AExportName);
+end;
 
 constructor TDynamicImporter.Create(AContext: TFloriaJSContext;
   AModule: TFloriaJSModuleRecord);
@@ -788,8 +823,14 @@ begin
           Exit(False);
         end;
         functions.Add(bindingName);
-        if varNames.IndexOf(bindingName) < 0 then
-          varNames.Add(bindingName);
+        { A top-level function in a module is lexically declared, so it clashes
+          with a `var`, `let`, `const`, or `class` of the same name. }
+        if lexical.IndexOf(bindingName) >= 0 then
+        begin
+          AErrorMessage := 'Duplicate declaration of ' + bindingName;
+          Exit(False);
+        end;
+        lexical.Add(bindingName);
       end;
     end;
 
@@ -904,7 +945,7 @@ var
   importDecl: TFloriaJSImportDecl;
   exportDecl: TFloriaJSExportDecl;
   dep: TFloriaJSModuleRecord;
-  request: string;
+  request, spec, attrKeys: string;
   seen: TStringList;
 begin
   Result := False;
@@ -931,6 +972,16 @@ begin
         for j := 0 to importDecl.GetEntryCount() - 1 do
           AModule.AddImport(importDecl.ModuleSpecifier,
             importDecl.GetEntryImportName(j), importDecl.GetEntryLocalName(j));
+        { The attribute clause belongs to the request, not to each binding. }
+        attrKeys := '';
+        for j := 0 to importDecl.GetAttributeKeyCount() - 1 do
+        begin
+          if attrKeys <> '' then
+            attrKeys := attrKeys + ',';
+          attrKeys := attrKeys + importDecl.GetAttributeKey(j);
+        end;
+        if attrKeys <> '' then
+          AModule.SetImportAttributes(importDecl.ModuleSpecifier, attrKeys);
       end
       else if stmt is TFloriaJSExportDecl then
       begin
@@ -967,7 +1018,16 @@ begin
             exportDecl.GetIndirectExportImportName(j),
             exportDecl.GetIndirectExportExportName(j));
         for j := 0 to exportDecl.GetStarExportCount() - 1 do
-          AModule.AddStarExport(exportDecl.GetStarExportFrom(j));
+        begin
+          { `export * as ns from "m"` publishes the name `ns`, so it is an
+            indirect export entry (with the namespace as its imported binding);
+            a plain `export *` is a star entry with no name. }
+          spec := exportDecl.GetStarExportName(j);
+          if spec <> '' then
+            AModule.AddIndirectExport(exportDecl.GetStarExportFrom(j), '*', spec)
+          else
+            AModule.AddStarExport(exportDecl.GetStarExportFrom(j));
+        end;
       end;
     end;
 
@@ -1086,6 +1146,89 @@ begin
   end;
 end;
 
+{ Every indirect re-export must resolve: `export { x } from "m"` is a link-time
+  error when `m` provides no such export. This runs after the whole graph is
+  linked, which is why a binding reachable only through a star cycle is not
+  mistaken for a missing one. It walks the dependency graph, because a module is
+  unlinkable when any module it requests is. }
+function TFloriaJSContext.ValidateIndirectExports(
+  AModule: TFloriaJSModuleRecord; out AErrorMessage: string): Boolean;
+var
+  i: Integer;
+  dep: TFloriaJSModuleRecord;
+  binding: TFloriaJSResolvedBinding;
+  resolveSet: TStringList;
+  res: TFloriaJSResolveResult;
+  request: string;
+begin
+  Result := False;
+  AErrorMessage := '';
+  if AModule = nil then
+    Exit(True);
+
+  { A module already checked is marked so a cycle does not recurse forever. }
+  if AModule.IndirectExportsValidated then
+    Exit(True);
+  AModule.IndirectExportsValidated := True;
+
+  for i := 0 to AModule.RequestedModules.Count - 1 do
+  begin
+    dep := TFloriaJSModuleRecord(AModule.RequestedModules.Objects[i]);
+    if (dep <> nil) and (dep <> AModule) then
+      if not ValidateIndirectExports(dep, AErrorMessage) then
+        Exit;
+  end;
+
+  resolveSet := TStringList.Create();
+  try
+    resolveSet.CaseSensitive := True;
+    for i := 0 to High(AModule.IndirectExportEntries) do
+    begin
+      request := AModule.IndirectExportEntries[i].ModuleRequest;
+      dep := AModule.DependencyFor(request);
+      if dep = nil then
+      begin
+        AErrorMessage := 'Cannot resolve module ' + request;
+        Exit;
+      end;
+      if AModule.IndirectExportEntries[i].ImportName = '*' then
+        Continue;
+      resolveSet.Clear();
+      res := FloriaJSResolveExport(dep,
+        AModule.IndirectExportEntries[i].ImportName, resolveSet, binding);
+      if res = rrAmbiguous then
+      begin
+        AErrorMessage := 'Ambiguous export ' +
+          AModule.IndirectExportEntries[i].ImportName + ' from ' + request;
+        Exit;
+      end;
+      if res <> rrResolved then
+      begin
+        AErrorMessage := 'The requested module ' + request +
+          ' does not provide an export named ' +
+          AModule.IndirectExportEntries[i].ImportName;
+        Exit;
+      end;
+    end;
+    Result := True;
+  finally
+    resolveSet.Free();
+  end;
+end;
+
+{ Links a module and reports whether the failure was a resolution failure. A
+  resolution failure is what the specification's Link phase throws for an
+  unresolved, missing, or ambiguous import; an early error is a different
+  class and stays a SyntaxError from the parse phase. }
+function TFloriaJSContext.LinkModuleDetailed(AModule: TFloriaJSModuleRecord;
+  out AErrorMessage: string; out AIsResolution: Boolean): Boolean;
+begin
+  AIsResolution := False;
+  Result := LinkModule(AModule, AErrorMessage);
+  if not Result then
+    AIsResolution := AModule.ResolutionFailed;
+end;
+
 { The current value of an exported binding. The binding lives in the exporting
   module's own environment, so a read is always live. }
 function TFloriaJSContext.ResolveImportValue(ADep: TFloriaJSModuleRecord;
@@ -1121,11 +1264,8 @@ function TFloriaJSContext.MakeNamespaceFor(
   ADep: TFloriaJSModuleRecord): TFloriaJSValue;
 var
   names: TStringList;
-  ns: TFloriaJSObject;
-  i: Integer;
-  exportName: string;
-  getter: TFloriaJSFunction;
-  accessor: TNamespaceGetter;
+  ns: TFloriaJSNamespaceObject;
+  reader: TFloriaJSNamespaceReader;
   holder: TFloriaJSValue;
 begin
   if ADep = nil then
@@ -1137,17 +1277,17 @@ begin
   try
     names.CaseSensitive := True;
     ADep.CollectExportedNames(names);
-    ns := FHeap.NewObject(nil, True);
-    for i := 0 to names.Count - 1 do
-    begin
-      exportName := names[i];
-      { The getter closes over the exporting module and the export name. }
-      accessor := TNamespaceGetter.Create(Self, ADep, exportName);
-      getter := FHeap.NewNativeMethod('get ' + exportName, @accessor.Get);
-      ns.DefineAccessorProperty(exportName, JSMakeFunction(getter), JSMakeUndefined(),
-        True, False);
-    end;
+    { A namespace is an exotic object: null prototype, non-extensible, one
+      read-only accessor per export, and `Symbol.toStringTag` "Module". }
+    reader := TFloriaJSNamespaceReader.Create(Self, ADep);
+    { The heap owns the reader closure for as long as the objects live. }
+    FHeap.OwnHelper(reader);
+    ns := TFloriaJSNamespaceObject(FHeap.Track(
+      TFloriaJSNamespaceObject.Create(names, @reader.Read)));
     holder := JSMakeObject(ns);
+    { The record keeps the namespace for the lifetime of the module, so it must
+      hold a reference; otherwise the first collection reclaims it. }
+    ns.Retain();
     ADep.Namespace := holder;
     Result := holder;
   finally
@@ -1168,15 +1308,16 @@ end;
 function TFloriaJSContext.LinkModule(AModule: TFloriaJSModuleRecord;
   out AErrorMessage: string): Boolean;
 var
-  i: Integer;
+  i, j: Integer;
   dep: TFloriaJSModuleRecord;
   binding: TFloriaJSResolvedBinding;
   resolveSet: TStringList;
   res: TFloriaJSResolveResult;
-  request: string;
+  request, attrKeys, attrKey: string;
 begin
   Result := False;
   AErrorMessage := '';
+  AModule.ResolutionFailed := False;
 
   { Any status past linked means linking is done; re-linking an evaluated
     module would reset it and cause a re-evaluation. }
@@ -1204,13 +1345,37 @@ begin
         if dep.SourceText = '' then
         begin
           AErrorMessage := 'module ' + dep.Identifier + ' has no source';
+          AModule.ResolutionFailed := True;
           Exit;
         end;
+        { A dependency that does not even parse is reported by the Link phase,
+          because the importer asked for that module and the request cannot be
+          satisfied. The parser error itself stays the message. }
         if not ParseModuleRecord(dep, dep.SourceText, AErrorMessage) then
+        begin
+          AModule.ResolutionFailed := True;
           Exit;
+        end;
       end;
-      if not LinkModule(dep, AErrorMessage) then
-        Exit;
+      { Whatever went wrong inside a requested module makes this module's
+        dependency graph unlinkable, so the importer reports it as a resolution
+        failure. This is what the Link phase does: it reports the first error
+        from the graph, at the importer's request. A dependency's compile error
+        arrives as an exception, so it is caught here too. }
+      try
+        if not LinkModule(dep, AErrorMessage) then
+        begin
+          AModule.ResolutionFailed := True;
+          Exit;
+        end;
+      except
+        on E: EFloriaJSCompileError do
+        begin
+          AErrorMessage := E.Message;
+          AModule.ResolutionFailed := True;
+          Exit;
+        end;
+      end;
     end;
 
     resolveSet := TStringList.Create();
@@ -1223,7 +1388,37 @@ begin
         if dep = nil then
         begin
           AErrorMessage := 'Cannot resolve module ' + request;
+          AModule.ResolutionFailed := True;
           Exit;
+        end;
+        { A module request may carry attributes describing a representation.
+          A key the host cannot interpret makes the request unfulfillable, which
+          the Link phase reports as a resolution failure. `type` is the one
+          attribute this host understands. }
+        if AModule.ImportEntries[i].Attributes <> '' then
+        begin
+          attrKeys := AModule.ImportEntries[i].Attributes;
+          while attrKeys <> '' do
+          begin
+            j := Pos(',', attrKeys);
+            if j > 0 then
+            begin
+              attrKey := Copy(attrKeys, 1, j - 1);
+              Delete(attrKeys, 1, j);
+            end
+            else
+            begin
+              attrKey := attrKeys;
+              attrKeys := '';
+            end;
+            if (attrKey <> '') and (attrKey <> 'type') then
+            begin
+              AErrorMessage := 'Unsupported import attribute ''' + attrKey +
+                ''' on module ' + request;
+              AModule.ResolutionFailed := True;
+              Exit;
+            end;
+          end;
         end;
         if AModule.ImportEntries[i].ImportName = '*' then
           Continue;
@@ -1233,15 +1428,18 @@ begin
         begin
           AErrorMessage := 'Ambiguous export ' + AModule.ImportEntries[i].ImportName +
             ' from ' + request;
+          AModule.ResolutionFailed := True;
           Exit;
         end;
         if res <> rrResolved then
         begin
           AErrorMessage := 'The requested module ' + request +
             ' does not provide an export named ' + AModule.ImportEntries[i].ImportName;
+          AModule.ResolutionFailed := True;
           Exit;
         end;
       end;
+
     finally
       resolveSet.Free();
     end;
@@ -1249,7 +1447,14 @@ begin
     { Compile now, so a duplicate binding or another early error is reported at
       link time, which is a parse-phase SyntaxError. }
     if (AModule.Chunk = nil) and (AModule.Body <> nil) then
-      AModule.Chunk := FCompiler.CompileProgram(TFloriaJSProgram(AModule.Body));
+    begin
+      FCompiler.IsModuleProgram := True;
+      try
+        AModule.Chunk := FCompiler.CompileProgram(TFloriaJSProgram(AModule.Body));
+      finally
+        FCompiler.IsModuleProgram := False;
+      end;
+    end;
 
     AModule.Environment := CreateModuleEnvironment;
     { Install one binding per import entry. A namespace import binds the
@@ -1407,6 +1612,7 @@ function TFloriaJSContext.EvaluateModuleDetailed(const AIdentifier,
 var
   module: TFloriaJSModuleRecord;
   errorMessage: string;
+  isResolution: Boolean;
 begin
   AssignDiagnostic(Result, FloriaJSMakeOkResult(''), fjdkSuccess,
     AIdentifier, '', '', '');
@@ -1445,10 +1651,27 @@ begin
     FHeap.Collect();
 
   try
-    if not LinkModule(module, errorMessage) then
+    if not LinkModuleDetailed(module, errorMessage, isResolution) then
+    begin
+      { An unresolved or ambiguous import is a resolution failure; anything
+        else detected while linking is an early error, which the specification
+        reports from parsing. }
+      if isResolution then
+        AssignDiagnostic(Result, FloriaJSMakeErrorResult(errorMessage),
+          fjdkResolutionError, AIdentifier, 'SyntaxError', errorMessage, '')
+      else
+        AssignDiagnostic(Result, FloriaJSMakeErrorResult(errorMessage),
+          fjdkParseError, AIdentifier, 'SyntaxError', errorMessage, '');
+      Exit;
+    end;
+
+    { Indirect re-exports are validated once the whole graph is linked, so a
+      binding reachable only through a star cycle is not rejected during the
+      link walk itself. }
+    if not ValidateIndirectExports(module, errorMessage) then
     begin
       AssignDiagnostic(Result, FloriaJSMakeErrorResult(errorMessage),
-        fjdkParseError, AIdentifier, 'SyntaxError', errorMessage, '');
+        fjdkResolutionError, AIdentifier, 'SyntaxError', errorMessage, '');
       Exit;
     end;
   except

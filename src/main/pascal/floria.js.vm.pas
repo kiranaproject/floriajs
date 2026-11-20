@@ -1602,6 +1602,15 @@ begin
             val := Pop();
             propVal := Pop();
             objVal := Pop();
+            { A strict assignment to a read-only property of a frozen object
+              throws. This is checked before the inline-cache fast path, which
+              would otherwise bypass it. }
+            if curFrame^.Bytecode.IsStrict and objVal.IsObject() and
+               objVal.AsObject().RejectsWrite(JSPropertyKeyName(propVal)) then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError(
+                'TypeError',
+                'Cannot assign to read only property ''' +
+                JSToString(propVal) + ''' of ' + objVal.ToString())));
             if objVal.IsArray() and JSArrayIndexFromNumber(propVal, idx64) then
               TFloriaJSArray(objVal.ObjVal).SetElementByIndex(idx64, val)
             else if objVal.IsObject() and (objVal.Kind = fjstObject) and
@@ -1636,6 +1645,14 @@ begin
             propName := curFrame^.Bytecode.GetConstant(inst.Imm).ToString();
             val := Pop();
             objVal := Pop();
+            { As for opSetProp: a strict assignment to a read-only property of a
+              frozen object throws before the fast path is tried. }
+            if curFrame^.Bytecode.IsStrict and objVal.IsObject() and
+               objVal.AsObject().RejectsWrite(propName) then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError(
+                'TypeError',
+                'Cannot assign to read only property ''' + propName +
+                ''' of ' + objVal.ToString())));
             if objVal.IsObject() and (objVal.Kind = fjstObject) and
                (not (objVal.ObjVal is TFloriaJSProxy)) then
             begin
@@ -1818,7 +1835,21 @@ begin
               raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
                 'Cannot convert undefined or null to object')))
             else if objVal.IsObject() then
-              Push(JSMakeBoolean(objVal.AsObject().DeleteProperty(propVal.ToString())))
+            begin
+              { Strict mode turns a refused delete into a TypeError. }
+              if not objVal.AsObject().DeleteProperty(
+                   JSPropertyKeyName(propVal)) then
+              begin
+                if curFrame^.Bytecode.IsStrict then
+                  raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError(
+                    'TypeError',
+                    'Cannot delete property ''' + JSToString(propVal) + ''' of ' +
+                    objVal.ToString())));
+                Push(JSMakeBoolean(False));
+              end
+              else
+                Push(JSMakeBoolean(True));
+            end
             else
               Push(JSMakeBoolean(True));
           end;

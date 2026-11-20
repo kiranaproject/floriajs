@@ -174,6 +174,12 @@ type
       const AValue: TFloriaJSValue);
     function  DefineAccessorProperty(const AName: string;
       const AGetter, ASetter: TFloriaJSValue; AEnumerable, AConfigurable: Boolean): Boolean; virtual;
+    { [[SetPrototypeOf]]. The default accepts a null or object prototype; an
+      exotic object that is not extensible refuses. }
+    function  SetPrototypeOf(const AProto: TFloriaJSValue): Boolean; virtual;
+    { True when [[Set]] refuses to write AName. The default refuses only for a
+      non-writable own data property; an exotic object may refuse more. }
+    function  RejectsWrite(const AName: string): Boolean; virtual;
     function  PropertyIsWritable(const AName: string): Boolean; virtual;
     function  PropertyIsConfigurable(const AName: string): Boolean; virtual;
     procedure SetPropertyConfigurable(const AName: string; AConfigurable: Boolean);
@@ -1804,6 +1810,34 @@ begin
     shape. A fresh token is simpler and safe. }
   FShapeId := AllocateShapeId();
   Result := True;
+end;
+
+function TFloriaJSObject.RejectsWrite(const AName: string): Boolean;
+var
+  idx: Integer;
+begin
+  idx := FindPropertyIndex(AName);
+  { An absent property is rejected when the object is not extensible. }
+  if idx < 0 then
+    Exit(not FIsExtensible);
+  if FProperties[idx].HasSetter then
+    Exit(False);
+  Result := (not FProperties[idx].Writable) or FProperties[idx].HasGetter;
+end;
+
+function TFloriaJSObject.SetPrototypeOf(const AProto: TFloriaJSValue): Boolean;
+begin
+  if AProto.IsNull() then
+  begin
+    Prototype := nil;
+    Exit(True);
+  end;
+  if AProto.IsObject() then
+  begin
+    Prototype := AProto.AsObject();
+    Exit(True);
+  end;
+  Result := False;
 end;
 
 function TFloriaJSObject.DefineDataProperty(const AName: string;

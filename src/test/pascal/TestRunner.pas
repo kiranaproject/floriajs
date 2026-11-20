@@ -1449,16 +1449,26 @@ var
   parser: TFloriaJSParser;
   prog: TFloriaJSProgram;
   ifStmt: TFloriaJSIfStmt;
+  bodyBlock: TFloriaJSBlockStmt;
 begin
-  parser := TFloriaJSParser.Create('if (x > 0) return 1; else return 0;');
+  { `return` is only legal inside a function, so the fixture wraps the
+    conditional in a function body. }
+  parser := TFloriaJSParser.Create(
+    'function f() { if (x > 0) return 1; else return 0; }');
   try
     prog := parser.ParseProgram();
     try
       AssertFalse('Parser should have no errors', parser.HasErrors());
       AssertEquals('Program statement count is 1', 1, prog.GetStatementCount());
 
-      AssertTrue('Statement is if stmt', prog.GetStatement(0) is TFloriaJSIfStmt);
-      ifStmt := TFloriaJSIfStmt(prog.GetStatement(0));
+      AssertTrue('Statement is a function declaration',
+        prog.GetStatement(0) is TFloriaJSFunctionDecl);
+      bodyBlock := TFloriaJSBlockStmt(TFloriaJSFunctionDecl(prog.GetStatement(0)).Body);
+      AssertEquals('Function body statement count is 1', 1,
+        bodyBlock.GetStatementCount());
+      AssertTrue('Statement is if stmt',
+        bodyBlock.GetStatement(0) is TFloriaJSIfStmt);
+      ifStmt := TFloriaJSIfStmt(bodyBlock.GetStatement(0));
       AssertTrue('Condition is binary', ifStmt.Condition is TFloriaJSBinaryExpr);
       AssertEquals('Condition op is >', Ord(tkGreaterThan), Ord(TFloriaJSBinaryExpr(ifStmt.Condition).Op));
       AssertTrue('Consequent is return stmt', ifStmt.Consequent is TFloriaJSReturnStmt);
@@ -4616,21 +4626,29 @@ var
 begin
   engine := TFloriaJSEngine.Create();
   try
+    { `await` is only legal inside an async body (or a module's top level), so
+      the trials run in an async function and are observed after it settles. }
     res := engine.Execute(
       'async function f() { throw "nope"; }' + LineEnding +
-      'let r = "";' + LineEnding +
-      'try { await f(); } catch (e) { r = "caught"; }' + LineEnding +
-      'r;'
+      'var r = "";' + LineEnding +
+      'async function main() {' + LineEnding +
+      '  try { await f(); } catch (e) { r = "caught"; }' + LineEnding +
+      '}' + LineEnding +
+      'main();'
     );
     AssertTrue('Async throw success', res.Success);
+    res := engine.Execute('r;');
     AssertEquals('An error of an async function is catchable', 'caught', res.StringValue);
 
     res := engine.Execute(
-      'let r = "";' + LineEnding +
-      'try { await Promise.reject("bad"); } catch (e) { r = e; }' + LineEnding +
-      'r;'
+      'var r = "";' + LineEnding +
+      'async function main() {' + LineEnding +
+      '  try { await Promise.reject("bad"); } catch (e) { r = e; }' + LineEnding +
+      '}' + LineEnding +
+      'main();'
     );
     AssertTrue('Rejected promise success', res.Success);
+    res := engine.Execute('r;');
     AssertEquals('A rejected promise can be awaited inside a try', 'bad', res.StringValue);
   finally
     engine.Free();
@@ -7942,6 +7960,58 @@ begin
     res := ctx.EvaluateModule('ok-dup-var',
       'export var a = 1; var a = 2; export function g() { return a; }');
     AssertTrue('a repeated var binding is still legal', res.Success);
+
+    { Module early errors that the parser now rejects. }
+    res := ctx.EvaluateModule('bad-return', 'return;');
+    AssertFalse('a top-level return is a module early error', res.Success);
+
+    res := ctx.EvaluateModule('bad-labels',
+      'label: { label: 0; }');
+    AssertFalse('a duplicate label is an early error', res.Success);
+
+    res := ctx.EvaluateModule('bad-import-eval',
+      'import { eval } from "counter";');
+    AssertFalse('eval may not be an import binding', res.Success);
+
+    res := ctx.EvaluateModule('bad-lex-fn',
+      'var f; function f() {}');
+    AssertFalse('a module function clashes with a var', res.Success);
+
+    res := ctx.EvaluateModule('bad-class-heritage',
+      'var n = 1; function base() { return function() {}; }' +
+      ' export class C extends base(await n) {}');
+    AssertTrue('await in a class heritage parses', res.Success);
+
+    { A resolution failure is reported distinctly from a parse error. }
+    res := ctx.EvaluateModule('bad-resolution',
+      'import { nope } from "counter";');
+    AssertFalse('an unresolved import fails', res.Success);
+    AssertTrue('the message names the missing export',
+      Pos('does not provide an export named', res.ErrorMessage) > 0);
+
+    { The namespace is an exotic object: null prototype, not extensible, a
+      "Module" toStringTag, and read-only exports. }
+    res := ctx.EvaluateModule('ns-shape',
+      'import * as m from "counter";' +
+      ' globalThis.nsShape = [' +
+      '   Object.getPrototypeOf(m) === null,' +
+      '   Object.isExtensible(m),' +
+      '   m[Symbol.toStringTag],' +
+      '   Object.getOwnPropertyDescriptor(m, "n").writable,' +
+      '   Object.getOwnPropertyDescriptor(m, "n").configurable' +
+      ' ].join(",");');
+    AssertTrue('namespace script succeeds', res.Success);
+    res := ctx.Evaluate('String(globalThis.nsShape);');
+    AssertEquals('namespace is null-prototype, frozen, tagged Module',
+      'true,false,Module,true,false', res.StringValue);
+
+    res := ctx.EvaluateModule('ns-strict-write',
+      'import * as m from "counter";' +
+      ' try { m.n = 5; globalThis.nsWrite = "no throw"; }' +
+      ' catch (e) { globalThis.nsWrite = e.constructor.name; }');
+    AssertTrue('namespace write script succeeds', res.Success);
+    res := ctx.Evaluate('String(globalThis.nsWrite);');
+    AssertEquals('a strict write to a namespace throws', 'TypeError', res.StringValue);
   finally
     loader.Free();
     ctx.Free();
@@ -11269,7 +11339,11 @@ begin
     // undefined, so these silently "succeeded".
     res := engine.Execute('1 += 2;');
     AssertFalse('numeric literal target', res.Success);
-    AssertTrue('is a SyntaxError', Pos('SyntaxError', res.ErrorMessage) > 0);
+    { This is an early error, so the parser now rejects it and the message is a
+      parse diagnostic rather than the wording 'SyntaxError'. }
+    AssertTrue('is an early error',
+      (Pos('Invalid left-hand side', res.ErrorMessage) > 0) or
+      (Pos('SyntaxError', res.ErrorMessage) > 0));
 
     res := engine.Execute('var a = 1; var b = 2; (a + b) = 1;');
     AssertFalse('binary expression target', res.Success);

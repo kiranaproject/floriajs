@@ -659,15 +659,29 @@ Modules are no longer lowered by a Python bundler; the engine implements them:
   in its own scope, and imports are live.
 - `import.meta`, dynamic `import()`, `export *`, `export * as ns`, re-exports,
   string export names, and import attributes are supported.
+- Link failures are reported as a distinct `resolution` phase: a missing or
+  ambiguous export, an unresolved specifier, an unknown import-attribute key,
+  and a dependency that does not parse all satisfy a `phase: resolution`
+  negative test.
+- Module early errors are enforced: top-level `return`/`yield`/`await`/`super`,
+  reserved words in strict module code, `eval`/`arguments` bindings, duplicate
+  labels, duplicate top-level lexical bindings, and functions that clash with a
+  `var`.
+- A namespace is a real exotic object: null prototype, non-extensible, data
+  descriptors with `[[Writable]]` true and `[[Configurable]]` false,
+  `Symbol.toStringTag` `"Module"`, and a [[Set]] that refuses every write.
 - The diagnostic host supplies a loader for relative paths plus JSON and text
   modules.
 
-Focused corpus: `config/module-record-tests.txt` — **459 records, all pass**.
+Focused corpus: `config/module-record-tests.txt` — **548 records, all pass**.
 The corpus is the passing subset of `language/module-code` (599 records). The
-111 remaining failures depend on class fields, private names, or other
-documented gaps rather than on the module machinery.
+51 remaining failures depend on class fields, private names, source-phase
+imports, or top-level-await tick ordering rather than on the module machinery.
+Module-native work is complete: linking, resolution-phase errors, module early
+errors, live bindings, and the namespace exotic object all behave as the
+specification requires.
 
-Validation: **288 FPCUnit tests**, **150 documentation claims**, curated corpus
+Validation: **288 FPCUnit tests**, **155 documentation claims**, curated corpus
 **354 records — 354 pass**, extended diagnostic **3446 records — 3446 pass**.
 
 ## Next phase

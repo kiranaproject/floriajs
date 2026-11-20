@@ -27,6 +27,7 @@ uses
   floria.js.vm,
   floria.js.compiler,
   floria.js.module,
+  floria.js.namespace,
   floria.js.stdlib,
   floria.js.timers,
   floria.js.core,
@@ -101,6 +102,7 @@ type
   { Parser }
   TFloriaJSParser          = floria.js.parser.TFloriaJSParser;
   TFloriaJSModuleRecord    = floria.js.module.TFloriaJSModuleRecord;
+  TFloriaJSNamespaceObject = floria.js.namespace.TFloriaJSNamespaceObject;
   TFloriaJSModuleRegistry  = floria.js.module.TFloriaJSModuleRegistry;
   TFloriaJSModuleLoader    = floria.js.module.TFloriaJSModuleLoader;
   TFloriaJSResolvedBinding = floria.js.module.TFloriaJSResolvedBinding;

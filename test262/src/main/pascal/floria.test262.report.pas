@@ -59,6 +59,7 @@ begin
   case AKind of
     fjdkParseError: Result := 'parse';
     fjdkCompileError: Result := 'compile';
+    fjdkResolutionError: Result := 'resolution';
     fjdkJavaScriptThrow: Result := 'runtime';
     fjdkHostException: Result := 'host';
   else

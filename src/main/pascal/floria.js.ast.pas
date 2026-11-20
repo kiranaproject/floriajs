@@ -766,6 +766,7 @@ type
     FEntries: array of TFloriaJSImportSpecifier;
     FCount: Integer;
     FIsBare: Boolean;
+    FAttributeKeys: TStringList;
   public
     constructor Create(const AModuleSpecifier: string; ALine, ACol: Integer);
     destructor Destroy(); override;
@@ -783,6 +784,11 @@ type
     property ModuleSpecifier: string read FModuleSpecifier write FModuleSpecifier;
     { True for a side-effect-only import: import "m"; }
     property IsBare: Boolean read FIsBare write FIsBare;
+    { The attribute keys of a `with { ... }` clause. The loader decides whether
+      they describe a representation it can provide. }
+    procedure AddAttributeKey(const AKey: string);
+    function  GetAttributeKeyCount(): Integer;
+    function  GetAttributeKey(AIndex: Integer): string;
   end;
 
   { One (LocalName, ExportName) pair of a local export clause. }
@@ -2268,12 +2274,39 @@ begin
   FCount := 0;
   SetLength(FEntries, 0);
   FIsBare := False;
+  FAttributeKeys := TStringList.Create();
+  FAttributeKeys.CaseSensitive := True;
 end;
 
 destructor TFloriaJSImportDecl.Destroy();
 begin
+  FreeAndNil(FAttributeKeys);
   SetLength(FEntries, 0);
   inherited Destroy();
+end;
+
+procedure TFloriaJSImportDecl.AddAttributeKey(const AKey: string);
+begin
+  if (FAttributeKeys <> nil) and (AKey <> '') and
+     (FAttributeKeys.IndexOf(AKey) < 0) then
+    FAttributeKeys.Add(AKey);
+end;
+
+function TFloriaJSImportDecl.GetAttributeKeyCount(): Integer;
+begin
+  if FAttributeKeys <> nil then
+    Result := FAttributeKeys.Count
+  else
+    Result := 0;
+end;
+
+function TFloriaJSImportDecl.GetAttributeKey(AIndex: Integer): string;
+begin
+  if (FAttributeKeys <> nil) and (AIndex >= 0) and
+     (AIndex < FAttributeKeys.Count) then
+    Result := FAttributeKeys[AIndex]
+  else
+    Result := '';
 end;
 
 procedure TFloriaJSImportDecl.AddEntry(const AImportName, ALocalName: string;

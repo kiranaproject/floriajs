@@ -177,14 +177,17 @@ class MetadataFixtures(unittest.TestCase):
         self.assertEqual(records[0]["outcome"], "planned")
         self.assertNotEqual(records[0]["outcome"], "pass")
 
-    def test_negative_resolution_is_unsupported_without_running(self) -> None:
+    def test_negative_resolution_is_planned_and_run(self) -> None:
+        # The engine reports a module link failure as a distinct resolution
+        # phase, so a resolution negative is a real scenario rather than a
+        # declared gap.
         records, _ = plans("negative-resolution.js")
         self.assertEqual(len(records), 2)
         normal, strict = records
-        self.assertEqual(normal["outcome"], "unsupported")
-        self.assertIn("resolution", normal["reason"])
-        self.assertEqual(normal["hostCommand"], [])
-        self.assertEqual(strict["outcome"], "unsupported")
+        self.assertEqual(normal["outcome"], "planned")
+        self.assertEqual(normal["metadata"]["negative"]["phase"], "resolution")
+        self.assertNotEqual(normal["hostCommand"], [])
+        self.assertEqual(strict["outcome"], "planned")
         self.assertEqual(strict["variant"], "strict")
 
     def test_crlf_and_raw_bytes_are_preserved(self) -> None:
