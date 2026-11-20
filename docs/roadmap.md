@@ -14,7 +14,7 @@ Last refreshed 2026-11-17:
 
 - Runtime: bytecode VM only. The AST tree-walker is removed.
 - Pipeline: lexer → parser → AST → compiler → `TFloriaJSBytecode` → `TFloriaJSVM`.
-- Test suite: **287 tests pass** with `pasbuild test`.
+- Test suite: **288 tests pass** with `pasbuild test`.
 - Benchmark suite: **16 workloads** with a checked-in baseline; `--check` guards a 20% regression.
 - Node comparison: **13 file-based workloads**, geometric mean **5.9x** Node; `--check` guards a 25% ratio regression.
 - Gap scan: **188 probes OK / 6 ERR** with `bash scratch/run_gapscan.sh`; every remaining ERR is an expected rejection.
@@ -1653,6 +1653,21 @@ records, all pass**.
 
 Focused corpus: `test262/config/weak-collections-tests.txt` — **418 records,
 all pass**.
+
+### [x] ECMAScript module records (post-P3)
+
+- `import`/`export` in the lexer, parser, and AST, rejected outside modules and
+  outside the top level.
+- Real module records with the five entry lists, `ResolveExport`, linking, and
+  cycle-safe evaluation.
+- Live import bindings, per-module scope, `import.meta`, dynamic `import()`,
+  star and namespace re-exports, string export names, and import attributes.
+- Module early errors: duplicate exports and export of an undeclared name.
+- A host loader callback; the diagnostic host serves relative paths plus JSON
+  and text modules.
+
+Focused corpus: `test262/config/module-record-tests.txt` — **459 records, all
+pass**.
 
 ---
 

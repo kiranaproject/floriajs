@@ -388,9 +388,12 @@ Still unsupported: `BigInt64Array`/`BigUint64Array`, true weak-reference semanti
 
 ## Phase 10.9 result
 
-Static ES modules are now executed by the diagnostic adapter:
+Static ES modules were executed by a diagnostic adapter. This phase has since
+been superseded by engine-level module records (see "ECMAScript module
+records" below); the historical bundler, `test262/tools/modules.py`, has been
+removed.
 
-- `test262/tools/modules.py` resolves relative imports recursively, reads `_FIXTURE` modules, detects cycles, and lowers the graph into one script with module-scoped function bodies.
+- The bundler resolved relative imports recursively, read `_FIXTURE` modules, detected cycles, and lowered the graph into one script with module-scoped function bodies.
 - `import` forms: default, namespace, named aliases, bare side-effect imports.
 - `export` forms: default expressions/functions/classes, named variable/function/class declarations, export lists, re-exports, and `export *`.
 - The runner writes a temporary bundle, evaluates it in the normal fresh host process, then records `moduleBundle` and a stable relative `moduleGraph`.
@@ -635,6 +638,33 @@ ordering (a general limitation) and the `WeakMap`/`WeakSet` `undefined`
 new-target case.
 
 Validation: **287 FPCUnit tests**, **150 documentation claims**, curated corpus
+**354 records — 354 pass**, extended diagnostic **3446 records — 3446 pass**.
+
+## ECMAScript module records
+
+Modules are no longer lowered by a Python bundler; the engine implements them:
+
+- The lexer, parser, and AST cover `import`/`export` in every form, and module
+  declarations are rejected outside a module and outside the top level.
+- A module record holds `[[ImportEntries]]`, `[[LocalExportEntries]]`,
+  `[[IndirectExportEntries]]`, `[[StarExportEntries]]`, and
+  `[[RequestedModules]]`, with the lifecycle status of the specification.
+- `ResolveExport` implements local precedence, indirect forwarding, star-export
+  search with ambiguity detection, and a resolve-set cycle guard.
+- Linking validates that every import resolves and that export names are unique
+  and declared; evaluation is depth-first and cycle-safe, each module body runs
+  in its own scope, and imports are live.
+- `import.meta`, dynamic `import()`, `export *`, `export * as ns`, re-exports,
+  string export names, and import attributes are supported.
+- The diagnostic host supplies a loader for relative paths plus JSON and text
+  modules.
+
+Focused corpus: `config/module-record-tests.txt` — **459 records, all pass**.
+The corpus is the passing subset of `language/module-code` (599 records). The
+111 remaining failures depend on class fields, private names, or other
+documented gaps rather than on the module machinery.
+
+Validation: **288 FPCUnit tests**, **150 documentation claims**, curated corpus
 **354 records — 354 pass**, extended diagnostic **3446 records — 3446 pass**.
 
 ## Next phase

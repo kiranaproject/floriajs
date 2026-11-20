@@ -26,6 +26,7 @@ uses
   floria.js.bytecode,
   floria.js.vm,
   floria.js.compiler,
+  floria.js.module,
   floria.js.stdlib,
   floria.js.timers,
   floria.js.core,
@@ -84,6 +85,14 @@ type
   TFloriaJSContinueStmt    = floria.js.ast.TFloriaJSContinueStmt;
   TFloriaJSLabeledStmt     = floria.js.ast.TFloriaJSLabeledStmt;
   TFloriaJSFunctionDecl    = floria.js.ast.TFloriaJSFunctionDecl;
+  { Module declarations }
+  TFloriaJSImportKind      = floria.js.ast.TFloriaJSImportKind;
+  TFloriaJSImportSpecifier = floria.js.ast.TFloriaJSImportSpecifier;
+  TFloriaJSImportDecl      = floria.js.ast.TFloriaJSImportDecl;
+  TFloriaJSExportSpecifier = floria.js.ast.TFloriaJSExportSpecifier;
+  TFloriaJSIndirectExportSpecifier = floria.js.ast.TFloriaJSIndirectExportSpecifier;
+  TFloriaJSStarExportSpecifier = floria.js.ast.TFloriaJSStarExportSpecifier;
+  TFloriaJSExportDecl      = floria.js.ast.TFloriaJSExportDecl;
   TFloriaJSProgram         = floria.js.ast.TFloriaJSProgram;
 
   { Declarative / FTML Component Node }
@@ -91,6 +100,11 @@ type
 
   { Parser }
   TFloriaJSParser          = floria.js.parser.TFloriaJSParser;
+  TFloriaJSModuleRecord    = floria.js.module.TFloriaJSModuleRecord;
+  TFloriaJSModuleRegistry  = floria.js.module.TFloriaJSModuleRegistry;
+  TFloriaJSModuleLoader    = floria.js.module.TFloriaJSModuleLoader;
+  TFloriaJSResolvedBinding = floria.js.module.TFloriaJSResolvedBinding;
+  TFloriaJSResolveResult   = floria.js.module.TFloriaJSResolveResult;
 
   { Values, Objects, and Heap }
   TFloriaJSValue           = floria.js.value.TFloriaJSValue;

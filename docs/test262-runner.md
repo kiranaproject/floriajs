@@ -89,7 +89,7 @@ When metadata contains `negative`, the runner compares the host's actual complet
 - the error must come from the test source, not a harness file;
 - `phase: parse` accepts an actual `parse` or `compile` phase, both of which represent early errors;
 - `phase: runtime` requires an actual runtime throw;
-- `phase: resolution` is reported as `unsupported` because the diagnostic bundler does not classify module-link failures as resolution errors;
+- `phase: resolution` is reported as `unsupported` because a host loader failure and a module-link failure are reported as ordinary `fail` records rather than a distinct resolution phase;
 - the constructor name must match `negative.type` exactly.
 
 Normal completion, a wrong phase, or a wrong type is a `fail` with a reason that states both the expectation and the actual completion. Harness failures are never converted into negative passes.

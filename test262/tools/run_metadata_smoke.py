@@ -76,7 +76,7 @@ class MetadataFixtures(unittest.TestCase):
         self.assertIn("--strict", strict[0]["hostCommand"])
         self.assertEqual(module[0]["variant"], "module")
         self.assertEqual(module[0]["outcome"], "planned")
-        self.assertTrue(module[0]["moduleBundle"])
+        self.assertIn("--module", module[0]["hostCommand"])
         self.assertIn("--strict", module[0]["hostCommand"])
 
     def test_default_async_runs_both_modes_with_done_harness(self) -> None:

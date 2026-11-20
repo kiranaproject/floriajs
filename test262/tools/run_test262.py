@@ -12,7 +12,6 @@ import subprocess
 import sys
 import time
 
-from modules import ModuleError, build_bundle
 from prepare_test262 import global_error, selection
 from results import (
     build_report,
@@ -54,7 +53,7 @@ def execution_result(plan: dict, outcome: str, reason: str,
 NEGATIVE_DEFAULTS = {
     "acceptedParsePhases": ["parse", "compile"],
     "runtimePhase": "runtime",
-    "resolutionReason": "negative resolution expectations are not classified by the diagnostic bundler",
+    "resolutionReason": "negative resolution expectations are not classified by the host module loader",
     "dontEvaluateMarker": "Test262: This statement should not be evaluated.",
     "unsupportedParseErrorPatterns": ["not supported", "unsupported"],
 }
@@ -158,35 +157,6 @@ def apply_negative_verdict(plan: dict, result: dict, config: dict) -> dict:
         host,
         exit_code,
     )
-
-
-def execute_module_plan(plan: dict, timeout: float,
-                        deadline: float | None = None) -> dict:
-    entry = Path(plan["source"]["name"])
-    root = Path(plan["upstream"]["root"])
-    try:
-        bundle, graph = build_bundle(entry, root)
-    except ModuleError as error:
-        return execution_result(plan, "harness-error", f"module graph: {error}")
-
-    import tempfile
-    try:
-        with tempfile.TemporaryDirectory(prefix="floria-modules-") as temporary:
-            bundle_path = Path(temporary) / "bundle.js"
-            bundle_path.write_text(bundle, encoding="utf-8")
-            command = list(plan["hostCommand"][:-1]) + [str(bundle_path)]
-            execution = dict(plan)
-            execution["hostCommand"] = command
-            result = execute_plan(execution, timeout, deadline)
-    except OSError as error:
-        return execution_result(plan, "harness-error", f"module bundle: {error}")
-
-    result["moduleBundle"] = True
-    result["moduleGraph"] = [str(path.relative_to(root.resolve())) for path in graph]
-    result["hostCommand"] = plan["hostCommand"]
-    if isinstance(result.get("hostResult"), dict):
-        result["hostResult"]["sourceName"] = "bundle.js"
-    return result
 
 
 def remaining_timeout(timeout: float, deadline: float | None) -> float:
@@ -347,10 +317,7 @@ def main() -> int:
                 result = execution_result(plan, plan["outcome"], plan["reason"])
                 result["hostCommand"] = []
                 return result
-            if plan.get("moduleBundle"):
-                result = execute_module_plan(plan, args.timeout, deadline)
-            else:
-                result = execute_plan(plan, args.timeout, deadline)
+            result = execute_plan(plan, args.timeout, deadline)
             return apply_negative_verdict(plan, result, negative_config)
 
         if args.jobs > 1 and len(plans) > 1:

@@ -80,6 +80,7 @@ type
     procedure CompileObjectExpr(AObj: TFloriaJSObjectExpr);
     procedure CompileArrayExpr(AArr: TFloriaJSArrayExpr);
     procedure CompileFunctionExpr(AFunc: TFloriaJSFunctionExpr);
+    procedure InferDefaultExportName(AExpr: TFloriaJSExprNode);
     procedure CompileClassExpr(ACls: TFloriaJSClassNode);
     procedure CompileTaggedTemplate(ATmpl: TFloriaJSTaggedTemplateExpr);
     procedure CompileYieldStar(AIterable: TFloriaJSExprNode; ALine: Integer);
@@ -1021,17 +1022,41 @@ begin
   fnNames.CaseSensitive := True;
   try
     for i := 0 to count - 1 do
-      if AProgram.GetStatement(i) is TFloriaJSFunctionDecl then
+    begin
+      { `export function f() {}` hoists like a plain declaration; its binding is
+        the local name, and the export list is metadata. }
+      if AProgram.GetStatement(i) is TFloriaJSExportDecl then
+      begin
+        if TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration
+           is TFloriaJSFunctionDecl then
+        begin
+          fnDecl := TFloriaJSFunctionDecl(
+            TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration);
+          fnNames.Add(fnDecl.Name);
+          CompileFunctionDecl(fnDecl);
+        end;
+      end
+      else if AProgram.GetStatement(i) is TFloriaJSFunctionDecl then
       begin
         fnDecl := TFloriaJSFunctionDecl(AProgram.GetStatement(i));
         fnNames.Add(fnDecl.Name);
         CompileFunctionDecl(fnDecl);
       end;
+    end;
 
     varNames := TStringList.Create();
     try
       for i := 0 to count - 1 do
-        CollectVarNamesFromStmt(AProgram.GetStatement(i), varNames);
+      begin
+        if AProgram.GetStatement(i) is TFloriaJSExportDecl then
+        begin
+          if TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration <> nil then
+            CollectVarNamesFromStmt(
+              TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration, varNames);
+        end
+        else
+          CollectVarNamesFromStmt(AProgram.GetStatement(i), varNames);
+      end;
 
       for i := 0 to varNames.Count - 1 do
       begin
@@ -1049,11 +1074,42 @@ begin
   { Top-level let/const bindings are in the global/function lexical
     environment from the start of the program. }
   for i := 0 to count - 1 do
-    HoistLexicalDecl(AProgram.GetStatement(i));
+  begin
+    if AProgram.GetStatement(i) is TFloriaJSExportDecl then
+    begin
+      if TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration <> nil then
+        HoistLexicalDecl(TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration);
+    end
+    else
+      HoistLexicalDecl(AProgram.GetStatement(i));
+  end;
 
   for i := 0 to count - 1 do
-    if not (AProgram.GetStatement(i) is TFloriaJSFunctionDecl) then
+  begin
+    { An export declaration contributes its inner declaration to the module
+      body; the exported name is metadata, not code. }
+    if AProgram.GetStatement(i) is TFloriaJSExportDecl then
+    begin
+      { A function declaration was already emitted by the hoisting pass. }
+      if TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration
+         is TFloriaJSFunctionDecl then
+        Continue;
+      if TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration <> nil then
+        CompileStmt(TFloriaJSExportDecl(AProgram.GetStatement(i)).Declaration)
+      else if TFloriaJSExportDecl(AProgram.GetStatement(i)).Expression <> nil then
+      begin
+        { `export default <expr>` initialises the pre-declared `*default*`
+          binding, so the value is live and the binding has a TDZ before this
+          point. An anonymous function or class also takes the name `default`. }
+        InferDefaultExportName(
+          TFloriaJSExportDecl(AProgram.GetStatement(i)).Expression);
+        CompileExpr(TFloriaJSExportDecl(AProgram.GetStatement(i)).Expression);
+        FBytecode.Emit(opDefineLet, FBytecode.AddStringConstant('*default*'));
+      end;
+    end
+    else if not (AProgram.GetStatement(i) is TFloriaJSFunctionDecl) then
       CompileStmt(AProgram.GetStatement(i));
+  end;
 
   FBytecode.Emit(opLoadLoc, FResultLoc);
   FBytecode.Emit(opReturn);
@@ -2627,6 +2683,29 @@ begin
   for i := 0 to count - 1 do
     CompileExpr(ATmpl.GetExpression(i));
   FBytecode.Emit(opCall, count + 1, ATmpl.Line);
+end;
+
+{ An anonymous function or class in `export default` position is named
+  `default`, per SetFunctionName in the export semantics. A parenthesised
+  expression is unwrapped first, because `export default (function() {})` is an
+  anonymous function definition too. }
+procedure TFloriaJSCompiler.InferDefaultExportName(AExpr: TFloriaJSExprNode);
+var
+  inner: TFloriaJSExprNode;
+begin
+  inner := AExpr;
+  while inner is TFloriaJSGroupExpr do
+    inner := TFloriaJSGroupExpr(inner).Expression;
+  if inner is TFloriaJSFunctionExpr then
+  begin
+    if TFloriaJSFunctionExpr(inner).Name = '' then
+      TFloriaJSFunctionExpr(inner).Name := 'default';
+  end
+  else if inner is TFloriaJSClassNode then
+  begin
+    if TFloriaJSClassNode(inner).Name = '' then
+      TFloriaJSClassNode(inner).Name := 'default';
+  end;
 end;
 
 procedure TFloriaJSCompiler.CompileClassExpr(ACls: TFloriaJSClassNode);

@@ -300,8 +300,8 @@ class ScenarioPlanner:
         for include in harness:
             command.extend(("--harness", str(include)))
         command.extend(("--test", str(test_file)))
+        if variant == "module":
+            command.extend(("--module", "--module-root", str(self.root / "test")))
         result["harness"] = [str(item) for item in harness]
         result["hostCommand"] = command
-        if variant == "module":
-            result["moduleBundle"] = True
         return result

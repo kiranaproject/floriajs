@@ -21,7 +21,12 @@ uses
 
 type
   { Binding Declarator Kind }
-  TFloriaJSBindingKind = (bkVar, bkLet, bkConst);
+  TFloriaJSBindingKind = (bkVar, bkLet, bkConst, bkImport);
+
+  { Resolves the current value of a live import binding. It is a method
+    pointer so the context can carry its own state. }
+  TFloriaJSImportReader = function(AModule: TObject;
+    const AImportName: string): TFloriaJSValue of object;
 
   { Single Scoped Variable Binding }
   TFloriaJSBinding = record
@@ -32,6 +37,11 @@ type
     { False between block entry and the declaration's initializer. Reading or
       assigning such a binding raises the temporal-dead-zone ReferenceError. }
     Initialized: Boolean;
+    { For bkImport: the exporting module and the name inside it. A read
+      resolves through them, so an import is live rather than a snapshot. }
+    ImportModule: TObject;
+    ImportName: string;
+    ImportReader: TFloriaJSImportReader;
   end;
 
   { Lexical Scope Environment }
@@ -52,6 +62,10 @@ type
     destructor Destroy(); override;
 
     procedure Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean = False; AKind: TFloriaJSBindingKind = bkVar);
+    { Creates a live import binding: every read calls AReader, so a value
+      changed by the exporting module is observed. }
+    procedure DefineImport(const AName: string; AModule: TObject;
+      const AImportName: string; AReader: TFloriaJSImportReader);
     { Defines a global built-in: a writable, non-enumerable, configurable data
       property of the global object, as clauses 18-26 require. }
     procedure DefineBuiltin(const AName: string; const AValue: TFloriaJSValue);
@@ -188,6 +202,43 @@ begin
     Exit;
   end;
   Define(AName, AValue, True);
+end;
+
+procedure TFloriaJSEnvironment.DefineImport(const AName: string;
+  AModule: TObject; const AImportName: string; AReader: TFloriaJSImportReader);
+var
+  idx: Integer;
+begin
+  idx := FindLocalIndex(AName);
+  if idx >= 0 then
+  begin
+    JSReleaseValue(FBindings[idx].Value);
+    FBindings[idx].Value := JSMakeUndefined();
+    FBindings[idx].Kind := bkImport;
+    FBindings[idx].IsConst := True;
+    FBindings[idx].Initialized := True;
+    FBindings[idx].ImportModule := AModule;
+    FBindings[idx].ImportName := AImportName;
+    FBindings[idx].ImportReader := AReader;
+    Exit;
+  end;
+
+  if FBindingCount >= Length(FBindings) then
+  begin
+    if Length(FBindings) = 0 then
+      SetLength(FBindings, 8)
+    else
+      SetLength(FBindings, Length(FBindings) * 2);
+  end;
+  FBindings[FBindingCount].Name := AName;
+  FBindings[FBindingCount].Value := JSMakeUndefined();
+  FBindings[FBindingCount].Kind := bkImport;
+  FBindings[FBindingCount].IsConst := True;
+  FBindings[FBindingCount].Initialized := True;
+  FBindings[FBindingCount].ImportModule := AModule;
+  FBindings[FBindingCount].ImportName := AImportName;
+  FBindings[FBindingCount].ImportReader := AReader;
+  Inc(FBindingCount);
 end;
 
 procedure TFloriaJSEnvironment.Define(const AName: string; const AValue: TFloriaJSValue; AIsConst: Boolean; AKind: TFloriaJSBindingKind);
@@ -414,7 +465,12 @@ begin
   begin
     if not FBindings[idx].Initialized then
       RaiseTemporalDeadZone(FHeap, AName);
-    AValue := FBindings[idx].Value;
+    if (FBindings[idx].Kind = bkImport) and
+       Assigned(FBindings[idx].ImportReader) then
+      AValue := FBindings[idx].ImportReader(FBindings[idx].ImportModule,
+        FBindings[idx].ImportName)
+    else
+      AValue := FBindings[idx].Value;
     Exit(True);
   end;
 

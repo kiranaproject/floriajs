@@ -79,6 +79,10 @@ type
     tkExtends,
     tkSuper,
     tkStatic,
+    tkImport,
+    tkExport,
+    tkFrom,
+    tkAs,
 
     { Delimiters }
     tkLParen,         // (
@@ -258,8 +262,11 @@ begin
     'super':      Result := tkSuper;
     'static':     Result := tkStatic;
     'enum':       Result := tkReserved;
-    'export':     Result := tkReserved;
-    'import':     Result := tkReserved;
+    'export':     Result := tkExport;
+    'import':     Result := tkImport;
+    { `from`/`as` are contextual: they are ordinary identifiers everywhere
+      except inside an import/export clause, so they stay tkIdentifier and the
+      parser matches them by text. }
   else
     Result := tkIdentifier;
   end;
@@ -1227,6 +1234,10 @@ begin
     tkEOF:            Result := 'EOF';
     tkError:          Result := 'Error';
     tkReserved:       Result := 'Reserved';
+  tkImport:         Result := 'import';
+  tkExport:         Result := 'export';
+  tkFrom:           Result := 'from';
+  tkAs:             Result := 'as';
     tkComment:        Result := 'Comment';
     tkIdentifier:     Result := 'Identifier';
     tkNumber:         Result := 'Number';

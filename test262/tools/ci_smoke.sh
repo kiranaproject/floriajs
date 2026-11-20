@@ -320,6 +320,19 @@ python3 "$TEST262/tools/run_test262.py" \
   --baseline "$TEST262/baselines/phase10-weak-collections.json" \
   --fail-on-regression >/dev/null
 
+echo "== Reviewed upstream module-record corpus =="
+python3 "$TEST262/tools/run_test262.py" \
+  --root "$ROOT" \
+  --host "$HOST" \
+  --timeout 10 \
+  --jobs "$JOBS" \
+  --max-duration "$MAX_DURATION" \
+  --list "$TEST262/config/module-record-tests.txt" \
+  --report "$RESULTS/module-record-report.json" \
+  --output "$RESULTS/module-record.jsonl" \
+  --baseline "$TEST262/baselines/phase10-module-records.json" \
+  --fail-on-regression >/dev/null
+
 echo "== Reviewed upstream curated corpus =="
 python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \

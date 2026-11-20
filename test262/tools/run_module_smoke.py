@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 10.9 module bundling fixtures; no external checkout required."""
+"""Module record fixtures; no external checkout required."""
 
 from __future__ import annotations
 
@@ -32,11 +32,7 @@ class ModuleFixtures(unittest.TestCase):
     def test_relative_imports_exports_and_namespace(self) -> None:
         self.assertEqual(self.record["outcome"], "pass")
         self.assertEqual(self.record["variant"], "module")
-        self.assertTrue(self.record["moduleBundle"])
-        self.assertEqual(
-            self.record["moduleGraph"],
-            ["test/module-dep.js", "test/module-star.js", "test/module-main.js"],
-        )
+        self.assertIn("--module", self.record["hostCommand"])
         self.assertIn("--strict", self.record["hostCommand"])
         self.assertEqual(self.record["hostResult"]["outcome"], "pass")
 
@@ -45,14 +41,16 @@ class ModuleFixtures(unittest.TestCase):
             records, status, _ = run(name)
             self.assertEqual(status, 0, name)
             self.assertEqual(records[0]["outcome"], "pass", name)
-            self.assertTrue(records[0]["moduleBundle"], name)
+            self.assertIn("--module", records[0]["hostCommand"], name)
 
     def test_missing_module_is_a_resolution_error(self) -> None:
         records, status, _ = run("module-missing.js")
-        self.assertEqual(status, 2)
-        self.assertEqual(records[0]["outcome"], "harness-error")
-        self.assertIn("module graph", records[0]["reason"])
-        self.assertIn("cannot resolve module", records[0]["reason"])
+        self.assertEqual(status, 0)
+        self.assertEqual(records[0]["outcome"], "fail")
+        self.assertIn(
+            "Cannot resolve module",
+            records[0]["hostResult"]["error"]["message"],
+        )
 
 
 if __name__ == "__main__":

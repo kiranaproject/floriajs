@@ -23,6 +23,14 @@ uses
   floria.ftml.types, floria.ftml.binding, floria.ftml.engine, floriajs;
 
 type
+  { An in-memory module loader for the module-record tests. It supplies a small
+    fixture graph: a counter with a live binding, a re-export, and a cycle. }
+  TFloriaJSTestModuleLoader = class
+  public
+    function Load(const ASpecifier, AReferrer: string;
+      out ASource, AResolvedName: string): Boolean;
+  end;
+
   { Counts how often an AST node is destroyed, so the reference counting of a
     shared node can be observed. }
   TCountedASTNode = class(TFloriaJSBlockStmt)
@@ -361,6 +369,7 @@ type
     procedure TestFunctionSourceRetention();
     procedure TestPrototypeConstructorBackReference();
     procedure TestWeakCollectionSemantics();
+    procedure TestModuleRecords();
   end;
 
   { Test 24: Priority 1 — Semantic Deviations & Core Language Correctness }
@@ -6352,6 +6361,34 @@ begin
   end;
 end;
 
+{ TFloriaJSTestModuleLoader }
+
+function TFloriaJSTestModuleLoader.Load(const ASpecifier, AReferrer: string;
+  out ASource, AResolvedName: string): Boolean;
+begin
+  ASource := '';
+  AResolvedName := ASpecifier;
+  Result := True;
+  if ASpecifier = 'a' then
+    ASource := 'export const x = 41;'
+  else if ASpecifier = 'b' then
+    ASource := 'import { x } from "a"; export const y = x + 1;'
+  else if ASpecifier = 'counter' then
+    ASource := 'export let n = 0;' +
+      ' export function inc() { n = n + 1; return n; }'
+  else if ASpecifier = 'reexport' then
+    ASource := 'export * from "counter";' +
+      ' export { inc as bump } from "counter";'
+  else if ASpecifier = 'cyc1' then
+    ASource := 'import { b } from "cyc2"; export const a = "a";' +
+      ' export function ga() { return b; }'
+  else if ASpecifier = 'cyc2' then
+    ASource := 'import { a } from "cyc1"; export const b = "b";' +
+      ' export function gb() { return a; }'
+  else
+    Result := False;
+end;
+
 { TFloriaJSPhase10Test }
 
 procedure TFloriaJSPhase10Test.TestTemporalDeadZone();
@@ -7850,6 +7887,63 @@ begin
     AssertTrue('live weak entry script succeeds', res.Success);
     AssertEquals('a live key keeps its entry', 'alive', res.StringValue);
   finally
+    ctx.Free();
+  end;
+end;
+
+procedure TFloriaJSPhase10Test.TestModuleRecords();
+var
+  ctx: TFloriaJSContext;
+  res: TFloriaJSResult;
+  loader: TFloriaJSTestModuleLoader;
+begin
+  ctx := TFloriaJSContext.Create(nil);
+  loader := TFloriaJSTestModuleLoader.Create();
+  try
+    ctx.SetModuleLoader(TFloriaJSModuleLoader(@loader.Load));
+
+    res := ctx.EvaluateModule('main', 'import { y } from "b"; globalThis.modY = y;');
+    AssertTrue('module import script succeeds', res.Success);
+    res := ctx.Evaluate('String(globalThis.modY);');
+    AssertEquals('a transitive import evaluates', '42', res.StringValue);
+
+    res := ctx.EvaluateModule('ns',
+      'import * as m from "reexport";' +
+      ' var before = m.n; m.bump(); m.bump();' +
+      ' globalThis.modNs = before + "," + m.n + "," + m.bump();');
+    AssertTrue('namespace script succeeds', res.Success);
+    res := ctx.Evaluate('String(globalThis.modNs);');
+    AssertEquals('star re-exports and live bindings', '0,2,3', res.StringValue);
+
+    res := ctx.EvaluateModule('cyc',
+      'import * as c1 from "cyc1"; import * as c2 from "cyc2";' +
+      ' globalThis.modCyc = c1.a + c2.b + c1.ga();');
+    AssertTrue('cycle script succeeds', res.Success);
+    res := ctx.Evaluate('String(globalThis.modCyc);');
+    AssertEquals('an import cycle evaluates once', 'abb', res.StringValue);
+
+    res := ctx.EvaluateModule('bad', 'export const a = 1; export { a };');
+    AssertFalse('a duplicate export is a SyntaxError', res.Success);
+    AssertTrue('duplicate export message',
+      Pos('Duplicate export', res.ErrorMessage) > 0);
+
+    res := ctx.EvaluateModule('bad2', 'export { missing };');
+    AssertFalse('exporting an undeclared name is a SyntaxError', res.Success);
+
+    res := ctx.EvaluateModule('bad3', 'import { q } from "counter";');
+    AssertFalse('importing a missing export is a SyntaxError', res.Success);
+
+    res := ctx.EvaluateModule('bad4',
+      'class F {} export default function F() {}');
+    AssertFalse('a duplicate top-level declaration is a SyntaxError', res.Success);
+    AssertTrue('duplicate declaration is reported before evaluation',
+      Pos('Duplicate declaration', res.ErrorMessage) > 0);
+
+    res := ctx.EvaluateModule('ok-dup-var',
+      'export var a = 1; var a = 2; export function g() { return a; }');
+    AssertTrue('a repeated var binding is still legal', res.Success);
+  finally
+    loader.Free();
     ctx.Free();
   end;
 end;

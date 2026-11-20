@@ -52,9 +52,9 @@ Implemented and covered by the test suite:
   (`next`/`return`/`Symbol.iterator`).
 - Async iteration: `for await` over async iterators and sync iterables, and
   `async function*` generators with `yield`, `await`, and `yield*`.
-- Modules: static relative `import`/`export` through the diagnostic bundler,
-  plus `import.meta`, dynamic `import()`, JSON/text import attributes, and
-  live bindings.
+- Modules: real ECMAScript module records with `import`/`export`, live
+  bindings, `import.meta`, dynamic `import()`, star and namespace re-exports,
+  import attributes, and cycle-safe evaluation.
 - Binary and concurrency data: `ArrayBuffer`, `SharedArrayBuffer`, `DataView`,
   BigInt typed arrays, and core `Atomics`; the diagnostic host also provides
   cooperative `$262.agent` agents.

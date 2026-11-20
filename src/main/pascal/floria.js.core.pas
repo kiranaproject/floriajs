@@ -19,7 +19,8 @@ interface
 uses
   Classes, SysUtils, floria.js.types, floria.js.ast, floria.js.parser,
   floria.js.value, floria.js.env, floria.js.stdlib, floria.js.timers,
-  floria.js.bytecode, floria.js.vm, floria.js.compiler;
+  floria.js.bytecode, floria.js.vm, floria.js.compiler, floria.js.module,
+  floria.js.lexer;
 
 type
   { Forward Declarations }
@@ -37,10 +38,45 @@ type
     FCompiler: TFloriaJSCompiler;
     FOutput: TStringList;
     FGlobalObject: TFloriaJSObject;
+    FModuleRegistry: TFloriaJSModuleRegistry;
 
     procedure InitContext();
     function  EvaluateScript(const AScript: string): TFloriaJSValue;
     function  GetTimerRegistry(): TFloriaJSTimerRegistry;
+    { Module record helpers. See the implementation for the specification
+      sections each one follows. }
+    function  ParseModuleRecord(AModule: TFloriaJSModuleRecord;
+      const ASource: string; out AErrorMessage: string): Boolean;
+    { Every name a module declares at its top level. }
+    procedure CollectModuleBindings(AProgram: TFloriaJSProgram; AInto: TStrings);
+    { Module early errors for duplicate top-level declarations: a lexical
+      binding may not repeat, a function may not repeat, and a lexical binding
+      may not share a name with a var or function. Returns False and fills
+      AErrorMessage on a conflict. }
+    function  CheckModuleBindingDuplicates(AProgram: TFloriaJSProgram;
+      out AErrorMessage: string): Boolean;
+    { Creates the module's top-level lexical bindings in their uninitialized
+      state, which is what gives them a temporal dead zone. }
+    procedure HoistModuleLexicals(AProgram: TFloriaJSProgram;
+      AEnv: TFloriaJSEnvironment);
+    function  CreateModuleEnvironment(): TFloriaJSEnvironment;
+    function  LinkModule(AModule: TFloriaJSModuleRecord;
+      out AErrorMessage: string): Boolean;
+    function  ResolveImportValue(ADep: TFloriaJSModuleRecord;
+      const AName: string): TFloriaJSValue;
+    { The live reader installed for an import binding. }
+    function  ReadImportBinding(AModule: TObject;
+      const AImportName: string): TFloriaJSValue;
+    { Re-reads every import binding from the exporting module. Called just
+      before a module body runs, after its dependencies have evaluated. }
+    procedure RefreshImports(AModule: TFloriaJSModuleRecord);
+    { Builds the import.meta object for a module. }
+    function  MakeImportMeta(AModule: TFloriaJSModuleRecord): TFloriaJSValue;
+  public
+    { Module helpers the dynamic-import closure and the host use. }
+    function  LinkDependency(ADep: TFloriaJSModuleRecord): Boolean;
+    procedure EvaluateModuleBody(AModule: TFloriaJSModuleRecord);
+    function  MakeNamespaceFor(ADep: TFloriaJSModuleRecord): TFloriaJSValue;
   public
     constructor Create(AEngine: TFloriaJSEngine; const AName: string = 'global');
     destructor Destroy(); override;
@@ -71,6 +107,21 @@ type
       runtime throws propagate unchanged. }
     function  EvaluateReentrant(const AScript: string): TFloriaJSValue; virtual;
     function  Call(const AFuncName: string; const AArgs: array of TFloriaJSValue): TFloriaJSValue; virtual;
+
+    { Evaluates ASource as an ECMAScript module with the given resolved
+      identifier. The loader supplies the source of every dependency. Linking
+      and evaluation follow the specification, including cycle ordering and
+      the TDZ of a binding that has not been initialised yet. }
+    function  EvaluateModule(const AIdentifier, ASource: string): TFloriaJSResult;
+    { The phase-aware form. A module that fails to parse or link reports a
+      parse or compile error, which is what a negative test expects. }
+    function  EvaluateModuleDetailed(const AIdentifier,
+      ASource: string): TFloriaJSDiagnosticResult;
+    { Installs the callback that resolves a module specifier to source. }
+    procedure SetModuleLoader(ALoader: TFloriaJSModuleLoader);
+    { The namespace object of a module that has been evaluated. }
+    function  GetModuleNamespace(const AIdentifier: string): TFloriaJSValue;
+    property ModuleRegistry: TFloriaJSModuleRegistry read FModuleRegistry;
 
     { Gives a value that was handed out back to the runtime. The object the
       value points at becomes eligible for reclamation once nothing refers to
@@ -189,6 +240,11 @@ begin
   FreeAndNil(FCompiler);
   FreeAndNil(FVM);
   FreeAndNil(FHeap);
+  if FModuleRegistry <> nil then
+  begin
+    FModuleRegistry.Loader := nil;
+    FreeAndNil(FModuleRegistry);
+  end;
   FGlobalEnv := nil;
   FreeAndNil(FOutput);
   inherited Destroy();
@@ -201,6 +257,7 @@ begin
   FGlobalObject := FHeap.NewObject(FHeap.GetObjectPrototype());
   FGlobalObject.Pin();
   FGlobalEnv.DelegateObject := FGlobalObject;
+  FModuleRegistry := TFloriaJSModuleRegistry.Create();
   FHeap.RealmGlobal := FGlobalObject;
 
   FloriaJSRegisterStdLib(FGlobalEnv, FHeap, FOutput);
@@ -557,6 +614,945 @@ begin
     stay alive for as long as the caller keeps it. }
   if Result.IsObject() and (Result.ObjVal <> nil) then
     Result.ObjVal.Pin;
+end;
+
+
+{ ------------------------------------------------------------------------ }
+{ Module records: parsing, linking, namespace construction, and evaluation. }
+{ ------------------------------------------------------------------------ }
+
+type
+  { A dynamic `import(specifier)` closes over the importing context and its
+    module, so the specifier is resolved relative to the right file. It returns
+    a promise of the module namespace. }
+  TDynamicImporter = class
+  private
+    FContext: TFloriaJSContext;
+    FModule: TFloriaJSModuleRecord;
+  public
+    constructor Create(AContext: TFloriaJSContext;
+      AModule: TFloriaJSModuleRecord);
+    function Import(const AArgs: array of TFloriaJSValue;
+      AThis: TFloriaJSValue): TFloriaJSValue;
+  end;
+
+  { A namespace accessor reads its exporting module's live binding on every
+    access, which is what makes imports live. }
+  TNamespaceGetter = class
+  private
+    FContext: TFloriaJSContext;
+    FModule: TFloriaJSModuleRecord;
+    FExportName: string;
+  public
+    constructor Create(AContext: TFloriaJSContext;
+      AModule: TFloriaJSModuleRecord; const AExportName: string);
+    function Get(const AArgs: array of TFloriaJSValue;
+      AThis: TFloriaJSValue): TFloriaJSValue;
+  end;
+
+constructor TDynamicImporter.Create(AContext: TFloriaJSContext;
+  AModule: TFloriaJSModuleRecord);
+begin
+  inherited Create();
+  FContext := AContext;
+  FModule := AModule;
+end;
+
+function TDynamicImporter.Import(const AArgs: array of TFloriaJSValue;
+  AThis: TFloriaJSValue): TFloriaJSValue;
+var
+  specifier: string;
+  source, resolved: string;
+  dep: TFloriaJSModuleRecord;
+  promise, target: TFloriaJSPromise;
+begin
+  Result := JSMakeUndefined();
+  if Length(AArgs) = 0 then
+    Exit;
+  specifier := JSToString(AArgs[0]);
+
+  dep := nil;
+  if FModule <> nil then
+    dep := FModule.DependencyFor(specifier);
+  if dep = nil then
+  begin
+    { Not already linked: load it through the registry. }
+    dep := FContext.ModuleRegistry.Load(specifier, FModule.Identifier);
+  end;
+
+  promise := FContext.Heap.NewPromise();
+  target := promise;
+  if dep = nil then
+  begin
+    target.Reject(JSMakeObject(FContext.Heap.NewError('TypeError',
+      'Cannot resolve module ' + specifier)));
+    Exit(JSMakePromise(promise));
+  end;
+
+  try
+    if not FContext.LinkDependency(dep) then
+    begin
+      target.Reject(JSMakeObject(FContext.Heap.NewError('SyntaxError',
+        'Cannot link module ' + specifier)));
+      Exit(JSMakePromise(promise));
+    end;
+    FContext.EvaluateModuleBody(dep);
+    target.Fulfill(FContext.MakeNamespaceFor(dep));
+  except
+    on E: EFloriaJSThrow do
+      target.Reject(E.Value);
+  end;
+  Result := JSMakePromise(promise);
+end;
+
+constructor TNamespaceGetter.Create(AContext: TFloriaJSContext;
+  AModule: TFloriaJSModuleRecord; const AExportName: string);
+begin
+  inherited Create();
+  FContext := AContext;
+  FModule := AModule;
+  FExportName := AExportName;
+end;
+
+function TNamespaceGetter.Get(const AArgs: array of TFloriaJSValue;
+  AThis: TFloriaJSValue): TFloriaJSValue;
+begin
+  Result := FContext.ResolveImportValue(FModule, FExportName);
+end;
+
+procedure TFloriaJSContext.SetModuleLoader(ALoader: TFloriaJSModuleLoader);
+begin
+  if FModuleRegistry <> nil then
+    FModuleRegistry.Loader := ALoader;
+end;
+
+{ Module early errors for duplicate top-level declarations. Module code is
+  strict, so two function declarations may not share a name, and the
+  lexically declared names must be disjoint from the var-declared names. }
+function TFloriaJSContext.CheckModuleBindingDuplicates(
+  AProgram: TFloriaJSProgram; out AErrorMessage: string): Boolean;
+var
+  i, j: Integer;
+  stmt, inner: TFloriaJSStmtNode;
+  varStmt: TFloriaJSVarStmt;
+  lexical, varNames, functions: TStringList;
+  bindingName: string;
+begin
+  Result := True;
+  AErrorMessage := '';
+  if AProgram = nil then Exit;
+
+  lexical := TStringList.Create();
+  varNames := TStringList.Create();
+  functions := TStringList.Create();
+  try
+    lexical.CaseSensitive := True;
+    varNames.CaseSensitive := True;
+    functions.CaseSensitive := True;
+
+    for i := 0 to AProgram.GetStatementCount() - 1 do
+    begin
+      stmt := AProgram.GetStatement(i);
+      if stmt is TFloriaJSExportDecl then
+        inner := TFloriaJSExportDecl(stmt).Declaration
+      else
+        inner := stmt;
+
+      if inner is TFloriaJSVarStmt then
+      begin
+        varStmt := TFloriaJSVarStmt(inner);
+        for j := 0 to varStmt.GetDeclaratorCount() - 1 do
+        begin
+          bindingName := varStmt.GetDeclaratorName(j);
+          if bindingName = '' then Continue;
+          if varStmt.Kind in [tkLet, tkConst] then
+          begin
+            if lexical.IndexOf(bindingName) >= 0 then
+            begin
+              AErrorMessage := 'Duplicate declaration of ' + bindingName;
+              Exit(False);
+            end;
+            lexical.Add(bindingName);
+          end
+          else if varNames.IndexOf(bindingName) < 0 then
+            varNames.Add(bindingName);
+        end;
+      end
+      else if inner is TFloriaJSFunctionDecl then
+      begin
+        bindingName := TFloriaJSFunctionDecl(inner).Name;
+        if bindingName = '' then Continue;
+        if functions.IndexOf(bindingName) >= 0 then
+        begin
+          AErrorMessage := 'Duplicate declaration of ' + bindingName;
+          Exit(False);
+        end;
+        functions.Add(bindingName);
+        if varNames.IndexOf(bindingName) < 0 then
+          varNames.Add(bindingName);
+      end;
+    end;
+
+    for i := 0 to lexical.Count - 1 do
+      if varNames.IndexOf(lexical[i]) >= 0 then
+      begin
+        AErrorMessage := 'Duplicate declaration of ' + lexical[i];
+        Exit(False);
+      end;
+  finally
+    lexical.Free();
+    varNames.Free();
+    functions.Free();
+  end;
+end;
+
+{ Every top-level binding name: var/let/const declarators, function and class
+  declarations, and the inner declaration of an export. }
+procedure TFloriaJSContext.CollectModuleBindings(AProgram: TFloriaJSProgram;
+  AInto: TStrings);
+var
+  i, j: Integer;
+  stmt, inner: TFloriaJSStmtNode;
+begin
+  if (AProgram = nil) or (AInto = nil) then Exit;
+  for i := 0 to AProgram.GetStatementCount() - 1 do
+  begin
+    stmt := AProgram.GetStatement(i);
+    { An imported binding is a local name, so `export { x }` may name it. }
+    if stmt is TFloriaJSImportDecl then
+    begin
+      for j := 0 to TFloriaJSImportDecl(stmt).GetEntryCount() - 1 do
+        AInto.Add(TFloriaJSImportDecl(stmt).GetEntryLocalName(j));
+      Continue;
+    end;
+    inner := nil;
+    if stmt is TFloriaJSExportDecl then
+      inner := TFloriaJSExportDecl(stmt).Declaration
+    else
+      inner := stmt;
+    if inner is TFloriaJSVarStmt then
+    begin
+      for j := 0 to TFloriaJSVarStmt(inner).GetDeclaratorCount() - 1 do
+        if TFloriaJSVarStmt(inner).GetDeclaratorName(j) <> '' then
+          AInto.Add(TFloriaJSVarStmt(inner).GetDeclaratorName(j));
+      { A destructuring declarator has no name accessor; mark the module as
+        having an unanalysable binding so the undeclared-export check is
+        skipped rather than producing a false error. }
+      for j := 0 to TFloriaJSVarStmt(inner).GetDeclaratorCount() - 1 do
+        if (TFloriaJSVarStmt(inner).GetDeclaratorName(j) = '') and
+           (TFloriaJSVarStmt(inner).GetDeclaratorPattern(j) <> nil) then
+          AInto.Add('*destructured*');
+    end
+    else if inner is TFloriaJSFunctionDecl then
+      AInto.Add(TFloriaJSFunctionDecl(inner).Name);
+  end;
+end;
+
+{ Creates an uninitialised binding for every top-level let/const/class. The
+  body's own declaration then initialises it. }
+procedure TFloriaJSContext.HoistModuleLexicals(AProgram: TFloriaJSProgram;
+  AEnv: TFloriaJSEnvironment);
+var
+  i, j: Integer;
+  stmt, inner: TFloriaJSStmtNode;
+  varStmt: TFloriaJSVarStmt;
+begin
+  if (AProgram = nil) or (AEnv = nil) then Exit;
+  for i := 0 to AProgram.GetStatementCount() - 1 do
+  begin
+    stmt := AProgram.GetStatement(i);
+    if stmt is TFloriaJSExportDecl then
+    begin
+      { `export default <expr>` and an anonymous default class create the
+        `*default*` binding uninitialised, so reading it before the statement
+        runs raises the TDZ error. }
+      if TFloriaJSExportDecl(stmt).IsDefault and
+         (TFloriaJSExportDecl(stmt).Declaration = nil) then
+        AEnv.DeclareLexical('*default*', False, bkLet);
+      inner := TFloriaJSExportDecl(stmt).Declaration;
+    end
+    else
+      inner := stmt;
+    if inner is TFloriaJSVarStmt then
+    begin
+      varStmt := TFloriaJSVarStmt(inner);
+      if varStmt.Kind in [tkLet, tkConst] then
+        for j := 0 to varStmt.GetDeclaratorCount() - 1 do
+          if varStmt.GetDeclaratorName(j) <> '' then
+          begin
+            if varStmt.Kind = tkConst then
+              AEnv.DeclareLexical(varStmt.GetDeclaratorName(j), True, bkConst)
+            else
+              AEnv.DeclareLexical(varStmt.GetDeclaratorName(j), False, bkLet);
+          end;
+    end;
+  end;
+end;
+
+{ Parses a module body and populates its five entry lists and dependencies.
+  Returns False (with a SyntaxError result) when the source is not a valid
+  module. }
+function TFloriaJSContext.ParseModuleRecord(
+  AModule: TFloriaJSModuleRecord; const ASource: string;
+  out AErrorMessage: string): Boolean;
+var
+  parser: TFloriaJSParser;
+  prog: TFloriaJSProgram;
+  declareNames, exportNames: TStringList;
+  i, j: Integer;
+  stmt: TFloriaJSStmtNode;
+  importDecl: TFloriaJSImportDecl;
+  exportDecl: TFloriaJSExportDecl;
+  dep: TFloriaJSModuleRecord;
+  request: string;
+  seen: TStringList;
+begin
+  Result := False;
+  AErrorMessage := '';
+  parser := TFloriaJSParser.Create(ASource);
+  try
+    parser.SetModuleMode(True);
+    prog := parser.ParseProgram();
+    if parser.HasErrors() then
+    begin
+      AErrorMessage := parser.GetError(0);
+      prog.Free();
+      Exit;
+    end;
+    AModule.Body := prog;
+
+    { Collect the entry lists. }
+    for i := 0 to prog.GetStatementCount() - 1 do
+    begin
+      stmt := prog.GetStatement(i);
+      if stmt is TFloriaJSImportDecl then
+      begin
+        importDecl := TFloriaJSImportDecl(stmt);
+        for j := 0 to importDecl.GetEntryCount() - 1 do
+          AModule.AddImport(importDecl.ModuleSpecifier,
+            importDecl.GetEntryImportName(j), importDecl.GetEntryLocalName(j));
+      end
+      else if stmt is TFloriaJSExportDecl then
+      begin
+        exportDecl := TFloriaJSExportDecl(stmt);
+        for j := 0 to exportDecl.GetLocalExportCount() - 1 do
+          AModule.AddLocalExport(exportDecl.GetLocalExportName(j),
+            exportDecl.GetLocalExportAsName(j));
+        { `export const x = 1` (and let/var) export every declared name. A
+          default export publishes only `default`, even when it also creates a
+          local binding. }
+        if (not exportDecl.IsDefault) and
+           (exportDecl.Declaration is TFloriaJSVarStmt) then
+          for j := 0 to TFloriaJSVarStmt(exportDecl.Declaration).GetDeclaratorCount() - 1 do
+            AModule.AddLocalExport(
+              TFloriaJSVarStmt(exportDecl.Declaration).GetDeclaratorName(j),
+              TFloriaJSVarStmt(exportDecl.Declaration).GetDeclaratorName(j));
+        { `export function f() {}` and `export class C {}` export their name. }
+        if (not exportDecl.IsDefault) and
+           (exportDecl.Declaration is TFloriaJSFunctionDecl) then
+          AModule.AddLocalExport(
+            TFloriaJSFunctionDecl(exportDecl.Declaration).Name,
+            TFloriaJSFunctionDecl(exportDecl.Declaration).Name);
+        { A default export is published as "default". }
+        if exportDecl.IsDefault then
+        begin
+          if exportDecl.Declaration is TFloriaJSFunctionDecl then
+            AModule.AddLocalExport(
+              TFloriaJSFunctionDecl(exportDecl.Declaration).Name, 'default')
+          else
+            AModule.AddLocalExport('*default*', 'default');
+        end;
+        for j := 0 to exportDecl.GetIndirectExportCount() - 1 do
+          AModule.AddIndirectExport(exportDecl.GetIndirectExportFrom(j),
+            exportDecl.GetIndirectExportImportName(j),
+            exportDecl.GetIndirectExportExportName(j));
+        for j := 0 to exportDecl.GetStarExportCount() - 1 do
+          AModule.AddStarExport(exportDecl.GetStarExportFrom(j));
+      end;
+    end;
+
+    { Resolve every requested module through the loader. }
+    if FModuleRegistry.Loader = nil then
+    begin
+      AErrorMessage := 'no module loader is installed';
+      Exit;
+    end;
+    seen := TStringList.Create();
+    try
+      seen.CaseSensitive := True;
+      for i := 0 to prog.GetStatementCount() - 1 do
+      begin
+        stmt := prog.GetStatement(i);
+        request := '';
+        if stmt is TFloriaJSImportDecl then
+          request := TFloriaJSImportDecl(stmt).ModuleSpecifier
+        else if stmt is TFloriaJSExportDecl then
+        begin
+          exportDecl := TFloriaJSExportDecl(stmt);
+          if exportDecl.GetIndirectExportCount() > 0 then
+            request := exportDecl.GetIndirectExportFrom(0)
+          else if exportDecl.GetStarExportCount() > 0 then
+            request := exportDecl.GetStarExportFrom(0);
+        end;
+        if (request = '') or (seen.IndexOf(request) >= 0) then
+          Continue;
+        seen.Add(request);
+        dep := FModuleRegistry.Load(request, AModule.Identifier);
+        if dep = nil then
+        begin
+          AErrorMessage := 'Cannot resolve module ' + request;
+          Exit;
+        end;
+        AModule.AddDependency(request, dep);
+      end;
+      { Indirect and star exports may name several distinct modules. }
+      for i := 0 to High(AModule.IndirectExportEntries) do
+      begin
+        request := AModule.IndirectExportEntries[i].ModuleRequest;
+        if seen.IndexOf(request) >= 0 then Continue;
+        seen.Add(request);
+        dep := FModuleRegistry.Load(request, AModule.Identifier);
+        if dep = nil then
+        begin
+          AErrorMessage := 'Cannot resolve module ' + request;
+          Exit;
+        end;
+        AModule.AddDependency(request, dep);
+      end;
+      for i := 0 to High(AModule.StarExportEntries) do
+      begin
+        request := AModule.StarExportEntries[i].ModuleRequest;
+        if seen.IndexOf(request) >= 0 then Continue;
+        seen.Add(request);
+        dep := FModuleRegistry.Load(request, AModule.Identifier);
+        if dep = nil then
+        begin
+          AErrorMessage := 'Cannot resolve module ' + request;
+          Exit;
+        end;
+        AModule.AddDependency(request, dep);
+      end;
+    finally
+      seen.Free();
+    end;
+
+    { Module early errors: an export name must be unique across the local and
+      indirect entries, and a local export must name a declared binding. }
+    declareNames := TStringList.Create();
+    exportNames := TStringList.Create();
+    try
+      declareNames.CaseSensitive := True;
+      exportNames.CaseSensitive := True;
+      CollectModuleBindings(TFloriaJSProgram(AModule.Body), declareNames);
+      if not CheckModuleBindingDuplicates(TFloriaJSProgram(AModule.Body),
+        AErrorMessage) then
+        Exit;
+      for i := 0 to High(AModule.LocalExportEntries) do
+      begin
+        if exportNames.IndexOf(AModule.LocalExportEntries[i].ExportName) >= 0 then
+        begin
+          AErrorMessage := 'Duplicate export ' + AModule.LocalExportEntries[i].ExportName;
+          Exit;
+        end;
+        exportNames.Add(AModule.LocalExportEntries[i].ExportName);
+        if (AModule.LocalExportEntries[i].LocalName <> '*default*') and
+           (declareNames.IndexOf('*destructured*') < 0) and
+           (declareNames.IndexOf(AModule.LocalExportEntries[i].LocalName) < 0) then
+        begin
+          AErrorMessage := 'Export ' + AModule.LocalExportEntries[i].LocalName +
+            ' is not declared in the module';
+          Exit;
+        end;
+      end;
+      for i := 0 to High(AModule.IndirectExportEntries) do
+      begin
+        if exportNames.IndexOf(AModule.IndirectExportEntries[i].ExportName) >= 0 then
+        begin
+          AErrorMessage := 'Duplicate export ' + AModule.IndirectExportEntries[i].ExportName;
+          Exit;
+        end;
+        exportNames.Add(AModule.IndirectExportEntries[i].ExportName);
+      end;
+    finally
+      exportNames.Free();
+      declareNames.Free();
+    end;
+
+    { Link: parse dependencies depth-first, then validate that every import
+      resolves. }
+    Result := True;
+  finally
+    parser.Free();
+  end;
+end;
+
+{ The current value of an exported binding. The binding lives in the exporting
+  module's own environment, so a read is always live. }
+function TFloriaJSContext.ResolveImportValue(ADep: TFloriaJSModuleRecord;
+  const AName: string): TFloriaJSValue;
+var
+  binding: TFloriaJSResolvedBinding;
+  resolveSet: TStringList;
+  res: TFloriaJSResolveResult;
+begin
+  Result := JSMakeUndefined();
+  if ADep = nil then Exit;
+  if AName = '*' then
+    Exit(MakeNamespaceFor(ADep));
+  resolveSet := TStringList.Create();
+  try
+    resolveSet.CaseSensitive := True;
+    res := FloriaJSResolveExport(ADep, AName, resolveSet, binding);
+  finally
+    resolveSet.Free();
+  end;
+  if res <> rrResolved then
+    Exit(JSMakeUndefined());
+  if binding.BindingName = '*' then
+    Exit(MakeNamespaceFor(binding.Module));
+  if (binding.Module <> nil) and (binding.Module.Environment <> nil) then
+    Result := binding.Module.Environment.GetDefault(binding.BindingName,
+      JSMakeUndefined());
+end;
+
+{ The module namespace object: one property per exported name, each reading
+  through to the live binding. }
+function TFloriaJSContext.MakeNamespaceFor(
+  ADep: TFloriaJSModuleRecord): TFloriaJSValue;
+var
+  names: TStringList;
+  ns: TFloriaJSObject;
+  i: Integer;
+  exportName: string;
+  getter: TFloriaJSFunction;
+  accessor: TNamespaceGetter;
+  holder: TFloriaJSValue;
+begin
+  if ADep = nil then
+    Exit(JSMakeUndefined());
+  if ADep.Namespace.IsObject() then
+    Exit(ADep.Namespace);
+
+  names := TStringList.Create();
+  try
+    names.CaseSensitive := True;
+    ADep.CollectExportedNames(names);
+    ns := FHeap.NewObject(nil, True);
+    for i := 0 to names.Count - 1 do
+    begin
+      exportName := names[i];
+      { The getter closes over the exporting module and the export name. }
+      accessor := TNamespaceGetter.Create(Self, ADep, exportName);
+      getter := FHeap.NewNativeMethod('get ' + exportName, @accessor.Get);
+      ns.DefineAccessorProperty(exportName, JSMakeFunction(getter), JSMakeUndefined(),
+        True, False);
+    end;
+    holder := JSMakeObject(ns);
+    ADep.Namespace := holder;
+    Result := holder;
+  finally
+    names.Free();
+  end;
+end;
+
+{ Creates the environment a module body runs in: a child of the global scope
+  with no delegate object, so module bindings never appear on globalThis. }
+function TFloriaJSContext.CreateModuleEnvironment: TFloriaJSEnvironment;
+begin
+  Result := TFloriaJSEnvironment(FHeap.TrackEnvironment(
+    TFloriaJSEnvironment.Create(FGlobalEnv, FHeap)));
+end;
+
+{ Link(module): parse dependencies, then resolve every import to a concrete
+  binding or namespace. A failure is reported as a SyntaxError result. }
+function TFloriaJSContext.LinkModule(AModule: TFloriaJSModuleRecord;
+  out AErrorMessage: string): Boolean;
+var
+  i: Integer;
+  dep: TFloriaJSModuleRecord;
+  binding: TFloriaJSResolvedBinding;
+  resolveSet: TStringList;
+  res: TFloriaJSResolveResult;
+  request: string;
+begin
+  Result := False;
+  AErrorMessage := '';
+
+  { Any status past linked means linking is done; re-linking an evaluated
+    module would reset it and cause a re-evaluation. }
+  if AModule.Status in [fmsLinking, fmsLinked, fmsEvaluating, fmsEvaluated,
+    fmsErrored] then
+    Exit(AModule.Status <> fmsErrored);
+
+  AModule.Status := fmsLinking;
+  try
+    if AModule.Body = nil then
+    begin
+      AErrorMessage := 'module body is not parsed';
+      Exit;
+    end;
+
+    { Parse and link the dependencies first, which flattens the import graph. }
+    for i := 0 to AModule.RequestedModules.Count - 1 do
+    begin
+      dep := TFloriaJSModuleRecord(AModule.RequestedModules.Objects[i]);
+      if (dep = nil) or (dep = AModule) then Continue;
+      if dep.Status in [fmsLinking, fmsLinked, fmsEvaluating, fmsEvaluated,
+        fmsErrored] then Continue;
+      if dep.Body = nil then
+      begin
+        if dep.SourceText = '' then
+        begin
+          AErrorMessage := 'module ' + dep.Identifier + ' has no source';
+          Exit;
+        end;
+        if not ParseModuleRecord(dep, dep.SourceText, AErrorMessage) then
+          Exit;
+      end;
+      if not LinkModule(dep, AErrorMessage) then
+        Exit;
+    end;
+
+    resolveSet := TStringList.Create();
+    try
+      resolveSet.CaseSensitive := True;
+      for i := 0 to High(AModule.ImportEntries) do
+      begin
+        request := AModule.ImportEntries[i].ModuleRequest;
+        dep := AModule.DependencyFor(request);
+        if dep = nil then
+        begin
+          AErrorMessage := 'Cannot resolve module ' + request;
+          Exit;
+        end;
+        if AModule.ImportEntries[i].ImportName = '*' then
+          Continue;
+        res := FloriaJSResolveExport(dep, AModule.ImportEntries[i].ImportName,
+          resolveSet, binding);
+        if res = rrAmbiguous then
+        begin
+          AErrorMessage := 'Ambiguous export ' + AModule.ImportEntries[i].ImportName +
+            ' from ' + request;
+          Exit;
+        end;
+        if res <> rrResolved then
+        begin
+          AErrorMessage := 'The requested module ' + request +
+            ' does not provide an export named ' + AModule.ImportEntries[i].ImportName;
+          Exit;
+        end;
+      end;
+    finally
+      resolveSet.Free();
+    end;
+
+    { Compile now, so a duplicate binding or another early error is reported at
+      link time, which is a parse-phase SyntaxError. }
+    if (AModule.Chunk = nil) and (AModule.Body <> nil) then
+      AModule.Chunk := FCompiler.CompileProgram(TFloriaJSProgram(AModule.Body));
+
+    AModule.Environment := CreateModuleEnvironment;
+    { Install one binding per import entry. A namespace import binds the
+      dependency's namespace object; a named or default import is a live
+      mirror of the exporting module's binding. }
+    for i := 0 to High(AModule.ImportEntries) do
+    begin
+      request := AModule.ImportEntries[i].ModuleRequest;
+      dep := AModule.DependencyFor(request);
+      if dep = nil then Continue;
+      AModule.Environment.DefineImport(AModule.ImportEntries[i].LocalName, dep,
+        AModule.ImportEntries[i].ImportName, @ReadImportBinding);
+    end;
+    AModule.Status := fmsLinked;
+    Result := True;
+  finally
+    if (not Result) and (AModule.Status = fmsLinking) then
+      AModule.Status := fmsErrored;
+  end;
+end;
+
+{ Evaluates a linked module. Cycle-safe: a module already evaluating returns
+  immediately, which is what lets a cycle observe the partial bindings of its
+  peer. }
+{ Links one dependency: parse it if necessary, then link it. }
+function TFloriaJSContext.LinkDependency(
+  ADep: TFloriaJSModuleRecord): Boolean;
+var
+  message: string;
+begin
+  Result := False;
+  if ADep = nil then Exit;
+  if ADep.Status in [fmsLinking, fmsLinked, fmsEvaluating, fmsEvaluated] then
+    Exit(True);
+  if ADep.Body = nil then
+  begin
+    if ADep.SourceText = '' then
+      Exit;
+    if not ParseModuleRecord(ADep, ADep.SourceText, message) then
+      Exit;
+  end;
+  Result := LinkModule(ADep, message);
+end;
+
+function TFloriaJSContext.ReadImportBinding(AModule: TObject;
+  const AImportName: string): TFloriaJSValue;
+begin
+  Result := ResolveImportValue(TFloriaJSModuleRecord(AModule), AImportName);
+end;
+
+function TFloriaJSContext.MakeImportMeta(
+  AModule: TFloriaJSModuleRecord): TFloriaJSValue;
+var
+  meta: TFloriaJSObject;
+begin
+  if AModule = nil then
+    Exit(JSMakeUndefined());
+  if AModule.Meta.IsObject() then
+    Exit(AModule.Meta);
+  meta := FHeap.NewObject(nil, True);
+  meta.SetProperty('url', JSMakeString(AModule.Identifier));
+  AModule.Meta := JSMakeObject(meta);
+  Result := AModule.Meta;
+end;
+
+procedure TFloriaJSContext.RefreshImports(AModule: TFloriaJSModuleRecord);
+var
+  i: Integer;
+  dep: TFloriaJSModuleRecord;
+  request, localName: string;
+begin
+  if (AModule = nil) or (AModule.Environment = nil) then Exit;
+  for i := 0 to High(AModule.ImportEntries) do
+  begin
+    request := AModule.ImportEntries[i].ModuleRequest;
+    localName := AModule.ImportEntries[i].LocalName;
+    dep := AModule.DependencyFor(request);
+    if dep = nil then Continue;
+    AModule.Environment.DefineImport(localName, dep,
+      AModule.ImportEntries[i].ImportName, @ReadImportBinding);
+  end;
+end;
+
+procedure TFloriaJSContext.EvaluateModuleBody(AModule: TFloriaJSModuleRecord);
+var
+  i: Integer;
+  dep: TFloriaJSModuleRecord;
+  code: TFloriaJSBytecode;
+  prog: TFloriaJSProgram;
+  savedEnv: TFloriaJSEnvironment;
+  importer: TDynamicImporter;
+begin
+  if AModule.Status = fmsEvaluated then Exit;
+  if AModule.Status = fmsEvaluating then Exit;
+  if AModule.Status = fmsErrored then Exit;
+
+  AModule.Status := fmsEvaluating;
+  try
+    { Depth-first, in source order, as 16.2.1.5.3.3 requires. }
+    for i := 0 to AModule.RequestedModules.Count - 1 do
+    begin
+      dep := TFloriaJSModuleRecord(AModule.RequestedModules.Objects[i]);
+      if dep <> nil then
+        EvaluateModuleBody(dep);
+    end;
+
+    { A module's top-level let/const/class are created uninitialised before the
+      body runs, so a read before the declaration raises the TDZ error. }
+    HoistModuleLexicals(TFloriaJSProgram(AModule.Body), AModule.Environment);
+    { The dependencies have evaluated, so import bindings can now be read. }
+    RefreshImports(AModule);
+    { A module body can read import.meta and call the dynamic import. }
+    AModule.Environment.Define('import.meta', MakeImportMeta(AModule), True);
+    importer := TDynamicImporter.Create(Self, AModule);
+    AModule.Environment.Define('import', JSMakeFunction(
+      FHeap.NewNativeMethod('import', @importer.Import)), True);
+
+    prog := TFloriaJSProgram(AModule.Body);
+    if prog <> nil then
+    begin
+      if AModule.Chunk <> nil then
+        code := TFloriaJSBytecode(AModule.Chunk)
+      else
+      begin
+        code := FCompiler.CompileProgram(prog);
+        AModule.Chunk := code;
+      end;
+      savedEnv := FGlobalEnv;
+      try
+        { The module body runs in its own environment, not the global one. The
+          var environment is the module's too, so a top-level declaration
+          binds there rather than on globalThis. }
+        FVM.Execute(code, AModule.Environment, JSMakeUndefined(),
+          AModule.Environment);
+        { The default export was bound under a private name; publish it under
+          the export key the resolver looks for. }
+      finally
+        FGlobalEnv := savedEnv;
+      end;
+    end;
+
+    AModule.Status := fmsEvaluated;
+  except
+    on E: EFloriaJSThrow do
+    begin
+      AModule.EvaluationError := E.Value;
+      AModule.Status := fmsErrored;
+      raise;
+    end;
+  end;
+end;
+
+function TFloriaJSContext.EvaluateModuleDetailed(const AIdentifier,
+  ASource: string): TFloriaJSDiagnosticResult;
+var
+  module: TFloriaJSModuleRecord;
+  errorMessage: string;
+begin
+  AssignDiagnostic(Result, FloriaJSMakeOkResult(''), fjdkSuccess,
+    AIdentifier, '', '', '');
+  if FModuleRegistry = nil then
+  begin
+    AssignDiagnostic(Result, FloriaJSMakeErrorResult('module registry unavailable'),
+      fjdkHostException, AIdentifier, '', 'module registry unavailable', '');
+    Exit;
+  end;
+  if AIdentifier = '' then
+  begin
+    AssignDiagnostic(Result, FloriaJSMakeErrorResult('a module needs an identifier'),
+      fjdkParseError, AIdentifier, 'SyntaxError',
+      'a module needs an identifier', '');
+    Exit;
+  end;
+
+  module := FModuleRegistry.Find(AIdentifier);
+  if module = nil then
+  begin
+    module := TFloriaJSModuleRecord.Create(AIdentifier, FModuleRegistry);
+    FModuleRegistry.Add(module);
+  end;
+
+  if module.Body = nil then
+  begin
+    if not ParseModuleRecord(module, ASource, errorMessage) then
+    begin
+      AssignDiagnostic(Result, FloriaJSMakeErrorResult(errorMessage),
+        fjdkParseError, AIdentifier, 'SyntaxError', errorMessage, '');
+      Exit;
+    end;
+  end;
+
+  if FHeap <> nil then
+    FHeap.Collect();
+
+  try
+    if not LinkModule(module, errorMessage) then
+    begin
+      AssignDiagnostic(Result, FloriaJSMakeErrorResult(errorMessage),
+        fjdkParseError, AIdentifier, 'SyntaxError', errorMessage, '');
+      Exit;
+    end;
+  except
+    on E: EFloriaJSCompileError do
+    begin
+      AssignDiagnostic(Result, FloriaJSMakeErrorResult(E.Message),
+        fjdkCompileError, AIdentifier, 'SyntaxError', E.Message, '');
+      Exit;
+    end;
+  end;
+
+  try
+    EvaluateModuleBody(module);
+  except
+    on E: EFloriaJSCompileError do
+    begin
+      AssignDiagnostic(Result, FloriaJSMakeErrorResult(E.Message),
+        fjdkCompileError, AIdentifier, 'SyntaxError', E.Message, '');
+      Exit;
+    end;
+    on E: EFloriaJSThrow do
+    begin
+      if E.Value.IsObject() and (E.Value.ObjVal is TFloriaJSError) then
+        AssignDiagnostic(Result, FloriaJSMakeErrorResult(E.Message),
+          fjdkJavaScriptThrow, AIdentifier,
+          TFloriaJSError(E.Value.ObjVal).Name, TFloriaJSError(E.Value.ObjVal).Message, '')
+      else
+        AssignDiagnostic(Result, FloriaJSMakeErrorResult(E.Message),
+          fjdkJavaScriptThrow, AIdentifier, '', E.Message, '');
+      Exit;
+    end;
+    on E: Exception do
+    begin
+      AssignDiagnostic(Result, FloriaJSMakeErrorResult(E.Message),
+        fjdkHostException, AIdentifier, '', E.Message, E.ClassName);
+      Exit;
+    end;
+  end;
+
+  DrainPromiseJobs();
+end;
+
+function TFloriaJSContext.EvaluateModule(const AIdentifier,
+  ASource: string): TFloriaJSResult;
+var
+  module: TFloriaJSModuleRecord;
+  errorMessage: string;
+  errVal: TFloriaJSValue;
+begin
+  Result := FloriaJSMakeOkResult('');
+  if FModuleRegistry = nil then
+    Exit(FloriaJSMakeErrorResult('module registry is unavailable'));
+
+  if AIdentifier = '' then
+    Exit(FloriaJSMakeErrorResult('SyntaxError: a module needs an identifier'));
+
+  module := FModuleRegistry.Find(AIdentifier);
+  if module = nil then
+  begin
+    module := TFloriaJSModuleRecord.Create(AIdentifier, FModuleRegistry);
+    if not ParseModuleRecord(module, ASource, errorMessage) then
+    begin
+      module.Free();
+      Exit(FloriaJSMakeErrorResult('SyntaxError: ' + errorMessage));
+    end;
+    FModuleRegistry.Add(module);
+  end
+  else if module.Body = nil then
+  begin
+    if not ParseModuleRecord(module, ASource, errorMessage) then
+      Exit(FloriaJSMakeErrorResult('SyntaxError: ' + errorMessage));
+  end;
+
+  if FHeap <> nil then
+    FHeap.Collect();
+
+  if not LinkModule(module, errorMessage) then
+    Exit(FloriaJSMakeErrorResult('SyntaxError: ' + errorMessage));
+
+  try
+    EvaluateModuleBody(module);
+  except
+    on E: EFloriaJSThrow do
+    begin
+      errVal := E.Value;
+      Result := FloriaJSMakeErrorResult(E.Message);
+      Exit;
+    end;
+  end;
+
+  DrainPromiseJobs();
+  Result := FloriaJSMakeOkResult('');
+end;
+
+function TFloriaJSContext.GetModuleNamespace(
+  const AIdentifier: string): TFloriaJSValue;
+var
+  module: TFloriaJSModuleRecord;
+begin
+  Result := JSMakeUndefined();
+  if FModuleRegistry = nil then Exit;
+  module := FModuleRegistry.Find(AIdentifier);
+  if module = nil then Exit;
+  Result := module.Namespace;
 end;
 
 procedure TFloriaJSContext.ReleaseValue(const AValue: TFloriaJSValue);

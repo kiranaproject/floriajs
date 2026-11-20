@@ -647,7 +647,8 @@ type
 
     procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
 
-    property Name: string read FName;
+    { Writable so `export default class {}` can infer the name `default`. }
+    property Name: string read FName write FName;
     property SuperClass: TFloriaJSExprNode read FSuperClass;
     property IsDeclaration: Boolean read FIsDeclaration write FIsDeclaration;
     { The exact class spelling, retained so the constructor's `toString` reports
@@ -738,6 +739,125 @@ type
     property IsAsync: Boolean read FIsAsync;
     property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
     property SourceText: string read FSourceText write FSourceText;
+  end;
+
+  { ────────────────────────────────────────────────────────────────────────── }
+  { Module declarations (import / export syntax)                              }
+  { ────────────────────────────────────────────────────────────────────────── }
+
+  { How an import clause binds a name. }
+  TFloriaJSImportKind = (fjikDefault, fjikNamed, fjikNamespace);
+
+  { One entry of an import declaration. ImportName is the name in the exporting
+    module ('default', an exported name, or '*' for a namespace import);
+    LocalName is the binding created in the importing module. }
+  TFloriaJSImportSpecifier = record
+    ImportName: string;
+    LocalName: string;
+    Kind: TFloriaJSImportKind;
+  end;
+
+  { Import Declaration: import "m"; import x from "m"; import * as ns from "m";
+    import named bindings from "m"; import x, named bindings from "m";
+    import x, * as ns from "m". }
+  TFloriaJSImportDecl = class(TFloriaJSStmtNode)
+  private
+    FModuleSpecifier: string;
+    FEntries: array of TFloriaJSImportSpecifier;
+    FCount: Integer;
+    FIsBare: Boolean;
+  public
+    constructor Create(const AModuleSpecifier: string; ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure AddEntry(const AImportName, ALocalName: string;
+      AKind: TFloriaJSImportKind);
+    function  GetEntryCount(): Integer;
+    function  GetEntryImportName(AIndex: Integer): string;
+    function  GetEntryLocalName(AIndex: Integer): string;
+    function  GetEntryKind(AIndex: Integer): TFloriaJSImportKind;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    { The module specifier text, e.g. './util.js'. }
+    property ModuleSpecifier: string read FModuleSpecifier write FModuleSpecifier;
+    { True for a side-effect-only import: import "m"; }
+    property IsBare: Boolean read FIsBare write FIsBare;
+  end;
+
+  { One (LocalName, ExportName) pair of a local export clause. }
+  TFloriaJSExportSpecifier = record
+    LocalName: string;
+    ExportName: string;
+  end;
+
+  { One indirect re-export: `export a as b from "m"`. ImportName is the
+    name in the source module, ExportName the name this module publishes. }
+  TFloriaJSIndirectExportSpecifier = record
+    ExportName: string;
+    ImportName: string;
+    ModuleSpecifier: string;
+  end;
+
+  { One star re-export: `export * from "m"` or `export * as ns from "m"`.
+    StarName is empty for the plain form. }
+  TFloriaJSStarExportSpecifier = record
+    ModuleSpecifier: string;
+    StarName: string;
+  end;
+
+  { Export Declaration: covers every export form.
+    - Declaration is set for `export const/let/var/function/class ...`.
+    - Expression is set for `export default <expr>`.
+    - LocalExports for a local export clause.
+    - IndirectExports for a re-export clause with `from`.
+    - StarExports for `export * from "m"` / `export * as ns from "m"`.
+    - IsDefault is true for any `export default ...` form. }
+  TFloriaJSExportDecl = class(TFloriaJSStmtNode)
+  private
+    FDeclaration: TFloriaJSStmtNode;
+    FExpression: TFloriaJSExprNode;
+    FLocalExports: array of TFloriaJSExportSpecifier;
+    FLocalCount: Integer;
+    FIndirectExports: array of TFloriaJSIndirectExportSpecifier;
+    FIndirectCount: Integer;
+    FStarExports: array of TFloriaJSStarExportSpecifier;
+    FStarCount: Integer;
+    FIsDefault: Boolean;
+  public
+    constructor Create(ALine, ACol: Integer);
+    destructor Destroy(); override;
+
+    procedure SetDeclaration(ADecl: TFloriaJSStmtNode);
+    procedure SetExpression(AExpr: TFloriaJSExprNode);
+    procedure AddLocalExport(const ALocalName, AExportName: string);
+    procedure AddIndirectExport(const AExportName, AImportName,
+      AModuleSpecifier: string);
+    procedure AddStarExport(const AModuleSpecifier: string;
+      const AStarName: string = '');
+
+    function  GetLocalExportCount(): Integer;
+    function  GetLocalExportLocalName(AIndex: Integer): string;
+    function  GetLocalExportExportName(AIndex: Integer): string;
+    function  GetIndirectExportCount(): Integer;
+    function  GetIndirectExportExportName(AIndex: Integer): string;
+    function  GetIndirectExportImportName(AIndex: Integer): string;
+    function  GetIndirectExportModuleSpecifier(AIndex: Integer): string;
+    function  GetStarExportCount(): Integer;
+    function  GetStarExportModuleSpecifier(AIndex: Integer): string;
+    function  GetStarExportName(AIndex: Integer): string;
+
+    { Alias accessors for consumers that read the clause by role. }
+    function  GetLocalExportName(AIndex: Integer): string;
+    function  GetLocalExportAsName(AIndex: Integer): string;
+    function  GetIndirectExportFrom(AIndex: Integer): string;
+    function  GetStarExportFrom(AIndex: Integer): string;
+
+    procedure Accept(AVisitor: IFloriaJSASTVisitor); override;
+
+    property Declaration: TFloriaJSStmtNode read FDeclaration;
+    property Expression: TFloriaJSExprNode read FExpression;
+    property IsDefault: Boolean read FIsDefault write FIsDefault;
   end;
 
   { Program / Script Root: Collection of top-level statements }
@@ -851,6 +971,8 @@ type
     procedure VisitContinueStmt(ANode: TFloriaJSContinueStmt);
     procedure VisitLabeledStmt(ANode: TFloriaJSLabeledStmt);
     procedure VisitFunctionDecl(ANode: TFloriaJSFunctionDecl);
+    procedure VisitImportDecl(ANode: TFloriaJSImportDecl);
+    procedure VisitExportDecl(ANode: TFloriaJSExportDecl);
     procedure VisitProgram(ANode: TFloriaJSProgram);
     procedure VisitFTMLComponent(ANode: TFloriaFTMLComponent);
   end;
@@ -2135,6 +2257,232 @@ end;
 procedure TFloriaJSFunctionDecl.Accept(AVisitor: IFloriaJSASTVisitor);
 begin
   if AVisitor <> nil then AVisitor.VisitFunctionDecl(Self);
+end;
+
+{ TFloriaJSImportDecl }
+
+constructor TFloriaJSImportDecl.Create(const AModuleSpecifier: string; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FModuleSpecifier := AModuleSpecifier;
+  FCount := 0;
+  SetLength(FEntries, 0);
+  FIsBare := False;
+end;
+
+destructor TFloriaJSImportDecl.Destroy();
+begin
+  SetLength(FEntries, 0);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSImportDecl.AddEntry(const AImportName, ALocalName: string;
+  AKind: TFloriaJSImportKind);
+begin
+  if FCount >= Length(FEntries) then
+    SetLength(FEntries, (FCount + 1) * 2);
+  FEntries[FCount].ImportName := AImportName;
+  FEntries[FCount].LocalName := ALocalName;
+  FEntries[FCount].Kind := AKind;
+  Inc(FCount);
+end;
+
+function TFloriaJSImportDecl.GetEntryCount(): Integer;
+begin
+  Result := FCount;
+end;
+
+function TFloriaJSImportDecl.GetEntryImportName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FEntries[AIndex].ImportName
+  else
+    Result := '';
+end;
+
+function TFloriaJSImportDecl.GetEntryLocalName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FEntries[AIndex].LocalName
+  else
+    Result := '';
+end;
+
+function TFloriaJSImportDecl.GetEntryKind(AIndex: Integer): TFloriaJSImportKind;
+begin
+  if (AIndex >= 0) and (AIndex < FCount) then
+    Result := FEntries[AIndex].Kind
+  else
+    Result := fjikNamed;
+end;
+
+procedure TFloriaJSImportDecl.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitImportDecl(Self);
+end;
+
+{ TFloriaJSExportDecl }
+
+constructor TFloriaJSExportDecl.Create(ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FDeclaration := nil;
+  FExpression := nil;
+  FLocalCount := 0;
+  SetLength(FLocalExports, 0);
+  FIndirectCount := 0;
+  SetLength(FIndirectExports, 0);
+  FStarCount := 0;
+  SetLength(FStarExports, 0);
+  FIsDefault := False;
+end;
+
+destructor TFloriaJSExportDecl.Destroy();
+begin
+  FreeAndNil(FDeclaration);
+  FreeAndNil(FExpression);
+  SetLength(FLocalExports, 0);
+  SetLength(FIndirectExports, 0);
+  SetLength(FStarExports, 0);
+  inherited Destroy();
+end;
+
+procedure TFloriaJSExportDecl.SetDeclaration(ADecl: TFloriaJSStmtNode);
+begin
+  FreeAndNil(FDeclaration);
+  FDeclaration := ADecl;
+end;
+
+procedure TFloriaJSExportDecl.SetExpression(AExpr: TFloriaJSExprNode);
+begin
+  FreeAndNil(FExpression);
+  FExpression := AExpr;
+end;
+
+procedure TFloriaJSExportDecl.AddLocalExport(const ALocalName, AExportName: string);
+begin
+  if FLocalCount >= Length(FLocalExports) then
+    SetLength(FLocalExports, (FLocalCount + 1) * 2);
+  FLocalExports[FLocalCount].LocalName := ALocalName;
+  FLocalExports[FLocalCount].ExportName := AExportName;
+  Inc(FLocalCount);
+end;
+
+procedure TFloriaJSExportDecl.AddIndirectExport(const AExportName, AImportName,
+  AModuleSpecifier: string);
+begin
+  if FIndirectCount >= Length(FIndirectExports) then
+    SetLength(FIndirectExports, (FIndirectCount + 1) * 2);
+  FIndirectExports[FIndirectCount].ExportName := AExportName;
+  FIndirectExports[FIndirectCount].ImportName := AImportName;
+  FIndirectExports[FIndirectCount].ModuleSpecifier := AModuleSpecifier;
+  Inc(FIndirectCount);
+end;
+
+procedure TFloriaJSExportDecl.AddStarExport(const AModuleSpecifier: string;
+  const AStarName: string);
+begin
+  if FStarCount >= Length(FStarExports) then
+    SetLength(FStarExports, (FStarCount + 1) * 2);
+  FStarExports[FStarCount].ModuleSpecifier := AModuleSpecifier;
+  FStarExports[FStarCount].StarName := AStarName;
+  Inc(FStarCount);
+end;
+
+function TFloriaJSExportDecl.GetLocalExportCount(): Integer;
+begin
+  Result := FLocalCount;
+end;
+
+function TFloriaJSExportDecl.GetLocalExportLocalName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FLocalCount) then
+    Result := FLocalExports[AIndex].LocalName
+  else
+    Result := '';
+end;
+
+function TFloriaJSExportDecl.GetLocalExportExportName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FLocalCount) then
+    Result := FLocalExports[AIndex].ExportName
+  else
+    Result := '';
+end;
+
+function TFloriaJSExportDecl.GetIndirectExportCount(): Integer;
+begin
+  Result := FIndirectCount;
+end;
+
+function TFloriaJSExportDecl.GetIndirectExportExportName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FIndirectCount) then
+    Result := FIndirectExports[AIndex].ExportName
+  else
+    Result := '';
+end;
+
+function TFloriaJSExportDecl.GetIndirectExportImportName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FIndirectCount) then
+    Result := FIndirectExports[AIndex].ImportName
+  else
+    Result := '';
+end;
+
+function TFloriaJSExportDecl.GetIndirectExportModuleSpecifier(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FIndirectCount) then
+    Result := FIndirectExports[AIndex].ModuleSpecifier
+  else
+    Result := '';
+end;
+
+function TFloriaJSExportDecl.GetStarExportCount(): Integer;
+begin
+  Result := FStarCount;
+end;
+
+function TFloriaJSExportDecl.GetStarExportModuleSpecifier(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FStarCount) then
+    Result := FStarExports[AIndex].ModuleSpecifier
+  else
+    Result := '';
+end;
+
+function TFloriaJSExportDecl.GetStarExportName(AIndex: Integer): string;
+begin
+  if (AIndex >= 0) and (AIndex < FStarCount) then
+    Result := FStarExports[AIndex].StarName
+  else
+    Result := '';
+end;
+
+function TFloriaJSExportDecl.GetLocalExportName(AIndex: Integer): string;
+begin
+  Result := GetLocalExportLocalName(AIndex);
+end;
+
+function TFloriaJSExportDecl.GetLocalExportAsName(AIndex: Integer): string;
+begin
+  Result := GetLocalExportExportName(AIndex);
+end;
+
+function TFloriaJSExportDecl.GetIndirectExportFrom(AIndex: Integer): string;
+begin
+  Result := GetIndirectExportModuleSpecifier(AIndex);
+end;
+
+function TFloriaJSExportDecl.GetStarExportFrom(AIndex: Integer): string;
+begin
+  Result := GetStarExportModuleSpecifier(AIndex);
+end;
+
+procedure TFloriaJSExportDecl.Accept(AVisitor: IFloriaJSASTVisitor);
+begin
+  if AVisitor <> nil then AVisitor.VisitExportDecl(Self);
 end;
 
 { TFloriaJSProgram }

@@ -135,7 +135,6 @@ class NegativeVerdicts(unittest.TestCase):
         self.assertEqual(module["variant"], "module")
         self.assertEqual(module["outcome"], "fail")
         self.assertIn("completed normally", module["reason"])
-        self.assertTrue(module["moduleBundle"])
 
         only_strict = self.by_path["only-strict.js"][0]
         self.assertEqual(only_strict["variant"], "strict")

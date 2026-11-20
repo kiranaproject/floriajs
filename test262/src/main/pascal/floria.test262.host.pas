@@ -44,6 +44,8 @@ type
     TestFile: string;
     Async: Boolean;
     Strict: Boolean;
+    IsModule: Boolean;
+    ModuleRoot: string;
   end;
 
   TAsyncCompletion = record
@@ -127,6 +129,9 @@ begin
   Result.TestFile := '';
   Result.Async := False;
   Result.Strict := False;
+  Result.IsModule := False;
+  Result.ModuleRoot := '';
+  { A module test's root is derived from the test file unless overridden. }
   SetLength(Result.HarnessFiles, 0);
 
   i := 1;
@@ -175,6 +180,10 @@ begin
         raise EUsageError.Create('--test must be supplied exactly once');
       Result.TestFile := NextArgumentValue(option, i);
     end
+    else if option = '--module' then
+      Result.IsModule := True
+    else if option = '--module-root' then
+      Result.ModuleRoot := NextArgumentValue(option, i)
     else
       raise EUsageError.Create('unknown argument: ' + option);
     Inc(i);
@@ -721,11 +730,77 @@ begin
     Result := EXIT_HOST_FAILURE;
 end;
 
+
+{ ------------------------------------------------------------------------ }
+{ Module loader for the diagnostic host.                                   }
+{ ------------------------------------------------------------------------ }
+
+type
+  { Resolves a specifier relative to the referring module's path inside the
+    upstream test root, and caches each file it reads. }
+  TFixtureModuleLoader = class
+  private
+    FRoot: string;
+  public
+    constructor Create(const ARoot: string);
+    function Load(const ASpecifier, AReferrer: string;
+      out ASource, AResolvedName: string): Boolean;
+  end;
+
+constructor TFixtureModuleLoader.Create(const ARoot: string);
+begin
+  inherited Create();
+  FRoot := IncludeTrailingPathDelimiter(ARoot);
+end;
+
+function TFixtureModuleLoader.Load(const ASpecifier, AReferrer: string;
+  out ASource, AResolvedName: string): Boolean;
+var
+  baseDir, candidate: string;
+begin
+  ASource := '';
+  AResolvedName := '';
+  if not (ASpecifier.StartsWith('./') or ASpecifier.StartsWith('../')) then
+    Exit(False);
+  if AReferrer <> '' then
+  begin
+    { The referrer is the record's identifier, which is a path relative to the
+      module root. }
+    baseDir := ExtractFileDir(IncludeTrailingPathDelimiter(FRoot) + AReferrer);
+  end
+  else
+    baseDir := ExcludeTrailingPathDelimiter(FRoot);
+  candidate := ExpandFileName(IncludeTrailingPathDelimiter(baseDir) + ASpecifier);
+  if not FileExists(candidate) then
+  begin
+    if FileExists(candidate + '.js') then
+      candidate := candidate + '.js'
+    else
+      Exit(False);
+  end;
+
+  { A JSON module is wrapped in a default export; a text fixture becomes a
+    module exporting its contents as a string. The engine has no JSON import
+    of its own, so the wrapping happens here. }
+  if LowerCase(ExtractFileExt(candidate)) = '.json' then
+    ASource := 'export default ' + ReadSourceBytes(candidate) + ';'
+  else if ExtractFileExt(candidate) = '' then
+    ASource := 'export default ' + QuotedStr(ReadSourceBytes(candidate)) + ';'
+  else
+    ASource := ReadSourceBytes(candidate);
+  AResolvedName := ExtractRelativePath(FRoot, candidate);
+  Result := True;
+end;
+
 function RunScenario(const AOptions: THostOptions;
   var AReport: THostReport): Integer;
 var
   engine: TFloriaJSEngine;
   context: TFloriaJSContext;
+  loader: TFixtureModuleLoader;
+  moduleSource, moduleId: string;
+  diagnostic: TFloriaJSDiagnosticResult;
+  moduleResult: TFloriaJSResult;
   i: Integer;
 begin
   engine := TFloriaJSEngine.Create();
@@ -752,7 +827,30 @@ begin
         Exit;
     end;
 
-    Result := EvaluateSource(context, AOptions.TestFile, 'test', 0, AReport);
+    if AOptions.IsModule then
+    begin
+      loader := TFixtureModuleLoader.Create(AOptions.ModuleRoot);
+      try
+        context.SetModuleLoader(TFloriaJSModuleLoader(@loader.Load));
+        { The entry identifier is the path relative to the module root, so a
+          dependency resolves against the right directory. }
+        moduleId := ExtractRelativePath(
+          IncludeTrailingPathDelimiter(AOptions.ModuleRoot), AOptions.TestFile);
+        moduleSource := ReadSourceBytes(AOptions.TestFile);
+        diagnostic := context.EvaluateModuleDetailed(moduleId, moduleSource);
+        ApplyDiagnostic(AReport, diagnostic, 'test', 0);
+        if diagnostic.Result.Success then
+          Result := EXIT_PASS
+        else if AReport.Outcome = 'fail' then
+          Result := EXIT_TEST_FAILURE
+        else
+          Result := EXIT_HOST_FAILURE;
+      finally
+        loader.Free();
+      end;
+    end
+    else
+      Result := EvaluateSource(context, AOptions.TestFile, 'test', 0, AReport);
     if (Result = EXIT_PASS) and AOptions.Async then
       Result := RunAsyncCompletion(context, AReport, AOptions.TestFile);
   finally

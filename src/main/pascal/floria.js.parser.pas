@@ -52,6 +52,12 @@ type
     FErrors: TStringList;
     FErrorLines: array of Integer;
     FErrorColumns: array of Integer;
+    { True when the source is parsed as a module, which permits import/export
+      declarations and top-level await. }
+    FIsModule: Boolean;
+    { True while parsing the direct body of the program. Import/export
+      declarations are only legal there when the source is a module. }
+    FAtTopLevel: Boolean;
 
     procedure Advance();
     function  Check(AKind: TFloriaJSTokenKind): Boolean;
@@ -96,7 +102,7 @@ type
     function  ParseStatement(): TFloriaJSStmtNode;
     function  ParseDeclaration(): TFloriaJSStmtNode;
     function  ParseVarDeclaration(AKind: TFloriaJSTokenKind): TFloriaJSVarStmt;
-    function  ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False; AStartPos: Integer = -1): TFloriaJSFunctionDecl;
+    function  ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False; AStartPos: Integer = -1; AAllowAnonymous: Boolean = False): TFloriaJSFunctionDecl;
     function  ParseIfStatement(): TFloriaJSIfStmt;
     function  ParseWhileStatement(): TFloriaJSWhileStmt;
     function  ParseDoWhileStatement(): TFloriaJSWhileStmt;
@@ -111,6 +117,29 @@ type
     function  ParseDebuggerStatement(): TFloriaJSDebuggerStmt;
     function  ParseExpressionStatement(): TFloriaJSExprStmt;
     procedure ParseFTMLBody(AComp: TFloriaFTMLComponent);
+
+    { Module Syntax (import / export declarations) }
+    { Matches a contextual keyword (`from`, `as`) by text, since the lexer
+      keeps those words as identifiers. }
+    function  CheckIdentifierText(const AText: string): Boolean;
+    function  ConsumeIdentifierText(const AText, AErrorMessage: string): Boolean;
+    { A module declaration is only legal at the top level of a module. }
+    function  CheckModuleDeclarationContext(const AKeyword: string): Boolean;
+    { Reads an export/import name: an identifier, a keyword, or a string
+      literal. Returns the text. }
+    function  ParseModuleName(const AContext: string): string;
+    { Reads a binding name: only an identifier is legal there. }
+    function  ParseModuleBindingName(const AContext: string): string;
+    function  ParseModuleSpecifierString(const AContext: string): string;
+    procedure ParseImportAttributes();
+    { Skips the rest of a malformed module declaration, up to its terminating
+      semicolon, so one error does not cascade. }
+    procedure SkipModuleDeclaration();
+    function  ParseImportDeclaration(): TFloriaJSStmtNode;
+    function  ParseImportClause(ADecl: TFloriaJSImportDecl): Boolean;
+    function  ParseExportDeclaration(): TFloriaJSStmtNode;
+    function  ParseExportDefault(ADecl: TFloriaJSExportDecl): Boolean;
+    function  ParseExportClause(ANames, AAliases, AKinds: TStrings): Boolean;
 
   public
     constructor Create(const ASource: string);
@@ -127,6 +156,11 @@ type
     function  GetErrorLine(AIndex: Integer): Integer;
     function  GetErrorColumn(AIndex: Integer): Integer;
 
+    { Parse the program in module mode: import/export declarations and
+      top-level await become legal. }
+    procedure SetModuleMode(AValue: Boolean);
+    property IsModule: Boolean read FIsModule;
+
     property Errors: TStringList read FErrors;
   end;
 
@@ -140,6 +174,8 @@ begin
   FLexer := TFloriaJSLexer.Create(ASource);
   FOwnsLexer := True;
   FErrors := TStringList.Create();
+  FIsModule := False;
+  FAtTopLevel := False;
   Advance();
 end;
 
@@ -149,6 +185,8 @@ begin
   FLexer := ALexer;
   FOwnsLexer := False;
   FErrors := TStringList.Create();
+  FIsModule := False;
+  FAtTopLevel := False;
   Advance();
 end;
 
@@ -286,8 +324,10 @@ end;
 function TFloriaJSParser.IsKeywordToken(AKind: TFloriaJSTokenKind): Boolean;
 begin
   { The keyword block is contiguous in the enum; keep the upper bound on the
-    last keyword so a newly added keyword is covered automatically. }
-  Result := (AKind >= tkLet) and (AKind <= tkStatic);
+    last keyword so a newly added keyword is covered automatically. That
+    includes `import` and `export`, which are ordinary property names outside
+    a module declaration. }
+  Result := (AKind >= tkLet) and (AKind <= tkAs);
 end;
 
 function TFloriaJSParser.GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
@@ -425,6 +465,50 @@ begin
 
   if Match(tkUndefined) then
     Exit(TFloriaJSLiteralExpr.CreateUndefined(tok.Line, tok.Column));
+
+  { import.meta and the dynamic import() expression. }
+  if Check(tkImport) then
+  begin
+    Advance();
+    if Match(tkDot) then
+    begin
+      { import.meta is only meaningful in a module, but it is an expression,
+        so it is legal in any nested position. }
+      if not FIsModule then
+      begin
+        ErrorAtCurrent('Cannot use ''import.meta'' outside a module');
+        Result := TFloriaJSLiteralExpr.CreateUndefined(tok.Line, tok.Column);
+        Exit;
+      end;
+      if (FCurrent.Kind = tkIdentifier) and (FCurrent.Text = 'meta') then
+      begin
+        Advance();
+        expr := TFloriaJSIdentifierExpr.Create('import.meta', tok.Line, tok.Column);
+        expr.SourceStart := tok.StartPos;
+        expr.SourceEnd := FPrevious.EndPos;
+        Exit(expr);
+      end;
+      ErrorAtCurrent('Expected `meta` after `import.`');
+    end;
+    if Check(tkLParen) then
+    begin
+      Advance();
+      callExpr := TFloriaJSCallExpr.Create(
+        TFloriaJSIdentifierExpr.Create('import', tok.Line, tok.Column),
+        tok.Line, tok.Column);
+      callExpr.AddArgument(ParseAssignmentExpression());
+      { A second argument carries import attributes. }
+      if Match(tkComma) then
+      begin
+        callExpr.AddArgument(ParseAssignmentExpression());
+        if Match(tkComma) then
+          callExpr.AddArgument(ParseAssignmentExpression());
+      end;
+      Consume(tkRParen, 'Expected '')'' after the import options');
+      Exit(callExpr);
+    end;
+    ErrorAtCurrent('Expected `(` or `.meta` after `import`');
+  end;
 
   { Identifier }
   if Match(tkIdentifier) then
@@ -1505,6 +1589,16 @@ function TFloriaJSParser.ParseDeclaration(): TFloriaJSStmtNode;
 var
   fnStartPos: Integer;
 begin
+  { Module declarations are only meaningful in a module. The context check
+    inside the two parsers reports the SyntaxError for a script. A dynamic
+    `import(` is an expression statement, not a declaration. }
+  if Check(tkImport) and (FLexer.PeekToken().Kind <> tkLParen) and
+     (FLexer.PeekToken().Kind <> tkDot) then
+    Exit(ParseImportDeclaration());
+  if Check(tkExport) and (FLexer.PeekToken().Kind <> tkLParen) and
+     (FLexer.PeekToken().Kind <> tkDot) then
+    Exit(ParseExportDeclaration());
+
   if Match(tkLet) then
     Result := ParseVarDeclaration(tkLet)
   else if Match(tkConst) then
@@ -1580,7 +1674,7 @@ begin
   Result := varStmt;
 end;
 
-function TFloriaJSParser.ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False; AStartPos: Integer = -1): TFloriaJSFunctionDecl;
+function TFloriaJSParser.ParseFunctionDeclaration(AIsAsync: Boolean = False; AIsGenerator: Boolean = False; AStartPos: Integer = -1; AAllowAnonymous: Boolean = False): TFloriaJSFunctionDecl;
 var
   fnName: string;
   fnDecl: TFloriaJSFunctionDecl;
@@ -1596,6 +1690,11 @@ begin
 
   if Match(tkIdentifier) then
     fnName := FPrevious.Text
+  else if AAllowAnonymous then
+    { An anonymous default-exported function is legal. It has no local binding;
+      the default export is recorded on the export declaration, so the
+      declaration itself stays anonymous. }
+    fnName := ''
   else
   begin
     ErrorAtCurrent('Expected function name');
@@ -1617,67 +1716,85 @@ var
   stmt: TFloriaJSStmtNode;
   objExpr: TFloriaJSExprNode;
   startLine, startCol: Integer;
+  wasTopLevel: Boolean;
 begin
-  if FCurrent.Kind = tkReserved then
-    ErrorAtCurrent('Unexpected reserved word');
-  { Empty statement: an empty block has the same effect and keeps the
-    completion value unchanged. }
-  if Match(tkSemicolon) then
-    Exit(TFloriaJSBlockStmt.Create(FPrevious.Line, FPrevious.Column));
+  { A statement nested anywhere (if body, loop body, label) is not at the top
+    level of the program, so a module declaration there is rejected. }
+  wasTopLevel := FAtTopLevel;
+  FAtTopLevel := False;
+  try
+    if FCurrent.Kind = tkReserved then
+      ErrorAtCurrent('Unexpected reserved word');
+    { A nested import/export declaration is recognised so the error names the
+      actual restriction instead of "Expected expression". A dynamic
+      `import(` is an expression, not a declaration. }
+    if Check(tkImport) and (FLexer.PeekToken().Kind <> tkLParen) and
+       (FLexer.PeekToken().Kind <> tkDot) then
+      Exit(ParseImportDeclaration());
+    if Check(tkExport) and (FLexer.PeekToken().Kind <> tkLParen) and
+       (FLexer.PeekToken().Kind <> tkDot) then
+      Exit(ParseExportDeclaration());
+    { Empty statement: an empty block has the same effect and keeps the
+      completion value unchanged. }
+    if Match(tkSemicolon) then
+      Exit(TFloriaJSBlockStmt.Create(FPrevious.Line, FPrevious.Column));
 
-  if (FCurrent.Kind = tkIdentifier) and (FLexer.PeekToken().Kind = tkColon) then
-  begin
-    startLine := FCurrent.Line;
-    startCol := FCurrent.Column;
-    lbl := FCurrent.Text;
-    Advance(); { Consume identifier }
-    Advance(); { Consume ':' }
-    stmt := ParseStatement();
-    if stmt is TFloriaJSForStmt then
-      TFloriaJSForStmt(stmt).LabelName := lbl
-    else if stmt is TFloriaJSWhileStmt then
-      TFloriaJSWhileStmt(stmt).LabelName := lbl
-    else if stmt is TFloriaJSForInOfStmt then
-      TFloriaJSForInOfStmt(stmt).LabelName := lbl;
-    Exit(TFloriaJSLabeledStmt.Create(lbl, stmt, startLine, startCol));
+    if (FCurrent.Kind = tkIdentifier) and (FLexer.PeekToken().Kind = tkColon) then
+    begin
+      startLine := FCurrent.Line;
+      startCol := FCurrent.Column;
+      lbl := FCurrent.Text;
+      Advance(); { Consume identifier }
+      Advance(); { Consume ':' }
+      stmt := ParseStatement();
+      if stmt is TFloriaJSForStmt then
+        TFloriaJSForStmt(stmt).LabelName := lbl
+      else if stmt is TFloriaJSWhileStmt then
+        TFloriaJSWhileStmt(stmt).LabelName := lbl
+      else if stmt is TFloriaJSForInOfStmt then
+        TFloriaJSForInOfStmt(stmt).LabelName := lbl;
+      Exit(TFloriaJSLabeledStmt.Create(lbl, stmt, startLine, startCol));
+    end;
+
+    if Match(tkIf) then
+      Result := ParseIfStatement()
+    else if Match(tkWhile) then
+      Result := ParseWhileStatement()
+    else if Match(tkDo) then
+      Result := ParseDoWhileStatement()
+    else if Match(tkFor) then
+      Result := ParseForStatement()
+    else if Match(tkSwitch) then
+      Result := ParseSwitchStatement()
+    else if Match(tkTry) then
+      Result := ParseTryStatement()
+    else if Match(tkThrow) then
+      Result := ParseThrowStatement()
+    else if Match(tkReturn) then
+      Result := ParseReturnStatement()
+    else if Match(tkBreak) then
+      Result := ParseBreakStatement()
+    else if Match(tkContinue) then
+      Result := ParseContinueStatement()
+    else if Match(tkDebugger) then
+      Result := ParseDebuggerStatement()
+    else if Match(tkWith) then
+    begin
+      startLine := FPrevious.Line;
+      startCol := FPrevious.Column;
+      Consume(tkLParen, 'Expected ''('' after ''with''');
+      objExpr := ParseExpression();
+      Consume(tkRParen, 'Expected '')'' after with object');
+      stmt := ParseStatement();
+      Result := TFloriaJSWithStmt.Create(objExpr, stmt, startLine, startCol);
+    end
+    else if Check(tkLBrace) then
+      Result := ParseBlockStatement()
+    else
+      Result := ParseExpressionStatement();
+  finally
+    FAtTopLevel := wasTopLevel;
   end;
-
-  if Match(tkIf) then
-    Result := ParseIfStatement()
-  else if Match(tkWhile) then
-    Result := ParseWhileStatement()
-  else if Match(tkDo) then
-    Result := ParseDoWhileStatement()
-  else if Match(tkFor) then
-    Result := ParseForStatement()
-  else if Match(tkSwitch) then
-    Result := ParseSwitchStatement()
-  else if Match(tkTry) then
-    Result := ParseTryStatement()
-  else if Match(tkThrow) then
-    Result := ParseThrowStatement()
-  else if Match(tkReturn) then
-    Result := ParseReturnStatement()
-  else if Match(tkBreak) then
-    Result := ParseBreakStatement()
-  else if Match(tkContinue) then
-    Result := ParseContinueStatement()
-  else if Match(tkDebugger) then
-    Result := ParseDebuggerStatement()
-  else if Match(tkWith) then
-  begin
-    startLine := FPrevious.Line;
-    startCol := FPrevious.Column;
-    Consume(tkLParen, 'Expected ''('' after ''with''');
-    objExpr := ParseExpression();
-    Consume(tkRParen, 'Expected '')'' after with object');
-    stmt := ParseStatement();
-    Result := TFloriaJSWithStmt.Create(objExpr, stmt, startLine, startCol);
-  end
-  else if Check(tkLBrace) then
-    Result := ParseBlockStatement()
-  else
-    Result := ParseExpressionStatement();
 end;
 
 function TFloriaJSParser.ParseIfStatement(): TFloriaJSIfStmt;
@@ -1890,6 +2007,7 @@ var
   switchStmt: TFloriaJSSwitchStmt;
   caseClause: TFloriaJSSwitchCase;
   startLine, startCol: Integer;
+  wasTopLevel: Boolean;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -1901,33 +2019,40 @@ begin
 
   switchStmt := TFloriaJSSwitchStmt.Create(discriminant, startLine, startCol);
 
-  while (not Check(tkRBrace)) and (not IsAtEnd()) do
-  begin
-    if Match(tkCase) then
+  { Statements in a switch body are nested, never the program's top level. }
+  wasTopLevel := FAtTopLevel;
+  FAtTopLevel := False;
+  try
+    while (not Check(tkRBrace)) and (not IsAtEnd()) do
     begin
-      testExpr := ParseExpression();
-      Consume(tkColon, 'Expected '':'' after case expression');
-      caseClause := TFloriaJSSwitchCase.Create(testExpr, False);
-    end
-    else if Match(tkDefault) then
-    begin
-      Consume(tkColon, 'Expected '':'' after ''default''');
-      caseClause := TFloriaJSSwitchCase.Create(nil, True);
-    end
-    else
-    begin
-      ErrorAtCurrent('Expected ''case'' or ''default'' in switch body');
-      Break;
-    end;
+      if Match(tkCase) then
+      begin
+        testExpr := ParseExpression();
+        Consume(tkColon, 'Expected '':'' after case expression');
+        caseClause := TFloriaJSSwitchCase.Create(testExpr, False);
+      end
+      else if Match(tkDefault) then
+      begin
+        Consume(tkColon, 'Expected '':'' after ''default''');
+        caseClause := TFloriaJSSwitchCase.Create(nil, True);
+      end
+      else
+      begin
+        ErrorAtCurrent('Expected ''case'' or ''default'' in switch body');
+        Break;
+      end;
 
-    { The statements of a clause run until the next case/default label. }
-    while (not Check(tkCase)) and (not Check(tkDefault)) and
-          (not Check(tkRBrace)) and (not IsAtEnd()) do
-    begin
-      caseClause.AddStatement(ParseDeclaration());
-    end;
+      { The statements of a clause run until the next case/default label. }
+      while (not Check(tkCase)) and (not Check(tkDefault)) and
+            (not Check(tkRBrace)) and (not IsAtEnd()) do
+      begin
+        caseClause.AddStatement(ParseDeclaration());
+      end;
 
-    switchStmt.AddCase(caseClause);
+      switchStmt.AddCase(caseClause);
+    end;
+  finally
+    FAtTopLevel := wasTopLevel;
   end;
 
   Consume(tkRBrace, 'Expected ''}'' after switch body');
@@ -2009,15 +2134,23 @@ function TFloriaJSParser.ParseBlockStatement(): TFloriaJSBlockStmt;
 var
   block: TFloriaJSBlockStmt;
   startLine, startCol: Integer;
+  wasTopLevel: Boolean;
 begin
   Consume(tkLBrace, 'Expected ''{'' at start of block');
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
   block := TFloriaJSBlockStmt.Create(startLine, startCol);
 
-  while (not Check(tkRBrace)) and (not IsAtEnd()) do
-  begin
-    block.AddStatement(ParseDeclaration());
+  { A block body is never the top level of the program. }
+  wasTopLevel := FAtTopLevel;
+  FAtTopLevel := False;
+  try
+    while (not Check(tkRBrace)) and (not IsAtEnd()) do
+    begin
+      block.AddStatement(ParseDeclaration());
+    end;
+  finally
+    FAtTopLevel := wasTopLevel;
   end;
 
   Consume(tkRBrace, 'Expected ''}'' after block');
@@ -2094,16 +2227,502 @@ begin
   Result := TFloriaJSExprStmt.Create(expr, startLine, startCol);
 end;
 
+{ Module Syntax (import / export declarations) }
+
+function TFloriaJSParser.CheckIdentifierText(const AText: string): Boolean;
+begin
+  { `from` and `as` are contextual: the lexer keeps them as identifiers, so the
+    parser compares their text instead of their token kind. }
+  Result := (FCurrent.Kind = tkIdentifier) and (FCurrent.Text = AText);
+end;
+
+function TFloriaJSParser.ConsumeIdentifierText(const AText, AErrorMessage: string): Boolean;
+begin
+  if CheckIdentifierText(AText) then
+  begin
+    Advance();
+    Exit(True);
+  end;
+  ErrorAtCurrent(AErrorMessage);
+  Result := False;
+end;
+
+function TFloriaJSParser.CheckModuleDeclarationContext(const AKeyword: string): Boolean;
+begin
+  if not FIsModule then
+  begin
+    ErrorAtCurrent('Cannot use ''' + AKeyword + ''' outside a module');
+    Exit(False);
+  end;
+  if not FAtTopLevel then
+  begin
+    ErrorAtCurrent('''' + AKeyword + ''' declarations are only allowed at the top level of a module');
+    Exit(False);
+  end;
+  Result := True;
+end;
+
+function TFloriaJSParser.ParseModuleName(const AContext: string): string;
+begin
+  if Match(tkIdentifier) or Match(tkString) then
+    Exit(FPrevious.Text);
+  if IsKeywordToken(FCurrent.Kind) then
+  begin
+    { Keywords may be imported and exported under their own spelling. }
+    Result := FCurrent.Text;
+    Advance();
+    Exit;
+  end;
+  ErrorAtCurrent('Expected ' + AContext);
+  Result := '';
+end;
+
+function TFloriaJSParser.ParseModuleBindingName(const AContext: string): string;
+begin
+  { A local binding must be an identifier; only the imported/exported name may
+    be a string literal. }
+  if Match(tkIdentifier) then
+    Exit(FPrevious.Text);
+  ErrorAtCurrent('Expected ' + AContext);
+  Result := '';
+end;
+
+function TFloriaJSParser.ParseModuleSpecifierString(const AContext: string): string;
+begin
+  if Match(tkString) then
+    Exit(FPrevious.Text);
+  ErrorAtCurrent('Expected a module specifier string in ' + AContext);
+  Result := '';
+end;
+
+{ An import attributes clause: `with { type: "json" }` or the legacy
+  `assert { ... }`. The clause is validated only to the extent that it is
+  balanced; the loader decides how to interpret it. }
+procedure TFloriaJSParser.ParseImportAttributes();
+var
+  depth: Integer;
+begin
+  { `with` is a keyword token; `assert` is an identifier. }
+  if Check(tkWith) then
+    Advance()
+  else if CheckIdentifierText('assert') then
+    Advance()
+  else
+    Exit;
+  if not Check(tkLBrace) then
+    Exit;
+  depth := 0;
+  while not IsAtEnd() do
+  begin
+    if Check(tkLBrace) then
+      Inc(depth)
+    else if Check(tkRBrace) then
+    begin
+      Dec(depth);
+      Advance();
+      if depth = 0 then
+        Exit;
+      Continue;
+    end;
+    Advance();
+  end;
+end;
+
+procedure TFloriaJSParser.SkipModuleDeclaration();
+begin
+  { Consume up to and including the terminating semicolon, or stop at a closing
+    brace or end of input. This keeps one malformed module declaration from
+    cascading into a stream of errors. }
+  while (not IsAtEnd()) and (not Check(tkSemicolon)) and (not Check(tkRBrace)) do
+    Advance();
+  Match(tkSemicolon);
+end;
+
+function TFloriaJSParser.ParseImportClause(ADecl: TFloriaJSImportDecl): Boolean;
+var
+  importedName, localName: string;
+  importedIsString, hadDefault: Boolean;
+begin
+  Result := False;
+  hadDefault := False;
+
+  { Optional default binding: import x ... }
+  if Match(tkIdentifier) then
+  begin
+    ADecl.AddEntry('default', FPrevious.Text, fjikDefault);
+    Result := True;
+    hadDefault := True;
+    if not Match(tkComma) then
+      Exit(True);
+  end;
+
+  { Namespace binding: import * as ns from "m" }
+  if Match(tkMultiply) then
+  begin
+    ConsumeIdentifierText('as', 'Expected ''as'' after ''*'' in import declaration');
+    localName := ParseModuleBindingName('a namespace binding name');
+    ADecl.AddEntry('*', localName, fjikNamespace);
+    Exit(True);
+  end;
+
+  { Named bindings: an import clause listing individual names }
+  if Match(tkLBrace) then
+  begin
+    if not Check(tkRBrace) then
+      repeat
+        importedIsString := Check(tkString);
+        importedName := ParseModuleName('an imported name');
+        if CheckIdentifierText('as') then
+        begin
+          Advance();
+          { A string import name must be given an identifier binding with `as`. }
+          localName := ParseModuleBindingName('a local binding name');
+        end
+        else
+        begin
+          { A string literal only names the imported binding; it cannot also be
+            the local name, which must be an identifier. }
+          if importedIsString or (importedName = '') then
+            ErrorAtCurrent('A string import name requires ''as'' with a local binding name');
+          localName := importedName;
+        end;
+        ADecl.AddEntry(importedName, localName, fjikNamed);
+      until (not Match(tkComma)) or Check(tkRBrace);
+    Consume(tkRBrace, 'Expected ''}'' after import bindings');
+    Exit(True);
+  end;
+
+  if hadDefault then
+  begin
+    { After `import d,` only a namespace or a named clause may follow. }
+    ErrorAtCurrent('Expected ''*'' or ''{'' after the default import binding');
+    Exit(False);
+  end;
+
+  if not Result then
+    ErrorAtCurrent('Expected an import clause');
+end;
+
+function TFloriaJSParser.ParseImportDeclaration(): TFloriaJSStmtNode;
+var
+  startLine, startCol, startPos: Integer;
+  decl: TFloriaJSImportDecl;
+  spec: string;
+begin
+  startLine := FCurrent.Line;
+  startCol := FCurrent.Column;
+  startPos := FCurrent.StartPos;
+
+  { Report the restriction at the keyword, before it is consumed. }
+  if not CheckModuleDeclarationContext('import') then
+  begin
+    decl := TFloriaJSImportDecl.Create('', startLine, startCol);
+    decl.SourceStart := startPos;
+    Advance(); { consume `import` }
+    SkipModuleDeclaration();
+    decl.SourceEnd := FPrevious.EndPos;
+    Exit(decl);
+  end;
+
+  Advance(); { consume `import` }
+  decl := TFloriaJSImportDecl.Create('', startLine, startCol);
+  decl.SourceStart := startPos;
+
+  spec := '';
+  if Match(tkString) then
+  begin
+    { Bare import: import "m"; }
+    spec := FPrevious.Text;
+    decl.IsBare := True;
+  end
+  else
+  begin
+    ParseImportClause(decl);
+    if CheckIdentifierText('from') then
+    begin
+      Advance();
+      spec := ParseModuleSpecifierString('import declaration');
+    end
+    else
+      ErrorAtCurrent('Expected ''from'' in import declaration');
+  end;
+
+  decl.ModuleSpecifier := spec;
+  ParseImportAttributes();
+  EndStatement('import declaration');
+  decl.SourceEnd := FPrevious.EndPos;
+  Result := decl;
+end;
+
+function TFloriaJSParser.ParseExportClause(ANames, AAliases, AKinds: TStrings): Boolean;
+var
+  localName, exportName: string;
+  localKind: Char;
+begin
+  { Parses a clause of local or imported names, with optional aliases. Each
+    name may be an identifier, a keyword spelling, or a string literal. AKinds
+    records how the left side was spelled ('i' identifier, 's' string,
+    'k' keyword), because only an identifier can name a local binding when
+    there is no `from`. }
+  Consume(tkLBrace, 'Expected ''{'' in export declaration');
+  Result := True;
+  if not Check(tkRBrace) then
+    repeat
+      if Match(tkIdentifier) then
+      begin
+        localName := FPrevious.Text;
+        localKind := 'i';
+      end
+      else if Match(tkString) then
+      begin
+        localName := FPrevious.Text;
+        localKind := 's';
+      end
+      else if IsKeywordToken(FCurrent.Kind) then
+      begin
+        localName := FCurrent.Text;
+        localKind := 'k';
+        Advance();
+      end
+      else
+      begin
+        ErrorAtCurrent('Expected an export name');
+        localName := '';
+        localKind := '?';
+        Result := False;
+      end;
+
+      if CheckIdentifierText('as') then
+      begin
+        Advance();
+        exportName := ParseModuleName('an export alias');
+      end
+      else
+        exportName := localName;
+
+      ANames.Add(localName);
+      AAliases.Add(exportName);
+      AKinds.Add(localKind);
+    until (not Match(tkComma)) or Check(tkRBrace);
+  Consume(tkRBrace, 'Expected ''}'' in export declaration');
+end;
+
+function TFloriaJSParser.ParseExportDefault(ADecl: TFloriaJSExportDecl): Boolean;
+var
+  startPos, fnStartPos: Integer;
+  cls: TFloriaJSClassNode;
+  varStmt: TFloriaJSVarStmt;
+  expr: TFloriaJSExprNode;
+begin
+  { export default function ... / export default async function ... }
+  if (FCurrent.Kind = tkAsync) and (FLexer.PeekToken().Kind = tkFunction) then
+  begin
+    fnStartPos := FCurrent.StartPos;
+    Advance(); { consume `async` }
+    Advance(); { consume `function` }
+    if Match(tkMultiply) then
+      ADecl.SetDeclaration(ParseFunctionDeclaration(True, True, fnStartPos, True))
+    else
+      ADecl.SetDeclaration(ParseFunctionDeclaration(True, False, fnStartPos, True));
+    Exit(True);
+  end;
+
+  if Check(tkFunction) then
+  begin
+    fnStartPos := FCurrent.StartPos;
+    Advance(); { consume `function` }
+    if Match(tkMultiply) then
+      ADecl.SetDeclaration(ParseFunctionDeclaration(False, True, fnStartPos, True))
+    else
+      ADecl.SetDeclaration(ParseFunctionDeclaration(False, False, fnStartPos, True));
+    Exit(True);
+  end;
+
+  { export default class [Name] ... }
+  if Check(tkClass) then
+  begin
+    startPos := FCurrent.StartPos;
+    Advance(); { consume `class` }
+    cls := ParseClassExpr(True);
+    cls.SourceText := SourceSlice(startPos, FPrevious.EndPos);
+    if cls.Name = '' then
+      { An anonymous default class has no local binding. }
+      ADecl.SetExpression(cls)
+    else
+    begin
+      { A named one also creates a block-scoped binding in the module, exactly
+        like a class declaration. }
+      varStmt := TFloriaJSVarStmt.Create(tkLet, cls.Line, cls.Column);
+      varStmt.AddDeclarator(cls.Name, cls);
+      ADecl.SetDeclaration(varStmt);
+    end;
+    Match(tkSemicolon);
+    Exit(True);
+  end;
+
+  { export default <expression>; }
+  expr := ParseAssignmentExpression();
+  ADecl.SetExpression(expr);
+  EndStatement('export default expression');
+  Result := True;
+end;
+
+function TFloriaJSParser.ParseExportDeclaration(): TFloriaJSStmtNode;
+var
+  startLine, startCol, startPos: Integer;
+  decl: TFloriaJSExportDecl;
+  spec: string;
+  names, aliases, kinds: TStringList;
+  i: Integer;
+  fnStartPos: Integer;
+begin
+  startLine := FCurrent.Line;
+  startCol := FCurrent.Column;
+  startPos := FCurrent.StartPos;
+
+  { Report the restriction at the keyword, before it is consumed. }
+  if not CheckModuleDeclarationContext('export') then
+  begin
+    decl := TFloriaJSExportDecl.Create(startLine, startCol);
+    decl.SourceStart := startPos;
+    Advance(); { consume `export` }
+    SkipModuleDeclaration();
+    decl.SourceEnd := FPrevious.EndPos;
+    Exit(decl);
+  end;
+
+  Advance(); { consume `export` }
+  decl := TFloriaJSExportDecl.Create(startLine, startCol);
+  decl.SourceStart := startPos;
+
+  if Match(tkDefault) then
+  begin
+    decl.IsDefault := True;
+    ParseExportDefault(decl);
+  end
+  else if Check(tkMultiply) then
+  begin
+    { export * from "m"; export * as ns from "m"; }
+    Advance();
+    if CheckIdentifierText('as') then
+    begin
+      Advance();
+      spec := ParseModuleName('a namespace name');
+      ConsumeIdentifierText('from', 'Expected ''from'' after export namespace name');
+      decl.AddStarExport(ParseModuleSpecifierString('export declaration'), spec);
+    end
+    else
+    begin
+      ConsumeIdentifierText('from', 'Expected ''from'' in export declaration');
+      decl.AddStarExport(ParseModuleSpecifierString('export declaration'));
+    end;
+    EndStatement('export declaration');
+  end
+  else if Check(tkLBrace) then
+  begin
+    { Local export clause, or a re-export clause when `from` follows. }
+    names := TStringList.Create();
+    aliases := TStringList.Create();
+    kinds := TStringList.Create();
+    try
+      ParseExportClause(names, aliases, kinds);
+      if CheckIdentifierText('from') then
+      begin
+        Advance();
+        spec := ParseModuleSpecifierString('export declaration');
+        for i := 0 to names.Count - 1 do
+          { In a re-export both sides name module export names, so either may
+            be a string literal or a keyword spelling. }
+          decl.AddIndirectExport(aliases[i], names[i], spec);
+      end
+      else
+      begin
+        for i := 0 to names.Count - 1 do
+        begin
+          { Without `from` the left side names a local binding, which must be an
+            ordinary identifier. The published name may be any export name,
+            including a string literal. }
+          if kinds[i] <> 'i' then
+            ErrorAtCurrent('A local export name must be an identifier');
+          decl.AddLocalExport(names[i], aliases[i]);
+        end;
+      end;
+    finally
+      names.Free();
+      aliases.Free();
+      kinds.Free();
+    end;
+    EndStatement('export declaration');
+  end
+  else if Check(tkConst) or Check(tkLet) or Check(tkVar) then
+  begin
+    { export const/let/var ...; }
+    if Match(tkConst) then
+      decl.SetDeclaration(ParseVarDeclaration(tkConst))
+    else if Match(tkLet) then
+      decl.SetDeclaration(ParseVarDeclaration(tkLet))
+    else
+    begin
+      Advance();
+      decl.SetDeclaration(ParseVarDeclaration(tkVar));
+    end;
+  end
+  else if (FCurrent.Kind = tkAsync) and (FLexer.PeekToken().Kind = tkFunction) then
+  begin
+    { export async function ... }
+    fnStartPos := FCurrent.StartPos;
+    Advance(); { consume `async` }
+    Advance(); { consume `function` }
+    if Match(tkMultiply) then
+      decl.SetDeclaration(ParseFunctionDeclaration(True, True, fnStartPos))
+    else
+      decl.SetDeclaration(ParseFunctionDeclaration(True, False, fnStartPos));
+  end
+  else if Check(tkFunction) then
+  begin
+    { export function ... / export function* ... }
+    fnStartPos := FCurrent.StartPos;
+    Advance(); { consume `function` }
+    if Match(tkMultiply) then
+      decl.SetDeclaration(ParseFunctionDeclaration(False, True, fnStartPos))
+    else
+      decl.SetDeclaration(ParseFunctionDeclaration(False, False, fnStartPos));
+  end
+  else if Check(tkClass) then
+  begin
+    { export class ... }
+    decl.SetDeclaration(ParseClassDeclaration());
+  end
+  else
+  begin
+    ErrorAtCurrent('Expected a declaration after ''export''');
+    SkipModuleDeclaration();
+  end;
+
+  decl.SourceEnd := FPrevious.EndPos;
+  Result := decl;
+end;
+
 function TFloriaJSParser.ParseProgram(): TFloriaJSProgram;
 var
   prog: TFloriaJSProgram;
 begin
   prog := TFloriaJSProgram.Create(FCurrent.Line, FCurrent.Column);
-  while not IsAtEnd() do
-  begin
-    prog.AddStatement(ParseDeclaration());
+  FAtTopLevel := True;
+  try
+    while not IsAtEnd() do
+    begin
+      prog.AddStatement(ParseDeclaration());
+    end;
+  finally
+    FAtTopLevel := False;
   end;
   Result := prog;
+end;
+
+procedure TFloriaJSParser.SetModuleMode(AValue: Boolean);
+begin
+  FIsModule := AValue;
 end;
 
 { Declarative FTML Component Parsing (Floria Toolkit Markup Language) }

@@ -578,7 +578,7 @@ work.
 | `for…of` on non-iterables | Throws `TypeError`. |
 | Optional chaining | Full chain short-circuiting across member accesses and calls. Grouping boundaries `(a?.b)` terminate the chain. `new a?.b()` and optional-chain assignment/update targets, including parenthesized targets, are rejected as syntax errors. |
 | `this` | Top-level `this` is the global object. A plain call of a non-strict function receives the global object; a strict function keeps `this === undefined`. Methods, `new`, and lexical `this` in arrows behave normally. |
-| Modules | Static relative `import`/`export` declarations are lowered into a diagnostic bundle with module-scoped function bodies. Exports are live getters, named imports are rewritten to live property reads, star-export cycles are supported, and exported `let`/`const` keep their TDZ. Specifiers must be relative; `import.meta`, dynamic import for relative specifiers, and JSON import attributes are supported. Text modules are supported; full module records are not implemented. |
+| Modules | Real ECMAScript module records: a lexer/parser/AST for `import` and `export`, the five entry lists, `ResolveExport` with star-export ambiguity detection, linking, and cycle-safe evaluation. Bindings are live, module bodies run in their own scope (never on `globalThis`), and a host supplies source through a loader callback. `import.meta`, dynamic `import()`, `export *`, `export * as ns`, re-exports, string export names, and import attributes are supported. Specifiers are resolved by the loader, so any scheme the host understands works; the diagnostic host serves relative paths plus JSON and text modules. |
 | Proxy | `new Proxy` and `Proxy.revocable` support `get`, `set`, `has`, `deleteProperty`, `ownKeys`, `getOwnPropertyDescriptor`, `apply`, and `construct` traps with the main property invariants, including the `has`-with-`with` rule for non-extensible targets. |
 | Realms | `$262.createRealm()` in the diagnostic host creates a genuinely separate context with its own heap, global object, intrinsics, timers, and output. Cross-realm intrinsic selection works for the supported constructors and array species. |
 
@@ -593,9 +593,10 @@ Unimplemented syntax and APIs are listed once, in
 [Missing features](#missing-features). That table is the authoritative list;
 this page does not repeat it, so the two cannot drift apart.
 
-Static `import`/`export` is handled by the diagnostic module bundler; it is not
-a spec-complete module loader. `$262.createRealm()` and `$262.agent` are
-available in the diagnostic host; agents are cooperative and single-threaded.
+Static `import`/`export` uses real module records inside the engine; the host
+chooses how a specifier maps to source through the loader callback.
+`$262.createRealm()` and `$262.agent` are available in the diagnostic host;
+agents are cooperative and single-threaded.
 
 ## Verifying behaviour
 

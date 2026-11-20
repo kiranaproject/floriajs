@@ -67,6 +67,7 @@ CORPORA=(
   "function-tostring|function-tostring-tests|phase10-function-tostring|10"
   "prototype-constructor|prototype-constructor-tests|phase10-prototype-constructor|10"
   "weak-collections|weak-collections-tests|phase10-weak-collections|10"
+  "module-record|module-record-tests|phase10-module-records|10"
   "curated|curated-tests|phase10-curated"
 )
 
