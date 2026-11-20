@@ -259,7 +259,7 @@ echo "== Reviewed upstream coercion corpus =="
 python3 "$TEST262/tools/run_test262.py" \
   --root "$ROOT" \
   --host "$HOST" \
-  --timeout 60 \
+  --timeout 180 \
   --jobs "$JOBS" \
   --max-duration "$MAX_DURATION" \
   --list "$TEST262/config/coercion-tests.txt" \

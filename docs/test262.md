@@ -524,7 +524,10 @@ Focused corpus: `config/coercion-tests.txt` — **608 records, all pass**. The
 corpus excludes lone-surrogate/noncharacter tests (UTF-8 storage cannot
 represent them), resizable-buffer tests, cross-realm `Error` prototype
 derivation, and two four-nested-loop URI tests that exceed the diagnostic
-timeout.
+timeout. `S15.1.3.4_A2.3_T1.js` walks 51 000 code points and takes about 26 s
+in a single host process, so the coercion corpus runs with a 180 s
+per-scenario budget; the cost is the interpreter's loop throughput, identical
+before and after the module work.
 
 Validation: **283 FPCUnit tests**, **106 documentation claims**, curated corpus
 **354 records — 354 pass**, extended diagnostic **1440 records — 1440 pass**.

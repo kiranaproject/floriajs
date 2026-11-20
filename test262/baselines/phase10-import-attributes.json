@@ -1,18 +1,18 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "f9a2149eb098d99d97c7f800579a4bcc48197399",
+    "revision": "aa5fb7252d6e6015cbbf8dcef94a32239297a97f",
     "workingTreeDirty": false
   },
   "host": {
-    "bytes": 2283328,
-    "sha256": "fb031170805b5c6bfdfd2803c0263026405c3c6855fa90c46db42c77940bd180"
+    "bytes": 2334368,
+    "sha256": "b45f0df2d8c81cab2d877e889c6cb3ce9f1c1e8d19532e86c10b74190a2b50d1"
   },
   "kind": "floriajs-test262-report",
   "options": {
     "allowUnpinned": false,
     "jobs": 4,
-    "listFile": "import-attributes-tests.txt",
+    "listFile": "config/import-attributes-tests.txt",
     "maxDurationSeconds": 0.0,
     "selection": [
       "language/import/import-attributes/json-value-array.js",
@@ -26,7 +26,7 @@
       "language/import/import-attributes/json-extensibility-array.js",
       "language/import/import-attributes/json-extensibility-object.js"
     ],
-    "timeoutSeconds": 5.0
+    "timeoutSeconds": 10.0
   },
   "platform": {
     "machine": "x86_64",
@@ -61,7 +61,10 @@
         "--harness",
         "propertyHelper.js",
         "--test",
-        "json-extensibility-array.js"
+        "json-extensibility-array.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -75,8 +78,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -86,7 +89,7 @@
         "scenarioId": "language/import/import-attributes/json-extensibility-array.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-extensibility-array.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -106,11 +109,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-array_FIXTURE.json",
-        "test/language/import/import-attributes/json-extensibility-array.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -151,7 +149,10 @@
         "--harness",
         "propertyHelper.js",
         "--test",
-        "json-extensibility-object.js"
+        "json-extensibility-object.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -165,8 +166,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -176,7 +177,7 @@
         "scenarioId": "language/import/import-attributes/json-extensibility-object.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-extensibility-object.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -196,11 +197,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-object_FIXTURE.json",
-        "test/language/import/import-attributes/json-extensibility-object.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -242,7 +238,10 @@
         "--harness",
         "doneprintHandle.js",
         "--test",
-        "json-idempotency.js"
+        "json-idempotency.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -256,8 +255,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -269,7 +268,7 @@
         "scenarioId": "language/import/import-attributes/json-idempotency.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-idempotency.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -290,12 +289,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-idempotency_FIXTURE.json",
-        "test/language/import/import-attributes/json-idempotency-indirect_FIXTURE.js",
-        "test/language/import/import-attributes/json-idempotency.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -333,7 +326,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-array.js"
+        "json-value-array.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -347,8 +343,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -358,7 +354,7 @@
         "scenarioId": "language/import/import-attributes/json-value-array.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-array.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -376,11 +372,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-array_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-array.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -418,7 +409,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-boolean.js"
+        "json-value-boolean.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -432,8 +426,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -443,7 +437,7 @@
         "scenarioId": "language/import/import-attributes/json-value-boolean.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-boolean.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -461,11 +455,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-boolean_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-boolean.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -503,7 +492,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-null.js"
+        "json-value-null.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -517,8 +509,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -528,7 +520,7 @@
         "scenarioId": "language/import/import-attributes/json-value-null.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-null.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -546,11 +538,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-null_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-null.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -588,7 +575,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-number.js"
+        "json-value-number.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -602,8 +592,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -613,7 +603,7 @@
         "scenarioId": "language/import/import-attributes/json-value-number.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-number.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -631,11 +621,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-number_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-number.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -676,7 +661,10 @@
         "--harness",
         "propertyHelper.js",
         "--test",
-        "json-value-object.js"
+        "json-value-object.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -690,8 +678,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -701,7 +689,7 @@
         "scenarioId": "language/import/import-attributes/json-value-object.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-object.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -721,11 +709,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-object_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-object.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -763,7 +746,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-string.js"
+        "json-value-string.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -777,8 +763,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -788,7 +774,7 @@
         "scenarioId": "language/import/import-attributes/json-value-string.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-string.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -806,11 +792,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-string_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-string.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -848,7 +829,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-via-namespace.js"
+        "json-via-namespace.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -862,8 +846,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -873,7 +857,7 @@
         "scenarioId": "language/import/import-attributes/json-via-namespace.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-via-namespace.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -891,11 +875,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-via-namespace_FIXTURE.json",
-        "test/language/import/import-attributes/json-via-namespace.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,

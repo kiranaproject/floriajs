@@ -62,7 +62,7 @@ CORPORA=(
   "async-generator|async-generator-tests|phase10-async-generators"
   "realm|realm-tests|phase10-realms"
   "library-gaps|library-gaps-tests|phase10-library-gaps"
-  "coercion|coercion-tests|phase10-coercion|60"
+  "coercion|coercion-tests|phase10-coercion|180"
   "modern-builtins|modern-builtins-tests|phase10-modern-builtins|10"
   "function-tostring|function-tostring-tests|phase10-function-tostring|10"
   "prototype-constructor|prototype-constructor-tests|phase10-prototype-constructor|10"

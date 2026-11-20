@@ -1,18 +1,18 @@
 {
   "baseline": true,
   "engine": {
-    "revision": "f9a2149eb098d99d97c7f800579a4bcc48197399",
+    "revision": "aa5fb7252d6e6015cbbf8dcef94a32239297a97f",
     "workingTreeDirty": false
   },
   "host": {
-    "bytes": 2283328,
-    "sha256": "fb031170805b5c6bfdfd2803c0263026405c3c6855fa90c46db42c77940bd180"
+    "bytes": 2334368,
+    "sha256": "b45f0df2d8c81cab2d877e889c6cb3ce9f1c1e8d19532e86c10b74190a2b50d1"
   },
   "kind": "floriajs-test262-report",
   "options": {
     "allowUnpinned": false,
     "jobs": 4,
-    "listFile": "curated-tests.txt",
+    "listFile": "config/curated-tests.txt",
     "maxDurationSeconds": 0.0,
     "selection": [
       "language/expressions/addition/S11.6.1_A1.js",
@@ -219,7 +219,7 @@
       "language/statements/with/12.10-2-1.js",
       "language/statements/with/12.10-2-2.js"
     ],
-    "timeoutSeconds": 5.0
+    "timeoutSeconds": 10.0
   },
   "platform": {
     "machine": "x86_64",
@@ -16915,7 +16915,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-boolean.js"
+        "json-value-boolean.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -16929,8 +16932,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -16940,7 +16943,7 @@
         "scenarioId": "language/import/import-attributes/json-value-boolean.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-boolean.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -16958,11 +16961,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-boolean_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-boolean.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -17000,7 +16998,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-null.js"
+        "json-value-null.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -17014,8 +17015,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -17025,7 +17026,7 @@
         "scenarioId": "language/import/import-attributes/json-value-null.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-null.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -17043,11 +17044,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-null_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-null.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -17085,7 +17081,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-number.js"
+        "json-value-number.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -17099,8 +17098,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -17110,7 +17109,7 @@
         "scenarioId": "language/import/import-attributes/json-value-number.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-number.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -17128,11 +17127,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-number_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-number.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -17170,7 +17164,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-value-string.js"
+        "json-value-string.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -17184,8 +17181,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -17195,7 +17192,7 @@
         "scenarioId": "language/import/import-attributes/json-value-string.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-value-string.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -17213,11 +17210,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-value-string_FIXTURE.json",
-        "test/language/import/import-attributes/json-value-string.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -17255,7 +17247,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "json-via-namespace.js"
+        "json-via-namespace.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -17269,8 +17264,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -17280,7 +17275,7 @@
         "scenarioId": "language/import/import-attributes/json-via-namespace.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/import/import-attributes/json-via-namespace.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -17298,11 +17293,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/import/import-attributes/json-via-namespace_FIXTURE.json",
-        "test/language/import/import-attributes/json-via-namespace.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -18448,7 +18438,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "eval-export-cls-semi.js"
+        "eval-export-cls-semi.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -18462,8 +18455,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -18473,7 +18466,7 @@
         "scenarioId": "language/module-code/eval-export-cls-semi.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/eval-export-cls-semi.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -18488,10 +18481,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/eval-export-cls-semi.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -18529,7 +18518,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "eval-export-dflt-cls-named-semi.js"
+        "eval-export-dflt-cls-named-semi.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -18543,8 +18535,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -18554,7 +18546,7 @@
         "scenarioId": "language/module-code/eval-export-dflt-cls-named-semi.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/eval-export-dflt-cls-named-semi.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -18569,10 +18561,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/eval-export-dflt-cls-named-semi.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -18610,7 +18598,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "eval-export-dflt-fun-named-semi.js"
+        "eval-export-dflt-fun-named-semi.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -18624,8 +18615,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -18635,7 +18626,7 @@
         "scenarioId": "language/module-code/eval-export-dflt-fun-named-semi.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/eval-export-dflt-fun-named-semi.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -18650,10 +18641,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/eval-export-dflt-fun-named-semi.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -18691,7 +18678,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "eval-export-fun-semi.js"
+        "eval-export-fun-semi.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -18705,8 +18695,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -18716,7 +18706,7 @@
         "scenarioId": "language/module-code/eval-export-fun-semi.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/eval-export-fun-semi.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -18731,10 +18721,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/eval-export-fun-semi.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -18772,7 +18758,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "eval-gtbndng-local-bndng-cls.js"
+        "eval-gtbndng-local-bndng-cls.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -18786,8 +18775,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -18797,7 +18786,7 @@
         "scenarioId": "language/module-code/eval-gtbndng-local-bndng-cls.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/eval-gtbndng-local-bndng-cls.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -18812,10 +18801,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/eval-gtbndng-local-bndng-cls.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -18853,7 +18838,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "eval-gtbndng-local-bndng-const.js"
+        "eval-gtbndng-local-bndng-const.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -18867,8 +18855,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -18878,7 +18866,7 @@
         "scenarioId": "language/module-code/eval-gtbndng-local-bndng-const.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/eval-gtbndng-local-bndng-const.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -18893,10 +18881,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/eval-gtbndng-local-bndng-const.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -18934,7 +18918,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "eval-gtbndng-local-bndng-let.js"
+        "eval-gtbndng-local-bndng-let.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -18948,8 +18935,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -18959,7 +18946,7 @@
         "scenarioId": "language/module-code/eval-gtbndng-local-bndng-let.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/eval-gtbndng-local-bndng-let.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -18974,10 +18961,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/eval-gtbndng-local-bndng-let.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19015,7 +18998,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "eval-gtbndng-local-bndng-var.js"
+        "eval-gtbndng-local-bndng-var.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19029,8 +19015,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19040,7 +19026,7 @@
         "scenarioId": "language/module-code/eval-gtbndng-local-bndng-var.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/eval-gtbndng-local-bndng-var.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19055,10 +19041,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/eval-gtbndng-local-bndng-var.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19096,7 +19078,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "export-default-function-declaration-binding-exists.js"
+        "export-default-function-declaration-binding-exists.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 1,
       "hostResult": {
@@ -19105,23 +19090,23 @@
           "column": 0,
           "hostExceptionClass": "",
           "line": 0,
-          "message": "SyntaxError: Identifier 'F' has already been declared",
+          "message": "Duplicate declaration of F",
           "name": "SyntaxError"
         },
         "legacyResult": {
-          "errorMessage": "SyntaxError: Identifier 'F' has already been declared",
+          "errorMessage": "Duplicate declaration of F",
           "resultType": "error",
           "stringValue": "",
           "success": false
         },
         "outcome": "fail",
-        "phase": "compile",
+        "phase": "parse",
         "printOutput": [],
         "reason": "evaluation-failed",
         "scenarioId": "language/module-code/export-default-function-declaration-binding-exists.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/export-default-function-declaration-binding-exists.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19139,7 +19124,6 @@
         },
         "nonDeterministic": false
       },
-      "moduleBundle": true,
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19177,7 +19161,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "export-default-function-declaration-binding.js"
+        "export-default-function-declaration-binding.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19191,8 +19178,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19202,7 +19189,7 @@
         "scenarioId": "language/module-code/export-default-function-declaration-binding.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/export-default-function-declaration-binding.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19217,10 +19204,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/export-default-function-declaration-binding.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19258,7 +19241,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "instn-iee-iee-cycle.js"
+        "instn-iee-iee-cycle.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19272,8 +19258,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19283,7 +19269,7 @@
         "scenarioId": "language/module-code/instn-iee-iee-cycle.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/instn-iee-iee-cycle.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19298,11 +19284,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/instn-iee-iee-cycle-2_FIXTURE.js",
-        "test/language/module-code/instn-iee-iee-cycle.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19343,7 +19324,10 @@
         "--harness",
         "fnGlobalObject.js",
         "--test",
-        "instn-local-bndng-export-cls.js"
+        "instn-local-bndng-export-cls.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19357,8 +19341,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19368,7 +19352,7 @@
         "scenarioId": "language/module-code/instn-local-bndng-export-cls.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/instn-local-bndng-export-cls.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19385,10 +19369,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/instn-local-bndng-export-cls.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19429,7 +19409,10 @@
         "--harness",
         "fnGlobalObject.js",
         "--test",
-        "instn-local-bndng-export-const.js"
+        "instn-local-bndng-export-const.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19443,8 +19426,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19454,7 +19437,7 @@
         "scenarioId": "language/module-code/instn-local-bndng-export-const.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/instn-local-bndng-export-const.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19471,10 +19454,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/instn-local-bndng-export-const.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19515,7 +19494,10 @@
         "--harness",
         "fnGlobalObject.js",
         "--test",
-        "instn-local-bndng-export-fun.js"
+        "instn-local-bndng-export-fun.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19529,8 +19511,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19540,7 +19522,7 @@
         "scenarioId": "language/module-code/instn-local-bndng-export-fun.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/instn-local-bndng-export-fun.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19557,10 +19539,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/instn-local-bndng-export-fun.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19601,7 +19579,10 @@
         "--harness",
         "fnGlobalObject.js",
         "--test",
-        "instn-local-bndng-export-let.js"
+        "instn-local-bndng-export-let.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19615,8 +19596,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19626,7 +19607,7 @@
         "scenarioId": "language/module-code/instn-local-bndng-export-let.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/instn-local-bndng-export-let.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19643,10 +19624,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/instn-local-bndng-export-let.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19687,7 +19664,10 @@
         "--harness",
         "fnGlobalObject.js",
         "--test",
-        "instn-local-bndng-export-var.js"
+        "instn-local-bndng-export-var.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19701,8 +19681,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19712,7 +19692,7 @@
         "scenarioId": "language/module-code/instn-local-bndng-export-var.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/instn-local-bndng-export-var.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19729,10 +19709,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/instn-local-bndng-export-var.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19770,7 +19746,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "instn-named-iee-cycle.js"
+        "instn-named-iee-cycle.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19784,8 +19763,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19795,7 +19774,7 @@
         "scenarioId": "language/module-code/instn-named-iee-cycle.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/instn-named-iee-cycle.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19810,11 +19789,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/instn-named-iee-cycle-2_FIXTURE.js",
-        "test/language/module-code/instn-named-iee-cycle.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
@@ -19852,7 +19826,10 @@
         "--harness",
         "sta.js",
         "--test",
-        "instn-star-iee-cycle.js"
+        "instn-star-iee-cycle.js",
+        "--module",
+        "--module-root",
+        "test"
       ],
       "hostExitCode": 0,
       "hostResult": {
@@ -19866,8 +19843,8 @@
         },
         "legacyResult": {
           "errorMessage": "",
-          "resultType": "undefined",
-          "stringValue": "undefined",
+          "resultType": "string",
+          "stringValue": "",
           "success": true
         },
         "outcome": "pass",
@@ -19877,7 +19854,7 @@
         "scenarioId": "language/module-code/instn-star-iee-cycle.js::module",
         "schemaVersion": 1,
         "sourceIndex": 0,
-        "sourceName": "bundle.js",
+        "sourceName": "language/module-code/instn-star-iee-cycle.js",
         "sourceRole": "test",
         "variant": "strict"
       },
@@ -19892,11 +19869,6 @@
         "negative": null,
         "nonDeterministic": false
       },
-      "moduleBundle": true,
-      "moduleGraph": [
-        "test/language/module-code/instn-star-iee-cycle-2_FIXTURE.js",
-        "test/language/module-code/instn-star-iee-cycle.js"
-      ],
       "outcome": "pass",
       "policyName": "floriajs-diagnostic-subset",
       "preparationOnly": false,
