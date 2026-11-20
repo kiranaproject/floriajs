@@ -513,7 +513,19 @@ assignment operator, including plain `=`.
   `await`, declaring `arguments`, and calling `super(...)` are early errors
   there.
 - A computed member name (`[expr]() {}`, `[expr] = value`, and the static and
-  accessor forms) is evaluated once, at class-definition time, in source order.
+  accessor forms) is evaluated exactly once, at class-definition time, in
+  source order — including a computed *instance* field key, which the
+  specification also evaluates at definition time rather than per instance.
+  A `yield` in such a key therefore suspends an enclosing generator exactly
+  once.
+- A `#name` must be declared by the class that encloses it. Using an
+  undeclared private name, or any private name outside a class body, is an
+  early `SyntaxError`.
+- A field initializer may not reference `arguments` or call `super()`; both
+  are early errors, including when they appear inside an arrow function in the
+  initializer.
+- The decorator-era `accessor x = value` field form is not implemented and is
+  rejected as a parser limitation.
 
 ### Errors and promises
 

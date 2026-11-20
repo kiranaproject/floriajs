@@ -10663,6 +10663,37 @@ begin
     AssertFalse('yield in a static block is rejected', res.Success);
     res := engine.Execute('class B {} class A extends B { static { super(); } }');
     AssertFalse('super() in a static block is rejected', res.Success);
+    res := engine.Execute('class A { static { var arguments; } }');
+    AssertFalse('declaring arguments in a static block is rejected', res.Success);
+
+    // A computed key is evaluated exactly once, even with several instances.
+    res := engine.Execute(
+      'var n = 0; function k() { n = n + 1; return "f"; }' +
+      'class C { [k()] = 1; } new C(); new C(); "" + n;');
+    AssertTrue('a computed field key', res.Success);
+    AssertEquals('the key is evaluated once, not per instance', '1', res.StringValue);
+
+    res := engine.Execute(
+      'var n = 0; function k() { n = n + 1; return "m"; }' +
+      'class C { [k()]() {} } "" + n;');
+    AssertEquals('a computed method key is evaluated once', '1', res.StringValue);
+
+    // A `yield` inside a computed key suspends the enclosing generator once.
+    res := engine.Execute(
+      'function * g() { let C = class { [yield 9] = 9; }; }' +
+      'var it = g(); var n = 0; var r;' +
+      'while (n < 5) { r = it.next(); n = n + 1; if (r.done) break; }' +
+      '"" + n + "," + r.done;');
+    AssertTrue('a yield in a computed key', res.Success);
+    AssertEquals('the generator resumes and finishes', '2,true', res.StringValue);
+
+    // A private name must be declared by its class.
+    res := engine.Execute('class C { constructor() { this.#x; } }');
+    AssertFalse('an undeclared private name is rejected', res.Success);
+    res := engine.Execute('var o = {}; o.#f;');
+    AssertFalse('a private name outside a class is rejected', res.Success);
+    res := engine.Execute('class C { #f = 1; m() { return this.#f; } } new C().m();');
+    AssertTrue('a declared private name is accepted', res.Success);
   finally
     engine.Free();
   end;

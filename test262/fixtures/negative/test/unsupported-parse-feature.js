@@ -4,5 +4,5 @@ negative:
   type: SyntaxError
 ---*/
 class Example {
-  field = 1;
+  accessor field = 1;
 }

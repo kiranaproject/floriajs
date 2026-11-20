@@ -69,6 +69,12 @@ type
     { True while parsing a `static { ... }` block. `return`, `yield`, `await`,
       `arguments` as a binding, and `super(...)` are early errors there. }
     FInStaticBlock: Boolean;
+    { The function depth on entering the current static block: `arguments` is
+      illegal at that depth but legal inside a nested function. }
+    FStaticBlockDepth: Integer;
+    { How many class bodies enclose the current position. A private name is only
+      meaningful inside one. }
+    FClassDepth: Integer;
     { True while parsing the direct body of the program. Import/export
       declarations are only legal there when the source is a module. }
     FAtTopLevel: Boolean;
@@ -106,6 +112,8 @@ type
     { The original source text from AStartPos through the last consumed token. }
     function  SourceSlice(AStartPos, AEndPos: Integer): string;
     function  ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
+    { Rejects a `#name` used in the class body that the body never declares. }
+    procedure ValidatePrivateNames(ACls: TFloriaJSClassNode);
     function  ParseClassDeclaration(): TFloriaJSStmtNode;
     function  ParseTaggedTemplate(ATag: TFloriaJSExprNode): TFloriaJSExprNode;
     function  ParseFunctionExpr(AIsAsync: Boolean = False; AStartPos: Integer = -1): TFloriaJSExprNode;
@@ -198,6 +206,7 @@ begin
   FFunctionDepth := 0;
   FAsyncDepth := 0;
   FInStaticBlock := False;
+  FClassDepth := 0;
   Advance();
 end;
 
@@ -214,6 +223,7 @@ begin
   FFunctionDepth := 0;
   FAsyncDepth := 0;
   FInStaticBlock := False;
+  FClassDepth := 0;
   Advance();
 end;
 
@@ -549,6 +559,11 @@ begin
   { Identifier }
   if Match(tkIdentifier) then
   begin
+    { A `static { ... }` block has no `arguments`; only a nested function in it
+      does. }
+    if FInStaticBlock and (FFunctionDepth = FStaticBlockDepth) and
+       (FPrevious.Text = 'arguments') then
+      ErrorAtCurrent('''arguments'' is not allowed in a static block');
     expr := TFloriaJSIdentifierExpr.Create(tok.Text, tok.Line, tok.Column);
     expr.SourceStart := tok.StartPos;
     expr.SourceEnd := FPrevious.EndPos;
@@ -819,7 +834,11 @@ begin
     if op.Kind = tkDot then
     begin
       if Match(tkPrivateName) then
-        memberPropName := FPrevious.Text
+      begin
+        memberPropName := FPrevious.Text;
+        if FClassDepth = 0 then
+          ErrorAtCurrent('Private field must be declared in an enclosing class');
+      end
       else if Match(tkIdentifier) then
         memberPropName := FPrevious.Text
       else if IsKeywordToken(FCurrent.Kind) then
@@ -935,9 +954,10 @@ end;
 
 { `class [Name] [extends Base] { members }`
 
-  Members are methods, `get`/`set` accessors, and `static` variants. Fields are
-  not supported (they are a later proposal); the parser rejects them rather than
-  silently ignoring the initializer. }
+  Members are methods, `get`/`set` accessors, fields, private names, and static
+  blocks. The decorator-era `accessor x = ...` field form is not implemented and
+  is rejected with a message the diagnostic adapter reports as a parser
+  limitation rather than as a specification early error. }
 
 { `class Name ... { }` as a statement.
 
@@ -1005,6 +1025,374 @@ begin
   Result := node;
 end;
 
+{ The `ContainsArguments` and `ContainsSuperCall` early errors for a class field
+  initializer. An arrow body is a statement whose expression may hold another
+  arrow, so each pair recurses through the other; an ordinary function body is
+  a fresh scope and stops the walk. }
+function ExprContainsSuperCall(AExpr: TFloriaJSExprNode): Boolean; forward;
+function StmtContainsSuperCall(AStmt: TFloriaJSStmtNode): Boolean; forward;
+function ExprContainsArguments(AExpr: TFloriaJSExprNode): Boolean; forward;
+function StmtContainsArguments(AStmt: TFloriaJSStmtNode): Boolean; forward;
+
+function ExprContainsSuperCall(AExpr: TFloriaJSExprNode): Boolean;
+var
+  i: Integer;
+  target: TFloriaJSExprNode;
+begin
+  Result := False;
+  if AExpr = nil then Exit;
+  target := AExpr;
+  while target is TFloriaJSGroupExpr do
+    target := TFloriaJSGroupExpr(target).Expression;
+
+  if target is TFloriaJSCallExpr then
+  begin
+    if (TFloriaJSCallExpr(target).Callee is TFloriaJSIdentifierExpr) and
+       (TFloriaJSIdentifierExpr(TFloriaJSCallExpr(target).Callee).Name = 'super') then
+      Exit(True);
+    if ExprContainsSuperCall(TFloriaJSCallExpr(target).Callee) then Exit(True);
+    for i := 0 to TFloriaJSCallExpr(target).GetArgumentCount() - 1 do
+      if ExprContainsSuperCall(TFloriaJSCallExpr(target).GetArgument(i)) then
+        Exit(True);
+    Exit(False);
+  end;
+  if target is TFloriaJSBinaryExpr then
+    Exit(ExprContainsSuperCall(TFloriaJSBinaryExpr(target).Left) or
+         ExprContainsSuperCall(TFloriaJSBinaryExpr(target).Right));
+  if target is TFloriaJSUnaryExpr then
+    Exit(ExprContainsSuperCall(TFloriaJSUnaryExpr(target).Operand));
+  if target is TFloriaJSAssignExpr then
+    Exit(ExprContainsSuperCall(TFloriaJSAssignExpr(target).Value));
+  if target is TFloriaJSMemberExpr then
+  begin
+    if ExprContainsSuperCall(TFloriaJSMemberExpr(target).Target) then Exit(True);
+    if TFloriaJSMemberExpr(target).Computed then
+      Exit(ExprContainsSuperCall(TFloriaJSMemberExpr(target).PropertyExpr));
+    Exit(False);
+  end;
+  if target is TFloriaJSArrayExpr then
+  begin
+    for i := 0 to TFloriaJSArrayExpr(target).GetElementCount() - 1 do
+      if ExprContainsSuperCall(TFloriaJSArrayExpr(target).GetElement(i)) then
+        Exit(True);
+    Exit(False);
+  end;
+  if target is TFloriaJSConditionalExpr then
+    Exit(ExprContainsSuperCall(TFloriaJSConditionalExpr(target).Condition) or
+         ExprContainsSuperCall(TFloriaJSConditionalExpr(target).Consequent) or
+         ExprContainsSuperCall(TFloriaJSConditionalExpr(target).Alternate));
+  if target is TFloriaJSFunctionExpr then
+  begin
+    if not TFloriaJSFunctionExpr(target).IsArrow then
+      Exit(False);
+    Exit(StmtContainsSuperCall(TFloriaJSFunctionExpr(target).Body));
+  end;
+end;
+
+function StmtContainsSuperCall(AStmt: TFloriaJSStmtNode): Boolean;
+var
+  i: Integer;
+  block: TFloriaJSBlockStmt;
+begin
+  Result := False;
+  if AStmt = nil then Exit;
+  if AStmt is TFloriaJSBlockStmt then
+  begin
+    block := TFloriaJSBlockStmt(AStmt);
+    for i := 0 to block.GetStatementCount() - 1 do
+      if StmtContainsSuperCall(block.GetStatement(i)) then Exit(True);
+    Exit(False);
+  end;
+  if AStmt is TFloriaJSReturnStmt then
+    Exit(ExprContainsSuperCall(TFloriaJSReturnStmt(AStmt).Argument));
+  if AStmt is TFloriaJSExprStmt then
+    Exit(ExprContainsSuperCall(TFloriaJSExprStmt(AStmt).Expression));
+end;
+
+function ExprContainsArguments(AExpr: TFloriaJSExprNode): Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  if AExpr = nil then Exit;
+  if AExpr is TFloriaJSIdentifierExpr then
+    Exit(TFloriaJSIdentifierExpr(AExpr).Name = 'arguments');
+  if AExpr is TFloriaJSGroupExpr then
+    Exit(ExprContainsArguments(TFloriaJSGroupExpr(AExpr).Expression));
+  if AExpr is TFloriaJSBinaryExpr then
+    Exit(ExprContainsArguments(TFloriaJSBinaryExpr(AExpr).Left) or
+         ExprContainsArguments(TFloriaJSBinaryExpr(AExpr).Right));
+  if AExpr is TFloriaJSUnaryExpr then
+    Exit(ExprContainsArguments(TFloriaJSUnaryExpr(AExpr).Operand));
+  if AExpr is TFloriaJSAssignExpr then
+    Exit(ExprContainsArguments(TFloriaJSAssignExpr(AExpr).Value));
+  if AExpr is TFloriaJSCallExpr then
+  begin
+    if ExprContainsArguments(TFloriaJSCallExpr(AExpr).Callee) then Exit(True);
+    for i := 0 to TFloriaJSCallExpr(AExpr).GetArgumentCount() - 1 do
+      if ExprContainsArguments(TFloriaJSCallExpr(AExpr).GetArgument(i)) then
+        Exit(True);
+    Exit(False);
+  end;
+  if AExpr is TFloriaJSMemberExpr then
+  begin
+    if ExprContainsArguments(TFloriaJSMemberExpr(AExpr).Target) then Exit(True);
+    if TFloriaJSMemberExpr(AExpr).Computed then
+      Exit(ExprContainsArguments(TFloriaJSMemberExpr(AExpr).PropertyExpr));
+    Exit(False);
+  end;
+  if AExpr is TFloriaJSArrayExpr then
+  begin
+    for i := 0 to TFloriaJSArrayExpr(AExpr).GetElementCount() - 1 do
+      if ExprContainsArguments(TFloriaJSArrayExpr(AExpr).GetElement(i)) then
+        Exit(True);
+    Exit(False);
+  end;
+  if AExpr is TFloriaJSConditionalExpr then
+    Exit(ExprContainsArguments(TFloriaJSConditionalExpr(AExpr).Condition) or
+         ExprContainsArguments(TFloriaJSConditionalExpr(AExpr).Consequent) or
+         ExprContainsArguments(TFloriaJSConditionalExpr(AExpr).Alternate));
+  if AExpr is TFloriaJSTaggedTemplateExpr then
+    Exit(ExprContainsArguments(TFloriaJSTaggedTemplateExpr(AExpr).Tag));
+  if AExpr is TFloriaJSSpreadExpr then
+    Exit(ExprContainsArguments(TFloriaJSSpreadExpr(AExpr).Expression));
+  if AExpr is TFloriaJSFunctionExpr then
+  begin
+    if not TFloriaJSFunctionExpr(AExpr).IsArrow then
+      Exit(False);
+    Exit(StmtContainsArguments(TFloriaJSFunctionExpr(AExpr).Body));
+  end;
+end;
+
+function StmtContainsArguments(AStmt: TFloriaJSStmtNode): Boolean;
+var
+  i: Integer;
+  block: TFloriaJSBlockStmt;
+begin
+  Result := False;
+  if AStmt = nil then Exit;
+  if AStmt is TFloriaJSBlockStmt then
+  begin
+    block := TFloriaJSBlockStmt(AStmt);
+    for i := 0 to block.GetStatementCount() - 1 do
+      if StmtContainsArguments(block.GetStatement(i)) then Exit(True);
+    Exit(False);
+  end;
+  if AStmt is TFloriaJSReturnStmt then
+    Exit(ExprContainsArguments(TFloriaJSReturnStmt(AStmt).Argument));
+  if AStmt is TFloriaJSExprStmt then
+    Exit(ExprContainsArguments(TFloriaJSExprStmt(AStmt).Expression));
+end;
+
+{ Collects the `#name` of every private member access in an expression. Used to
+  reject a private name that the class body never declares. }
+procedure CollectPrivateRefs(AExpr: TFloriaJSExprNode; AInto: TStrings);
+var
+  i: Integer;
+begin
+  if (AExpr = nil) or (AInto = nil) then Exit;
+  if AExpr is TFloriaJSMemberExpr then
+  begin
+    if TFloriaJSMemberExpr(AExpr).IsPrivate then
+      AInto.Add(TFloriaJSMemberExpr(AExpr).PropertyName);
+    CollectPrivateRefs(TFloriaJSMemberExpr(AExpr).Target, AInto);
+    if TFloriaJSMemberExpr(AExpr).Computed then
+      CollectPrivateRefs(TFloriaJSMemberExpr(AExpr).PropertyExpr, AInto);
+    Exit;
+  end;
+  if AExpr is TFloriaJSGroupExpr then
+  begin
+    CollectPrivateRefs(TFloriaJSGroupExpr(AExpr).Expression, AInto); Exit;
+  end;
+  if AExpr is TFloriaJSBinaryExpr then
+  begin
+    CollectPrivateRefs(TFloriaJSBinaryExpr(AExpr).Left, AInto);
+    CollectPrivateRefs(TFloriaJSBinaryExpr(AExpr).Right, AInto); Exit;
+  end;
+  if AExpr is TFloriaJSUnaryExpr then
+  begin
+    CollectPrivateRefs(TFloriaJSUnaryExpr(AExpr).Operand, AInto); Exit;
+  end;
+  if AExpr is TFloriaJSAssignExpr then
+  begin
+    CollectPrivateRefs(TFloriaJSAssignExpr(AExpr).Target, AInto);
+    CollectPrivateRefs(TFloriaJSAssignExpr(AExpr).Value, AInto); Exit;
+  end;
+  if AExpr is TFloriaJSCallExpr then
+  begin
+    CollectPrivateRefs(TFloriaJSCallExpr(AExpr).Callee, AInto);
+    for i := 0 to TFloriaJSCallExpr(AExpr).GetArgumentCount() - 1 do
+      CollectPrivateRefs(TFloriaJSCallExpr(AExpr).GetArgument(i), AInto);
+    Exit;
+  end;
+  if AExpr is TFloriaJSArrayExpr then
+  begin
+    for i := 0 to TFloriaJSArrayExpr(AExpr).GetElementCount() - 1 do
+      CollectPrivateRefs(TFloriaJSArrayExpr(AExpr).GetElement(i), AInto);
+    Exit;
+  end;
+  if AExpr is TFloriaJSConditionalExpr then
+  begin
+    CollectPrivateRefs(TFloriaJSConditionalExpr(AExpr).Condition, AInto);
+    CollectPrivateRefs(TFloriaJSConditionalExpr(AExpr).Consequent, AInto);
+    CollectPrivateRefs(TFloriaJSConditionalExpr(AExpr).Alternate, AInto);
+    Exit;
+  end;
+  if AExpr is TFloriaJSSpreadExpr then
+    CollectPrivateRefs(TFloriaJSSpreadExpr(AExpr).Expression, AInto);
+end;
+
+{ A `#name` used in a class member must be declared by that class body. }
+{ Statement-level private-reference collection, so a `this.#x` inside a method
+  body is checked against the class's declared names as well. }
+procedure CollectPrivateRefsStmt(AStmt: TFloriaJSStmtNode; AInto: TStrings);
+var
+  i: Integer;
+  block: TFloriaJSBlockStmt;
+  ifStmt: TFloriaJSIfStmt;
+  varStmt: TFloriaJSVarStmt;
+  whileStmt: TFloriaJSWhileStmt;
+  forStmt: TFloriaJSForStmt;
+  tryStmt: TFloriaJSTryStmt;
+  labelStmt: TFloriaJSLabeledStmt;
+  switchStmt: TFloriaJSSwitchStmt;
+  switchCase: TFloriaJSSwitchCase;
+  fnDecl: TFloriaJSFunctionDecl;
+
+  procedure CaseBody(ACase: TFloriaJSSwitchCase);
+  var k: Integer;
+  begin
+    if ACase = nil then Exit;
+    CollectPrivateRefs(ACase.Test, AInto);
+    for k := 0 to ACase.GetStatementCount() - 1 do
+      CollectPrivateRefsStmt(ACase.GetStatement(k), AInto);
+  end;
+
+begin
+  if (AStmt = nil) or (AInto = nil) then Exit;
+  if AStmt is TFloriaJSBlockStmt then
+  begin
+    block := TFloriaJSBlockStmt(AStmt);
+    for i := 0 to block.GetStatementCount() - 1 do
+      CollectPrivateRefsStmt(block.GetStatement(i), AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSExprStmt then
+  begin
+    CollectPrivateRefs(TFloriaJSExprStmt(AStmt).Expression, AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSReturnStmt then
+  begin
+    CollectPrivateRefs(TFloriaJSReturnStmt(AStmt).Argument, AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSThrowStmt then
+  begin
+    CollectPrivateRefs(TFloriaJSThrowStmt(AStmt).Expression, AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSVarStmt then
+  begin
+    varStmt := TFloriaJSVarStmt(AStmt);
+    for i := 0 to varStmt.GetDeclaratorCount() - 1 do
+      CollectPrivateRefs(varStmt.GetDeclaratorInit(i), AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSIfStmt then
+  begin
+    ifStmt := TFloriaJSIfStmt(AStmt);
+    CollectPrivateRefs(ifStmt.Condition, AInto);
+    CollectPrivateRefsStmt(ifStmt.Consequent, AInto);
+    CollectPrivateRefsStmt(ifStmt.Alternate, AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSWhileStmt then
+  begin
+    whileStmt := TFloriaJSWhileStmt(AStmt);
+    CollectPrivateRefs(whileStmt.Condition, AInto);
+    CollectPrivateRefsStmt(whileStmt.Body, AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSForStmt then
+  begin
+    forStmt := TFloriaJSForStmt(AStmt);
+    if forStmt.Init is TFloriaJSStmtNode then
+      CollectPrivateRefsStmt(TFloriaJSStmtNode(forStmt.Init), AInto);
+    CollectPrivateRefs(forStmt.Test, AInto);
+    CollectPrivateRefs(forStmt.Update, AInto);
+    CollectPrivateRefsStmt(forStmt.Body, AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSTryStmt then
+  begin
+    tryStmt := TFloriaJSTryStmt(AStmt);
+    CollectPrivateRefsStmt(tryStmt.Block, AInto);
+    CollectPrivateRefsStmt(tryStmt.CatchBlock, AInto);
+    CollectPrivateRefsStmt(tryStmt.FinallyBlock, AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSLabeledStmt then
+  begin
+    labelStmt := TFloriaJSLabeledStmt(AStmt);
+    CollectPrivateRefsStmt(labelStmt.Body, AInto);
+    Exit;
+  end;
+  if AStmt is TFloriaJSSwitchStmt then
+  begin
+    switchStmt := TFloriaJSSwitchStmt(AStmt);
+    CollectPrivateRefs(switchStmt.Discriminant, AInto);
+    for i := 0 to switchStmt.GetCaseCount() - 1 do
+      CaseBody(switchStmt.GetCase(i));
+    Exit;
+  end;
+  if AStmt is TFloriaJSFunctionDecl then
+  begin
+    fnDecl := TFloriaJSFunctionDecl(AStmt);
+    CollectPrivateRefsStmt(fnDecl.Body, AInto);
+  end;
+end;
+
+procedure TFloriaJSParser.ValidatePrivateNames(ACls: TFloriaJSClassNode);
+var
+  i, j: Integer;
+  declared, refs: TStringList;
+  member: TFloriaJSClassMember;
+begin
+  if ACls = nil then Exit;
+  declared := TStringList.Create();
+  refs := TStringList.Create();
+  try
+    declared.CaseSensitive := True;
+    refs.CaseSensitive := True;
+    for i := 0 to ACls.GetMemberCount() - 1 do
+    begin
+      member := ACls.GetMember(i);
+      if member.IsPrivate then
+        declared.Add(member.Name);
+    end;
+    for i := 0 to ACls.GetMemberCount() - 1 do
+    begin
+      member := ACls.GetMember(i);
+      if member.Kind <> fjcmStaticBlock then
+      begin
+        if member.Computed then
+          CollectPrivateRefs(member.NameExpr, refs);
+        CollectPrivateRefs(member.Initializer, refs);
+      end;
+      if member.Function_ <> nil then
+        CollectPrivateRefsStmt(member.Function_.Body, refs);
+    end;
+    for j := 0 to refs.Count - 1 do
+      if declared.IndexOf(refs[j]) < 0 then
+        ErrorAtCurrent('Private field ''''' + refs[j] +
+          ''' must be declared in an enclosing class');
+  finally
+    refs.Free();
+    declared.Free();
+  end;
+end;
+
 function TFloriaJSParser.ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
 var
   cls: TFloriaJSClassNode;
@@ -1020,6 +1408,7 @@ var
   memberIsPrivate: Boolean;
   computedNameExpr: TFloriaJSExprNode;
   wasSuperAllowed, wasInStaticBlock: Boolean;
+  savedStaticDepth: Integer;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -1044,6 +1433,7 @@ begin
   { A bare `super` is only meaningful in a class. }
   wasSuperAllowed := FSuperAllowed;
   FSuperAllowed := True;
+  Inc(FClassDepth);
 
   while (not Check(tkRBrace)) and (not IsAtEnd()) do
   begin
@@ -1060,11 +1450,14 @@ begin
         legal as a binding name, so the body is parsed as a plain block whose
         function depth stays at the enclosing level. }
       wasInStaticBlock := FInStaticBlock;
+      savedStaticDepth := FStaticBlockDepth;
       FInStaticBlock := True;
+      FStaticBlockDepth := FFunctionDepth;
       try
         fnExpr.SetBody(ParseBlockStatement());
       finally
         FInStaticBlock := wasInStaticBlock;
+        FStaticBlockDepth := savedStaticDepth;
       end;
       fnExpr.SourceText := SourceSlice(memberStartPos, FPrevious.EndPos);
       cls.AddMember(TFloriaJSClassMember.Create('#static-block',
@@ -1125,6 +1518,17 @@ begin
       Break;
     end;
 
+    { `accessor x = value` is the decorator-era accessor field, which this
+      runtime does not implement. `accessor` on its own is still a legal member
+      name, so only the two-word form is rejected. }
+    if (memberName = 'accessor') and (not memberIsPrivate) and
+       (computedNameExpr = nil) and
+       ((FCurrent.Kind = tkIdentifier) or (FCurrent.Kind = tkPrivateName)) then
+    begin
+      ErrorAtCurrent('Accessor fields are not supported');
+      Break;
+    end;
+
     if Check(tkLParen) then
     begin
       fnExpr := ParseMethodBody(memberName, memberStartPos);
@@ -1143,7 +1547,15 @@ begin
     { A field: an optional initializer followed by `;` or the next member. }
     fieldInit := nil;
     if Match(tkAssign) then
+    begin
       fieldInit := ParseAssignmentExpression();
+      { A field initializer is not a function body, so it may not reference
+        `arguments`. }
+      if ExprContainsArguments(fieldInit) then
+        ErrorAtCurrent('''arguments'' is not allowed in a class field initializer');
+      if ExprContainsSuperCall(fieldInit) then
+        ErrorAtCurrent('''super'' is not allowed in a class field initializer');
+    end;
     member := TFloriaJSClassMember.Create(memberName, fjcmField, isStatic,
       nil, startLine, startCol);
     member.IsPrivate := memberIsPrivate;
@@ -1158,8 +1570,10 @@ begin
   end;
 
   Consume(tkRBrace, 'Expected ''}'' at end of class body');
+  Dec(FClassDepth);
   FSuperAllowed := wasSuperAllowed;
   cls.SourceText := SourceSlice(classStartPos, FPrevious.EndPos);
+  ValidatePrivateNames(cls);
   Result := cls;
 end;
 
@@ -1691,6 +2105,8 @@ begin
           begin
             memberPropName := FPrevious.Text;
             memberIsPrivate := True;
+            if FClassDepth = 0 then
+              ErrorAtCurrent('Private field must be declared in an enclosing class');
           end
           else if Match(tkIdentifier) then
             memberPropName := FPrevious.Text

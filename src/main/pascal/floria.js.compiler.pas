@@ -90,7 +90,8 @@ type
     procedure InferDefaultExportName(AExpr: TFloriaJSExprNode);
     procedure SpliceFieldInitializers(ACtor: TFloriaJSFunctionExpr;
       AFields: TFloriaJSBlockStmt; ADerived: Boolean);
-    procedure CompileStaticField(AMember: TFloriaJSClassMember; AClsLoc: Integer);
+    procedure CompileStaticField(AMember: TFloriaJSClassMember;
+      AClsLoc, AMemberIndex: Integer);
     procedure CompileStaticBlock(AMember: TFloriaJSClassMember; AClsLoc: Integer);
     procedure CompileClassExpr(ACls: TFloriaJSClassNode);
     procedure CompileTaggedTemplate(ATmpl: TFloriaJSTaggedTemplateExpr);
@@ -131,6 +132,15 @@ implementation
 
 { The private-name key a class member is stored under: the class brand, a
   separator that cannot appear in an identifier, and the member name. }
+{ The environment binding that holds a computed member key. Every computed key
+  is evaluated once, in source order, while the class is being defined, exactly
+  as ClassDefinitionEvaluation does; the constructor and the install loops then
+  read the stored value. A stable name per member keeps nested classes apart. }
+function ComputedKeyName(const ABrand: string; AIndex: Integer): string;
+begin
+  Result := '$ck' + ABrand + '_' + IntToStr(AIndex);
+end;
+
 function PrivateKey(const ABrand, AName: string): string;
 begin
   Result := ABrand + #1 + AName;
@@ -2819,7 +2829,9 @@ begin
         `this[key] = initializer` does exactly that. }
       keyExpr := TFloriaJSMemberExpr.CreateComputed(
         TFloriaJSIdentifierExpr.Create('this', member.Line, member.Column),
-        member.NameExpr, member.Line, member.Column);
+        TFloriaJSIdentifierExpr.Create(ComputedKeyName(ABrand, i),
+          member.Line, member.Column),
+        member.Line, member.Column);
       if member.Initializer <> nil then
       begin
         member.Initializer.Retain();
@@ -2899,16 +2911,17 @@ end;
 { A static field: `Cls.name = value`. A private one goes to the private table of
   the constructor function, so it is still invisible to string access. }
 procedure TFloriaJSCompiler.CompileStaticField(AMember: TFloriaJSClassMember;
-  AClsLoc: Integer);
+  AClsLoc, AMemberIndex: Integer);
 var
   init: TFloriaJSExprNode;
   keyIdx: Integer;
 begin
-  { A computed static key is evaluated once, at class definition time. }
+  { A computed static key was evaluated up front with the others. }
   if AMember.Computed then
   begin
     FBytecode.Emit(opLoadLoc, AClsLoc);
-    CompileExpr(AMember.NameExpr);
+    FBytecode.Emit(opLoadEnv,
+      FBytecode.AddStringConstant(ComputedKeyName(FClassBrand, AMemberIndex)));
     if AMember.Initializer <> nil then
       CompileExpr(AMember.Initializer)
     else
@@ -3071,6 +3084,23 @@ begin
     FBytecode.Emit(opUndefined);
   FBytecode.Emit(opDefineEnv, FBytecode.AddStringConstant('super'), ACls.Line);
 
+  { Every computed member key is evaluated once here, in source order, before
+    any member is installed. The constructor closure captures this environment,
+    so a computed field key is evaluated at class-definition time rather than
+    once per instance — which is also why a `yield` in such a key suspends the
+    enclosing generator exactly once. }
+  for i := 0 to memberCount - 1 do
+  begin
+    member := ACls.GetMember(i);
+    if member.Kind = fjcmStaticBlock then Continue;
+    if not member.Computed then Continue;
+    CompileExpr(member.NameExpr);
+    { A lexical binding in the class environment, not a global var: the key is
+      an implementation detail and must not appear anywhere observable. }
+    FBytecode.Emit(opDefineLet,
+      FBytecode.AddStringConstant(ComputedKeyName(FClassBrand, i)), member.Line);
+  end;
+
   { Instance fields are initialised in source order when the base constructor
     has finished, which is what the specification's InitializeInstanceElements
     does. For a derived class the field code runs after super(), so it is
@@ -3109,7 +3139,6 @@ begin
     fieldBlock.Free();
   end;
   FBytecode.Emit(opSetLoc, clsLoc);
-  FBytecode.Emit(opPopEnv);
 
   { 4. Link the class to its prototype and, for a derived class, to the base
         function so statics are inherited too. Both are non-enumerable. The
@@ -3174,9 +3203,10 @@ begin
     CompileFunctionExpr(member.Function_);
     if member.Computed then
     begin
-      { A computed key is evaluated here, in source order, before the member is
-        installed. `opDefine*Key` pops the key, the value, then the object. }
-      CompileExpr(member.NameExpr);
+      { The key was evaluated up front; load it and install the member under
+        it. `opDefine*Key` pops the key, the value, then the object. }
+      FBytecode.Emit(opLoadEnv,
+        FBytecode.AddStringConstant(ComputedKeyName(FClassBrand, i)));
       FBytecode.Emit(opSwap);
       case member.Kind of
         fjcmGetter: FBytecode.Emit(opDefineGetterKey, 0, member.Line);
@@ -3256,13 +3286,17 @@ begin
       member := ACls.GetMember(i);
       if not member.IsStatic then Continue;
       if member.Kind = fjcmField then
-        CompileStaticField(member, clsLoc)
+        CompileStaticField(member, clsLoc, i)
       else if member.Kind = fjcmStaticBlock then
         CompileStaticBlock(member, clsLoc);
     end;
 
     FBytecode.Emit(opPopEnv);
   end;
+
+  { The class environment closes here: every member is installed and every
+    static element has run, so nothing else needs `super` or the computed keys. }
+  FBytecode.Emit(opPopEnv);
 
   FIsStrictMode := savedStrict;
   FClassBrand := savedBrand;
