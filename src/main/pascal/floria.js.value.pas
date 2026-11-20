@@ -117,6 +117,12 @@ type
     FIsFrozen: Boolean;
     FIsSealed: Boolean;
     FIsExtensible: Boolean;
+    { Private names (`#x`) live in a side table so no string or symbol key can
+      ever reach them. The key includes the class brand, which is why two
+      classes may each have a `#x` without colliding. }
+    FPrivateNames: TStringList;
+    FPrivateValues: array of TFloriaJSValue;
+    FPrivateCount: Integer;
     FHeap: TFloriaJSHeap;
     FHeapOwned: Boolean;
     FPinned: Boolean;
@@ -177,6 +183,11 @@ type
     { [[SetPrototypeOf]]. The default accepts a null or object prototype; an
       exotic object that is not extensible refuses. }
     function  SetPrototypeOf(const AProto: TFloriaJSValue): Boolean; virtual;
+    { Private-name fields. AKey is the class brand plus the name, so a member of
+      one class can never alias a same-named member of another. }
+    function  HasPrivateName(const AKey: string): Boolean;
+    function  GetPrivateName(const AKey: string): TFloriaJSValue;
+    procedure SetPrivateName(const AKey: string; const AValue: TFloriaJSValue);
     { True when [[Set]] refuses to write AName. The default refuses only for a
       non-writable own data property; an exotic object may refuse more. }
     function  RejectsWrite(const AName: string): Boolean; virtual;
@@ -1403,6 +1414,10 @@ begin
   FIsExtensible := True;
   SetLength(FProperties, 0);
   FPropCount := 0;
+  FPrivateNames := TStringList.Create();
+  FPrivateNames.CaseSensitive := True;
+  SetLength(FPrivateValues, 0);
+  FPrivateCount := 0;
   { The prototype is a reference to another object, so it is owned as well. }
   if FPrototype <> nil then
     FPrototype.Retain;
@@ -1412,6 +1427,14 @@ destructor TFloriaJSObject.Destroy();
 var
   i: Integer;
 begin
+  if FPrivateNames <> nil then
+  begin
+    for i := 0 to FPrivateCount - 1 do
+      JSReleaseValue(FPrivateValues[i]);
+    SetLength(FPrivateValues, 0);
+    FPrivateCount := 0;
+    FreeAndNil(FPrivateNames);
+  end;
   { Every property holds a reference to the value it stores, and the prototype
     is a reference to another object. The references are given up before the
     object goes away, unless the heap is tearing down, because then every
@@ -1823,6 +1846,53 @@ begin
   if FProperties[idx].HasSetter then
     Exit(False);
   Result := (not FProperties[idx].Writable) or FProperties[idx].HasGetter;
+end;
+
+function TFloriaJSObject.HasPrivateName(const AKey: string): Boolean;
+begin
+  Result := (FPrivateNames <> nil) and (FPrivateNames.IndexOf(AKey) >= 0);
+end;
+
+function TFloriaJSObject.GetPrivateName(const AKey: string): TFloriaJSValue;
+var
+  idx: Integer;
+begin
+  idx := -1;
+  if FPrivateNames <> nil then
+    idx := FPrivateNames.IndexOf(AKey);
+  if idx >= 0 then
+    Result := FPrivateValues[idx]
+  else
+    Result := JSMakeUndefined();
+end;
+
+procedure TFloriaJSObject.SetPrivateName(const AKey: string;
+  const AValue: TFloriaJSValue);
+var
+  idx: Integer;
+begin
+  if FPrivateNames = nil then
+    Exit;
+  idx := FPrivateNames.IndexOf(AKey);
+  if idx >= 0 then
+  begin
+    JSReleaseValue(FPrivateValues[idx]);
+    FPrivateValues[idx] := AValue;
+    JSRetainValue(AValue);
+    Exit;
+  end;
+  if FPrivateCount >= Length(FPrivateValues) then
+  begin
+    if Length(FPrivateValues) = 0 then
+      SetLength(FPrivateValues, 8)
+    else
+      SetLength(FPrivateValues, Length(FPrivateValues) * 2);
+  end;
+  FPrivateNames.Add(AKey);
+  FPrivateValues[FPrivateCount] := AValue;
+  JSRetainValue(AValue);
+  Inc(FPrivateCount);
+  Inc(FShapeId);
 end;
 
 function TFloriaJSObject.SetPrototypeOf(const AProto: TFloriaJSValue): Boolean;

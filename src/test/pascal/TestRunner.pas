@@ -10584,9 +10584,50 @@ begin
     AssertTrue('this in methods', res.Success);
     AssertEquals('methods chain through this', '2', res.StringValue);
 
-    // Class fields are rejected rather than silently ignored.
-    res := engine.Execute('class A { x = 1; }');
-    AssertFalse('class fields are rejected', res.Success);
+    // Class fields initialise the instance.
+    res := engine.Execute('class A { x = 1; } new A().x;');
+    AssertTrue('class fields are supported', res.Success);
+    AssertEquals('a field initialises the instance', '1', res.StringValue);
+
+    res := engine.Execute('class A { x = 2 + 3; } new A().x;');
+    AssertTrue('a computed field initializer', res.Success);
+    AssertEquals('the initializer runs', '5', res.StringValue);
+
+    res := engine.Execute('class A { x; } new A().hasOwnProperty("x");');
+    AssertTrue('a field without an initializer', res.Success);
+    AssertEquals('an empty field still exists', 'true', res.StringValue);
+
+    res := engine.Execute('class A { static s = 7; } A.s;');
+    AssertTrue('a static field is supported', res.Success);
+    AssertEquals('the static field is on the constructor', '7', res.StringValue);
+
+    // A private field and method survive a round trip.
+    res := engine.Execute(
+      'class A { #p = 5; #m() { return 9; } get() { return this.#p + this.#m(); } }' +
+      'new A().get();');
+    AssertTrue('private field and method', res.Success);
+    AssertEquals('private members are reachable inside the class', '14', res.StringValue);
+
+    res := engine.Execute(
+      'class A { #p = 1; has(o) { return #p in o; } } var a = new A(); a.has(a);');
+    AssertTrue('a private brand check', res.Success);
+    AssertEquals('the brand belongs to its own instances', 'true', res.StringValue);
+
+    res := engine.Execute(
+      'class A { #p = 1; has(o) { return #p in o; } } new A().has({});');
+    AssertEquals('another object lacks the brand', 'false', res.StringValue);
+
+    // Two classes may each declare the same private name without colliding.
+    res := engine.Execute(
+      'class A { #x = 1; get() { return this.#x; } }' +
+      'class B { #x = 2; get() { return this.#x; } }' +
+      'new A().get() + "," + new B().get();');
+    AssertTrue('two classes with the same private name', res.Success);
+    AssertEquals('private names are per class', '1,2', res.StringValue);
+
+    // `delete` of a private member is an early error.
+    res := engine.Execute('class A { #m() {} d(o) { delete o.#m; } }');
+    AssertFalse('deleting a private member is rejected', res.Success);
   finally
     engine.Free();
   end;

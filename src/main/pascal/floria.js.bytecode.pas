@@ -70,6 +70,11 @@ type
     opSetPropNamed,      // Pop val, pop obj -> obj[name] = val: Imm = const index, push val
     opGetPropOptional,   // Pop prop, pop obj -> if null/undefined push undefined else obj[prop]
     opGetPropNamedOpt,   // Pop obj -> if null/undefined push undefined else obj[name]: Imm = const index
+    opGetPrivate,        // Pop obj -> push obj's private name: Imm = const index (brand#name)
+    opSetPrivate,        // Pop val, pop obj -> obj's private name = val: Imm = const index
+    opHasPrivate,        // Pop obj -> push whether obj has the private name: Imm = const index
+    opDefinePrivate,     // Pop value, pop obj -> define a private name: Imm = const index
+    opPrivateIn,         // Pop val, pop obj -> push whether obj carries the brand: Imm = const index
     opDefineGetter,      // Pop getter, peek obj -> define getter: Imm = const index (or -1 if key on stack)
     opDefineSetter,      // Pop setter, peek obj -> define setter: Imm = const index (or -1 if key on stack)
     opObjectRest,        // Pop N keys, pop obj -> push rest object: Imm = key count
@@ -312,6 +317,11 @@ begin
     opSetPropNamed:     Result := 'SET_PROP_NAMED';
     opGetPropOptional:  Result := 'GET_PROP_OPT';
     opGetPropNamedOpt:  Result := 'GET_PROP_NAMED_OPT';
+    opGetPrivate:       Result := 'GET_PRIVATE';
+    opSetPrivate:       Result := 'SET_PRIVATE';
+    opHasPrivate:       Result := 'HAS_PRIVATE';
+    opDefinePrivate:    Result := 'DEFINE_PRIVATE';
+    opPrivateIn:        Result := 'PRIVATE_IN';
     opDefineGetter:     Result := 'DEFINE_GETTER';
     opDefineSetter:     Result := 'DEFINE_SETTER';
     opObjectRest:       Result := 'OBJECT_REST';
@@ -739,7 +749,7 @@ begin
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opLoadLoc, opStoreLoc, opSetLoc:
       comment := '; ' + GetLocalName(inst.Imm);
-    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opDeclareLet, opDeclareConst, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opDefineHidden, opDefineGetterHidden, opDefineSetterHidden, opDeleteEnv:
+    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opDeclareLet, opDeclareConst, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opGetPrivate, opSetPrivate, opHasPrivate, opDefinePrivate, opPrivateIn, opDefineHidden, opDefineGetterHidden, opDefineSetterHidden, opDeleteEnv:
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
       comment := Format('-> %04d', [inst.Imm]);

@@ -193,6 +193,7 @@ type
     FPropertyName: string;
     FComputed: Boolean;
     FIsOptional: Boolean;
+    FIsPrivate: Boolean;
   public
     constructor CreateNamed(ATarget: TFloriaJSExprNode; const APropName: string; ALine, ACol: Integer; AIsOptional: Boolean = False);
     constructor CreateComputed(ATarget, APropExpr: TFloriaJSExprNode; ALine, ACol: Integer; AIsOptional: Boolean = False);
@@ -205,6 +206,9 @@ type
     property PropertyName: string read FPropertyName;
     property Computed: Boolean read FComputed;
     property IsOptional: Boolean read FIsOptional;
+    { True for a `this.#x` access, which reads the private table rather than a
+      string-keyed property. }
+    property IsPrivate: Boolean read FIsPrivate write FIsPrivate;
   end;
 
   { Call Expression: func(a, b, c) or Construction: new Func(a, b, c) }
@@ -599,7 +603,9 @@ type
   end;
 
   { One member of a class body. }
-  TFloriaJSClassMemberKind = (fjcmMethod, fjcmGetter, fjcmSetter, fjcmField);
+  TFloriaJSClassMemberKind = (fjcmMethod, fjcmGetter, fjcmSetter, fjcmField,
+    { A `static { ... }` initializer block. It has a function body and no name. }
+    fjcmStaticBlock);
 
   TFloriaJSClassMember = class
   private
@@ -607,6 +613,7 @@ type
     FKind: TFloriaJSClassMemberKind;
     FIsStatic: Boolean;
     FComputed: Boolean;
+    FIsPrivate: Boolean;
     FNameExpr: TFloriaJSExprNode;
     FFunction: TFloriaJSFunctionExpr;
     FInitializer: TFloriaJSExprNode;
@@ -621,6 +628,8 @@ type
     property Kind: TFloriaJSClassMemberKind read FKind;
     property IsStatic: Boolean read FIsStatic;
     property Computed: Boolean read FComputed write FComputed;
+    { True for a `#name` member. The Name keeps the `#`. }
+    property IsPrivate: Boolean read FIsPrivate write FIsPrivate;
     property NameExpr: TFloriaJSExprNode read FNameExpr write FNameExpr;
     property Function_: TFloriaJSFunctionExpr read FFunction;
     property Initializer: TFloriaJSExprNode read FInitializer write FInitializer;
@@ -1182,8 +1191,18 @@ end;
 
 destructor TFloriaJSAssignExpr.Destroy();
 begin
-  FreeAndNil(FTarget);
-  FreeAndNil(FValue);
+  { Release, not Free: the value may be shared with a field initializer that
+    the class still owns, so its reference count decides when it dies. }
+  if FTarget <> nil then
+  begin
+    FTarget.Release();
+    FTarget := nil;
+  end;
+  if FValue <> nil then
+  begin
+    FValue.Release();
+    FValue := nil;
+  end;
   inherited Destroy();
 end;
 
@@ -1211,6 +1230,7 @@ begin
   inherited Create(ALine, ACol);
   FTarget := ATarget;
   FPropertyName := APropName;
+  FIsPrivate := False;
   FPropertyExpr := nil;
   FComputed := False;
   FIsOptional := AIsOptional;
@@ -1223,6 +1243,7 @@ begin
   FPropertyName := '';
   FPropertyExpr := APropExpr;
   FComputed := True;
+  FIsPrivate := False;
   FIsOptional := AIsOptional;
 end;
 
@@ -2064,6 +2085,7 @@ begin
   FIsStatic := AIsStatic;
   FFunction := AFunc;
   FComputed := False;
+  FIsPrivate := False;
   FNameExpr := nil;
   FInitializer := nil;
   FLine := ALine;

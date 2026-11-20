@@ -28,6 +28,9 @@ type
     tkReserved,
     tkComment,
 
+    { A private name: `#name`. The text includes the leading '#'. }
+    tkPrivateName,
+
     { Literals }
     tkIdentifier,
     tkNumber,
@@ -192,6 +195,7 @@ type
     function  IsRegexAllowed(): Boolean;
     function  ScanRegExp(AStartLine, AStartCol, AStartPos: Integer): TFloriaJSToken;
     function  ScanIdentifierOrKeyword(): TFloriaJSToken;
+    function  ScanPrivateName(): TFloriaJSToken;
     function  ScanNumber(): TFloriaJSToken;
     function  HasBigIntSuffix(): Boolean;
     function  ScanString(AQuote: Char): TFloriaJSToken;
@@ -442,6 +446,36 @@ begin
   Result.Column := AStartCol;
   Result.StartPos := AStartPos;
   Result.EndPos := FPos - 1;
+end;
+
+{ A private name: `#` followed by an identifier. The text keeps the `#`, so a
+  private name can never collide with a string key. }
+function TFloriaJSLexer.ScanPrivateName(): TFloriaJSToken;
+var
+  startPos, startCol, startLine: Integer;
+  txt: string;
+begin
+  startPos := FPos;
+  startLine := FLine;
+  startCol := FColumn;
+  AdvanceChar(); { consume '#' }
+  txt := '#';
+  while not IsAtEnd() do
+  begin
+    if (PeekChar() = '\') and (PeekNextChar() = 'u') then
+    begin
+      AdvanceChar();
+      AdvanceChar();
+      txt := txt + AdvanceChar() + AdvanceChar() + AdvanceChar() + AdvanceChar();
+    end
+    else if IsIdentPart(PeekChar()) then
+      txt := txt + AdvanceChar()
+    else
+      Break;
+  end;
+  if Length(txt) = 1 then
+    Exit(MakeError('Unexpected character: ''#''', startLine, startCol, startPos));
+  Result := MakeToken(tkPrivateName, txt, startLine, startCol, startPos);
 end;
 
 function TFloriaJSLexer.ScanIdentifierOrKeyword(): TFloriaJSToken;
@@ -972,6 +1006,10 @@ begin
       Continue; { Skip comment and continue to next token }
     end;
 
+    { A private name: `#x`. }
+    if (c = '#') and (not IsAtEnd()) and IsIdentStart(PeekNextChar()) then
+      Exit(ScanPrivateName());
+
     { Identifiers and Keywords }
     if IsIdentStart(c) or ((c = '\') and (PeekNextChar() = 'u')) then
       Exit(ScanIdentifierOrKeyword());
@@ -1240,6 +1278,7 @@ begin
   tkAs:             Result := 'as';
     tkComment:        Result := 'Comment';
     tkIdentifier:     Result := 'Identifier';
+    tkPrivateName:    Result := 'PrivateName';
     tkNumber:         Result := 'Number';
     tkString:         Result := 'String';
     tkRegExp:         Result := 'RegExp';

@@ -42,6 +42,11 @@ type
     FIsTopLevel: Boolean;
     { Module code is always strict, regardless of a "use strict" prologue. }
     FIsModuleProgram: Boolean;
+    { The brand of the class body currently being compiled. Two classes may
+      each declare `#x` without colliding because the stored key includes the
+      brand. }
+    FClassBrand: string;
+    FNextClassId: Integer;
     { Strictness inherited from the enclosing program/function/class body. }
     FIsStrictMode: Boolean;
     FResultLoc: Integer;
@@ -83,6 +88,10 @@ type
     procedure CompileArrayExpr(AArr: TFloriaJSArrayExpr);
     procedure CompileFunctionExpr(AFunc: TFloriaJSFunctionExpr);
     procedure InferDefaultExportName(AExpr: TFloriaJSExprNode);
+    procedure SpliceFieldInitializers(ACtor: TFloriaJSFunctionExpr;
+      AFields: TFloriaJSBlockStmt; ADerived: Boolean);
+    procedure CompileStaticField(AMember: TFloriaJSClassMember; AClsLoc: Integer);
+    procedure CompileStaticBlock(AMember: TFloriaJSClassMember);
     procedure CompileClassExpr(ACls: TFloriaJSClassNode);
     procedure CompileTaggedTemplate(ATmpl: TFloriaJSTaggedTemplateExpr);
     procedure CompileYieldStar(AIterable: TFloriaJSExprNode; ALine: Integer);
@@ -119,6 +128,13 @@ type
   end;
 
 implementation
+
+{ The private-name key a class member is stored under: the class brand, a
+  separator that cannot appear in an identifier, and the member name. }
+function PrivateKey(const ABrand, AName: string): string;
+begin
+  Result := ABrand + #1 + AName;
+end;
 
 procedure CheckStrictRestrictedName(const AName: string; AStrict: Boolean);
 begin
@@ -165,6 +181,8 @@ begin
   inherited Create();
   FBytecode := nil;
   FIsModuleProgram := False;
+  FClassBrand := '';
+  FNextClassId := 0;
   FLoopDepth := 0;
   FLoopCapacity := 16;
   SetLength(FLoopStack, FLoopCapacity);
@@ -1217,6 +1235,9 @@ begin
     compiler.FIsTopLevel := False;
     compiler.FIsStrictMode := strict;
     compiler.FResultLoc := -1;
+    { A method body belongs to the class being compiled, so a private access
+      inside it uses the same brand. }
+    compiler.FClassBrand := FClassBrand;
     compiler.FParamNames := AParams;
     compiler.CompileParametersPrologue(AParams);
 
@@ -1783,6 +1804,19 @@ begin
     Exit;
   end;
 
+  { `#x in obj`: the left side is a private name, not a value. The check asks
+    whether obj carries this class's brand, so the name itself is not
+    evaluated. }
+  if (ABin.Op = tkIn) and (ABin.Left is TFloriaJSIdentifierExpr) and
+     (Length(TFloriaJSIdentifierExpr(ABin.Left).Name) > 0) and
+     (TFloriaJSIdentifierExpr(ABin.Left).Name[1] = '#') then
+  begin
+    CompileExpr(ABin.Right);
+    FBytecode.Emit(opPrivateIn, FBytecode.AddStringConstant(
+      PrivateKey(FClassBrand, TFloriaJSIdentifierExpr(ABin.Left).Name)), ABin.Line);
+    Exit;
+  end;
+
   // Standard binary operators
   CompileExpr(ABin.Left);
   CompileExpr(ABin.Right);
@@ -1978,6 +2012,51 @@ begin
         FBytecode.Emit(opSetProp, 0, AAssign.Line);
       end;
     end
+    else if member.IsPrivate then
+    begin
+      nameIdx := FBytecode.AddStringConstant(
+        PrivateKey(FClassBrand, member.PropertyName));
+
+      if AAssign.Op in [tkNullishAssign, tkAndAssign, tkOrAssign] then
+      begin
+        FBytecode.Emit(opDup);
+        FBytecode.Emit(opGetPrivate, nameIdx, AAssign.Line);
+        jumpSkip := FBytecode.Emit(ShortCircuitAssignJump(AAssign.Op), 0, AAssign.Line);
+        CompileExpr(AAssign.Value);
+        FBytecode.Emit(opSetPrivate, nameIdx, AAssign.Line);
+        jumpDone := FBytecode.Emit(opJump, 0, AAssign.Line);
+        FBytecode.PatchJump(jumpSkip, FBytecode.CurrentIP());
+        FBytecode.Emit(opSwap);
+        FBytecode.Emit(opPop);
+        FBytecode.PatchJump(jumpDone, FBytecode.CurrentIP());
+      end
+      else if AAssign.Op <> tkAssign then
+      begin
+        FBytecode.Emit(opDup);
+        FBytecode.Emit(opGetPrivate, nameIdx, AAssign.Line);
+        CompileExpr(AAssign.Value);
+        case AAssign.Op of
+          tkPlusAssign:     FBytecode.Emit(opAdd);
+          tkMinusAssign:    FBytecode.Emit(opSub);
+          tkMultiplyAssign: FBytecode.Emit(opMul);
+          tkDivideAssign:   FBytecode.Emit(opDiv);
+          tkModuloAssign:   FBytecode.Emit(opMod);
+          tkPowerAssign:    FBytecode.Emit(opPower);
+          tkBitAndAssign:   FBytecode.Emit(opBitAnd);
+          tkBitOrAssign:    FBytecode.Emit(opBitOr);
+          tkBitXorAssign:   FBytecode.Emit(opBitXor);
+          tkShiftLeftAssign: FBytecode.Emit(opShl);
+          tkShiftRightAssign: FBytecode.Emit(opShr);
+          tkShiftRightUnsignedAssign: FBytecode.Emit(opSar);
+        end;
+        FBytecode.Emit(opSetPrivate, nameIdx, AAssign.Line);
+      end
+      else
+      begin
+        CompileExpr(AAssign.Value);
+        FBytecode.Emit(opSetPrivate, nameIdx, AAssign.Line);
+      end;
+    end
     else
     begin
       nameIdx := FBytecode.AddStringConstant(member.PropertyName);
@@ -2075,6 +2154,10 @@ begin
       CompileExpr(AMember.PropertyExpr);
       FBytecode.Emit(opGetProp, 0, AMember.Line);
     end
+    else if AMember.IsPrivate then
+      FBytecode.Emit(opGetPrivate,
+        FBytecode.AddStringConstant(PrivateKey(FClassBrand, AMember.PropertyName)),
+        AMember.Line)
     else
       FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant(AMember.PropertyName), AMember.Line);
   end;
@@ -2713,13 +2796,174 @@ begin
   end;
 end;
 
+{ Appends the field initializers of a class to a constructor body, in source
+  order, after the base constructor has run. A field without an initializer is
+  still defined, with the value undefined. }
+procedure BuildFieldInitializers(ACls: TFloriaJSClassNode;
+  const ABrand: string; AIncludeStatic: Boolean; AInto: TFloriaJSBlockStmt);
+var
+  i: Integer;
+  member: TFloriaJSClassMember;
+  target, init: TFloriaJSExprNode;
+  stmt: TFloriaJSStmtNode;
+begin
+  if (ACls = nil) or (AInto = nil) then Exit;
+  for i := 0 to ACls.GetMemberCount() - 1 do
+  begin
+    member := ACls.GetMember(i);
+    if member.Kind <> fjcmField then Continue;
+    if member.IsStatic <> AIncludeStatic then Continue;
+    if member.Computed then Continue;
+
+    target := TFloriaJSMemberExpr.CreateNamed(
+      TFloriaJSIdentifierExpr.Create('this', member.Line, member.Column),
+      member.Name, member.Line, member.Column);
+    if member.IsPrivate then
+      TFloriaJSMemberExpr(target).IsPrivate := True;
+
+    if member.Initializer <> nil then
+    begin
+      { The initializer node belongs to the class member. The statement built
+        here shares it, so it takes a reference that the statement releases in
+        its own destructor. Because the AST's Connect/Release is reference
+        counted, both owners can free independently. }
+      member.Initializer.Retain();
+      init := member.Initializer;
+    end
+    else
+      init := TFloriaJSLiteralExpr.CreateUndefined(member.Line, member.Column);
+
+    stmt := TFloriaJSExprStmt.Create(
+      TFloriaJSAssignExpr.Create(target, tkAssign, init, member.Line, member.Column),
+      member.Line, member.Column);
+    AInto.AddStatement(stmt);
+  end;
+end;
+
+{ Places the field initializers in a constructor body. A base constructor runs
+  them directly; a derived one runs them after the explicit `super(...)` call,
+  which is where the specification puts InitializeInstanceElements. The splice
+  is textual in the AST, so a constructor that calls super() in a nested
+  position still gets the fields after that call's statement. }
+{ True when a statement begins with a `super(...)` call, which is what a derived
+  constructor must do before instance elements exist. }
+function StmtCallsSuper(AStmt: TFloriaJSStmtNode): Boolean;
+var
+  call: TFloriaJSCallExpr;
+  target: TFloriaJSExprNode;
+  member: TFloriaJSMemberExpr;
+begin
+  Result := False;
+  if AStmt is TFloriaJSExprStmt then
+  begin
+    target := TFloriaJSExprStmt(AStmt).Expression;
+    while target is TFloriaJSGroupExpr do
+      target := TFloriaJSGroupExpr(target).Expression;
+    if target is TFloriaJSCallExpr then
+    begin
+      call := TFloriaJSCallExpr(target);
+      if call.Callee is TFloriaJSIdentifierExpr then
+        Exit(TFloriaJSIdentifierExpr(call.Callee).Name = 'super');
+      { `super.method()` is not a constructor call. }
+      if call.Callee is TFloriaJSMemberExpr then
+        Exit(False);
+    end;
+  end
+  else if AStmt is TFloriaJSVarStmt then
+    Exit(False);
+  { A call nested in a larger statement, e.g. `const x = (super(), 1)`, is
+    covered by the statement-level search the caller performs. }
+  member := nil;
+  if member <> nil then Exit;
+end;
+
+{ A static field: `Cls.name = value`. A private one goes to the private table of
+  the constructor function, so it is still invisible to string access. }
+procedure TFloriaJSCompiler.CompileStaticField(AMember: TFloriaJSClassMember;
+  AClsLoc: Integer);
+var
+  init: TFloriaJSExprNode;
+  keyIdx: Integer;
+begin
+  FBytecode.Emit(opLoadLoc, AClsLoc);
+  if AMember.Initializer <> nil then
+    CompileExpr(AMember.Initializer)
+  else
+    FBytecode.Emit(opUndefined);
+
+  if AMember.IsPrivate then
+  begin
+    keyIdx := FBytecode.AddStringConstant(
+      PrivateKey(FClassBrand, AMember.Name));
+    FBytecode.Emit(opDefinePrivate, keyIdx, AMember.Line);
+  end
+  else
+    FBytecode.Emit(opDefineHidden,
+      FBytecode.AddStringConstant(AMember.Name), AMember.Line);
+end;
+
+{ A static block: an immediately-invoked function body. The block's own
+  function scope is what gives its `var`/`let` declarations a private home. }
+procedure TFloriaJSCompiler.CompileStaticBlock(AMember: TFloriaJSClassMember);
+var
+  blockFn: TFloriaJSFunctionExpr;
+begin
+  blockFn := TFloriaJSFunctionExpr.Create('#static-block', False,
+    AMember.Line, AMember.Column);
+  blockFn.SetBody(AMember.Function_.Body);
+  { `opCall` pops the receiver first, then the callee, so the stack must be
+    `[callee, undefined]` from the bottom. }
+  FBytecode.Emit(opUndefined);
+  CompileFunctionExpr(blockFn);
+  FBytecode.Emit(opCall, 0, AMember.Line);
+  FBytecode.Emit(opPop);
+end;
+
+procedure TFloriaJSCompiler.SpliceFieldInitializers(
+  ACtor: TFloriaJSFunctionExpr; AFields: TFloriaJSBlockStmt; ADerived: Boolean);
+var
+  body: TFloriaJSBlockStmt;
+  i, insertAt: Integer;
+begin
+  if (ACtor = nil) or (AFields = nil) or (AFields.GetStatementCount() = 0) then
+    Exit;
+  if not (ACtor.Body is TFloriaJSBlockStmt) then
+    Exit;
+  body := TFloriaJSBlockStmt(ACtor.Body);
+
+  insertAt := 0;
+  if ADerived then
+  begin
+    { After the statement that calls super(). A constructor with no super()
+      call is a syntax error the parser already reports. }
+    insertAt := body.GetStatementCount();
+    for i := 0 to body.GetStatementCount() - 1 do
+      if StmtCallsSuper(body.GetStatement(i)) then
+      begin
+        insertAt := i + 1;
+        Break;
+      end;
+  end;
+
+  for i := 0 to AFields.GetStatementCount() - 1 do
+    body.Statements.Insert(insertAt + i, AFields.GetStatement(i));
+  { The statements now belong to the constructor body, which frees them. The
+    field block is a scratch list and gives up its pointers without freeing. }
+  AFields.Statements.Clear();
+  AFields.Statements.Capacity := 0;
+end;
+
 procedure TFloriaJSCompiler.CompileClassExpr(ACls: TFloriaJSClassNode);
 var
   i, clsLoc, protoLoc, superLoc, nameIdx, memberCount: Integer;
   member: TFloriaJSClassMember;
   ctorFn: TFloriaJSFunctionExpr;
+  fieldBlock: TFloriaJSBlockStmt;
   isDerived: Boolean;
   savedStrict: Boolean;
+  savedBrand: string;
+  hasStaticWork: Boolean;
+  syntheticBody: TFloriaJSBlockStmt;
 begin
   memberCount := ACls.GetMemberCount();
   isDerived := ACls.SuperClass <> nil;
@@ -2776,6 +3020,13 @@ begin
   savedStrict := FIsStrictMode;
   FIsStrictMode := True;
 
+  { Each class body gets a unique brand so two classes may each declare `#x`.
+    The brand also scopes the private-name table, which is what makes a private
+    member invisible to other classes. }
+  Inc(FNextClassId);
+  savedBrand := FClassBrand;
+  FClassBrand := '$cls' + IntToStr(FNextClassId);
+
   { Compile the constructor inside a scope binding `super` to the base
     constructor, or to undefined for a base class. }
   FBytecode.Emit(opPushEnv);
@@ -2785,22 +3036,42 @@ begin
     FBytecode.Emit(opUndefined);
   FBytecode.Emit(opDefineEnv, FBytecode.AddStringConstant('super'), ACls.Line);
 
-  if ctorFn = nil then
-  begin
-    ctorFn := TFloriaJSFunctionExpr.Create(ACls.Name, False, ACls.Line, ACls.Column);
-    try
-      ctorFn.SetBody(TFloriaJSBlockStmt.Create(ACls.Line, ACls.Column));
+  { Instance fields are initialised in source order when the base constructor
+    has finished, which is what the specification's InitializeInstanceElements
+    does. For a derived class the field code runs after super(), so it is
+    spliced in after the user constructor's super() call has executed: the
+    simplest correct placement is at the end of the constructor body, after any
+    explicit super(). }
+  fieldBlock := TFloriaJSBlockStmt.Create(ACls.Line, ACls.Column);
+  try
+    BuildFieldInitializers(ACls, FClassBrand, False, fieldBlock);
+
+    if ctorFn = nil then
+    begin
+      ctorFn := TFloriaJSFunctionExpr.Create(ACls.Name, False, ACls.Line, ACls.Column);
+      syntheticBody := TFloriaJSBlockStmt.Create(ACls.Line, ACls.Column);
+      try
+        ctorFn.SetBody(syntheticBody);
+        ctorFn.SourceText := ACls.SourceText;
+        SpliceFieldInitializers(ctorFn, fieldBlock, isDerived);
+        CompileFunctionExpr(ctorFn);
+        { The synthetic constructor owns the statements, but they are the class's
+          own field nodes. Detach them before the constructor is released so the
+          class keeps sole ownership. }
+        syntheticBody.Statements.Clear();
+      finally
+        ctorFn.Free();
+      end;
+    end
+    else
+    begin
+      SpliceFieldInitializers(ctorFn, fieldBlock, isDerived);
+      { A class constructor reports the whole class definition. }
       ctorFn.SourceText := ACls.SourceText;
       CompileFunctionExpr(ctorFn);
-    finally
-      ctorFn.Free();
     end;
-  end
-  else
-  begin
-    { A class constructor reports the whole class definition. }
-    ctorFn.SourceText := ACls.SourceText;
-    CompileFunctionExpr(ctorFn);
+  finally
+    fieldBlock.Free();
   end;
   FBytecode.Emit(opSetLoc, clsLoc);
   FBytecode.Emit(opPopEnv);
@@ -2839,6 +3110,11 @@ begin
     if (not member.IsStatic) and (member.Name = 'constructor') and
        (member.Kind = fjcmMethod) then
       Continue;
+    { A static block is not a property; it runs at class definition time. }
+    if member.Kind = fjcmStaticBlock then
+      Continue;
+    if member.Kind = fjcmField then
+      Continue;
 
     FBytecode.Emit(opPushEnv);
     if isDerived then
@@ -2872,7 +3148,65 @@ begin
     FBytecode.Emit(opPopEnv);
   end;
 
+  { 6. Private methods and accessors are not properties at all: each class
+        instance gets its own copy of the method closures, installed on the
+        private table under the class brand. The copy is taken from the
+        prototype, which is where the closures were just defined. }
+  for i := 0 to memberCount - 1 do
+  begin
+    member := ACls.GetMember(i);
+    if not member.IsPrivate then Continue;
+    if member.Kind = fjcmField then Continue;
+    if member.Kind = fjcmStaticBlock then Continue;
+    if (not member.IsStatic) and (member.Name = 'constructor') then Continue;
+
+    { Instances receive the private method lazily in the constructor; the
+      prototype carries the closure it was compiled to. }
+    nameIdx := FBytecode.AddStringConstant(
+      PrivateKey(FClassBrand, member.Name));
+    FBytecode.Emit(opLoadLoc, protoLoc);
+    FBytecode.Emit(opLoadLoc, protoLoc);
+    FBytecode.Emit(opGetPropNamed, FBytecode.AddStringConstant(member.Name));
+    FBytecode.Emit(opDefinePrivate, nameIdx, member.Line);
+  end;
+
+  { 7. Static fields and static blocks run at class definition time, in source
+        order, with `super` bound to the base class. The scope is only created
+        when there is static work: an empty scope would shadow the `super` the
+        method closures resolve through. }
+  hasStaticWork := False;
+  for i := 0 to memberCount - 1 do
+  begin
+    member := ACls.GetMember(i);
+    if member.IsStatic and
+       ((member.Kind = fjcmField) or (member.Kind = fjcmStaticBlock)) then
+      hasStaticWork := True;
+  end;
+
+  if hasStaticWork then
+  begin
+    FBytecode.Emit(opPushEnv);
+    if isDerived then
+      FBytecode.Emit(opLoadLoc, superLoc)
+    else
+      FBytecode.Emit(opUndefined);
+    FBytecode.Emit(opDefineEnv, FBytecode.AddStringConstant('super'), ACls.Line);
+
+    for i := 0 to memberCount - 1 do
+    begin
+      member := ACls.GetMember(i);
+      if not member.IsStatic then Continue;
+      if member.Kind = fjcmField then
+        CompileStaticField(member, clsLoc)
+      else if member.Kind = fjcmStaticBlock then
+        CompileStaticBlock(member);
+    end;
+
+    FBytecode.Emit(opPopEnv);
+  end;
+
   FIsStrictMode := savedStrict;
+  FClassBrand := savedBrand;
   FBytecode.Emit(opLoadLoc, clsLoc);
 end;
 

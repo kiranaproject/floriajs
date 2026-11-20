@@ -2067,6 +2067,55 @@ begin
           end;
 
         // Jumps
+        opGetPrivate:
+          begin
+            objVal := Pop();
+            if not objVal.IsObject() then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+                'Cannot read private member from an object whose class did not declare it')));
+            Push(objVal.AsObject().GetPrivateName(
+              curFrame^.Bytecode.GetConstant(inst.Imm).ToString()));
+          end;
+
+        opSetPrivate:
+          begin
+            val := Pop();
+            objVal := Pop();
+            if not objVal.IsObject() then
+              raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('TypeError',
+                'Cannot write private member to an object whose class did not declare it')));
+            objVal.AsObject().SetPrivateName(
+              curFrame^.Bytecode.GetConstant(inst.Imm).ToString(), val);
+            Push(val);
+          end;
+
+        opDefinePrivate:
+          begin
+            val := Pop();
+            objVal := Pop();
+            if objVal.IsObject() then
+              objVal.AsObject().SetPrivateName(
+                curFrame^.Bytecode.GetConstant(inst.Imm).ToString(), val);
+          end;
+
+        opHasPrivate:
+          begin
+            objVal := Pop();
+            Push(JSMakeBoolean(objVal.IsObject() and
+              objVal.AsObject().HasPrivateName(
+                curFrame^.Bytecode.GetConstant(inst.Imm).ToString())));
+          end;
+
+        opPrivateIn:
+          begin
+            val := Pop();
+            objVal := Pop();
+            { `#x in obj` is true only when obj carries this class's brand. }
+            Push(JSMakeBoolean(objVal.IsObject() and
+              objVal.AsObject().HasPrivateName(
+                curFrame^.Bytecode.GetConstant(inst.Imm).ToString())));
+          end;
+
         opJump:
           curFrame^.IP := inst.Imm;
 

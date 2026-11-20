@@ -407,6 +407,7 @@ var
   expr, cur: TFloriaJSExprNode;
   fnExpr: TFloriaJSFunctionExpr;
   callExpr: TFloriaJSCallExpr;
+  brandExpr: TFloriaJSExprNode;
   paramName, pat, flags: string;
   fnStartPos: Integer;
   nullPos: Integer;
@@ -531,6 +532,13 @@ begin
       Exit(callExpr);
     end;
     ErrorAtCurrent('Expected `(` or `.meta` after `import`');
+  end;
+
+  { `#x in obj` — a private-name brand check. }
+  if Match(tkPrivateName) then
+  begin
+    brandExpr := TFloriaJSIdentifierExpr.Create(FPrevious.Text, tok.Line, tok.Column);
+    Exit(brandExpr);
   end;
 
   { Identifier }
@@ -738,7 +746,7 @@ end;
 function TFloriaJSParser.ParseUnaryPrefix(): TFloriaJSExprNode;
 var
   op: TFloriaJSToken;
-  operand: TFloriaJSExprNode;
+  operand, deleteTarget: TFloriaJSExprNode;
 begin
   op := FCurrent;
   Advance();
@@ -756,6 +764,19 @@ begin
   end;
 
   operand := ParsePrecedence(PREC_UNARY);
+
+  { `delete` of a private member is an early SyntaxError: a private name has no
+    [[Delete]] and can never be removed. }
+  if op.Kind = tkDelete then
+  begin
+    deleteTarget := operand;
+    while deleteTarget is TFloriaJSGroupExpr do
+      deleteTarget := TFloriaJSGroupExpr(deleteTarget).Expression;
+    if (deleteTarget is TFloriaJSMemberExpr) and
+       TFloriaJSMemberExpr(deleteTarget).IsPrivate then
+      ErrorAtCurrent('Private fields can not be deleted');
+  end;
+
   if op.Kind in [tkPlusPlus, tkMinusMinus] then
   begin
     if IsOptionalChainTarget(operand) then
@@ -786,7 +807,9 @@ begin
 
     if op.Kind = tkDot then
     begin
-      if Match(tkIdentifier) then
+      if Match(tkPrivateName) then
+        memberPropName := FPrevious.Text
+      else if Match(tkIdentifier) then
         memberPropName := FPrevious.Text
       else if IsKeywordToken(FCurrent.Kind) then
       begin
@@ -862,6 +885,7 @@ end;
 function TFloriaJSParser.ParseArrayLiteral(): TFloriaJSExprNode;
 var
   arr: TFloriaJSArrayExpr;
+  spreadElement: TFloriaJSExprNode;
   startLine, startCol: Integer;
 begin
   startLine := FPrevious.Line;
@@ -877,7 +901,15 @@ begin
     end;
 
     if Match(tkEllipsis) then
-      arr.AddElement(TFloriaJSSpreadExpr.Create(ParseAssignmentExpression(), FPrevious.Line, FPrevious.Column))
+    begin
+      { A rest element takes no initializer. `[...[x] = []]` puts one on the
+        inner rest target, which is an early SyntaxError. }
+      spreadElement := ParseAssignmentExpression();
+      if (spreadElement is TFloriaJSAssignExpr) and
+         (TFloriaJSAssignExpr(spreadElement).Target is TFloriaJSArrayExpr) then
+        ErrorAtCurrent('A rest element may not have a default initializer');
+      arr.AddElement(TFloriaJSSpreadExpr.Create(spreadElement, FPrevious.Line, FPrevious.Column));
+    end
     else
       arr.AddElement(ParseAssignmentExpression());
 
@@ -972,6 +1004,9 @@ var
   kind: TFloriaJSClassMemberKind;
   memberStartPos: Integer;
   fnExpr: TFloriaJSFunctionExpr;
+  member: TFloriaJSClassMember;
+  fieldInit: TFloriaJSExprNode;
+  memberIsPrivate: Boolean;
   wasSuperAllowed: Boolean;
 begin
   startLine := FPrevious.Line;
@@ -1003,6 +1038,19 @@ begin
     if Match(tkSemicolon) then
       Continue;
 
+    { `static { ... }` is an initializer block, not a member. }
+    if Check(tkStatic) and (FLexer.PeekToken().Kind = tkLBrace) then
+    begin
+      Advance(); { consume `static` }
+      fnExpr := TFloriaJSFunctionExpr.Create('#static-block', False,
+        FCurrent.Line, FCurrent.Column);
+      fnExpr.SetBody(ParseFunctionBlockBody());
+      fnExpr.SourceText := SourceSlice(memberStartPos, FPrevious.EndPos);
+      cls.AddMember(TFloriaJSClassMember.Create('#static-block',
+        fjcmStaticBlock, True, fnExpr, startLine, startCol));
+      Continue;
+    end;
+
     isStatic := False;
     if Check(tkStatic) and (FLexer.PeekToken().Kind <> tkLParen) then
     begin
@@ -1022,8 +1070,14 @@ begin
       Advance();
     end;
 
+    memberIsPrivate := False;
     memberName := '';
-    if Match(tkIdentifier) then
+    if Match(tkPrivateName) then
+    begin
+      memberName := FPrevious.Text;
+      memberIsPrivate := True;
+    end
+    else if Match(tkIdentifier) then
       memberName := FPrevious.Text
     else if IsKeywordToken(FCurrent.Kind) then
     begin
@@ -1041,16 +1095,26 @@ begin
       Break;
     end;
 
-    if not Check(tkLParen) then
+    if Check(tkLParen) then
     begin
-      { A field declaration, which this runtime does not support. }
-      ErrorAtCurrent('Class fields are not supported; use a constructor assignment');
-      Break;
+      fnExpr := ParseMethodBody(memberName, memberStartPos);
+      member := TFloriaJSClassMember.Create(memberName, kind, isStatic,
+        fnExpr, startLine, startCol);
+      member.IsPrivate := memberIsPrivate;
+      cls.AddMember(member);
+      Continue;
     end;
 
-    fnExpr := ParseMethodBody(memberName, memberStartPos);
-    cls.AddMember(TFloriaJSClassMember.Create(memberName, kind, isStatic,
-      fnExpr, startLine, startCol));
+    { A field: an optional initializer followed by `;` or the next member. }
+    fieldInit := nil;
+    if Match(tkAssign) then
+      fieldInit := ParseAssignmentExpression();
+    member := TFloriaJSClassMember.Create(memberName, fjcmField, isStatic,
+      nil, startLine, startCol);
+    member.IsPrivate := memberIsPrivate;
+    member.Initializer := fieldInit;
+    cls.AddMember(member);
+    Match(tkSemicolon);
   end;
 
   Consume(tkRBrace, 'Expected ''}'' at end of class body');
@@ -1492,6 +1556,8 @@ var
   fnExpr: TFloriaJSFunctionExpr;
   memberPropName: string;
   computedProp: TFloriaJSExprNode;
+  memberExpr: TFloriaJSMemberExpr;
+  memberIsPrivate: Boolean;
   startPos: Integer;
 begin
   { Prefix parsing }
@@ -1580,7 +1646,13 @@ begin
         end
         else
         begin
-          if Match(tkIdentifier) then
+          memberIsPrivate := False;
+          if Match(tkPrivateName) then
+          begin
+            memberPropName := FPrevious.Text;
+            memberIsPrivate := True;
+          end
+          else if Match(tkIdentifier) then
             memberPropName := FPrevious.Text
           else if IsKeywordToken(FCurrent.Kind) then
           begin
@@ -1592,8 +1664,10 @@ begin
             ErrorAtCurrent('Expected property name after ''.''');
             memberPropName := '';
           end;
-          left := TFloriaJSMemberExpr.CreateNamed(left, memberPropName,
+          memberExpr := TFloriaJSMemberExpr.CreateNamed(left, memberPropName,
             op.Line, op.Column, op.Kind = tkQuestionDot);
+          memberExpr.IsPrivate := memberIsPrivate;
+          left := memberExpr;
         end;
       end;
 

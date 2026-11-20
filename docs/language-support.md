@@ -30,7 +30,7 @@ them.
 | Empty statement (`;`) | Yes | Treated as an empty block. |
 | `with` | Yes (sloppy) | Supported in sloppy mode, including boxed primitives. Strict mode rejects it as a `SyntaxError`. |
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
-| `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, and `super`. Methods are non-enumerable. Class fields are not supported. |
+| `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, and `super`. Public and private fields with initializers, private methods and accessors, `#x in obj` brand checks, and static blocks. Methods are non-enumerable. |
 | Generators (`function*`, `yield`) | Yes | `function*` bodies run lazily and suspend at `yield`; `yield*` delegates. Generator objects implement `next()`, `return()`, and `Symbol.iterator`, and may be resumed by a later script. |
 | `for await` | Yes | Async iteration over async iterators and sync iterables; each step awaits the iterator result. `async function*` is supported, including `yield`, `await`, and `yield*`. |
 
@@ -498,8 +498,17 @@ assignment operator, including plain `=`.
 - Methods and accessors are installed as **non-enumerable** properties, so
   `Object.keys`, `for…in`, and `JSON.stringify` see only the instance's own
   fields.
-- Class fields (`class A { x = 1 }`) are **not** supported and are rejected at
-  parse time; assign in the constructor instead.
+- Class fields (`class A { x = 1 }`) initialise the instance in source order
+  when the base constructor has finished, which is what the specification's
+  `InitializeInstanceElements` does. A derived class runs them after its
+  `super(...)` call. A field with no initializer is defined as `undefined`.
+- Private names (`#x`) live in a per-object side table keyed by the declaring
+  class's brand, so `this.#x` reads them and two classes may each declare `#x`
+  without colliding. A private member is invisible to string and symbol keys,
+  and `delete` of one is an early `SyntaxError`.
+- `#x in obj` asks whether an object carries that class's private brand.
+- `static field = value` and `static { ... }` run at class definition time, in
+  source order.
 
 ### Errors and promises
 
