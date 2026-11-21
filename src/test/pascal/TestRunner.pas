@@ -10752,6 +10752,19 @@ begin
     AssertTrue('methods named async and get', res.Success);
     AssertEquals('the methods are callable', '9', res.StringValue);
 
+    // `yield` is reserved inside a generator body, so a unary operand cannot
+    // be an identifier reference to it.
+    res := engine.Execute('class C { *m() { void yield; } }');
+    AssertFalse('void yield in a generator is rejected', res.Success);
+    res := engine.Execute('class C { *m() { typeof yield; } }');
+    AssertFalse('typeof yield in a generator is rejected', res.Success);
+    res := engine.Execute('class C { *m() { yield 1; } }');
+    AssertTrue('a yield expression is still accepted', res.Success);
+    res := engine.Execute('class C { *m() { var a = [yield 1]; } }');
+    AssertTrue('yield in an array element is accepted', res.Success);
+    res := engine.Execute('function f() { void yield; }');
+    AssertTrue('yield outside a generator is an identifier', res.Success);
+
     // A rest element may not have an initializer or appear before the end.
     res := engine.Execute('class C { m([...[x] = []]) {} }');
     AssertFalse('a rest element may not have an initializer', res.Success);

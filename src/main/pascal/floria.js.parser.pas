@@ -81,6 +81,12 @@ type
     FIsEvalCode: Boolean;
     { Set for a direct eval, where `new.target` evaluates to undefined. }
     FAllowEvalMeta: Boolean;
+    { How many generator bodies enclose the current position. Inside one,
+      `yield` is reserved and may not be an identifier reference. }
+    FGeneratorDepth: Integer;
+    { True while parsing in a position where a YieldExpression is allowed, which
+      is only the AssignmentExpression level. }
+    FYieldExprAllowed: Boolean;
     { Private names declared anywhere in the current outermost class tree. A
       nested class may reach an enclosing class's private names, so validation
       waits until the outermost body has been parsed. }
@@ -127,7 +133,8 @@ type
     function  ParseMemberTail(ALeft: TFloriaJSExprNode): TFloriaJSExprNode;
     function  ParseArrayLiteral(): TFloriaJSExprNode;
     function  ParseObjectLiteral(): TFloriaJSExprNode;
-    function  ParseMethodBody(const AName: string; AStartPos: Integer): TFloriaJSFunctionExpr;
+    function  ParseMethodBody(const AName: string; AStartPos: Integer;
+      AIsAsync: Boolean = False; AIsGenerator: Boolean = False): TFloriaJSFunctionExpr;
     { The original source text from AStartPos through the last consumed token. }
     function  SourceSlice(AStartPos, AEndPos: Integer): string;
     function  ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
@@ -141,6 +148,7 @@ type
     function  ParseFunctionExpr(AIsAsync: Boolean = False; AStartPos: Integer = -1): TFloriaJSExprNode;
     function  ParseFunctionBlockBody(): TFloriaJSStmtNode;
     function  ParseAsyncFunctionBlockBody(): TFloriaJSStmtNode;
+    function  ParseGeneratorBlockBody(): TFloriaJSStmtNode;
     procedure ParseArrowBody(AAsync: Boolean; AFnExpr: TFloriaJSFunctionExpr);
     procedure ParseFormalParameters(AParams: TStringList);
     function  ExtractParameters(var AExpr: TFloriaJSExprNode; AParams: TStrings): Boolean;
@@ -234,6 +242,8 @@ begin
   FClassDepth := 0;
   FIsEvalCode := False;
   FAllowEvalMeta := False;
+  FGeneratorDepth := 0;
+  FYieldExprAllowed := False;
   FDeclaredPrivates := TStringList.Create();
   FDeclaredPrivates.CaseSensitive := True;
   FPendingPrivateClasses := TFPList.Create();
@@ -259,6 +269,8 @@ begin
   FClassDepth := 0;
   FIsEvalCode := False;
   FAllowEvalMeta := False;
+  FGeneratorDepth := 0;
+  FYieldExprAllowed := False;
   FDeclaredPrivates := TStringList.Create();
   FDeclaredPrivates.CaseSensitive := True;
   FPendingPrivateClasses := TFPList.Create();
@@ -634,6 +646,11 @@ begin
       static block are not one. }
     if (FIsModule or FInStaticBlock) and (FFunctionDepth = 0) then
       ErrorAtCurrent('Unexpected reserved word');
+    { In a generator body `yield` is reserved, so outside a position that
+      admits a YieldExpression it can only be an identifier reference, which is
+      an early SyntaxError. This is what makes `void yield;` illegal. }
+    if (FGeneratorDepth > 0) and (not FYieldExprAllowed) then
+      ErrorAtCurrent('Unexpected reserved word');
     { A line terminator after `yield` ends the expression, so `yield\n1` yields
       undefined and then evaluates `1` as a separate statement. }
     if FCurrent.Line > FPrevious.Line then
@@ -824,6 +841,7 @@ function TFloriaJSParser.ParseUnaryPrefix(): TFloriaJSExprNode;
 var
   op: TFloriaJSToken;
   operand, deleteTarget: TFloriaJSExprNode;
+  savedYield: Boolean;
 begin
   op := FCurrent;
   Advance();
@@ -840,7 +858,13 @@ begin
       ErrorAtCurrent('Unexpected reserved word');
   end;
 
-  operand := ParsePrecedence(PREC_UNARY);
+  savedYield := FYieldExprAllowed;
+  FYieldExprAllowed := False;
+  try
+    operand := ParsePrecedence(PREC_UNARY);
+  finally
+    FYieldExprAllowed := savedYield;
+  end;
 
   { `delete` of a private member is an early SyntaxError: a private name has no
     [[Delete]] and can never be removed. }
@@ -1646,9 +1670,8 @@ begin
 
     if Check(tkLParen) then
     begin
-      fnExpr := ParseMethodBody(memberName, memberStartPos);
-      fnExpr.IsAsync := memberIsAsync;
-      fnExpr.IsGenerator := memberIsGenerator;
+      fnExpr := ParseMethodBody(memberName, memberStartPos, memberIsAsync,
+        memberIsGenerator);
       member := TFloriaJSClassMember.Create(memberName, kind, isStatic,
         fnExpr, startLine, startCol);
       member.IsPrivate := memberIsPrivate;
@@ -1741,7 +1764,8 @@ begin
     Result := '';
 end;
 
-function TFloriaJSParser.ParseMethodBody(const AName: string; AStartPos: Integer): TFloriaJSFunctionExpr;
+function TFloriaJSParser.ParseMethodBody(const AName: string; AStartPos: Integer;
+  AIsAsync: Boolean = False; AIsGenerator: Boolean = False): TFloriaJSFunctionExpr;
 var
   fnExpr: TFloriaJSFunctionExpr;
   startLine, startCol: Integer;
@@ -1751,8 +1775,24 @@ begin
   startCol := FCurrent.Column;
 
   fnExpr := TFloriaJSFunctionExpr.Create(AName, False, startLine, startCol);
+  fnExpr.IsAsync := AIsAsync;
+  fnExpr.IsGenerator := AIsGenerator;
   ParseFormalParameters(fnExpr.Parameters);
-  bodyStmt := ParseFunctionBlockBody();
+  if AIsAsync and AIsGenerator then
+  begin
+    Inc(FGeneratorDepth);
+    try
+      bodyStmt := ParseAsyncFunctionBlockBody();
+    finally
+      Dec(FGeneratorDepth);
+    end;
+  end
+  else if AIsGenerator then
+    bodyStmt := ParseGeneratorBlockBody()
+  else if AIsAsync then
+    bodyStmt := ParseAsyncFunctionBlockBody()
+  else
+    bodyStmt := ParseFunctionBlockBody();
   fnExpr.SetBody(bodyStmt);
   fnExpr.SourceText := SourceSlice(AStartPos, FPrevious.EndPos);
   Result := fnExpr;
@@ -1939,6 +1979,20 @@ end;
 { Parses a block that is a function body, counting the function so `return`
   is legal inside it and an early error outside. An async body additionally
   makes `await` legal. }
+{ Parses a function body, marking it as a generator body while it is parsed so
+  `yield` is reserved inside. }
+function TFloriaJSParser.ParseGeneratorBlockBody(): TFloriaJSStmtNode;
+begin
+  Inc(FFunctionDepth);
+  Inc(FGeneratorDepth);
+  try
+    Result := ParseBlockStatement();
+  finally
+    Dec(FGeneratorDepth);
+    Dec(FFunctionDepth);
+  end;
+end;
+
 function TFloriaJSParser.ParseFunctionBlockBody(): TFloriaJSStmtNode;
 begin
   Inc(FFunctionDepth);
@@ -2445,13 +2499,32 @@ begin
 end;
 
 function TFloriaJSParser.ParseAssignmentExpression(): TFloriaJSExprNode;
+var
+  savedYield: Boolean;
 begin
-  Result := ParsePrecedence(PREC_ASSIGNMENT);
+  { A YieldExpression is only legal at the AssignmentExpression level. }
+  savedYield := FYieldExprAllowed;
+  FYieldExprAllowed := True;
+  try
+    Result := ParsePrecedence(PREC_ASSIGNMENT);
+  finally
+    FYieldExprAllowed := savedYield;
+  end;
 end;
 
 function TFloriaJSParser.ParseExpression(): TFloriaJSExprNode;
+var
+  savedYield: Boolean;
 begin
-  Result := ParsePrecedence(PREC_COMMA);
+  { An Expression contains AssignmentExpressions, so a YieldExpression is legal
+    here; a unary operand clears the flag again. }
+  savedYield := FYieldExprAllowed;
+  FYieldExprAllowed := True;
+  try
+    Result := ParsePrecedence(PREC_COMMA);
+  finally
+    FYieldExprAllowed := savedYield;
+  end;
 end;
 
 { Statement Parsing }
