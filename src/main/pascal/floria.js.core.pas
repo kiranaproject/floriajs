@@ -517,9 +517,8 @@ begin
 
   parser := TFloriaJSParser.Create(AScript);
   try
-    { Direct eval runs inside the caller's class body, whose private names the
-      parser cannot see statically. }
-    parser.AllowPrivateAccess := True;
+    parser.IsEvalCode := True;
+    parser.AllowEvalMeta := True;
     prog := parser.ParseProgram();
     try
       if parser.HasErrors() then

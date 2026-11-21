@@ -36,6 +36,9 @@ type
     OwnsCallEnv: Boolean;
     IsConstructor: Boolean;
     ConstructedObj: TFloriaJSObject;
+    { [[NewTarget]]: the constructor when the frame was entered by `new`, or
+      undefined for an ordinary call. An arrow function inherits it. }
+    NewTarget: TFloriaJSValue;
   end;
 
   { Exception Try/Catch Handler Entry }
@@ -77,7 +80,15 @@ type
     FTryCapacity: Integer;
 
     procedure EnsureStackCapacity();
+    function  CalleeNewTarget(const ACallee: TFloriaJSValue;
+      const AEnclosing: TFloriaJSValue): TFloriaJSValue;
     procedure PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer = 0; AIsConstructor: Boolean = False; AConstructedObj: TFloriaJSObject = nil; AOwnsCallEnv: Boolean = False; AVarEnv: TFloriaJSEnvironment = nil);
+    { As PushFrame, with an explicit [[NewTarget]]. }
+    procedure PushFrameWithNewTarget(ABytecode: TFloriaJSBytecode;
+      AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer;
+      AIsConstructor: Boolean; AConstructedObj: TFloriaJSObject;
+      AOwnsCallEnv: Boolean; AVarEnv: TFloriaJSEnvironment;
+      const ANewTarget: TFloriaJSValue);
     procedure PopFrame();
 
     procedure PushTryHandler(ACatchIP: Integer; AFrameIndex, AStackDepth: Integer; AEnv: TFloriaJSEnvironment);
@@ -93,7 +104,7 @@ type
     procedure HeapJobRunner(const AJob: TFloriaJSPromiseJob);
     function  EvalIndirect(const ASource: string): TFloriaJSValue;
     function  EvalSource(const ASource: string; AEnv, AVarEnv: TFloriaJSEnvironment;
-      const AThis: TFloriaJSValue): TFloriaJSValue;
+      const AThis: TFloriaJSValue; ADirectEval: Boolean): TFloriaJSValue;
     function  RunGenerator(AGen: TFloriaJSGenerator; const ASent: TFloriaJSValue;
       out AValue: TFloriaJSValue; out ADone: Boolean): Boolean;
     function  MakeGenerator(AFn: TFloriaJSFunction; const AArgs: array of TFloriaJSValue;
@@ -212,11 +223,11 @@ end;
 
 function TFloriaJSVM.EvalIndirect(const ASource: string): TFloriaJSValue;
 begin
-  Result := EvalSource(ASource, FGlobalEnv, FGlobalEnv, JSMakeUndefined());
+  Result := EvalSource(ASource, FGlobalEnv, FGlobalEnv, JSMakeUndefined(), False);
 end;
 
 function TFloriaJSVM.EvalSource(const ASource: string; AEnv, AVarEnv: TFloriaJSEnvironment;
-  const AThis: TFloriaJSValue): TFloriaJSValue;
+  const AThis: TFloriaJSValue; ADirectEval: Boolean): TFloriaJSValue;
 var
   parser: TFloriaJSParser;
   prog: TFloriaJSProgram;
@@ -231,6 +242,11 @@ begin
 
   parser := TFloriaJSParser.Create(ASource);
   try
+    { Direct eval may use `new.target`, which is undefined there. An indirect
+      eval may not. Private names stay rejected in both: the parser cannot see
+      the caller's class. }
+    parser.IsEvalCode := True;
+    parser.AllowEvalMeta := ADirectEval;
     prog := parser.ParseProgram();
     try
       if parser.HasErrors() then
@@ -378,6 +394,12 @@ begin
   end;
 
   Result := TFloriaJSGenerator(FHeap.Track(TFloriaJSGenerator.Create(FHeap)));
+  { An async or generator arrow inherits `new.target` from its creation site. }
+  if AFn.IsArrow then
+  begin
+    Result.NewTarget := AFn.ArrowNewTarget;
+    JSRetainValue(Result.NewTarget);
+  end;
   if AFn.IsAsyncGenerator then
     Result.Prototype := FHeap.GetAsyncGeneratorPrototype();
   Result.Bytecode := subCode;
@@ -840,7 +862,8 @@ begin
   FIsSuspending := False;
   FYieldedValue := JSMakeUndefined();
 
-  PushFrame(subCode, genEnv, AGen.ThisVal, baseBP, False, nil, False);
+  PushFrameWithNewTarget(subCode, genEnv, AGen.ThisVal, baseBP, False,
+    nil, False, nil, AGen.NewTarget);
   { Remember this frame so a later yield unwinds exactly back to it. }
   AGen.FrameFP := FFP;
   if isResume then
@@ -980,7 +1003,37 @@ begin
   FTryCount := 0;
 end;
 
-procedure TFloriaJSVM.PushFrame(ABytecode: TFloriaJSBytecode; AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer; AIsConstructor: Boolean; AConstructedObj: TFloriaJSObject; AOwnsCallEnv: Boolean; AVarEnv: TFloriaJSEnvironment);
+{ The [[NewTarget]] a call frame starts with. An arrow function inherits the
+  enclosing frame's value; any other function starts with undefined unless it
+  was entered by `new`. }
+function TFloriaJSVM.CalleeNewTarget(const ACallee: TFloriaJSValue;
+  const AEnclosing: TFloriaJSValue): TFloriaJSValue;
+begin
+  if ACallee.IsFunction() then
+  begin
+    if ACallee.AsFunction().IsArrow then
+      Exit(ACallee.AsFunction().ArrowNewTarget);
+    { A bound function forwards its target's new.target only when constructed;
+      for a call it is an ordinary call. }
+    Exit(JSMakeUndefined());
+  end;
+  Result := JSMakeUndefined();
+end;
+
+procedure TFloriaJSVM.PushFrame(ABytecode: TFloriaJSBytecode;
+  AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer;
+  AIsConstructor: Boolean; AConstructedObj: TFloriaJSObject;
+  AOwnsCallEnv: Boolean; AVarEnv: TFloriaJSEnvironment);
+begin
+  PushFrameWithNewTarget(ABytecode, AEnv, AThis, ABaseBP, AIsConstructor,
+    AConstructedObj, AOwnsCallEnv, AVarEnv, JSMakeUndefined());
+end;
+
+procedure TFloriaJSVM.PushFrameWithNewTarget(ABytecode: TFloriaJSBytecode;
+  AEnv: TFloriaJSEnvironment; const AThis: TFloriaJSValue; ABaseBP: Integer;
+  AIsConstructor: Boolean; AConstructedObj: TFloriaJSObject;
+  AOwnsCallEnv: Boolean; AVarEnv: TFloriaJSEnvironment;
+  const ANewTarget: TFloriaJSValue);
 begin
   if FFP + 1 >= FMaxCallDepth then
     raise EFloriaJSThrow.Create(JSMakeObject(FHeap.NewError('RangeError', 'Maximum call stack size exceeded')));
@@ -1008,6 +1061,7 @@ begin
   FFrames[FFP].OwnsCallEnv := AOwnsCallEnv;
   FFrames[FFP].IsConstructor := AIsConstructor;
   FFrames[FFP].ConstructedObj := AConstructedObj;
+  FFrames[FFP].NewTarget := ANewTarget;
 end;
 
 procedure TFloriaJSVM.PopFrame();
@@ -2103,6 +2157,9 @@ begin
           end;
 
         // Jumps
+        opNewTarget:
+          Push(curFrame^.NewTarget);
+
         opGetPrivate:
           begin
             objVal := Pop();
@@ -2259,7 +2316,7 @@ begin
                 if curFrame^.Bytecode.IsStrict then
                   evalText := '"use strict";' + #10 + evalText;
                 Push(EvalSource(evalText, curFrame^.Env, curFrame^.VarEnv,
-                  curFrame^.ThisVal));
+                  curFrame^.ThisVal, True));
               end;
               Continue;
             end;
@@ -2373,7 +2430,8 @@ begin
               begin
                 promise := FHeap.NewPromise();
                 asyncInitialFP := FFP;
-                PushFrame(subCode, callEnv, thisVal, callBaseBP, False, nil, True);
+                PushFrameWithNewTarget(subCode, callEnv, thisVal, callBaseBP, False, nil, True, nil,
+                CalleeNewTarget(calleeVal, curFrame^.NewTarget));
                 try
                   resVal := RunLoop(asyncInitialFP, callBaseBP);
                   promise.Fulfill(resVal);
@@ -2390,9 +2448,12 @@ begin
                 Push(JSMakePromise(promise));
               end
               else if fn.IsArrow then
-                PushFrame(subCode, callEnv, curFrame^.ThisVal, callBaseBP, False, nil, True)
+                PushFrameWithNewTarget(subCode, callEnv, curFrame^.ThisVal, callBaseBP, False, nil, True, nil,
+                  CalleeNewTarget(calleeVal, curFrame^.NewTarget))
               else
-                PushFrame(subCode, callEnv, thisVal, callBaseBP, False, nil, True);
+                PushFrameWithNewTarget(subCode, callEnv, thisVal, callBaseBP,
+                  False, nil, True, nil,
+                  CalleeNewTarget(calleeVal, curFrame^.NewTarget));
             end
             else
             begin
@@ -2556,7 +2617,8 @@ begin
                   Push(JSMakeUndefined());
               end;
 
-              PushFrame(subCode, callEnv, objVal, callBaseBP, True, objVal.AsObject(), True);
+              PushFrameWithNewTarget(subCode, callEnv, objVal, callBaseBP, True,
+                objVal.AsObject(), True, nil, calleeVal);
             end;
           end;
 
@@ -2598,6 +2660,14 @@ begin
             fnObj := FHeap.NewBytecodeFunction(subCode.Name, subCode, curFrame^.Env, subCode.IsArrow, subCode.IsAsync);
             TFloriaJSFunction(fnObj).IsAsyncGenerator := subCode.IsAsyncGenerator;
             TFloriaJSFunction(fnObj).SourceText := subCode.SourceText;
+            { An arrow inherits `new.target` from where it is *created*, not
+              from where it is called. }
+            if subCode.IsArrow then
+            begin
+              JSReleaseValue(TFloriaJSFunction(fnObj).ArrowNewTarget);
+              TFloriaJSFunction(fnObj).ArrowNewTarget := curFrame^.NewTarget;
+              JSRetainValue(TFloriaJSFunction(fnObj).ArrowNewTarget);
+            end;
             if curFrame^.Env <> nil then
               curFrame^.Env.MarkCaptured();
             Push(JSMakeObject(fnObj));
@@ -2931,7 +3001,9 @@ begin
     if fn.IsAsync then
     begin
       promise := FHeap.NewPromise();
-      PushFrame(subCode, callEnv, effectiveThis, initialBaseBP, False, nil, True);
+      PushFrameWithNewTarget(subCode, callEnv, effectiveThis, initialBaseBP,
+        False, nil, True, nil,
+        CalleeNewTarget(AFuncVal, JSMakeUndefined()));
       savedTryCount := FTryCount;
       FTryCount := 0;
       try
@@ -2952,7 +3024,9 @@ begin
     end
     else
     begin
-      PushFrame(subCode, callEnv, effectiveThis, initialBaseBP, False, nil, True);
+      PushFrameWithNewTarget(subCode, callEnv, effectiveThis, initialBaseBP,
+        False, nil, True, nil,
+        CalleeNewTarget(AFuncVal, JSMakeUndefined()));
       savedTryCount := FTryCount;
       FTryCount := 0;
       try

@@ -30,7 +30,7 @@ them.
 | Empty statement (`;`) | Yes | Treated as an empty block. |
 | `with` | Yes (sloppy) | Supported in sloppy mode, including boxed primitives. Strict mode rejects it as a `SyntaxError`. |
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
-| `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, and `super`. Public and private fields with initializers, private methods and accessors, `#x in obj` brand checks, and static blocks. Methods are non-enumerable. |
+| `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, `super`, and `new.target`. Public and private fields with initializers, private methods and accessors, `#x in obj` brand checks, computed member names, and static blocks. Methods are non-enumerable. |
 | Generators (`function*`, `yield`) | Yes | `function*` bodies run lazily and suspend at `yield`; `yield*` delegates. Generator objects implement `next()`, `return()`, and `Symbol.iterator`, and may be resumed by a later script. |
 | `for await` | Yes | Async iteration over async iterators and sync iterables; each step awaits the iterator result. `async function*` is supported, including `yield`, `await`, and `yield*`. |
 
@@ -526,11 +526,14 @@ assignment operator, including plain `=`.
   initializer.
 - A private name declared by an enclosing class is visible to a class nested
   inside it, but not to a class that *contains* the declaration.
-- Direct `eval` inside a class body accepts a private name without the static
-  declaration check, because the parser cannot see the caller's class. The
-  runtime does not yet resolve such a name to the caller's class brand, so
-  `eval("this.#x")` reads `undefined` rather than the private value. That is the
-  one remaining private-name gap.
+- Direct `eval` inside a class body cannot reach that class's private names,
+  because the parser cannot see the caller's class; `eval("this.#x")` is a
+  `SyntaxError`. That is the one remaining private-name gap.
+- `new.target` is the constructor under `new` and `undefined` in a plain call.
+  It is inherited lexically by arrow functions (including async and generator
+  arrows), and is `undefined` in a class field initializer and static block. It
+  is rejected at the top level of a script or module, and in eval code unless
+  the eval is direct.
 
 ### Errors and promises
 

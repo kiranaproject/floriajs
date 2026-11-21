@@ -383,6 +383,9 @@ type
     FIsAsyncGenerator: Boolean;
     FIsNamedExpression: Boolean;
     FIsArrow: Boolean;
+    { For an arrow function, the [[NewTarget]] of the frame that created it.
+      Arrow functions inherit `new.target` lexically. }
+    FArrowNewTarget: TFloriaJSValue;
     FSuppressPrototype: Boolean;
     FNotConstructable: Boolean;
     FLengthOverride: Integer;
@@ -415,6 +418,7 @@ type
     property IsAsyncGenerator: Boolean read FIsAsyncGenerator write FIsAsyncGenerator;
     property IsNamedExpression: Boolean read FIsNamedExpression write FIsNamedExpression;
     property IsArrow: Boolean read FIsArrow write FIsArrow;
+    property ArrowNewTarget: TFloriaJSValue read FArrowNewTarget write FArrowNewTarget;
     { Bound functions have no own `prototype` per ECMAScript, even though they
       are ordinary function objects in every other respect. }
     property SuppressPrototype: Boolean read FSuppressPrototype write FSuppressPrototype;
@@ -583,6 +587,8 @@ type
     FEnv: Pointer;
     FCurrentEnv: Pointer;
     FThisVal: TFloriaJSValue;
+    { An async/generator arrow inherits `new.target` from its creation site. }
+    FNewTarget: TFloriaJSValue;
     FArgs: TFloriaJSValueArray;
     FIP: Integer;
     FBaseBP: Integer;
@@ -646,6 +652,7 @@ type
     property Env: Pointer read FEnv write SetEnv;
     property CurrentEnv: Pointer read FCurrentEnv write SetCurrentEnv;
     property ThisVal: TFloriaJSValue read FThisVal write SetThisVal;
+    property NewTarget: TFloriaJSValue read FNewTarget write FNewTarget;
     property Args: TFloriaJSValueArray read FArgs write SetArgs;
     property IP: Integer read FIP write FIP;
     property BaseBP: Integer read FBaseBP write FBaseBP;
@@ -3265,6 +3272,7 @@ begin
   FClosureEnv := nil;
   FIsAsync := False;
   FIsArrow := False;
+  FArrowNewTarget := JSMakeUndefined();
   FSuppressPrototype := False;
   FNotConstructable := False;
   FLengthOverride := -1;
@@ -3281,6 +3289,7 @@ begin
   FClosureEnv := nil;
   FIsAsync := False;
   FIsArrow := False;
+  FArrowNewTarget := JSMakeUndefined();
   FSuppressPrototype := False;
   FNotConstructable := False;
   FLengthOverride := -1;
@@ -3302,6 +3311,7 @@ begin
   FIsAsyncGenerator := False;
   FIsNamedExpression := False;
   FIsArrow := AIsArrow;
+  FArrowNewTarget := JSMakeUndefined();
   FNameDeleted := False;
   FLengthDeleted := False;
   FSuppressPrototype := False;
@@ -3315,6 +3325,8 @@ var
   i: Integer;
   proto: TFloriaJSObject;
 begin
+  JSReleaseValue(FArrowNewTarget);
+  FArrowNewTarget := JSMakeUndefined();
   { The prototypes hold a non-retaining `constructor` reference to this
     function. Once the function is gone the property would dangle, so it is
     removed here; the prototype then falls back to the inherited constructor. }
@@ -4889,6 +4901,7 @@ begin
   FEnv := nil;
   FCurrentEnv := nil;
   FThisVal := JSMakeUndefined();
+  FNewTarget := JSMakeUndefined();
   SetLength(FArgs, 0);
   FIP := 0;
   FBaseBP := 0;
@@ -4916,6 +4929,8 @@ var
 begin
   { Give up the references this generator holds, so the methods it created can
     be reclaimed once nothing else uses them. }
+  JSReleaseValue(FNewTarget);
+  FNewTarget := JSMakeUndefined();
   if FNextFn <> nil then
   begin
     FNextFn.Release();

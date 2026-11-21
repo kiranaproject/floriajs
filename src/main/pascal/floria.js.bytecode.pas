@@ -75,6 +75,7 @@ type
     opHasPrivate,        // Pop obj -> push whether obj has the private name: Imm = const index
     opDefinePrivate,     // Pop value, pop obj -> define a private name: Imm = const index
     opPrivateIn,         // Pop val, pop obj -> push whether obj carries the brand: Imm = const index
+    opNewTarget,         // Push the current frame's new.target
     opDefineGetter,      // Pop getter, peek obj -> define getter: Imm = const index (or -1 if key on stack)
     opDefineSetter,      // Pop setter, peek obj -> define setter: Imm = const index (or -1 if key on stack)
     opObjectRest,        // Pop N keys, pop obj -> push rest object: Imm = key count
@@ -325,6 +326,7 @@ begin
     opHasPrivate:       Result := 'HAS_PRIVATE';
     opDefinePrivate:    Result := 'DEFINE_PRIVATE';
     opPrivateIn:        Result := 'PRIVATE_IN';
+    opNewTarget:        Result := 'NEW_TARGET';
     opDefineGetter:     Result := 'DEFINE_GETTER';
     opDefineSetter:     Result := 'DEFINE_SETTER';
     opObjectRest:       Result := 'OBJECT_REST';
@@ -755,7 +757,7 @@ begin
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opLoadLoc, opStoreLoc, opSetLoc:
       comment := '; ' + GetLocalName(inst.Imm);
-    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opDeclareLet, opDeclareConst, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opGetPrivate, opSetPrivate, opHasPrivate, opDefinePrivate, opPrivateIn, opDefineHidden, opDefineGetterHidden, opDefineSetterHidden, opDefineHiddenKey, opDefineGetterKey, opDefineSetterKey, opDeleteEnv:
+    opLoadGlobal, opStoreGlobal, opSetGlobal, opLoadEnv, opStoreEnv, opDefineEnv, opDefineConst, opDefineLet, opDeclareVar, opDeclareLet, opDeclareConst, opGetPropNamed, opSetPropNamed, opGetPropNamedOpt, opGetPrivate, opSetPrivate, opHasPrivate, opDefinePrivate, opPrivateIn, opNewTarget, opDefineHidden, opDefineGetterHidden, opDefineSetterHidden, opDefineHiddenKey, opDefineGetterKey, opDefineSetterKey, opDeleteEnv:
       comment := '; ' + GetConstant(inst.Imm).ToString();
     opJump, opJumpIfFalse, opJumpIfTrue, opJumpIfNullish, opJumpNullish, opJumpIfFalseyPeek, opJumpIfTruthyPeek, opPushTry:
       comment := Format('-> %04d', [inst.Imm]);

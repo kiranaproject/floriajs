@@ -10694,6 +10694,36 @@ begin
     AssertFalse('a private name outside a class is rejected', res.Success);
     res := engine.Execute('class C { #f = 1; m() { return this.#f; } } new C().m();');
     AssertTrue('a declared private name is accepted', res.Success);
+
+    // A class must not leak `super` onto the global object.
+    res := engine.Execute(
+      'class A { m() {} } class B extends A { constructor() { super(); } }' +
+      ' Object.prototype.hasOwnProperty.call(globalThis, "super");');
+    AssertTrue('super does not leak', res.Success);
+    AssertEquals('super is not an own property of globalThis', 'false',
+      res.StringValue);
+
+    // new.target is the constructor under `new` and undefined otherwise.
+    res := engine.Execute(
+      'function F() { this.ok = (new.target === F); } new F().ok;');
+    AssertTrue('new.target under new', res.Success);
+    AssertEquals('new.target is the constructor', 'true', res.StringValue);
+
+    res := engine.Execute('function F() { return typeof new.target; } F();');
+    AssertEquals('new.target is undefined in a plain call', 'undefined',
+      res.StringValue);
+
+    res := engine.Execute(
+      'function F() { this.g = () => (new.target === F); } new F().g();');
+    AssertEquals('new.target is inherited by an arrow', 'true', res.StringValue);
+
+    res := engine.Execute('class C { static { globalThis.nt = new.target; } } typeof globalThis.nt;');
+    AssertTrue('new.target in a static block', res.Success);
+    AssertEquals('new.target is undefined in a static block', 'undefined',
+      res.StringValue);
+
+    res := engine.Execute('new.target;');
+    AssertFalse('new.target at the top level is rejected', res.Success);
   finally
     engine.Free();
   end;

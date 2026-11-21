@@ -1394,6 +1394,9 @@ begin
 
   if AExpr is TFloriaJSLiteralExpr then
     CompileLiteralExpr(TFloriaJSLiteralExpr(AExpr))
+  else if (AExpr is TFloriaJSIdentifierExpr) and
+          (TFloriaJSIdentifierExpr(AExpr).Name = 'new.target') then
+    FBytecode.Emit(opNewTarget, 0, AExpr.Line)
   else if AExpr is TFloriaJSIdentifierExpr then
     CompileIdentifierExpr(TFloriaJSIdentifierExpr(AExpr))
   else if AExpr is TFloriaJSUnaryExpr then
@@ -3082,7 +3085,7 @@ begin
     FBytecode.Emit(opLoadLoc, superLoc)
   else
     FBytecode.Emit(opUndefined);
-  FBytecode.Emit(opDefineEnv, FBytecode.AddStringConstant('super'), ACls.Line);
+  FBytecode.Emit(opDefineLet, FBytecode.AddStringConstant('super'), ACls.Line);
 
   { Every computed member key is evaluated once here, in source order, before
     any member is installed. The constructor closure captures this environment,
@@ -3194,7 +3197,7 @@ begin
     end
     else
       FBytecode.Emit(opUndefined);
-    FBytecode.Emit(opDefineEnv, FBytecode.AddStringConstant('super'), member.Line);
+    FBytecode.Emit(opDefineLet, FBytecode.AddStringConstant('super'), member.Line);
 
     if member.IsStatic then
       FBytecode.Emit(opLoadLoc, clsLoc)
@@ -3279,7 +3282,7 @@ begin
       FBytecode.Emit(opLoadLoc, superLoc)
     else
       FBytecode.Emit(opUndefined);
-    FBytecode.Emit(opDefineEnv, FBytecode.AddStringConstant('super'), ACls.Line);
+    FBytecode.Emit(opDefineLet, FBytecode.AddStringConstant('super'), ACls.Line);
 
     for i := 0 to memberCount - 1 do
     begin

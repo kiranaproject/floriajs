@@ -75,9 +75,12 @@ type
     { How many class bodies enclose the current position. A private name is only
       meaningful inside one. }
     FClassDepth: Integer;
-    { Set when parsing `eval` source, which runs inside a class body that the
-      parser cannot see, so a private name is accepted without a static check. }
-    FAllowPrivateAccess: Boolean;
+    { Set when parsing any `eval` source. In eval, `new.target` is illegal
+      everywhere unless the eval is direct; private names are always rejected,
+      because the parser cannot tell a declared one from an undeclared one. }
+    FIsEvalCode: Boolean;
+    { Set for a direct eval, where `new.target` evaluates to undefined. }
+    FAllowEvalMeta: Boolean;
     { Private names declared anywhere in the current outermost class tree. A
       nested class may reach an enclosing class's private names, so validation
       waits until the outermost body has been parsed. }
@@ -200,8 +203,9 @@ type
       top-level await become legal. }
     procedure SetModuleMode(AValue: Boolean);
     property IsModule: Boolean read FIsModule;
-    { Permits a private name without a static declaration check, for eval. }
-    property AllowPrivateAccess: Boolean read FAllowPrivateAccess write FAllowPrivateAccess;
+    { Marks the source as eval code, optionally a direct eval. }
+    property IsEvalCode: Boolean read FIsEvalCode write FIsEvalCode;
+    property AllowEvalMeta: Boolean read FAllowEvalMeta write FAllowEvalMeta;
 
     property Errors: TStringList read FErrors;
   end;
@@ -224,7 +228,8 @@ begin
   FAsyncDepth := 0;
   FInStaticBlock := False;
   FClassDepth := 0;
-  FAllowPrivateAccess := False;
+  FIsEvalCode := False;
+  FAllowEvalMeta := False;
   FDeclaredPrivates := TStringList.Create();
   FDeclaredPrivates.CaseSensitive := True;
   FPendingPrivateClasses := TFPList.Create();
@@ -248,7 +253,8 @@ begin
   FAsyncDepth := 0;
   FInStaticBlock := False;
   FClassDepth := 0;
-  FAllowPrivateAccess := False;
+  FIsEvalCode := False;
+  FAllowEvalMeta := False;
   FDeclaredPrivates := TStringList.Create();
   FDeclaredPrivates.CaseSensitive := True;
   FPendingPrivateClasses := TFPList.Create();
@@ -871,7 +877,7 @@ begin
       if Match(tkPrivateName) then
       begin
         memberPropName := FPrevious.Text;
-        if (FClassDepth = 0) and (not FAllowPrivateAccess) then
+        if FClassDepth = 0 then
           ErrorAtCurrent('Private field must be declared in an enclosing class');
       end
       else if Match(tkIdentifier) then
@@ -2114,7 +2120,24 @@ begin
   begin
     op := FCurrent;
     Advance();
-    left := ParseNewExpression(op);
+    { `new.target` is a meta-property, not a construction. }
+    if Check(tkDot) and (FLexer.PeekToken().Kind = tkIdentifier) and
+       (FLexer.PeekToken().Text = 'target') then
+    begin
+      Advance(); { consume '.' }
+      Advance(); { consume 'target' }
+      { `new.target` is legal in a function body, a class field initializer,
+        and a static block, but not at the top level of a script or module. }
+      { In eval code `new.target` is illegal everywhere unless it is a direct
+        eval; outside eval it depends on the enclosing context. }
+      if (FIsEvalCode and (not FAllowEvalMeta)) or
+         ((not FIsEvalCode) and (FFunctionDepth = 0) and (FClassDepth = 0)
+          and (not FInStaticBlock)) then
+        ErrorAtCurrent('''new.target'' expression is only allowed within functions or class bodies');
+      left := TFloriaJSIdentifierExpr.Create('new.target', op.Line, op.Column);
+    end
+    else
+      left := ParseNewExpression(op);
   end
   else if FCurrent.Kind in [tkNot, tkBitNot, tkMinus, tkPlus, tkPlusPlus, tkMinusMinus, tkTypeof, tkDelete, tkVoid, tkAwait, tkEllipsis] then
     left := ParseUnaryPrefix()
@@ -2200,7 +2223,7 @@ begin
           begin
             memberPropName := FPrevious.Text;
             memberIsPrivate := True;
-            if (FClassDepth = 0) and (not FAllowPrivateAccess) then
+            if FClassDepth = 0 then
               ErrorAtCurrent('Private field must be declared in an enclosing class');
           end
           else if Match(tkIdentifier) then
