@@ -75,6 +75,18 @@ type
     { How many class bodies enclose the current position. A private name is only
       meaningful inside one. }
     FClassDepth: Integer;
+    { Set when parsing `eval` source, which runs inside a class body that the
+      parser cannot see, so a private name is accepted without a static check. }
+    FAllowPrivateAccess: Boolean;
+    { Private names declared anywhere in the current outermost class tree. A
+      nested class may reach an enclosing class's private names, so validation
+      waits until the outermost body has been parsed. }
+    FDeclaredPrivates: TStringList;
+    FPendingPrivateClasses: TFPList;
+    { The classes currently being parsed, innermost last. }
+    FClassStack: TFPList;
+    { Class node -> its enclosing class, as an object pointer. }
+    FClassParents: TStringList;
     { True while parsing the direct body of the program. Import/export
       declarations are only legal there when the source is a module. }
     FAtTopLevel: Boolean;
@@ -114,6 +126,9 @@ type
     function  ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
     { Rejects a `#name` used in the class body that the body never declares. }
     procedure ValidatePrivateNames(ACls: TFloriaJSClassNode);
+    { Drops a class node from the private-name bookkeeping before it is freed on
+      an error path. }
+    procedure ForgetClass(ACls: TFloriaJSClassNode);
     function  ParseClassDeclaration(): TFloriaJSStmtNode;
     function  ParseTaggedTemplate(ATag: TFloriaJSExprNode): TFloriaJSExprNode;
     function  ParseFunctionExpr(AIsAsync: Boolean = False; AStartPos: Integer = -1): TFloriaJSExprNode;
@@ -185,6 +200,8 @@ type
       top-level await become legal. }
     procedure SetModuleMode(AValue: Boolean);
     property IsModule: Boolean read FIsModule;
+    { Permits a private name without a static declaration check, for eval. }
+    property AllowPrivateAccess: Boolean read FAllowPrivateAccess write FAllowPrivateAccess;
 
     property Errors: TStringList read FErrors;
   end;
@@ -207,6 +224,13 @@ begin
   FAsyncDepth := 0;
   FInStaticBlock := False;
   FClassDepth := 0;
+  FAllowPrivateAccess := False;
+  FDeclaredPrivates := TStringList.Create();
+  FDeclaredPrivates.CaseSensitive := True;
+  FPendingPrivateClasses := TFPList.Create();
+  FClassStack := TFPList.Create();
+  FClassParents := TStringList.Create();
+  FClassParents.Sorted := True;
   Advance();
 end;
 
@@ -224,11 +248,22 @@ begin
   FAsyncDepth := 0;
   FInStaticBlock := False;
   FClassDepth := 0;
+  FAllowPrivateAccess := False;
+  FDeclaredPrivates := TStringList.Create();
+  FDeclaredPrivates.CaseSensitive := True;
+  FPendingPrivateClasses := TFPList.Create();
+  FClassStack := TFPList.Create();
+  FClassParents := TStringList.Create();
+  FClassParents.Sorted := True;
   Advance();
 end;
 
 destructor TFloriaJSParser.Destroy();
 begin
+  FreeAndNil(FClassParents);
+  FreeAndNil(FClassStack);
+  FreeAndNil(FPendingPrivateClasses);
+  FreeAndNil(FDeclaredPrivates);
   FreeAndNil(FLabels);
   FreeAndNil(FErrors);
   if FOwnsLexer then
@@ -836,7 +871,7 @@ begin
       if Match(tkPrivateName) then
       begin
         memberPropName := FPrevious.Text;
-        if FClassDepth = 0 then
+        if (FClassDepth = 0) and (not FAllowPrivateAccess) then
           ErrorAtCurrent('Private field must be declared in an enclosing class');
       end
       else if Match(tkIdentifier) then
@@ -977,6 +1012,7 @@ begin
   if cls.Name = '' then
   begin
     ErrorAtCurrent('A class declaration needs a name');
+    ForgetClass(cls);
     cls.Free();
     Exit(TFloriaJSBlockStmt.Create(startLine, startCol));
   end;
@@ -1191,6 +1227,13 @@ var
   i: Integer;
 begin
   if (AExpr = nil) or (AInto = nil) then Exit;
+  if AExpr is TFloriaJSIdentifierExpr then
+  begin
+    if (Length(TFloriaJSIdentifierExpr(AExpr).Name) > 0) and
+       (TFloriaJSIdentifierExpr(AExpr).Name[1] = '#') then
+      AInto.Add(TFloriaJSIdentifierExpr(AExpr).Name);
+    Exit;
+  end;
   if AExpr is TFloriaJSMemberExpr then
   begin
     if TFloriaJSMemberExpr(AExpr).IsPrivate then
@@ -1353,24 +1396,59 @@ begin
   end;
 end;
 
-procedure TFloriaJSParser.ValidatePrivateNames(ACls: TFloriaJSClassNode);
+procedure TFloriaJSParser.ForgetClass(ACls: TFloriaJSClassNode);
 var
-  i, j: Integer;
-  declared, refs: TStringList;
-  member: TFloriaJSClassMember;
+  idx, i: Integer;
 begin
   if ACls = nil then Exit;
-  declared := TStringList.Create();
+  if FClassStack <> nil then
+    for i := FClassStack.Count - 1 downto 0 do
+      if TFloriaJSClassNode(FClassStack[i]) = ACls then
+        FClassStack.Delete(i);
+  if FPendingPrivateClasses <> nil then
+  begin
+    idx := FPendingPrivateClasses.IndexOf(ACls);
+    if idx >= 0 then
+      FPendingPrivateClasses.Delete(idx);
+  end;
+  if FClassParents <> nil then
+  begin
+    idx := FClassParents.IndexOf(IntToStr(PtrInt(ACls)));
+    if idx >= 0 then
+      FClassParents.Delete(idx);
+  end;
+end;
+
+procedure TFloriaJSParser.ValidatePrivateNames(ACls: TFloriaJSClassNode);
+var
+  i, j, idx: Integer;
+  refs, visible: TStringList;
+  member: TFloriaJSClassMember;
+  node, parent: TFloriaJSClassNode;
+begin
+  if ACls = nil then Exit;
   refs := TStringList.Create();
+  visible := TStringList.Create();
   try
-    declared.CaseSensitive := True;
     refs.CaseSensitive := True;
-    for i := 0 to ACls.GetMemberCount() - 1 do
+    visible.CaseSensitive := True;
+
+    { A private name is visible in its own class and in the classes that
+      enclose it, never in a class nested inside it. }
+    node := ACls;
+    while node <> nil do
     begin
-      member := ACls.GetMember(i);
-      if member.IsPrivate then
-        declared.Add(member.Name);
+      for i := 0 to node.GetMemberCount() - 1 do
+        if node.GetMember(i).IsPrivate then
+          if visible.IndexOf(node.GetMember(i).Name) < 0 then
+            visible.Add(node.GetMember(i).Name);
+      idx := FClassParents.IndexOf(IntToStr(PtrInt(node)));
+      parent := nil;
+      if (idx >= 0) and (FClassParents.Objects[idx] <> nil) then
+        parent := TFloriaJSClassNode(FClassParents.Objects[idx]);
+      node := parent;
     end;
+
     for i := 0 to ACls.GetMemberCount() - 1 do
     begin
       member := ACls.GetMember(i);
@@ -1384,12 +1462,12 @@ begin
         CollectPrivateRefsStmt(member.Function_.Body, refs);
     end;
     for j := 0 to refs.Count - 1 do
-      if declared.IndexOf(refs[j]) < 0 then
-        ErrorAtCurrent('Private field ''''' + refs[j] +
-          ''' must be declared in an enclosing class');
+      if visible.IndexOf(refs[j]) < 0 then
+        ErrorAtCurrent('Private field ' + Chr(39) + refs[j] +
+          Chr(39) + ' must be declared in an enclosing class');
   finally
+    visible.Free();
     refs.Free();
-    declared.Free();
   end;
 end;
 
@@ -1409,6 +1487,7 @@ var
   computedNameExpr: TFloriaJSExprNode;
   wasSuperAllowed, wasInStaticBlock: Boolean;
   savedStaticDepth: Integer;
+  i: Integer;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -1427,6 +1506,7 @@ begin
 
   cls := TFloriaJSClassNode.Create(clsName, superClass, startLine, startCol);
   cls.IsDeclaration := AIsDeclaration;
+  FClassStack.Add(cls);
 
   Consume(tkLBrace, 'Expected ''{'' at start of class body');
 
@@ -1434,6 +1514,13 @@ begin
   wasSuperAllowed := FSuperAllowed;
   FSuperAllowed := True;
   Inc(FClassDepth);
+  { A fresh outermost class starts a fresh private-name scope. }
+  if FClassDepth = 1 then
+  begin
+    FDeclaredPrivates.Clear();
+    FPendingPrivateClasses.Clear();
+    FClassParents.Clear();
+  end;
 
   while (not Check(tkRBrace)) and (not IsAtEnd()) do
   begin
@@ -1518,17 +1605,6 @@ begin
       Break;
     end;
 
-    { `accessor x = value` is the decorator-era accessor field, which this
-      runtime does not implement. `accessor` on its own is still a legal member
-      name, so only the two-word form is rejected. }
-    if (memberName = 'accessor') and (not memberIsPrivate) and
-       (computedNameExpr = nil) and
-       ((FCurrent.Kind = tkIdentifier) or (FCurrent.Kind = tkPrivateName)) then
-    begin
-      ErrorAtCurrent('Accessor fields are not supported');
-      Break;
-    end;
-
     if Check(tkLParen) then
     begin
       fnExpr := ParseMethodBody(memberName, memberStartPos);
@@ -1570,10 +1646,29 @@ begin
   end;
 
   Consume(tkRBrace, 'Expected ''}'' at end of class body');
+  for i := 0 to cls.GetMemberCount() - 1 do
+    if cls.GetMember(i).IsPrivate then
+      FDeclaredPrivates.Add(cls.GetMember(i).Name);
+  { Record this class and the class that encloses it. }
+  if FClassStack.Count > 0 then
+    FClassStack.Delete(FClassStack.Count - 1);
+  if FClassStack.Count > 0 then
+    FClassParents.AddObject(IntToStr(PtrInt(cls)),
+      TObject(FClassStack[FClassStack.Count - 1]))
+  else
+    FClassParents.AddObject(IntToStr(PtrInt(cls)), nil);
+  FPendingPrivateClasses.Add(cls);
   Dec(FClassDepth);
   FSuperAllowed := wasSuperAllowed;
   cls.SourceText := SourceSlice(classStartPos, FPrevious.EndPos);
-  ValidatePrivateNames(cls);
+  { Validate only once the outermost class body is complete: a nested class may
+    refer to a private name its enclosing class declares later in the source. }
+  if FClassDepth = 0 then
+  begin
+    for i := 0 to FPendingPrivateClasses.Count - 1 do
+      ValidatePrivateNames(TFloriaJSClassNode(FPendingPrivateClasses[i]));
+    FPendingPrivateClasses.Clear();
+  end;
   Result := cls;
 end;
 
@@ -2105,7 +2200,7 @@ begin
           begin
             memberPropName := FPrevious.Text;
             memberIsPrivate := True;
-            if FClassDepth = 0 then
+            if (FClassDepth = 0) and (not FAllowPrivateAccess) then
               ErrorAtCurrent('Private field must be declared in an enclosing class');
           end
           else if Match(tkIdentifier) then
@@ -2331,7 +2426,13 @@ begin
     startPos := FPrevious.StartPos;
 
   if Match(tkIdentifier) then
-    fnName := FPrevious.Text
+  begin
+    fnName := FPrevious.Text;
+    {  is a reserved word inside a static block, so it may not name a
+      function there. }
+    if FInStaticBlock and (fnName = 'await') then
+      ErrorAtCurrent('Unexpected reserved word');
+  end
   else if AAllowAnonymous then
     { An anonymous default-exported function is legal. It has no local binding;
       the default export is recorded on the export declaration, so the
@@ -3121,6 +3222,22 @@ begin
   startLine := FCurrent.Line;
   startCol := FCurrent.Column;
   startPos := FCurrent.StartPos;
+
+  { Source-phase (`import source x from "m"`) and deferred (`import defer * as
+    ns from "m"`) imports are later proposals this engine does not implement.
+    They are reported as a parser limitation rather than as a specification
+    error, so a diagnostic adapter can classify them honestly. }
+  if (FLexer.PeekToken().Kind = tkIdentifier) and
+     ((FLexer.PeekToken().Text = 'source') or (FLexer.PeekToken().Text = 'defer')) then
+  begin
+    Advance(); { consume `import` }
+    ErrorAtCurrent('Source-phase and deferred imports are not supported');
+    SkipModuleDeclaration();
+    decl := TFloriaJSImportDecl.Create('', startLine, startCol);
+    decl.SourceStart := startPos;
+    decl.SourceEnd := FPrevious.EndPos;
+    Exit(decl);
+  end;
 
   { Report the restriction at the keyword, before it is consumed. }
   if not CheckModuleDeclarationContext('import') then

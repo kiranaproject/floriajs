@@ -3,6 +3,4 @@ negative:
   phase: parse
   type: SyntaxError
 ---*/
-class Example {
-  accessor field = 1;
-}
+import source thing from './thing.js';

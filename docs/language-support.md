@@ -524,8 +524,13 @@ assignment operator, including plain `=`.
 - A field initializer may not reference `arguments` or call `super()`; both
   are early errors, including when they appear inside an arrow function in the
   initializer.
-- The decorator-era `accessor x = value` field form is not implemented and is
-  rejected as a parser limitation.
+- A private name declared by an enclosing class is visible to a class nested
+  inside it, but not to a class that *contains* the declaration.
+- Direct `eval` inside a class body accepts a private name without the static
+  declaration check, because the parser cannot see the caller's class. The
+  runtime does not yet resolve such a name to the caller's class brand, so
+  `eval("this.#x")` reads `undefined` rather than the private value. That is the
+  one remaining private-name gap.
 
 ### Errors and promises
 
