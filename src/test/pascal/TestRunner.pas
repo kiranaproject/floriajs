@@ -10765,6 +10765,36 @@ begin
     res := engine.Execute('function f() { void yield; }');
     AssertTrue('yield outside a generator is an identifier', res.Success);
 
+    // Class-element early errors.
+    res := engine.Execute('class C { *constructor() {} }');
+    AssertFalse('a generator constructor is rejected', res.Success);
+    res := engine.Execute('class B {} class C extends B { *m() { super(); } }');
+    AssertFalse('super() in a non-constructor method is rejected', res.Success);
+    res := engine.Execute('class B {} class C extends B { static *m() { super(); } }');
+    AssertFalse('super() in a static method is rejected', res.Success);
+    res := engine.Execute('class C { static *prototype() {} }');
+    AssertFalse('a static element named prototype is rejected', res.Success);
+    res := engine.Execute('class C { static * #constructor() {} }');
+    AssertFalse('a private #constructor is rejected', res.Success);
+    res := engine.Execute('class B {} class C extends B { constructor() { super(); } }');
+    AssertTrue('super() in a derived constructor is still accepted', res.Success);
+    res := engine.Execute('class B { m() {} } class C extends B { m() { super.m(); } }');
+    AssertTrue('super.m() in a method is still accepted', res.Success);
+
+    // `yield` restrictions.
+    res := engine.Execute('class A { *g() { yield 3 + yield 4; } }');
+    AssertFalse('yield may not start a binary operand', res.Success);
+    res := engine.Execute('class A { *g() { yield 1, yield 2; } }');
+    AssertTrue('yield is allowed after a comma', res.Success);
+    res := engine.Execute('class A { *g(x = yield) {} }');
+    AssertFalse('yield in generator parameters is rejected', res.Success);
+    res := engine.Execute('class A { *g() { yield' + LineEnding + '* 1; } }');
+    AssertFalse('yield may not be followed by a newline and *', res.Success);
+    res := engine.Execute('class C { * \u0023m() {} }');
+    AssertFalse('an escaped # may not form a private name', res.Success);
+    res := engine.Execute('class C { \u0061sync* m() {} }');
+    AssertFalse('escaped async is not the async modifier', res.Success);
+
     // A rest element may not have an initializer or appear before the end.
     res := engine.Execute('class C { m([...[x] = []]) {} }');
     AssertFalse('a rest element may not have an initializer', res.Success);

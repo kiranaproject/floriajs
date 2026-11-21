@@ -484,16 +484,19 @@ var
   txt, hexCode: string;
   kind: TFloriaJSTokenKind;
   valInt: Integer;
+  hasEscape: Boolean;
 begin
   startPos := FPos;
   startLine := FLine;
   startCol := FColumn;
   txt := '';
+  hasEscape := False;
 
   while not IsAtEnd() do
   begin
     if (PeekChar() = '\') and (PeekNextChar() = 'u') then
     begin
+      hasEscape := True;
       AdvanceChar();
       AdvanceChar();
       hexCode := AdvanceChar();
@@ -511,7 +514,17 @@ begin
       Break;
   end;
 
+  { A private name's `#` may not be written with an escape. }
+  if hasEscape and (Length(txt) > 0) and (txt[1] = '#') then
+    Exit(MakeError('Unexpected character: ''#''', startLine, startCol, startPos));
+
   kind := CheckKeyword(txt);
+  { An escaped spelling is an IdentifierName, not the keyword: `\u0061sync`
+    must not act as the `async` modifier. Other escaped reserved words keep
+    their keyword kind so a generator still rejects an escaped `yield`. }
+  if hasEscape and (kind = tkAsync) then
+    kind := tkIdentifier;
+
   Result := MakeToken(kind, txt, startLine, startCol, startPos);
 end;
 

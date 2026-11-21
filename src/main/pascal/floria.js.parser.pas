@@ -84,6 +84,9 @@ type
     { How many generator bodies enclose the current position. Inside one,
       `yield` is reserved and may not be an identifier reference. }
     FGeneratorDepth: Integer;
+    { True while parsing the parameter list of a generator, where `yield` is
+      not allowed at all. }
+    FInGeneratorParams: Boolean;
     { True while parsing in a position where a YieldExpression is allowed, which
       is only the AssignmentExpression level. }
     FYieldExprAllowed: Boolean;
@@ -140,6 +143,7 @@ type
     function  ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
     { Rejects a `#name` used in the class body that the body never declares. }
     procedure ValidatePrivateNames(ACls: TFloriaJSClassNode);
+    procedure ValidateClassMember(AMember: TFloriaJSClassMember);
     { Drops a class node from the private-name bookkeeping before it is freed on
       an error path. }
     procedure ForgetClass(ACls: TFloriaJSClassNode);
@@ -243,6 +247,7 @@ begin
   FIsEvalCode := False;
   FAllowEvalMeta := False;
   FGeneratorDepth := 0;
+  FInGeneratorParams := False;
   FYieldExprAllowed := False;
   FDeclaredPrivates := TStringList.Create();
   FDeclaredPrivates.CaseSensitive := True;
@@ -270,6 +275,7 @@ begin
   FIsEvalCode := False;
   FAllowEvalMeta := False;
   FGeneratorDepth := 0;
+  FInGeneratorParams := False;
   FYieldExprAllowed := False;
   FDeclaredPrivates := TStringList.Create();
   FDeclaredPrivates.CaseSensitive := True;
@@ -651,6 +657,14 @@ begin
       an early SyntaxError. This is what makes `void yield;` illegal. }
     if (FGeneratorDepth > 0) and (not FYieldExprAllowed) then
       ErrorAtCurrent('Unexpected reserved word');
+    { A generator's parameters are evaluated outside its body, so `yield` may
+      not appear there. }
+    if FInGeneratorParams then
+      ErrorAtCurrent('Unexpected reserved word in generator parameters');
+    { `yield` may not be followed by a line terminator before `*`: the
+      delegation form is a restricted production. }
+    if (FCurrent.Line > FPrevious.Line) and Check(tkMultiply) then
+      ErrorAtCurrent('Unexpected token after a line terminator in ''yield''');
     { A line terminator after `yield` ends the expression, so `yield\n1` yields
       undefined and then evaluates `1` as a separate statement. }
     if FCurrent.Line > FPrevious.Line then
@@ -1511,6 +1525,50 @@ begin
   end;
 end;
 
+{ The class-element early errors that depend only on a single member: a
+  `constructor` may not be a generator or async method, a non-constructor or
+  static method may not call `super()`, a static element may not be named
+  `prototype`, and a private name may not be `#constructor`. }
+procedure TFloriaJSParser.ValidateClassMember(AMember: TFloriaJSClassMember);
+var
+  body: TFloriaJSStmtNode;
+begin
+  if AMember = nil then Exit;
+
+  if AMember.IsPrivate and (AMember.Name = '#constructor') then
+  begin
+    ErrorAtCurrent('Classes may not have a private element named #constructor');
+    Exit;
+  end;
+
+  if AMember.IsStatic and (not AMember.IsPrivate) and
+     (AMember.Name = 'prototype') then
+  begin
+    ErrorAtCurrent('Classes may not have a static property named prototype');
+    Exit;
+  end;
+
+  if (AMember.Kind = fjcmMethod) and (not AMember.IsStatic) and
+     (AMember.Name = 'constructor') then
+  begin
+    if (AMember.Function_ <> nil) and
+       (AMember.Function_.IsAsync or AMember.Function_.IsGenerator) then
+      ErrorAtCurrent('Class constructor may not be an async or generator method');
+    Exit;
+  end;
+
+  { `super()` constructs the base class and is legal only in a derived
+    constructor. A static method may never call it, and neither may an ordinary
+    method, including a generator or async one. An arrow inside such a method is
+    transparent for `super`. }
+  if (AMember.Function_ <> nil) and (AMember.Kind = fjcmMethod) then
+  begin
+    body := AMember.Function_.Body;
+    if StmtContainsSuperCall(body) then
+      ErrorAtCurrent('''super'' keyword unexpected here');
+  end;
+end;
+
 function TFloriaJSParser.ParseClassExpr(AIsDeclaration: Boolean): TFloriaJSClassNode;
 var
   cls: TFloriaJSClassNode;
@@ -1611,15 +1669,27 @@ begin
     if (FCurrent.Kind = tkIdentifier) and
        ((FCurrent.Text = 'get') or (FCurrent.Text = 'set')) and
        StartsPropertyName(FLexer.PeekToken().Kind) and
-       (FLexer.PeekToken().Kind <> tkMultiply) then
+       (FLexer.PeekToken().Kind <> tkMultiply) and
+       (FLexer.PeekToken().Line = FCurrent.Line) then
     begin
       if FCurrent.Text = 'get' then kind := fjcmGetter else kind := fjcmSetter;
+      Advance();
+    end
+    else if (FCurrent.Kind = tkIdentifier) and (FCurrent.Text = 'accessor') and
+            StartsPropertyName(FLexer.PeekToken().Kind) and
+            (FLexer.PeekToken().Kind <> tkMultiply) and
+            (FLexer.PeekToken().Line = FCurrent.Line) then
+    begin
+      { `accessor x` declares a getter/setter pair with a backing field. The
+        syntax is accepted and the member is treated as a plain field; the
+        accessor semantics themselves are not implemented. }
       Advance();
     end
     else if (FCurrent.Kind = tkAsync) and
             StartsPropertyName(FLexer.PeekToken().Kind) and
             (FLexer.PeekToken().Kind <> tkAssign) and
-            (FLexer.PeekToken().Kind <> tkSemicolon) then
+            (FLexer.PeekToken().Kind <> tkSemicolon) and
+            (FLexer.PeekToken().Line = FCurrent.Line) then
     begin
       { An async method or async generator method. }
       Advance();
@@ -1680,6 +1750,7 @@ begin
         member.Computed := True;
         member.NameExpr := computedNameExpr;
       end;
+      ValidateClassMember(member);
       cls.AddMember(member);
       Continue;
     end;
@@ -1705,8 +1776,14 @@ begin
       member.NameExpr := computedNameExpr;
     end;
     member.Initializer := fieldInit;
+    ValidateClassMember(member);
     cls.AddMember(member);
-    Match(tkSemicolon);
+    { A field declaration ends at a semicolon, the class body's close, or a line
+      terminator (ASI). Anything else is a syntax error, which is what makes
+      `\u0061sync* m(){}` invalid rather than two members. }
+    if (not Match(tkSemicolon)) and (not Check(tkRBrace)) and
+       (not IsAtEnd()) and (not HasLineBreakBeforeCurrent()) then
+      ErrorAtCurrent('Expected '';'' after a class field');
   end;
 
   Consume(tkRBrace, 'Expected ''}'' at end of class body');
@@ -1770,6 +1847,7 @@ var
   fnExpr: TFloriaJSFunctionExpr;
   startLine, startCol: Integer;
   bodyStmt: TFloriaJSStmtNode;
+  savedGenParams: Boolean;
 begin
   startLine := FCurrent.Line;
   startCol := FCurrent.Column;
@@ -1777,7 +1855,13 @@ begin
   fnExpr := TFloriaJSFunctionExpr.Create(AName, False, startLine, startCol);
   fnExpr.IsAsync := AIsAsync;
   fnExpr.IsGenerator := AIsGenerator;
-  ParseFormalParameters(fnExpr.Parameters);
+  savedGenParams := FInGeneratorParams;
+  if AIsGenerator then FInGeneratorParams := True;
+  try
+    ParseFormalParameters(fnExpr.Parameters);
+  finally
+    FInGeneratorParams := savedGenParams;
+  end;
   if AIsAsync and AIsGenerator then
   begin
     Inc(FGeneratorDepth);
@@ -2288,6 +2372,7 @@ var
   computedProp: TFloriaJSExprNode;
   memberExpr: TFloriaJSMemberExpr;
   memberIsPrivate: Boolean;
+  savedYield: Boolean;
   startPos: Integer;
 begin
   { Prefix parsing }
@@ -2490,7 +2575,22 @@ begin
       else
         nextPrec := prec + 1;
 
-      right := ParsePrecedence(nextPrec);
+      { A binary operand is not an AssignmentExpression position, so a
+        YieldExpression may not start it: `yield 3 + yield 4` is an early
+        error. The comma operator is exempt: its right operand *is* an
+        AssignmentExpression, so `yield 1, yield 2` is legal. }
+      if op.Kind = tkComma then
+        right := ParsePrecedence(nextPrec)
+      else
+      begin
+        savedYield := FYieldExprAllowed;
+        FYieldExprAllowed := False;
+        try
+          right := ParsePrecedence(nextPrec);
+        finally
+          FYieldExprAllowed := savedYield;
+        end;
+      end;
       left := TFloriaJSBinaryExpr.Create(left, op.Kind, right, op.Line, op.Column);
     end;
   end;
@@ -2634,6 +2734,7 @@ var
   fnDecl: TFloriaJSFunctionDecl;
   startLine, startCol, startPos: Integer;
   bodyBlock: TFloriaJSBlockStmt;
+  savedGenParams: Boolean;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -2663,7 +2764,13 @@ begin
 
   fnDecl := TFloriaJSFunctionDecl.Create(fnName, startLine, startCol, AIsAsync);
   fnDecl.IsGenerator := AIsGenerator;
-  ParseFormalParameters(fnDecl.Parameters);
+  savedGenParams := FInGeneratorParams;
+  if AIsGenerator then FInGeneratorParams := True;
+  try
+    ParseFormalParameters(fnDecl.Parameters);
+  finally
+    FInGeneratorParams := savedGenParams;
+  end;
   if AIsAsync then
     bodyBlock := TFloriaJSBlockStmt(ParseAsyncFunctionBlockBody())
   else
