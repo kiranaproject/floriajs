@@ -334,7 +334,7 @@ type
     property Parameters: TStringList read FParameters;
     property Body: TFloriaJSStmtNode read FBody;
     property IsArrow: Boolean read FIsArrow;
-    property IsAsync: Boolean read FIsAsync;
+    property IsAsync: Boolean read FIsAsync write FIsAsync;
     property IsGenerator: Boolean read FIsGenerator write FIsGenerator;
     { The exact source spelling, retained for `Function.prototype.toString`. }
     property SourceText: string read FSourceText write FSourceText;

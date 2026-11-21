@@ -114,6 +114,10 @@ type
       keywords, so those sites must not compare the token enum by range: the
       keyword block is not contiguous with the delimiters that follow it. }
     function  IsKeywordToken(AKind: TFloriaJSTokenKind): Boolean;
+    { A token that can begin a class member's property name. Used to tell a
+      modifier (`static`, `async`, `get`, `set`, `*`) from a member named by
+      that word. }
+    function  StartsPropertyName(AKind: TFloriaJSTokenKind): Boolean;
     function  GetInfixPrecedence(AKind: TFloriaJSTokenKind): Integer;
     function  ParsePrecedence(APrec: Integer): TFloriaJSExprNode;
     function  ParseAssignmentExpression(): TFloriaJSExprNode;
@@ -399,6 +403,12 @@ begin
 end;
 
 { Precedence Table }
+
+function TFloriaJSParser.StartsPropertyName(AKind: TFloriaJSTokenKind): Boolean;
+begin
+  Result := (AKind in [tkIdentifier, tkString, tkNumber, tkLBracket,
+    tkPrivateName, tkMultiply]) or IsKeywordToken(AKind);
+end;
 
 function TFloriaJSParser.IsKeywordToken(AKind: TFloriaJSTokenKind): Boolean;
 begin
@@ -1489,11 +1499,11 @@ var
   fnExpr: TFloriaJSFunctionExpr;
   member: TFloriaJSClassMember;
   fieldInit: TFloriaJSExprNode;
-  memberIsPrivate: Boolean;
+  memberIsPrivate, memberIsAsync, memberIsGenerator: Boolean;
   computedNameExpr: TFloriaJSExprNode;
   wasSuperAllowed, wasInStaticBlock: Boolean;
   savedStaticDepth: Integer;
-  i: Integer;
+  i, j: Integer;
 begin
   startLine := FPrevious.Line;
   startCol := FPrevious.Column;
@@ -1558,8 +1568,11 @@ begin
       Continue;
     end;
 
+    { A class member is `[static] [async] [*] PropertyName`, or a `get`/`set`
+      accessor. Each modifier is only a modifier when a property name follows
+      it, so `static()`, `async = 1`, and `get() {}` still name members. }
     isStatic := False;
-    if Check(tkStatic) and (FLexer.PeekToken().Kind <> tkLParen) then
+    if Check(tkStatic) and StartsPropertyName(FLexer.PeekToken().Kind) then
     begin
       Advance();
       isStatic := True;
@@ -1567,14 +1580,34 @@ begin
 
     kind := fjcmMethod;
     memberStartPos := FCurrent.StartPos;
+    memberIsAsync := False;
+    memberIsGenerator := False;
 
-    { get/set accessors, when not used as a plain method name. }
+    { get/set accessors, when a property name follows. }
     if (FCurrent.Kind = tkIdentifier) and
        ((FCurrent.Text = 'get') or (FCurrent.Text = 'set')) and
-       (FLexer.PeekToken().Kind <> tkLParen) then
+       StartsPropertyName(FLexer.PeekToken().Kind) and
+       (FLexer.PeekToken().Kind <> tkMultiply) then
     begin
       if FCurrent.Text = 'get' then kind := fjcmGetter else kind := fjcmSetter;
       Advance();
+    end
+    else if (FCurrent.Kind = tkAsync) and
+            StartsPropertyName(FLexer.PeekToken().Kind) and
+            (FLexer.PeekToken().Kind <> tkAssign) and
+            (FLexer.PeekToken().Kind <> tkSemicolon) then
+    begin
+      { An async method or async generator method. }
+      Advance();
+      memberIsAsync := True;
+      if Match(tkMultiply) then
+        memberIsGenerator := True;
+    end
+    else if Check(tkMultiply) then
+    begin
+      { A generator method: `*m() {}`. }
+      Advance();
+      memberIsGenerator := True;
     end;
 
     memberIsPrivate := False;
@@ -1614,6 +1647,8 @@ begin
     if Check(tkLParen) then
     begin
       fnExpr := ParseMethodBody(memberName, memberStartPos);
+      fnExpr.IsAsync := memberIsAsync;
+      fnExpr.IsGenerator := memberIsGenerator;
       member := TFloriaJSClassMember.Create(memberName, kind, isStatic,
         fnExpr, startLine, startCol);
       member.IsPrivate := memberIsPrivate;
@@ -1652,6 +1687,26 @@ begin
   end;
 
   Consume(tkRBrace, 'Expected ''}'' at end of class body');
+  { A private name may be declared once per class body, except for one getter
+    and one setter with the same name. Nested classes have their own scope, so
+    the check only looks at this body's own members. }
+  for i := 0 to cls.GetMemberCount() - 1 do
+  begin
+    if not cls.GetMember(i).IsPrivate then Continue;
+    for j := 0 to i - 1 do
+    begin
+      if (not cls.GetMember(j).IsPrivate) or
+         (cls.GetMember(j).Name <> cls.GetMember(i).Name) then
+        Continue;
+      { A getter and a setter may share a name; anything else may not. }
+      if (cls.GetMember(j).Kind in [fjcmGetter, fjcmSetter]) and
+         (cls.GetMember(i).Kind in [fjcmGetter, fjcmSetter]) and
+         (cls.GetMember(j).Kind <> cls.GetMember(i).Kind) then
+        Continue;
+      ErrorAtCurrent('Duplicate private name ''' + cls.GetMember(i).Name + '''');
+      Break;
+    end;
+  end;
   for i := 0 to cls.GetMemberCount() - 1 do
     if cls.GetMember(i).IsPrivate then
       FDeclaredPrivates.Add(cls.GetMember(i).Name);
@@ -1937,10 +1992,65 @@ begin
   Result := fnExpr;
 end;
 
+{ Early errors for a binding pattern: a rest element must be last and may not
+  have an initializer. Applies to formal parameters, not to an array literal
+  used as an expression. }
+procedure ValidateBindingPattern(AExpr: TFloriaJSExprNode;
+  const AContext: string; var AError: string);
+var
+  i: Integer;
+  arr: TFloriaJSArrayExpr;
+  obj: TFloriaJSObjectExpr;
+  elem: TFloriaJSExprNode;
+begin
+  if (AExpr = nil) or (AError <> '') then Exit;
+  if AExpr is TFloriaJSGroupExpr then
+  begin
+    ValidateBindingPattern(TFloriaJSGroupExpr(AExpr).Expression, AContext, AError);
+    Exit;
+  end;
+  if AExpr is TFloriaJSAssignExpr then
+  begin
+    ValidateBindingPattern(TFloriaJSAssignExpr(AExpr).Target, AContext, AError);
+    Exit;
+  end;
+  if AExpr is TFloriaJSSpreadExpr then
+  begin
+    elem := TFloriaJSSpreadExpr(AExpr).Expression;
+    if elem is TFloriaJSAssignExpr then
+      AError := 'A rest element may not have an initializer in ' + AContext;
+    Exit;
+  end;
+  if AExpr is TFloriaJSArrayExpr then
+  begin
+    arr := TFloriaJSArrayExpr(AExpr);
+    for i := 0 to arr.GetElementCount() - 1 do
+    begin
+      elem := arr.GetElement(i);
+      if elem is TFloriaJSSpreadExpr then
+      begin
+        if i <> arr.GetElementCount() - 1 then
+          AError := 'A rest element must be last in ' + AContext;
+        ValidateBindingPattern(elem, AContext, AError);
+        Exit;
+      end;
+      ValidateBindingPattern(elem, AContext, AError);
+    end;
+    Exit;
+  end;
+  if AExpr is TFloriaJSObjectExpr then
+  begin
+    obj := TFloriaJSObjectExpr(AExpr);
+    for i := 0 to obj.GetPropertyCount() - 1 do
+      ValidateBindingPattern(obj.GetPropertyValue(i), AContext, AError);
+  end;
+end;
+
 procedure TFloriaJSParser.ParseFormalParameters(AParams: TStringList);
 var
   paramName: string;
   defaultExpr, pat: TFloriaJSExprNode;
+  patternError: string;
 begin
   Consume(tkLParen, 'Expected ''('' before parameter list');
   if not Check(tkRParen) then
@@ -1956,6 +2066,9 @@ begin
           ErrorAtCurrent('Expected parameter name after ''...''');
           paramName := '...args';
         end;
+        { A rest parameter may not carry an initializer. }
+        if Check(tkAssign) then
+          ErrorAtCurrent('A rest parameter may not have an initializer');
         AParams.Add(paramName);
         Break; // Rest parameter must be last
       end;
@@ -1965,6 +2078,10 @@ begin
       begin
         Advance();
         pat := ParseArrayLiteral();
+        patternError := '';
+        ValidateBindingPattern(pat, 'a parameter list', patternError);
+        if patternError <> '' then
+          ErrorAtCurrent(patternError);
         if Match(tkAssign) then
           defaultExpr := ParseAssignmentExpression()
         else
@@ -1978,6 +2095,10 @@ begin
       begin
         Advance();
         pat := ParseObjectLiteral();
+        patternError := '';
+        ValidateBindingPattern(pat, 'a parameter list', patternError);
+        if patternError <> '' then
+          ErrorAtCurrent(patternError);
         if Match(tkAssign) then
           defaultExpr := ParseAssignmentExpression()
         else

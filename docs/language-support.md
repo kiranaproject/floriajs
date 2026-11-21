@@ -30,7 +30,7 @@ them.
 | Empty statement (`;`) | Yes | Treated as an empty block. |
 | `with` | Yes (sloppy) | Supported in sloppy mode, including boxed primitives. Strict mode rejects it as a `SyntaxError`. |
 | `debugger` | Yes | A no-op statement, recognised as a keyword. It is reserved, so it cannot be used as an identifier. |
-| `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, `static`, `extends`, `super`, and `new.target`. Public and private fields with initializers, private methods and accessors, `#x in obj` brand checks, computed member names, and static blocks. Methods are non-enumerable. |
+| `class` | Yes | Declarations and expressions, `constructor`, methods, `get`/`set`, generator and async methods, `static`, `extends`, `super`, and `new.target`. Public and private fields with initializers, private methods and accessors, `#x in obj` brand checks, computed member names, and static blocks. Methods are non-enumerable. |
 | Generators (`function*`, `yield`) | Yes | `function*` bodies run lazily and suspend at `yield`; `yield*` delegates. Generator objects implement `next()`, `return()`, and `Symbol.iterator`, and may be resumed by a later script. |
 | `for await` | Yes | Async iteration over async iterators and sync iterables; each step awaits the iterator result. `async function*` is supported, including `yield`, `await`, and `yield*`. |
 

@@ -1185,6 +1185,16 @@ begin
   if ABody is TFloriaJSBlockStmt then
     strict := strict or BlockHasUseStrict(TFloriaJSBlockStmt(ABody));
 
+  { A function with non-simple parameters may not also have a "use strict"
+    directive: the directive must apply before the parameters are evaluated. }
+  if (ABody is TFloriaJSBlockStmt) and
+     BlockHasUseStrict(TFloriaJSBlockStmt(ABody)) and (AParams <> nil) then
+    for i := 0 to AParams.Count - 1 do
+      if (AParams.Objects[i] <> nil) or
+         ((Length(AParams[i]) >= 3) and (Copy(AParams[i], 1, 3) = '...')) then
+        raise EFloriaJSCompileError.Create(
+          'SyntaxError: Illegal ''use strict'' directive in function with non-simple parameter list');
+
   if strict and (AParams <> nil) then
   begin
     seenParams := TStringList.Create();

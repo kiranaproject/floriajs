@@ -10724,6 +10724,56 @@ begin
 
     res := engine.Execute('new.target;');
     AssertFalse('new.target at the top level is rejected', res.Success);
+
+    // `async`, `*`, and `async *` are member modifiers, not names.
+    res := engine.Execute('class C { async m() { return 1; } } typeof new C().m();');
+    AssertTrue('an async method parses', res.Success);
+    AssertEquals('an async method returns a promise', 'object', res.StringValue);
+
+    res := engine.Execute('class C { async m() {} } new C().hasOwnProperty("async");');
+    AssertEquals('async is a modifier, not a field', 'false', res.StringValue);
+
+    res := engine.Execute('class C { *g() { yield 1; } } new C().g().next().value;');
+    AssertTrue('a generator method parses', res.Success);
+    AssertEquals('a generator method yields', '1', res.StringValue);
+
+    res := engine.Execute('class C { static async *ag() { yield 2; } } typeof C.ag();');
+    AssertTrue('a static async generator method parses', res.Success);
+    AssertEquals('it returns an object', 'object', res.StringValue);
+
+    // Those words are still usable as member names.
+    res := engine.Execute('class C { async = 1; get = 2; static = 3; }' +
+      ' var c = new C(); c.async + "," + c.get + "," + c.static;');
+    AssertTrue('async/get/static remain usable names', res.Success);
+    AssertEquals('fields named async, get, static', '1,2,3', res.StringValue);
+
+    res := engine.Execute('class C { async() { return 4; } get() { return 5; } }' +
+      ' new C().async() + new C().get();');
+    AssertTrue('methods named async and get', res.Success);
+    AssertEquals('the methods are callable', '9', res.StringValue);
+
+    // A rest element may not have an initializer or appear before the end.
+    res := engine.Execute('class C { m([...[x] = []]) {} }');
+    AssertFalse('a rest element may not have an initializer', res.Success);
+    res := engine.Execute('class C { m([...a, b]) {} }');
+    AssertFalse('a rest element must be last', res.Success);
+    res := engine.Execute('class C { m(...rest = 1) {} }');
+    AssertFalse('a rest parameter may not have a default', res.Success);
+
+    // A non-simple parameter list may not also carry a "use strict" directive.
+    res := engine.Execute(
+      'class C { m(a, ...rest) { "use strict"; } }');
+    AssertFalse('non-simple params and a strict directive are rejected', res.Success);
+
+    // An async method that returns an async arrow works end to end.
+    res := engine.Execute(
+      'class C { static async method() { return async () => 7; } }' +
+      ' globalThis.aa = "pending";' +
+      ' C.method().then(function (g) { return g(); })' +
+      '  .then(function (v) { globalThis.aa = v; });');
+    AssertTrue('an async method returning an async arrow', res.Success);
+    res := engine.Execute('String(globalThis.aa);');
+    AssertEquals('the chain resolves', '7', res.StringValue);
   finally
     engine.Free();
   end;
